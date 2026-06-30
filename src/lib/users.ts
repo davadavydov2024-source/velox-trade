@@ -19,12 +19,13 @@ const ordersCol = collection(db, "orders");
 const topUpsCol = collection(db, "topups");
 
 export async function ensureUserProfile(uid: string, email: string, displayName: string, photoURL?: string) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
   if (snap.exists()) {
-    await updateDoc(ref, { lastLoginAt: Date.now() });
-    return { id: snap.id, ...snap.data() } as UserProfile;
-  }
+  await updateDoc(ref, { lastLoginAt: Date.now() });
+  return {
+    uid: snap.id,
+    ...snap.data(),
+  } as UserProfile;
+}
   const profile: Omit<UserProfile, "uid"> = {
     email,
     displayName,
