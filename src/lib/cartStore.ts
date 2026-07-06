@@ -47,6 +47,6 @@ export const useCart = create<CartState>()(
       total: () => get().lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0),
       count: () => get().lines.reduce((sum, l) => sum + l.quantity, 0),
     }),
-    { name: "blade-shop-cart" }
+    { name: "velox-trade-cart" }
   )
 );

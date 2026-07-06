@@ -8,10 +8,11 @@ import { useCart } from "@/lib/cartStore";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createOrder, adjustUserBalance } from "@/lib/users";
+import { safeImageSrc } from "@/lib/safeImage";
 import { useRouter } from "next/navigation";
 
 const PROMO_CODES: Record<string, number> = {
-  BLADE10: 10,
+  VELOX10: 10,
   WELCOME5: 5,
 };
 
@@ -51,16 +52,33 @@ export default function CartPage() {
     }
     setPlacing(true);
     try {
-      await createOrder({
-        userId: user.uid,
-        items: lines.map((l) => ({ productId: l.product.id, name: l.product.name, price: l.product.price, quantity: l.quantity })),
-        total: finalTotal,
-        status: "paid",
-      });
+      // Товары могут принадлежать разным продавцам — группируем по продавцу
+      // и создаём отдельный заказ на каждого, чтобы чат/подтверждение/отзыв были привязаны к конкретной сделке.
+      const bySeller = new Map<string, typeof lines>();
+      for (const line of lines) {
+        const sellerId = line.product.sellerId || "store";
+        const group = bySeller.get(sellerId) ?? [];
+        group.push(line);
+        bySeller.set(sellerId, group);
+      }
+
+      const discountRatio = subtotal > 0 ? finalTotal / subtotal : 1;
+
+      for (const [sellerId, group] of bySeller) {
+        const groupSubtotal = group.reduce((sum, l) => sum + l.product.price * l.quantity, 0);
+        await createOrder({
+          userId: user.uid,
+          sellerId,
+          items: group.map((l) => ({ productId: l.product.id, name: l.product.name, price: l.product.price, quantity: l.quantity })),
+          total: +(groupSubtotal * discountRatio).toFixed(2),
+          status: "pending_confirmation",
+        });
+      }
+
       await adjustUserBalance(user.uid, -finalTotal);
       await refreshProfile();
       clear();
-      toast("success", "Заказ оформлен! Предметы появятся в истории покупок.");
+      toast("success", "Заказ оформлен! Подтверди получение предмета в истории заказов, когда получишь его.");
       router.push("/profile/orders");
     } catch (e) {
       toast("error", "Не удалось оформить заказ. Попробуйте снова.");
@@ -88,7 +106,7 @@ export default function CartPage() {
           {lines.map((line) => (
             <div key={line.product.id} className="card p-4 flex items-center gap-4">
               <div className="relative w-16 h-16 rounded-xl bg-black/30 shrink-0">
-                <Image src={line.product.image} alt={line.product.name} fill className="object-contain p-2" sizes="64px" />
+                <Image src={safeImageSrc(line.product.image)} alt={line.product.name} fill className="object-contain p-2" sizes="64px" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{line.product.name}</p>

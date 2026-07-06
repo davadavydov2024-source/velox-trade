@@ -24,8 +24,13 @@ export default function AdminTopUpsPage() {
       await setTopUpStatus(req.id, "approved");
       setRequests((list) => list.map((r) => (r.id === req.id ? { ...r, status: "approved" } : r)));
       toast("success", "Заявка подтверждена, баланс обновлён");
-    } catch {
-      toast("error", "Ошибка при подтверждении заявки");
+    } catch (err: any) {
+      if (err?.code === "permission-denied") {
+        toast("error", "Нет прав на запись. Проверь, что твой UID указан в firestore.rules как админ.");
+      } else {
+        toast("error", "Ошибка при подтверждении заявки");
+      }
+      console.error(err);
     }
   }
 

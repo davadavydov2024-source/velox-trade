@@ -4,13 +4,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: "#0d1017",
-        surface: "#151922",
-        border: "#232838",
+        bg: "var(--color-bg, #0d1017)",
+        surface: "var(--color-surface, #151922)",
+        border: "var(--color-border, #232838)",
         accent: {
-          DEFAULT: "#ff9800",
-          dark: "#e08600",
-          light: "#ffb74d",
+          DEFAULT: "var(--color-accent, #ff9800)",
+          dark: "var(--color-accent-dark, #e08600)",
+          light: "var(--color-accent-light, #ffb74d)",
         },
         rarity: {
           common: "#9aa3b2",

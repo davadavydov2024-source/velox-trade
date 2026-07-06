@@ -8,7 +8,7 @@ export function Footer() {
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2 font-bold mb-3">
             <Swords className="text-accent" size={20} />
-            BLADE SHOP
+            VELOX TRADE
           </div>
           <p className="text-white/40">Маркетплейс игровых предметов для Roblox.</p>
         </div>
@@ -36,7 +36,7 @@ export function Footer() {
         </div>
       </div>
       <div className="text-center text-white/30 text-xs py-4 border-t border-border">
-        © {new Date().getFullYear()} Blade Shop. Все права защищены.
+        © {new Date().getFullYear()} Velox Trade. Все права защищены.
       </div>
     </footer>
   );

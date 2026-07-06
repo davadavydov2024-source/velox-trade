@@ -6,9 +6,12 @@ import { Plus, Trash2, Edit3 } from "lucide-react";
 import { getProducts, createProduct, updateProduct, deleteProduct } from "@/lib/products";
 import { Product, Rarity, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
+import { ImageUploadField } from "@/components/ImageUploadField";
 
 const EMPTY: Omit<Product, "id" | "createdAt"> = {
   gameId: "",
+  sellerId: "store",
   name: "",
   description: "",
   image: "",
@@ -52,6 +55,10 @@ export default function AdminProductsPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (form.image && !isValidImageSrc(form.image)) {
+      toast("warning", "Ссылка на изображение должна начинаться с http:// или https://");
+      return;
+    }
     try {
       if (editing) {
         await updateProduct(editing.id, form);
@@ -62,8 +69,13 @@ export default function AdminProductsPage() {
       }
       setShowForm(false);
       refresh();
-    } catch {
-      toast("error", "Ошибка сохранения товара");
+    } catch (err: any) {
+      if (err?.code === "permission-denied") {
+        toast("error", "Нет прав на запись. Проверь, что твой UID указан в firestore.rules как админ.");
+      } else {
+        toast("error", "Ошибка сохранения товара");
+      }
+      console.error(err);
     }
   }
 
@@ -101,11 +113,14 @@ export default function AdminProductsPage() {
           />
           <input
             required
-            placeholder="URL изображения"
-            value={form.image}
-            onChange={(e) => setForm({ ...form, image: e.target.value })}
-            className="input-field py-2.5 sm:col-span-2"
+            placeholder='UID продавца (оставь "store" для товаров магазина)'
+            value={form.sellerId}
+            onChange={(e) => setForm({ ...form, sellerId: e.target.value })}
+            className="input-field py-2.5"
           />
+          <div className="sm:col-span-2">
+            <ImageUploadField value={form.image} onChange={(url) => setForm({ ...form, image: url })} folder="products" label="Изображение товара" />
+          </div>
           <textarea
             placeholder="Описание"
             value={form.description}
@@ -181,7 +196,7 @@ export default function AdminProductsPage() {
                 <tr key={p.id} className="border-b border-border/50 hover:bg-white/[0.02]">
                   <td className="p-3 flex items-center gap-3">
                     <div className="relative w-9 h-9 rounded-lg bg-black/30 shrink-0">
-                      {p.image && <Image src={p.image} alt={p.name} fill className="object-contain p-1 rounded-lg" sizes="36px" />}
+                      {isValidImageSrc(p.image) && <Image src={safeImageSrc(p.image)} alt={p.name} fill className="object-contain p-1 rounded-lg" sizes="36px" />}
                     </div>
                     {p.name}
                   </td>

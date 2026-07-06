@@ -4,11 +4,11 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   createUserWithEmailAndPassword,
   signInWithPopup,
   signOut as fbSignOut,
   sendEmailVerification,
-  sendPasswordResetEmail,
   updateProfile,
   User,
 } from "firebase/auth";
@@ -16,12 +16,20 @@ import { auth, googleProvider } from "./firebase";
 import { ensureUserProfile, getUserProfile } from "./users";
 import { UserProfile } from "@/types";
 
+/** Бан считается действующим, если banned=true и (until не задан/"forever", либо ещё не истёк). */
+export function isEffectivelyBanned(profile: UserProfile | null): boolean {
+  if (!profile?.banned) return false;
+  if (!profile.banUntil || profile.banUntil === "forever") return true;
+  return profile.banUntil > Date.now();
+}
+
 interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithCustomToken: (token: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -62,6 +70,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   }
 
+  async function loginWithCustomToken(token: string) {
+    await signInWithCustomToken(auth, token);
+  }
+
   async function register(email: string, password: string, name: string) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
@@ -78,12 +90,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function resetPassword(email: string) {
-    await sendPasswordResetEmail(auth, email);
+    const res = await fetch("/api/auth/send-reset-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "Не удалось отправить письмо для восстановления пароля");
+    }
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, profile, loading, refreshProfile, login, register, loginWithGoogle, logout, resetPassword }}
+      value={{ user, profile, loading, refreshProfile, login, loginWithCustomToken, register, loginWithGoogle, logout, resetPassword }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createTopUpRequest } from "@/lib/users";
+import { getFeatureFlags } from "@/lib/featureFlags";
 
-const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "bladeshop_robot";
+const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 export default function TopUpPage() {
   const { user, profile } = useAuth();
@@ -15,6 +16,15 @@ export default function TopUpPage() {
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [enabled, setEnabled] = useState(true);
+  const [flagsLoaded, setFlagsLoaded] = useState(false);
+
+  useEffect(() => {
+    getFeatureFlags().then((f) => {
+      setEnabled(f.balanceTopupEnabled);
+      setFlagsLoaded(true);
+    });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,8 +48,13 @@ export default function TopUpPage() {
       });
       setSubmitted(true);
       toast("success", "Заявка создана. Подтвердите её в Telegram-боте.");
-    } catch {
-      toast("error", "Не удалось создать заявку. Попробуйте снова.");
+    } catch (err: any) {
+      if (err?.code === "permission-denied") {
+        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы (см. README).");
+      } else {
+        toast("error", "Не удалось создать заявку. Попробуйте снова.");
+      }
+      console.error("createTopUpRequest error:", err);
     } finally {
       setSubmitting(false);
     }
@@ -49,6 +64,21 @@ export default function TopUpPage() {
     <div className="space-y-6 max-w-xl">
       <h1 className="text-xl font-bold">Пополнение и вывод баланса</h1>
 
+      {!flagsLoaded ? (
+        <div className="card p-10 text-center text-white/40">Загрузка...</div>
+      ) : !enabled ? (
+        <div className="card p-8 text-center">
+          <p className="text-white/60">Пополнение и вывод баланса временно отключены администратором.</p>
+          <p className="text-white/40 text-sm mt-2">
+            Если нужна помощь — напиши в{" "}
+            <a href="/support" className="text-accent hover:underline">
+              поддержку
+            </a>
+            .
+          </p>
+        </div>
+      ) : (
+        <>
       <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5">
         <p className="text-sm text-white/70 leading-relaxed">
           Баланс пополняется и выводится <strong>вручную через администратора в Telegram</strong>, без автоматического
@@ -121,6 +151,8 @@ export default function TopUpPage() {
           </form>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

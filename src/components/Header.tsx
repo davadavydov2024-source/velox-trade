@@ -23,7 +23,7 @@ export function Header() {
         <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
           <Swords className="text-accent" size={24} />
           <span>
-            BLADE <span className="text-accent">SHOP</span>
+            VELOX <span className="text-accent">TRADE</span>
           </span>
         </Link>
 

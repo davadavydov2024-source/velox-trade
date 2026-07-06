@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard } from "lucide-react";
+import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
@@ -25,7 +25,9 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
     { href: "/profile", label: "Профиль", icon: Settings },
     { href: "/profile/orders", label: "История покупок", icon: ShoppingBag },
     { href: "/profile/topup", label: "Пополнение баланса", icon: Wallet },
+    { href: "/profile/sell", label: "Продать предметы", icon: Tag },
     { href: "/profile/favorites", label: "Любимые товары", icon: Heart },
+    { href: "/profile/appearance", label: "Оформление", icon: Palette },
     { href: "/profile/security", label: "Безопасность", icon: Shield },
   ];
 

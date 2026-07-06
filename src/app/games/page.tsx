@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getGames } from "@/lib/products";
 import { Game } from "@/types";
+import { safeImageSrc } from "@/lib/safeImage";
 
 export default function GamesPage() {
   const [games, setGames] = useState<Game[]>([]);
@@ -13,7 +14,7 @@ export default function GamesPage() {
   useEffect(() => {
     getGames()
       .then(setGames)
-      .catch(() => setGames([]))
+      .catch((err) => { console.error("Ошибка загрузки игр:", err); setGames([]); })
       .finally(() => setLoaded(true));
   }, []);
 
@@ -40,7 +41,7 @@ export default function GamesPage() {
               className="card p-5 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300"
             >
               <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
-                <Image src={game.image} alt={game.name} fill className="object-cover" sizes="80px" />
+                <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="80px" />
               </div>
               <span className="font-medium text-center">{game.name}</span>
             </Link>

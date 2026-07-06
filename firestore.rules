@@ -1,69 +1,8 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // ВАЖНО: список UID админов нужно продублировать здесь (Firestore Rules не видят .env проекта).
-    // Впиши те же UID, что в NEXT_PUBLIC_ADMIN_UIDS на сервере/в .env.local.
-    function isAdmin() {
-      return isSignedIn() && request.auth.uid in [
-        "REPLACE_WITH_ADMIN_UID_1"
-      ];
-    }
-
-    // --- users ---
-    // Пользователь может читать/писать только свой профиль, и НЕ может менять баланс или метки себе сам.
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isAdmin() ||
-        (isOwner(userId) &&
-          request.resource.data.balance == resource.data.balance &&
-          request.resource.data.badges == resource.data.badges &&
-          request.resource.data.banned == resource.data.banned);
-      allow delete: if isAdmin();
-    }
-
-    // --- products / games ---
-    // Каталог читают все, но изменять может только админ.
-    match /products/{productId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    match /games/{gameId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // --- orders ---
-    // Пользователь создаёт только свои заказы и видит только свои; админ видит и меняет всё.
-    match /orders/{orderId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAdmin();
-    }
-
-    // --- topups (заявки на пополнение/вывод) ---
-    // Пользователь создаёт свои заявки, статус и зачисление баланса меняет только админ.
-    match /topups/{topupId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == "pending";
-      allow update, delete: if isAdmin();
-    }
-
-    // --- ads ---
-    match /ads/{adId} {
-      allow read: if true;
-      allow write: if isAdmin();
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }

@@ -1,0 +1,39 @@
+type User @table {
+  username: String!
+  email: String!
+  locationPoint: String!
+  bio: String
+  reputationScore: Float
+}
+
+type Post @table {
+  title: String!
+  description: String!
+  status: String!
+  creator: User!
+  locationPoint: String!
+  category: String
+  expiryDate: Timestamp
+}
+
+type Interaction @table {
+  post: Post!
+  helper: User!
+  status: String!
+  feedbackRating: Int
+  feedbackComment: String
+}
+
+type Message @table {
+  interaction: Interaction!
+  sender: User!
+  content: String!
+  timestamp: Timestamp!
+}
+
+type Feedback @table {
+  interaction: Interaction!
+  rating: Int!
+  reviewer: User!
+  targetUser: User!
+}

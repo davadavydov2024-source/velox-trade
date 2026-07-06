@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
@@ -9,7 +9,7 @@ import { Product, Rarity, RARITY_LABEL } from "@/types";
 
 const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
-export default function CatalogPage() {
+function CatalogInner() {
   const params = useSearchParams();
   const gameSlug = params.get("game") ?? "";
   const initialQuery = params.get("q") ?? "";
@@ -26,7 +26,7 @@ export default function CatalogPage() {
   useEffect(() => {
     getProducts({ sort })
       .then((p) => setProducts(p))
-      .catch(() => setProducts([]))
+      .catch((err) => { console.error("Ошибка загрузки товаров:", err); setProducts([]); })
       .finally(() => setLoaded(true));
   }, [sort]);
 
@@ -133,5 +133,21 @@ export default function CatalogPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CatalogPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="card p-3 aspect-[3/4] animate-pulse bg-white/5" />
+          ))}
+        </div>
+      }
+    >
+      <CatalogInner />
+    </Suspense>
   );
 }

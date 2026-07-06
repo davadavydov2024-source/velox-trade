@@ -10,6 +10,7 @@ import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { ProductCard } from "@/components/ProductCard";
+import { safeImageSrc } from "@/lib/safeImage";
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,7 +34,7 @@ export default function ProductPage() {
     if (!product) return;
     getProducts({ gameId: product.gameId })
       .then((list) => setRelated(list.filter((p) => p.id !== product.id).slice(0, 4)))
-      .catch(() => setRelated([]));
+      .catch((err) => { console.error("Ошибка загрузки похожих товаров:", err); setRelated([]); });
   }, [product]);
 
   if (notFound) {
@@ -51,7 +52,7 @@ export default function ProductPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
       <div className="grid md:grid-cols-2 gap-10">
         <div className="card p-8 aspect-square relative">
-          <Image src={product.image} alt={product.name} fill className="object-contain p-10" sizes="500px" />
+          <Image src={safeImageSrc(product.image)} alt={product.name} fill className="object-contain p-10" sizes="500px" />
         </div>
 
         <div>

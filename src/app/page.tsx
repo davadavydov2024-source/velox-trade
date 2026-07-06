@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { getGames } from "@/lib/products";
 import { Game } from "@/types";
+import { safeImageSrc } from "@/lib/safeImage";
 
 export default function HomePage() {
   const [games, setGames] = useState<Game[]>([]);
@@ -14,7 +15,7 @@ export default function HomePage() {
   useEffect(() => {
     getGames()
       .then(setGames)
-      .catch(() => setGames([]))
+      .catch((err) => { console.error("Ошибка загрузки игр:", err); setGames([]); })
       .finally(() => setLoaded(true));
   }, []);
 
@@ -43,8 +44,8 @@ export default function HomePage() {
               <Link href="/catalog" className="btn-primary px-6 py-3.5 flex items-center gap-2 shadow-glow">
                 Начать покупки <ArrowRight size={18} />
               </Link>
-              <Link href="/sell" className="btn-secondary px-6 py-3.5">
-                Продать предметы
+              <Link href="/games" className="btn-secondary px-6 py-3.5">
+                Смотреть все игры
               </Link>
             </div>
             <div className="flex gap-8">
@@ -122,7 +123,7 @@ export default function HomePage() {
                 className="card p-4 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300"
               >
                 <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
-                  <Image src={game.image} alt={game.name} fill className="object-cover" sizes="56px" />
+                  <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="56px" />
                 </div>
                 <span className="text-xs text-center text-white/70 leading-tight">{game.name}</span>
               </Link>

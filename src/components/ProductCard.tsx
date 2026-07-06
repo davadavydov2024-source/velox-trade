@@ -6,6 +6,7 @@ import { ShoppingCart } from "lucide-react";
 import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
+import { safeImageSrc } from "@/lib/safeImage";
 
 const RARITY_BORDER: Record<string, string> = {
   common: "border-rarity-common/40",
@@ -27,7 +28,7 @@ export function ProductCard({ product }: { product: Product }) {
     <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1`}>
       <Link href={`/product/${product.id}`} className="block relative aspect-square rounded-[12px] overflow-hidden bg-black/30 mb-3">
         <Image
-          src={product.image}
+          src={safeImageSrc(product.image)}
           alt={product.name}
           fill
           className="object-contain p-4 transition-transform duration-300 group-hover:scale-110"

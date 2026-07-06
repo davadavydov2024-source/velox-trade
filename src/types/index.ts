@@ -19,6 +19,7 @@ export interface Game {
 export interface Product {
   id: string;
   gameId: string;
+  sellerId: string;
   name: string;
   description: string;
   image: string;
@@ -38,14 +39,18 @@ export interface CartItem {
 export interface Order {
   id: string;
   userId: string;
+  sellerId: string;
   items: { productId: string; name: string; price: number; quantity: number }[];
   total: number;
-  status: "pending" | "paid" | "delivered" | "cancelled";
+  status: "pending_confirmation" | "confirmed" | "disputed" | "cancelled";
+  reviewSubmitted?: boolean;
   createdAt: number;
+  confirmedAt?: number;
 }
 
 export type UserBadge =
   | "user"
+  | "creator"
   | "buyer"
   | "verified"
   | "blogger"
@@ -53,10 +58,18 @@ export type UserBadge =
   | "vip"
   | "moderator"
   | "admin"
-  | "founder";
+  | "developer"
+  | "founder"
+  | "checkmark_blue"
+  | "checkmark_grey";
+
+// Бейджи-«галочки» рисуются как значок рядом с именем (как верификация в соцсетях),
+// остальные — как цветные плашки под именем.
+export const CHECKMARK_BADGES: UserBadge[] = ["checkmark_blue", "checkmark_grey"];
 
 export const BADGE_LABEL: Record<UserBadge, string> = {
   user: "Пользователь",
+  creator: "Креатор",
   buyer: "Покупатель",
   verified: "Проверенный",
   blogger: "Блогер",
@@ -64,11 +77,15 @@ export const BADGE_LABEL: Record<UserBadge, string> = {
   vip: "VIP",
   moderator: "Модератор",
   admin: "Администратор",
+  developer: "Разработчик",
   founder: "Основатель",
+  checkmark_blue: "Синяя галочка",
+  checkmark_grey: "Серая галочка",
 };
 
 export const BADGE_COLOR: Record<UserBadge, string> = {
   user: "#9aa3b2",
+  creator: "#ff5722",
   buyer: "#4caf50",
   verified: "#2196f3",
   blogger: "#e91e63",
@@ -76,13 +93,18 @@ export const BADGE_COLOR: Record<UserBadge, string> = {
   vip: "#ff9800",
   moderator: "#00bcd4",
   admin: "#f44336",
+  developer: "#8bc34a",
   founder: "#ffd700",
+  checkmark_blue: "#1d9bf0",
+  checkmark_grey: "#8a8d91",
 };
 
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  username?: string;
+  bio?: string;
   photoURL?: string | null;
   balance: number;
   badges: UserBadge[];
@@ -92,7 +114,58 @@ export interface UserProfile {
   banUntil?: number | "forever" | null;
   createdAt: number;
   lastLoginAt: number;
+  lastNameChangeAt?: number;
+  lastAvatarChangeAt?: number;
+  ratingSum?: number;
+  ratingCount?: number;
 }
+
+export const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+export interface OrderChatMessage {
+  from: "buyer" | "seller" | "admin";
+  text: string;
+  createdAt: number;
+}
+
+export interface OrderChat {
+  orderId: string;
+  buyerId: string;
+  sellerId: string;
+  messages: OrderChatMessage[];
+  updatedAt: number;
+}
+
+export interface Review {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName: string;
+  sellerId: string;
+  buyerId: string;
+  buyerName: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  text: string;
+  createdAt: number;
+}
+
+export interface SiteSettings {
+  primaryColor: string;
+  secondaryColor: string;
+  bgColor: string;
+  siteName: string;
+  darkMode: boolean;
+  updatedAt: number;
+}
+
+export const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  primaryColor: "#ff9800",
+  secondaryColor: "#ffb74d",
+  bgColor: "#0d1017",
+  siteName: "Velox Trade",
+  darkMode: true,
+  updatedAt: 0,
+};
 
 export interface Ad {
   id: string;
@@ -108,12 +181,72 @@ export interface Ad {
   createdAt: number;
 }
 
+export interface TicketMessage {
+  from: "user" | "admin";
+  text: string;
+  createdAt: number;
+}
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  subject: string;
+  status: "open" | "answered" | "closed";
+  messages: TicketMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FeatureFlags {
+  registrationEnabled: boolean;
+  googleLoginEnabled: boolean;
+  telegramLoginEnabled: boolean;
+  telegramRegisterEnabled: boolean;
+  balanceTopupEnabled: boolean;
+  updatedAt: number;
+}
+
+export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
+  registrationEnabled: true,
+  googleLoginEnabled: true,
+  telegramLoginEnabled: true,
+  telegramRegisterEnabled: true,
+  balanceTopupEnabled: true,
+  updatedAt: 0,
+};
+
+export interface Dispute {
+  id: string; // совпадает с orderId
+  orderId: string;
+  buyerId: string;
+  buyerName: string;
+  sellerId: string;
+  reason: string;
+  status: "open" | "approved" | "rejected";
+  createdAt: number;
+  resolvedAt?: number;
+}
+
 export interface TopUpRequest {
   id: string;
   userId: string;
   userNick: string;
   amount: number;
   type: "deposit" | "withdraw";
+  status: "pending" | "approved" | "rejected";
+  createdAt: number;
+}
+
+export interface SellRequest {
+  id: string;
+  userId: string;
+  userNick: string;
+  itemName: string;
+  game: string;
+  price: number;
+  description: string;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }

@@ -6,6 +6,8 @@ import { Plus, Trash2, Edit3 } from "lucide-react";
 import { getGames, createGame, updateGame, deleteGame } from "@/lib/products";
 import { Game } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
+import { ImageUploadField } from "@/components/ImageUploadField";
 
 const EMPTY: Omit<Game, "id"> = { name: "", slug: "", image: "" };
 
@@ -44,6 +46,10 @@ export default function AdminGamesPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (form.image && !isValidImageSrc(form.image)) {
+      toast("warning", "Ссылка на изображение должна начинаться с http:// или https://");
+      return;
+    }
     try {
       if (editing) {
         await updateGame(editing.id, form);
@@ -54,8 +60,13 @@ export default function AdminGamesPage() {
       }
       setShowForm(false);
       refresh();
-    } catch {
-      toast("error", "Ошибка сохранения игры");
+    } catch (err: any) {
+      if (err?.code === "permission-denied") {
+        toast("error", "Нет прав на запись. Проверь, что твой UID указан в firestore.rules как админ.");
+      } else {
+        toast("error", "Ошибка сохранения игры");
+      }
+      console.error(err);
     }
   }
 
@@ -91,13 +102,9 @@ export default function AdminGamesPage() {
             onChange={(e) => setForm({ ...form, slug: e.target.value })}
             className="input-field py-2.5"
           />
-          <input
-            required
-            placeholder="URL изображения"
-            value={form.image}
-            onChange={(e) => setForm({ ...form, image: e.target.value })}
-            className="input-field py-2.5 sm:col-span-2"
-          />
+          <div className="sm:col-span-2">
+            <ImageUploadField value={form.image} onChange={(url) => setForm({ ...form, image: url })} folder="games" label="Изображение игры" />
+          </div>
           <div className="sm:col-span-2 flex gap-3">
             <button className="btn-primary px-5 py-2.5 text-sm">{editing ? "Сохранить" : "Создать"}</button>
             <button type="button" onClick={() => setShowForm(false)} className="btn-secondary px-5 py-2.5 text-sm">
@@ -134,7 +141,7 @@ export default function AdminGamesPage() {
                 <tr key={g.id} className="border-b border-border/50 hover:bg-white/[0.02]">
                   <td className="p-3 flex items-center gap-3">
                     <div className="relative w-9 h-9 rounded-lg bg-black/30 shrink-0">
-                      {g.image && <Image src={g.image} alt={g.name} fill className="object-cover rounded-lg" sizes="36px" />}
+                      {isValidImageSrc(g.image) && <Image src={safeImageSrc(g.image)} alt={g.name} fill className="object-cover rounded-lg" sizes="36px" />}
                     </div>
                     {g.name}
                   </td>

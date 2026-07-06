@@ -32,22 +32,29 @@ export async function getGameBySlug(slug: string): Promise<Game | null> {
 
 export async function getProducts(opts?: {
   gameId?: string;
+  sellerId?: string;
   rarity?: string;
   isNew?: boolean;
   sort?: "price_asc" | "price_desc" | "newest";
 }): Promise<Product[]> {
   const clauses = [];
   if (opts?.gameId) clauses.push(where("gameId", "==", opts.gameId));
+  if (opts?.sellerId) clauses.push(where("sellerId", "==", opts.sellerId));
   if (opts?.rarity) clauses.push(where("rarity", "==", opts.rarity));
   if (opts?.isNew) clauses.push(where("isNew", "==", true));
 
-  let q = query(productsCol, ...clauses);
-  if (opts?.sort === "price_asc") q = query(q, orderBy("price", "asc"));
-  else if (opts?.sort === "price_desc") q = query(q, orderBy("price", "desc"));
-  else q = query(q, orderBy("createdAt", "desc"));
+  // Сортируем на клиенте, а не через Firestore orderBy: комбинация where + orderBy на разных
+  // полях требует отдельного составного индекса на КАЖДОЕ сочетание фильтров, что означало бы
+  // создание нескольких индексов вручную в консоли Firebase. Товаров в каталоге не миллионы,
+  // так что сортировка в JS обходится дёшево и работает сразу без лишней настройки.
+  const snap = await getDocs(query(productsCol, ...clauses));
+  const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product);
 
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product);
+  if (opts?.sort === "price_asc") products.sort((a, b) => a.price - b.price);
+  else if (opts?.sort === "price_desc") products.sort((a, b) => b.price - a.price);
+  else products.sort((a, b) => b.createdAt - a.createdAt);
+
+  return products;
 }
 
 export async function getProductById(id: string): Promise<Product | null> {

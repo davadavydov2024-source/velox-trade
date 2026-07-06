@@ -20,8 +20,8 @@ export default function ResetPasswordPage() {
       await resetPassword(email);
       setSent(true);
       toast("success", "Письмо для восстановления пароля отправлено");
-    } catch {
-      toast("error", "Не удалось отправить письмо. Проверьте email");
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось отправить письмо. Проверь email и настройки EmailJS на сервере.");
     } finally {
       setLoading(false);
     }
