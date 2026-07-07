@@ -1,8 +1,188 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Список UID админов. Уже вписаны два аккаунта — при необходимости добавляй ещё строки через запятую.
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        "s4Cbs8BFRwd9CrPYNkQBQzbVlQG3",
+        "DAdWBqr7i8UWc1nT0NVVMuJ1DJQ2"
+      ];
+    }
+
+    // Защита на уровне сервера: даже если кто-то обойдёт проверку в браузере, забаненный
+    // аккаунт не сможет создавать заказы/тикеты/заявки напрямую через Firestore API.
+    function isNotBanned() {
+      return !isSignedIn() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.banned != true;
+    }
+
+    // --- users ---
+    // Пользователь может читать/писать только свой профиль, и НЕ может менять баланс или метки себе сам.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isAdmin() ||
+        (isOwner(userId) &&
+          request.resource.data.balance == resource.data.balance &&
+          request.resource.data.badges == resource.data.badges &&
+          request.resource.data.banned == resource.data.banned) ||
+        // Позволяет покупателю обновить только рейтинг продавца при оставлении отзыва — ничего больше.
+        (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["ratingSum", "ratingCount"]));
+      allow delete: if isAdmin();
+    }
+
+    // --- products / games ---
+    // Каталог читают все, но изменять может только админ.
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- orders ---
+    // Пользователь создаёт только свои заказы и видит только свои; админ видит и меняет всё.
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
+      // Покупатель может: подтвердить получение, открыть спор, отметить что отзыв оставлен —
+      // но не может менять сумму, состав заказа или чужие поля.
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.sellerId == resource.data.sellerId &&
+          request.resource.data.total == resource.data.total &&
+          request.resource.data.items == resource.data.items &&
+          (
+            (resource.data.status == "pending_confirmation" && request.resource.data.status == "confirmed") ||
+            (resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed") ||
+            (request.resource.data.status == resource.data.status && request.resource.data.reviewSubmitted == true)
+          ));
+      allow delete: if isAdmin();
+    }
+
+    // --- topups (заявки на пополнение/вывод) ---
+    // Пользователь создаёт свои заявки, статус и зачисление баланса меняет только админ.
+    match /topups/{topupId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned()
+        && request.resource.data.status == "pending";
+      allow update, delete: if isAdmin();
+    }
+
+    // --- заявки на продажу предметов ---
+    match /sellRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned()
+        && request.resource.data.status == "pending";
+      allow update, delete: if isAdmin();
+    }
+
+    // --- ads ---
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- settings (тема сайта) ---
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- вход через Telegram ---
+    // telegramLinkRequests: пользователь сам создаёт временный код привязки для себя же.
+    // Обрабатывается вебхуком через Firebase Admin SDK (в обход правил), поэтому read/update/delete с клиента не нужны.
+    match /telegramLinkRequests/{linkCode} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+    // telegramLinks: пользователь может прочитать свою привязку (статус в профиле), но не менять напрямую —
+    // запись делает только сервер (вебхук/API-роут) через Admin SDK.
+    match /telegramLinks/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+    // loginCodes: одноразовые коды входа — полностью серверная логика, клиенту сюда доступа нет вообще.
+    match /loginCodes/{uid} {
+      allow read, write: if false;
+    }
+
+    // telegramRegisterRequests: регистрация через Telegram происходит ДО входа, поэтому создание открыто всем.
+    // Обрабатывается вебхуком через Admin SDK (в обход правил); статус проверяется через отдельный API-роут,
+    // а не напрямую из Firestore, поэтому прямое чтение с клиента не нужно.
+    match /telegramRegisterRequests/{code} {
+      allow create: if request.resource.data.status == "pending";
+      allow read, update, delete: if false;
+    }
+
+    // Состояние диалога с Telegram-ботом (какое меню сейчас открыто у пользователя) — полностью серверное.
+    match /telegramBotState/{chatId} {
+      allow read, write: if false;
+    }
+
+    // --- поддержка (тикеты) ---
+    // Пользователь создаёт и читает только свои тикеты и может дописывать сообщения в них;
+    // менять статус (закрыть/переоткрыть) может только админ. Админ видит и отвечает во всех тикетах.
+    match /tickets/{ticketId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.status != "closed");
+      allow delete: if isAdmin();
+    }
+
+    // --- юзернеймы (для публичных ссылок на профиль продавца) ---
+    // Читать может кто угодно (нужно для поиска продавца по нику).
+    // Создать можно только на своё имя, и только если username ещё свободен (Firestore трактует
+    // запись поверх существующего документа как update, а не create — allow create этого не разрешает).
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // --- чат по заказу между покупателем и продавцом, админ видит и может писать в любой ---
+    match /orderChats/{orderId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId));
+      allow create: if isAdmin() ||
+        (isSignedIn() && (request.auth.uid == request.resource.data.buyerId || request.auth.uid == request.resource.data.sellerId));
+      allow update: if isAdmin() ||
+        (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId));
+      allow delete: if isAdmin();
+    }
+
+    // --- отзывы ---
+    // Читают все (публичные профили продавцов), создаёт только покупатель на своё имя;
+    // серверная проверка "заказ подтверждён и отзыв ещё не оставлен" — на уровне кода (lib/reviews.ts),
+    // здесь фиксируем базовое условие авторства.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // --- жалобы на сделки ---
+    match /disputes/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }

@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseOptions } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,7 +16,8 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
 
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
-export const storage = getStorage(firebaseApp);
+// Firebase Storage больше не используется — загрузка файлов переведена на Vercel Blob
+// (см. src/lib/storage.ts), чтобы не требовать платный тариф Blaze.
 export const googleProvider = new GoogleAuthProvider();
 
 // Analytics работает только в браузере и только если поддерживается окружением

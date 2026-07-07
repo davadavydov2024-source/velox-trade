@@ -1,5 +1,5 @@
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "./firebase";
+import { upload } from "@vercel/blob/client";
+import { auth } from "./firebase";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 МБ
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
@@ -7,9 +7,10 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "im
 export class ImageUploadError extends Error {}
 
 /**
- * Загружает файл изображения в Firebase Storage и возвращает публичную ссылку на него.
- * folder — логическая папка внутри Storage (например "products", "games", "avatars", "ads"),
- * чтобы файлы не сваливались в одну кучу и было проще настраивать правила доступа.
+ * Загружает файл изображения напрямую в Vercel Blob (без Firebase Storage — не требует
+ * платного тарифа Blaze) и возвращает публичную ссылку на него.
+ * folder — логическая папка (например "products", "games", "avatars", "ads", "broadcasts"),
+ * по ней сервер решает, кому разрешена загрузка (см. /api/blob/upload).
  */
 export async function uploadImage(file: File, folder: string): Promise<string> {
   if (!ALLOWED_TYPES.includes(file.type)) {
@@ -19,29 +20,31 @@ export async function uploadImage(file: File, folder: string): Promise<string> {
     throw new ImageUploadError("Файл слишком большой (максимум 5 МБ)");
   }
 
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new ImageUploadError("Нужно войти в аккаунт, чтобы загружать файлы");
+  }
+
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
-  const storageRef = ref(storage, path);
+  const pathname = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
 
   try {
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+    const idToken = await currentUser.getIdToken();
+    const blob = await upload(pathname, file, {
+      access: "public",
+      handleUploadUrl: "/api/blob/upload",
+      clientPayload: JSON.stringify({ idToken }),
+    });
+    return blob.url;
   } catch (err: any) {
-    const code = err?.code as string | undefined;
-    if (code === "storage/unauthorized") {
-      throw new ImageUploadError(
-        "Нет прав на загрузку. Проверь, что правила Firebase Storage опубликованы (файл storage.rules → Firebase Console → Storage → Rules → Publish)."
-      );
+    const message = typeof err?.message === "string" ? err.message : "";
+    if (message.includes("Доступ только для администраторов")) {
+      throw new ImageUploadError("Загружать сюда может только администратор.");
     }
-    if (code === "storage/unknown" || code === "storage/retry-limit-exceeded") {
-      throw new ImageUploadError(
-        "Firebase Storage недоступен. Проверь, что Storage включён для проекта (Firebase Console → Storage → Get started)."
-      );
+    if (message.includes("Не авторизован")) {
+      throw new ImageUploadError("Сессия истекла — войди в аккаунт заново и попробуй снова.");
     }
-    if (code === "storage/quota-exceeded") {
-      throw new ImageUploadError("Превышена квота хранилища Firebase Storage.");
-    }
-    console.error("Ошибка загрузки в Storage:", err);
+    console.error("Ошибка загрузки в Vercel Blob:", err);
     throw new ImageUploadError("Не удалось загрузить файл. Подробности — в консоли браузера (F12 → Console).");
   }
 }
