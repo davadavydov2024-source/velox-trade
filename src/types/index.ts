@@ -211,8 +211,8 @@ export interface FeatureFlags {
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   registrationEnabled: true,
   googleLoginEnabled: true,
-  telegramLoginEnabled: true,
-  telegramRegisterEnabled: true,
+  telegramLoginEnabled: false,
+  telegramRegisterEnabled: false,
   balanceTopupEnabled: true,
   updatedAt: 0,
 };
@@ -235,6 +235,8 @@ export interface TopUpRequest {
   userNick: string;
   amount: number;
   type: "deposit" | "withdraw";
+  method?: "qr" | "playerok" | "funpay" | "phone";
+  comment?: string;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }

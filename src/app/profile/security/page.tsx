@@ -2,12 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { sendEmailVerification } from "firebase/auth";
-import { Send, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { createTelegramLinkRequest, getTelegramLink, TelegramLink } from "@/lib/telegramLink";
-
-const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -29,50 +25,11 @@ export default function SecurityPage() {
   const [sending, setSending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
-  const [telegramLink, setTelegramLink] = useState<TelegramLink | null>(null);
-  const [checkingLink, setCheckingLink] = useState(true);
-  const [linkUrl, setLinkUrl] = useState<string | null>(null);
-  const [generatingLink, setGeneratingLink] = useState(false);
-
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
-
-  useEffect(() => {
-    if (!user) return;
-    refreshTelegramStatus();
-  }, [user]);
-
-  async function refreshTelegramStatus() {
-    if (!user) return;
-    setCheckingLink(true);
-    try {
-      setTelegramLink(await getTelegramLink(user.uid));
-    } catch {
-      // тихо игнорируем — просто покажем состояние "не привязан"
-    } finally {
-      setCheckingLink(false);
-    }
-  }
-
-  async function handleGenerateLink() {
-    if (!user) return;
-    setGeneratingLink(true);
-    try {
-      const code = await createTelegramLinkRequest(user.uid);
-      setLinkUrl(`https://t.me/${TELEGRAM_BOT}?start=${code}`);
-    } catch (err: any) {
-      if (err?.code === "permission-denied") {
-        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
-      } else {
-        toast("error", "Не удалось создать ссылку для привязки");
-      }
-    } finally {
-      setGeneratingLink(false);
-    }
-  }
 
   async function resendVerification() {
     if (!user || cooldown > 0) return;
@@ -123,48 +80,6 @@ export default function SecurityPage() {
         <button onClick={handleResetPassword} className="btn-secondary px-4 py-2 text-sm">
           Сменить пароль
         </button>
-      </div>
-
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-1">
-          <p className="font-medium">Вход по коду в Telegram</p>
-          {!checkingLink && (
-            <button onClick={refreshTelegramStatus} className="text-white/30 hover:text-white/60" title="Обновить статус">
-              <RefreshCw size={14} />
-            </button>
-          )}
-        </div>
-        <p className="text-sm text-white/40 mb-3">
-          Привяжи Telegram — тогда сможешь входить на новых устройствах по коду, который придёт тебе в бота, без
-          пароля.
-        </p>
-
-        {checkingLink ? (
-          <p className="text-xs text-white/30">Проверяем статус...</p>
-        ) : telegramLink ? (
-          <div className="flex items-center gap-2 text-sm text-green-400">
-            <CheckCircle2 size={16} />
-            Привязан{telegramLink.telegramUsername ? ` (@${telegramLink.telegramUsername})` : ""}
-          </div>
-        ) : linkUrl ? (
-          <div className="space-y-2">
-            <a
-              href={linkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary px-5 py-2.5 text-sm inline-flex items-center gap-2"
-            >
-              Открыть Telegram-бота <ExternalLink size={14} />
-            </a>
-            <p className="text-xs text-white/30">
-              Нажми «Start» в боте — привязка произойдёт автоматически, затем нажми «Обновить статус» выше.
-            </p>
-          </div>
-        ) : (
-          <button onClick={handleGenerateLink} disabled={generatingLink} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-50">
-            <Send size={14} /> {generatingLink ? "Создаём ссылку..." : "Привязать Telegram"}
-          </button>
-        )}
       </div>
     </div>
   );

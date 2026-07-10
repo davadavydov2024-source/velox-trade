@@ -1,11 +1,11 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { adminAuth } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 МБ
+const MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4 МБ — с запасом под лимит тела запроса на Vercel
 
 // Эти папки может загружать только админ — там лежат изображения товаров/игр/рекламы,
 // которые видит весь сайт. "avatars" может загружать любой залогиненный пользователь.
@@ -16,46 +16,62 @@ function isAdminUid(uid: string): boolean {
   return list.includes(uid);
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
-  const body = (await request.json()) as HandleUploadBody;
-
+export async function POST(req: NextRequest) {
   try {
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const folder = pathname.split("/")[0];
-        let idToken: string | undefined;
-        try {
-          idToken = clientPayload ? JSON.parse(clientPayload).idToken : undefined;
-        } catch {
-          idToken = undefined;
-        }
+    const formData = await req.formData();
+    const file = formData.get("file");
+    const folder = formData.get("folder");
+    const idToken = formData.get("idToken");
 
-        if (!idToken) {
-          throw new Error("Не авторизован");
-        }
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "Файл не передан" }, { status: 400 });
+    }
+    if (typeof folder !== "string" || !folder) {
+      return NextResponse.json({ error: "Не указана папка загрузки" }, { status: 400 });
+    }
+    if (typeof idToken !== "string" || !idToken) {
+      return NextResponse.json({ error: "Нужно войти в аккаунт, чтобы загружать файлы" }, { status: 401 });
+    }
 
-        const auth = adminAuth();
-        const decoded = await auth.verifyIdToken(idToken);
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return NextResponse.json({ error: "Разрешены только изображения: JPG, PNG, WEBP, GIF, SVG" }, { status: 400 });
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      return NextResponse.json({ error: "Файл слишком большой (максимум 4 МБ)" }, { status: 400 });
+    }
 
-        if (ADMIN_ONLY_FOLDERS.includes(folder) && !isAdminUid(decoded.uid)) {
-          throw new Error("Доступ только для администраторов");
-        }
-        // Для остальных папок (avatars) достаточно быть залогиненным — decoded уже это подтверждает.
+    let uid: string;
+    try {
+      const decoded = await adminAuth().verifyIdToken(idToken);
+      uid = decoded.uid;
+    } catch (err) {
+      console.error("blob upload: не удалось проверить токен входа —", err);
+      return NextResponse.json(
+        { error: "Сессия истекла или Firebase Admin не настроен на сервере. Войди заново и попробуй снова." },
+        { status: 401 }
+      );
+    }
 
-        return {
-          allowedContentTypes: ALLOWED_TYPES,
-          maximumSizeInBytes: MAX_SIZE_BYTES,
-        };
-      },
-      onUploadCompleted: async () => {
-        // Ничего дополнительно делать не нужно — ссылку на файл клиент получает напрямую в ответе upload().
-      },
-    });
+    if (ADMIN_ONLY_FOLDERS.includes(folder) && !isAdminUid(uid)) {
+      return NextResponse.json({ error: "Загружать сюда может только администратор." }, { status: 403 });
+    }
 
-    return NextResponse.json(jsonResponse);
-  } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("blob upload: переменная BLOB_READ_WRITE_TOKEN не задана на сервере");
+      return NextResponse.json(
+        { error: "Хранилище файлов не настроено на сервере (нет BLOB_READ_WRITE_TOKEN)." },
+        { status: 500 }
+      );
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const pathname = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+
+    const blob = await put(pathname, file, { access: "public" });
+
+    return NextResponse.json({ url: blob.url });
+  } catch (err) {
+    console.error("blob upload error:", err);
+    return NextResponse.json({ error: "Не удалось загрузить файл. Подробности — в логах сервера (Vercel → Logs)." }, { status: 500 });
   }
 }

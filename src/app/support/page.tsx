@@ -9,8 +9,10 @@ import { createTicket, getUserTickets, addTicketMessage } from "@/lib/tickets";
 import { sendSupportAutoReply } from "@/lib/emailjs";
 import { SupportTicket } from "@/types";
 
+const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
+
 const FAQ = [
-  { q: "Как пополнить баланс?", a: "Перейдите в личный кабинет → Пополнение баланса, создайте заявку и подтвердите её в Telegram-боте администратора." },
+  { q: "Как пополнить баланс?", a: "Перейдите в личный кабинет → Пополнение баланса, создайте заявку и дождитесь, пока администратор её одобрит." },
   { q: "Как быстро приходит товар?", a: "Обычно доставка занимает от нескольких минут до пары часов после оплаты заказа." },
   { q: "Что делать, если товар не пришёл?", a: "Создайте обращение ниже с номером заказа — мы разберёмся в течение суток." },
   { q: "Можно ли вернуть деньги?", a: "Да, если товар не был выдан. Создайте обращение ниже, приложив номер заказа." },
@@ -111,11 +113,11 @@ export default function SupportPage() {
 
       <div className="card p-6 mb-8 flex items-center justify-between">
         <div>
-          <p className="font-medium">Связаться в Telegram</p>
-          <p className="text-sm text-white/40">Самый быстрый способ получить ответ</p>
+          <p className="font-medium">Написать в Telegram-бота</p>
+          <p className="text-sm text-white/40">Быстрый способ получить ответ или обсудить пополнение</p>
         </div>
         <a
-          href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot"}`}
+          href={`https://t.me/${TELEGRAM_BOT}`}
           target="_blank"
           rel="noopener noreferrer"
           className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm"

@@ -65,6 +65,12 @@ export default function AdminTopUpsPage() {
                     {r.userNick} — {r.type === "deposit" ? "пополнение" : "вывод"} {r.amount} ₽
                   </p>
                   <p className="text-xs text-white/40">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>
+                  {r.method && (
+                    <p className="text-xs text-accent mt-1">
+                      Способ: {{ qr: "QR-код", playerok: "Playerok", funpay: "FunPay", phone: "По номеру телефона" }[r.method]}
+                    </p>
+                  )}
+                  {r.comment && <p className="text-xs text-white/50 mt-0.5">Комментарий: {r.comment}</p>}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleApprove(r)} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">

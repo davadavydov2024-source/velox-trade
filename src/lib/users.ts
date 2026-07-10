@@ -148,10 +148,17 @@ export async function updateProfileInfo(
   }
 }
 
-// ---- Top-up requests (ручное пополнение через Telegram-админа) ----
+// ---- Top-up requests (ручное пополнение — заявка обрабатывается администратором вручную) ----
 
 export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
   return addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
+}
+
+export async function getUserTopUpRequests(userId: string): Promise<TopUpRequest[]> {
+  // Без orderBy: where + orderBy на разных полях требует составного индекса в Firestore.
+  const snap = await getDocs(query(topUpsCol, where("userId", "==", userId)));
+  const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TopUpRequest);
+  return requests.sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function getTopUpRequests(): Promise<TopUpRequest[]> {
