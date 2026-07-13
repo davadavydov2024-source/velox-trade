@@ -241,6 +241,18 @@ export interface TopUpRequest {
   createdAt: number;
 }
 
+export interface Payment {
+  id: string; // совпадает с order_id, который мы передаём в CactusPay
+  userId: string;
+  userNick: string;
+  amount: number;
+  status: "pending" | "paid" | "failed";
+  cactusPaymentId?: number;
+  paymentUrl?: string;
+  createdAt: number;
+  paidAt?: number;
+}
+
 export interface SellRequest {
   id: string;
   userId: string;

@@ -46,6 +46,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // --- регистрация через Telegram ---
@@ -193,7 +194,17 @@ export default function RegisterPage() {
                 className="input-field pl-10"
               />
             </div>
-            <button disabled={loading} className="btn-primary w-full py-3 disabled:opacity-50">
+            <label className="flex items-start gap-2 text-xs text-white/50">
+              <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5" />
+              <span>
+                Я согласен с{" "}
+                <Link href="/rules" target="_blank" className="text-accent hover:underline">
+                  правилами платформы
+                </Link>{" "}
+                и понимаю, что за оплату через CactusPay отвечает сама платёжная система lk.cactuspay.pro.
+              </span>
+            </label>
+            <button disabled={loading || !agreed} className="btn-primary w-full py-3 disabled:opacity-50">
               {loading ? "Создаём аккаунт..." : "Зарегистрироваться"}
             </button>
           </form>

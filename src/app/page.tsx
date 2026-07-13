@@ -62,36 +62,14 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="relative h-64 md:h-96">
+          <div className="relative h-64 md:h-96 flex items-center justify-center">
             <div
               className="absolute inset-0 rounded-full blur-3xl opacity-30"
               style={{ background: "radial-gradient(circle, rgba(255,152,0,0.4), transparent 70%)" }}
             />
-            {[
-              { top: "5%", left: "12%", size: 90, delay: "0s", rotate: "-8deg", emoji: "🗡️" },
-              { top: "42%", left: "0%", size: 72, delay: "0.5s", rotate: "6deg", emoji: "🧪" },
-              { top: "8%", left: "58%", size: 84, delay: "1s", rotate: "10deg", emoji: "💎" },
-              { top: "55%", left: "62%", size: 104, delay: "1.5s", rotate: "-5deg", emoji: "🥚" },
-              { top: "0%", left: "36%", size: 60, delay: "2s", rotate: "12deg", emoji: "🔥" },
-              { top: "68%", left: "30%", size: 56, delay: "0.8s", rotate: "-10deg", emoji: "🦜" },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="absolute animate-glow flex items-center justify-center rounded-3xl glass"
-                style={{
-                  top: item.top,
-                  left: item.left,
-                  width: item.size,
-                  height: item.size,
-                  fontSize: item.size * 0.45,
-                  transform: `rotate(${item.rotate})`,
-                  background: "radial-gradient(circle, rgba(255,152,0,0.22), transparent 70%)",
-                  animationDelay: item.delay,
-                }}
-              >
-                {item.emoji}
-              </div>
-            ))}
+            <div className="relative w-56 h-56 md:w-72 md:h-72 animate-glow">
+              <Image src="/icons/logo-nobg.png" alt="Velox Trade" fill className="object-contain drop-shadow-2xl" sizes="288px" priority />
+            </div>
           </div>
         </div>
       </section>

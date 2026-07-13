@@ -89,6 +89,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // --- платежи через CactusPay ---
+    // Полностью серверная логика (создание и подтверждение — через Admin SDK в API-роутах),
+    // клиент только читает свои собственные платежи, чтобы показать статус в личном кабинете.
+    match /payments/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
     // --- ads ---
     match /ads/{adId} {
       allow read: if true;

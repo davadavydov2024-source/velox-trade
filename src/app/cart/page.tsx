@@ -161,6 +161,12 @@ export default function CartPage() {
             </div>
           </div>
 
+          <p className="text-[11px] text-yellow-400/70 leading-relaxed">
+            Оплата списывается с баланса сайта — никогда не переводите деньги продавцу напрямую вне сайта и не
+            выполняйте ничего, что выглядит подозрительно (просьбы «доплатить отдельно», перейти по сторонней
+            ссылке и т.п.). Если что-то смущает — сначала напишите в поддержку.
+          </p>
+
           <button onClick={checkout} disabled={placing} className="btn-primary w-full py-3 disabled:opacity-50">
             {placing ? "Оформляем..." : "Оплатить с баланса"}
           </button>
