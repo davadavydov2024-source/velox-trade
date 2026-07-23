@@ -15,7 +15,7 @@ import {
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createTopUpRequest, getUserTopUpRequests } from "@/lib/users";
-import { createCactusPayment, getUserPayments, watchPayment } from "@/lib/payments";
+import { createCactusPayment, getUserPayments, watchPayment, cancelPayment } from "@/lib/payments";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { TopUpRequest, Payment } from "@/types";
 import { useSearchParams } from "next/navigation";
@@ -41,6 +41,7 @@ const PAYMENT_STATUS_LABEL: Record<Payment["status"], { text: string; color: str
   pending: { text: "Ждём оплату", color: "#ff9800", icon: Clock },
   paid: { text: "Оплачен", color: "#4caf50", icon: CheckCircle2 },
   failed: { text: "Не оплачен", color: "#f44336", icon: XCircle },
+  cancelled: { text: "Отменён", color: "#9aa3b2", icon: XCircle },
 };
 
 function TopUpPageInner() {
@@ -57,6 +58,7 @@ function TopUpPageInner() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [method, setMethod] = useState<TopUpRequest["method"]>("qr");
@@ -135,6 +137,22 @@ function TopUpPageInner() {
     }
   }
 
+  async function handleCancelPayment(orderId: string) {
+    setCancellingId(orderId);
+    try {
+      await cancelPayment(orderId);
+      toast("success", "Платёж отменён");
+      if (pendingOrderId === orderId) setPendingOrderId(null);
+      refreshPayments();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось отменить платёж");
+      refreshPayments(); // на случай, если сервер уже зачислил баланс (оплата пришла раньше отмены)
+      refreshProfile();
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   async function handleWithdraw(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !profile) return;
@@ -184,7 +202,7 @@ function TopUpPageInner() {
           <p className="text-white/60">Пополнение и вывод баланса временно отключены администратором.</p>
           <p className="text-white/40 text-sm mt-2">
             Если нужна помощь — напиши в{" "}
-            <a href="/support" className="text-accent hover:underline">
+            <a href="/chats?tab=support" className="text-accent hover:underline">
               поддержку
             </a>
             .
@@ -282,14 +300,25 @@ function TopUpPageInner() {
                       const s = PAYMENT_STATUS_LABEL[p.status];
                       const StatusIcon = s.icon;
                       return (
-                        <div key={p.id} className="card p-3.5 flex items-center justify-between">
+                        <div key={p.id} className="card p-3.5 flex items-center justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium">{p.amount} ₽</p>
                             <p className="text-xs text-white/30">{new Date(p.createdAt).toLocaleString("ru-RU")}</p>
                           </div>
-                          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: s.color }}>
-                            <StatusIcon size={14} /> {s.text}
-                          </span>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: s.color }}>
+                              <StatusIcon size={14} /> {s.text}
+                            </span>
+                            {p.status === "pending" && (
+                              <button
+                                onClick={() => handleCancelPayment(p.id)}
+                                disabled={cancellingId === p.id}
+                                className="text-xs text-white/40 hover:text-red-400 underline underline-offset-2 disabled:opacity-50"
+                              >
+                                {cancellingId === p.id ? "Отменяем..." : "Отменить"}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

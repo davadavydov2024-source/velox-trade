@@ -8,13 +8,9 @@ import { useCart } from "@/lib/cartStore";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createOrder, adjustUserBalance } from "@/lib/users";
+import { validateDiscountCode, markPromoCodeUsed } from "@/lib/promoCodes";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useRouter } from "next/navigation";
-
-const PROMO_CODES: Record<string, number> = {
-  VELOX10: 10,
-  WELCOME5: 5,
-};
 
 export default function CartPage() {
   const { lines, remove, setQuantity, clear, total } = useCart();
@@ -23,18 +19,29 @@ export default function CartPage() {
   const router = useRouter();
   const [promo, setPromo] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [appliedPromoId, setAppliedPromoId] = useState<string | null>(null);
+  const [applyingPromo, setApplyingPromo] = useState(false);
   const [placing, setPlacing] = useState(false);
 
   const subtotal = total();
   const finalTotal = +(subtotal * (1 - discount / 100)).toFixed(2);
 
-  function applyPromo() {
-    const code = promo.trim().toUpperCase();
-    if (PROMO_CODES[code]) {
-      setDiscount(PROMO_CODES[code]);
-      toast("success", `Промокод применён: -${PROMO_CODES[code]}%`);
-    } else {
-      toast("error", "Промокод не найден");
+  async function applyPromo() {
+    if (!user) {
+      toast("warning", "Войдите в аккаунт, чтобы применить промокод");
+      return;
+    }
+    if (!promo.trim()) return;
+    setApplyingPromo(true);
+    try {
+      const found = await validateDiscountCode(promo, user.uid);
+      setDiscount(found.discountPercent ?? 0);
+      setAppliedPromoId(found.id);
+      toast("success", `Промокод применён: -${found.discountPercent}%`);
+    } catch (err: any) {
+      toast("error", err?.message ?? "Промокод не найден");
+    } finally {
+      setApplyingPromo(false);
     }
   }
 
@@ -76,6 +83,11 @@ export default function CartPage() {
       }
 
       await adjustUserBalance(user.uid, -finalTotal);
+      if (appliedPromoId) {
+        await markPromoCodeUsed(appliedPromoId, user.uid).catch(() => {
+          // Заказ уже оплачен — если пометить код использованным не удалось, не рушим оформление заказа.
+        });
+      }
       await refreshProfile();
       clear();
       toast("success", "Заказ оформлен! Подтверди получение предмета в истории заказов, когда получишь его.");
@@ -139,8 +151,8 @@ export default function CartPage() {
                 className="input-field pl-9 py-2 text-sm"
               />
             </div>
-            <button onClick={applyPromo} className="btn-secondary px-4 text-sm">
-              Применить
+            <button onClick={applyPromo} disabled={applyingPromo || !promo.trim()} className="btn-secondary px-4 text-sm disabled:opacity-50">
+              {applyingPromo ? "..." : "Применить"}
             </button>
           </div>
 

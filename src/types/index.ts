@@ -246,11 +246,12 @@ export interface Payment {
   userId: string;
   userNick: string;
   amount: number;
-  status: "pending" | "paid" | "failed";
+  status: "pending" | "paid" | "failed" | "cancelled";
   cactusPaymentId?: number;
   paymentUrl?: string;
   createdAt: number;
   paidAt?: number;
+  cancelledAt?: number;
 }
 
 export interface SellRequest {
@@ -262,5 +263,43 @@ export interface SellRequest {
   price: number;
   description: string;
   status: "pending" | "approved" | "rejected";
+  createdAt: number;
+}
+
+// ---- Промокоды ----
+// "discount" — обычная скидка, применяется в корзине при оформлении заказа.
+// "gift" — промо-подарок, активируется в личном кабинете (раздел «Промо-подарки»)
+// и сразу же выдаёт награду: пополнение баланса или бесплатный предмет из каталога.
+export type PromoCodeType = "discount" | "gift";
+export type PromoGiftType = "balance" | "product";
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  type: PromoCodeType;
+  discountPercent?: number; // только для type === "discount"
+  giftType?: PromoGiftType; // только для type === "gift"
+  giftBalance?: number; // только для giftType === "balance"
+  giftProductId?: string; // только для giftType === "product"
+  giftProductName?: string;
+  giftProductImage?: string;
+  maxUses: number | null; // null = без ограничения по числу активаций
+  usedBy: string[]; // uid пользователей, которые уже использовали этот код (каждый код — один раз на человека)
+  active: boolean;
+  expiresAt: number | null;
+  createdAt: number;
+}
+
+// ---- Канал новостей (раздел «Чаты») ----
+export interface NewsButton {
+  text: string;
+  link: string;
+}
+
+export interface NewsPost {
+  id: string;
+  text: string;
+  image?: string | null;
+  buttons: NewsButton[];
   createdAt: number;
 }

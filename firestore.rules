@@ -103,6 +103,30 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- промокоды ---
+    // Читать может кто угодно (нужно, чтобы найти документ по полю "code" ещё до применения кода).
+    // Создавать/удалять/менять условия — только админ. Единственное исключение для обычного пользователя:
+    // при активации кода можно дописать СВОЙ uid в массив usedBy и больше ничего не менять —
+    // так каждый код помечается использованным конкретным человеком ровно один раз.
+    match /promoCodes/{codeId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() ||
+        (isSignedIn() && isNotBanned() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["usedBy"]) &&
+          request.resource.data.usedBy.size() == resource.data.usedBy.size() + 1 &&
+          request.resource.data.usedBy.hasAll(resource.data.usedBy) &&
+          request.resource.data.usedBy.hasAny([request.auth.uid]) &&
+          !resource.data.usedBy.hasAny([request.auth.uid]));
+    }
+
+    // --- канал «Velox Trade Новости» (раздел «Чаты») ---
+    // Читают все (это публичный канал-лента), постить/удалять посты может только админ.
+    match /newsPosts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // --- settings (тема сайта) ---
     match /settings/{settingId} {
       allow read: if true;

@@ -28,6 +28,23 @@ export async function getUserPayments(userId: string): Promise<Payment[]> {
   return payments.sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Отменяет платёж, который всё ещё "Ждём оплату" (сервер перепроверяет статус у CactusPay перед отменой). */
+export async function cancelPayment(orderId: string): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/payments/cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ orderId }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Не удалось отменить платёж");
+  }
+}
+
 export async function getPayment(orderId: string): Promise<Payment | null> {
   const snap = await getDoc(doc(db, "payments", orderId));
   if (!snap.exists()) return null;

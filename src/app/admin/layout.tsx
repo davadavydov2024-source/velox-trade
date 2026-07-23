@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   Tag,
+  Gift,
   Menu,
   X,
 } from "lucide-react";
@@ -30,7 +31,8 @@ const NAV = [
   { href: "/admin/topups", label: "Баланс / заявки", icon: Wallet },
   { href: "/admin/disputes", label: "Жалобы", icon: AlertTriangle },
   { href: "/admin/sell-requests", label: "Заявки на продажу", icon: Tag },
-  { href: "/admin/support", label: "Поддержка", icon: MessageSquare },
+  { href: "/admin/chats", label: "Чаты", icon: MessageSquare },
+  { href: "/admin/promocodes", label: "Промокоды", icon: Gift },
   { href: "/admin/ads", label: "Реклама и рассылки", icon: Megaphone },
   { href: "/admin/settings", label: "Настройки сайта", icon: Settings },
   { href: "/admin/features", label: "Функции", icon: SlidersHorizontal },

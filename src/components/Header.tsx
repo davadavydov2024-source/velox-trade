@@ -37,8 +37,8 @@ export function Header() {
           <Link href="/catalog?new=1" className="hover:text-white transition-colors">
             Новинки
           </Link>
-          <Link href="/support" className="hover:text-white transition-colors">
-            Поддержка
+          <Link href="/chats" className="hover:text-white transition-colors">
+            Чаты
           </Link>
         </nav>
 
@@ -100,8 +100,8 @@ export function Header() {
           <Link href="/catalog?new=1" className="py-2" onClick={() => setMenuOpen(false)}>
             Новинки
           </Link>
-          <Link href="/support" className="py-2" onClick={() => setMenuOpen(false)}>
-            Поддержка
+          <Link href="/chats" className="py-2" onClick={() => setMenuOpen(false)}>
+            Чаты
           </Link>
         </nav>
       )}

@@ -23,8 +23,8 @@ export function Footer() {
         <div>
           <p className="text-white/40 mb-3">Поддержка</p>
           <div className="flex flex-col gap-2 text-white/70">
-            <Link href="/support">Центр поддержки</Link>
-            <Link href="/support#faq">FAQ</Link>
+            <Link href="/chats?tab=support">Центр поддержки</Link>
+            <Link href="/chats?tab=support#faq">FAQ</Link>
           </div>
         </div>
         <div>
