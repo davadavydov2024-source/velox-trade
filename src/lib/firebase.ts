@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseOptions } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, getFirestore } from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,7 +15,20 @@ const firebaseConfig: FirebaseOptions = {
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+// ignoreUndefinedProperties: многие формы в проекте (промокоды, редактирование профиля и т.д.)
+// собирают объект с полями вида `giftBalance: condition ? value : undefined` — обычный
+// getFirestore() кидает ошибку "Unsupported field value: undefined" на такой записи, и
+// addDoc/updateDoc падает (в UI это выглядит как "не удалось создать промокод"). Игнорирование
+// undefined-полей чинит эти места разом, вместо того чтобы руками зачищать undefined перед
+// каждым вызовом. initializeFirestore можно вызвать только один раз на app — если модуль
+// переинициализируется (HMR в деве), просто берём уже существующий инстанс.
+export const db = (() => {
+  try {
+    return initializeFirestore(firebaseApp, { ignoreUndefinedProperties: true });
+  } catch {
+    return getFirestore(firebaseApp);
+  }
+})();
 // Firebase Storage больше не используется — загрузка файлов переведена на Vercel Blob
 // (см. src/lib/storage.ts), чтобы не требовать платный тариф Blaze.
 export const googleProvider = new GoogleAuthProvider();

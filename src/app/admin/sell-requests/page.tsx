@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Check, X, Tag } from "lucide-react";
-import { getAllSellRequests, setSellRequestStatus } from "@/lib/sellRequests";
+import { getAllSellRequests, setSellRequestStatus, approveSellRequest } from "@/lib/sellRequests";
 import { SellRequest } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
@@ -27,9 +27,13 @@ export default function AdminSellRequestsPage() {
 
   async function handleStatus(r: SellRequest, status: "approved" | "rejected") {
     try {
-      await setSellRequestStatus(r.id, status);
+      if (status === "approved") {
+        await approveSellRequest(r);
+      } else {
+        await setSellRequestStatus(r.id, status);
+      }
       setRequests((list) => list.map((x) => (x.id === r.id ? { ...x, status } : x)));
-      toast("success", status === "approved" ? "Заявка одобрена" : "Заявка отклонена");
+      toast("success", status === "approved" ? "Заявка одобрена, товар добавлен в каталог" : "Заявка отклонена");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
         toast("error", "Нет прав на запись. Проверь, что твой UID указан в firestore.rules как админ.");
@@ -49,9 +53,10 @@ export default function AdminSellRequestsPage() {
           <Tag className="text-accent" size={22} /> Заявки на продажу
         </h1>
         <p className="text-sm text-white/40 mb-4">
-          Одобрение здесь только меняет статус заявки — сам товар в каталог по-прежнему добавляется вручную через
-          «Товары», после того как ты договорился с продавцом. Комиссия ниже — сколько платформа удерживает с этой
-          продажи (процент зафиксирован на момент подачи заявки, в «Функциях сайта» его можно менять для будущих заявок).
+          При одобрении товар сразу создаётся в каталоге (продавец — автор заявки, остаток 1 шт., редкость по
+          умолчанию «Обычный» — поправь при необходимости в «Товарах»). Одобряй только после того, как договорился
+          с продавцом. Комиссия ниже — сколько платформа удерживает с этой продажи (процент зафиксирован на момент
+          подачи заявки, в «Функциях сайта» его можно менять для будущих заявок).
         </p>
 
         {loading ? (
