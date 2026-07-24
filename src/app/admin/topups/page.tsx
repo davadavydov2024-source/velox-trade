@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, X, Zap } from "lucide-react";
 import { getTopUpRequests, setTopUpStatus, adjustUserBalance } from "@/lib/users";
+import { cancelAllPendingPayments } from "@/lib/payments";
 import { TopUpRequest } from "@/types";
 import { useToast } from "@/lib/toastContext";
 
 export default function AdminTopUpsPage() {
   const [requests, setRequests] = useState<TopUpRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sweeping, setSweeping] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -16,6 +18,22 @@ export default function AdminTopUpsPage() {
       .then(setRequests)
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleCancelAllPending() {
+    if (!confirm("Отменить ВСЕ текущие платежи со статусом «Ждём оплату» у всех пользователей? Если какой-то из них на самом деле уже оплачен, баланс будет зачислен, а не отменён.")) return;
+    setSweeping(true);
+    try {
+      const res = await cancelAllPendingPayments();
+      toast(
+        "success",
+        `Готово: отменено ${res.cancelled}, зачислено как оплаченные ${res.credited}${res.failed ? `, не удалось проверить ${res.failed}` : ""} из ${res.total}`
+      );
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось выполнить массовую отмену");
+    } finally {
+      setSweeping(false);
+    }
+  }
 
   async function handleApprove(req: TopUpRequest) {
     try {
@@ -45,6 +63,20 @@ export default function AdminTopUpsPage() {
 
   return (
     <div className="space-y-8">
+      <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5 flex items-center justify-between gap-4">
+        <div>
+          <p className="font-medium">Автоплатежи CactusPay</p>
+          <p className="text-sm text-white/50 mt-1">
+            Отменить прямо сейчас все платежи со статусом «Ждём оплату» у всех пользователей (например, чтобы
+            почистить старые зависшие заявки). Каждый платёж перед отменой перепроверяется у самого CactusPay —
+            если он на самом деле оплачен, баланс зачислится, а не отменится.
+          </p>
+        </div>
+        <button onClick={handleCancelAllPending} disabled={sweeping} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-2 shrink-0 disabled:opacity-50">
+          <Zap size={14} /> {sweeping ? "Проверяем..." : "Отменить все зависшие"}
+        </button>
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold mb-4">Заявки на баланс</h1>
         <p className="text-sm text-white/40 mb-4">

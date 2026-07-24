@@ -9,6 +9,8 @@ import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { createTelegramRegisterRequest } from "@/lib/telegramRegister";
+import { useLanguage, useLanguageStore } from "@/lib/languageStore";
+import { LANGUAGES } from "@/lib/i18n";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -29,6 +31,9 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const { t } = useLanguage();
+  const language = useLanguageStore((s) => s.language);
+  const setLanguage = useLanguageStore((s) => s.setLanguage);
 
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
   const [flagsLoaded, setFlagsLoaded] = useState(false);
@@ -72,7 +77,7 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      await register(email, password, name);
+      await register(email, password, name, language);
       toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
       router.push("/profile");
     } catch (err: any) {
@@ -136,8 +141,26 @@ export default function RegisterPage() {
   return (
     <div className="max-w-md mx-auto px-4 py-16">
       <div className="card p-8">
-        <h1 className="text-2xl font-bold mb-1">Регистрация</h1>
-        <p className="text-white/40 text-sm mb-6">Создай аккаунт и начни покупать предметы</p>
+        <h1 className="text-2xl font-bold mb-1">{t("auth_register_title")}</h1>
+        <p className="text-white/40 text-sm mb-6">{t("auth_register_subtitle")}</p>
+
+        <div className="mb-6">
+          <p className="text-xs text-white/40 mb-2">{t("auth_language_label")}</p>
+          <div className="flex gap-2">
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => setLanguage(l.code)}
+                className={`flex-1 py-2 rounded-btn text-sm flex items-center justify-center gap-1.5 transition-colors ${
+                  language === l.code ? "bg-accent text-black" : "bg-surface text-white/60"
+                }`}
+              >
+                <span>{l.flag}</span> {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {flags.telegramRegisterEnabled && (
           <div className="flex gap-2 mb-6">
@@ -168,7 +191,7 @@ export default function RegisterPage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Имя пользователя"
+                placeholder={t("auth_name_placeholder")}
                 className="input-field pl-10"
               />
             </div>
@@ -179,7 +202,7 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
+                placeholder={t("auth_email_placeholder")}
                 className="input-field pl-10"
               />
             </div>
@@ -190,7 +213,7 @@ export default function RegisterPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Пароль (мин. 6 символов)"
+                placeholder={t("auth_password_placeholder")}
                 className="input-field pl-10"
               />
             </div>
@@ -205,7 +228,7 @@ export default function RegisterPage() {
               </span>
             </label>
             <button disabled={loading || !agreed} className="btn-primary w-full py-3 disabled:opacity-50">
-              {loading ? "Создаём аккаунт..." : "Зарегистрироваться"}
+              {loading ? t("auth_submit_creating") : t("auth_submit_register")}
             </button>
           </form>
         ) : tgConfirmed ? (
@@ -267,9 +290,9 @@ export default function RegisterPage() {
         )}
 
         <p className="text-center text-sm text-white/40 mt-6">
-          Уже есть аккаунт?{" "}
+          {t("auth_have_account")}{" "}
           <Link href="/auth/login" className="text-accent hover:underline">
-            Войти
+            {t("auth_login_link")}
           </Link>
         </p>
       </div>

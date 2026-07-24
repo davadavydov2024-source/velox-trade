@@ -13,7 +13,8 @@ import {
   User,
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
-import { ensureUserProfile, getUserProfile } from "./users";
+import { ensureUserProfile, getUserProfile, syncEmailVerified } from "./users";
+import { sendPasswordResetEmailViaTemplate } from "./emailjs";
 import { UserProfile } from "@/types";
 
 /** Бан считается действующим, если banned=true и (until не задан/"forever", либо ещё не истёк). */
@@ -27,10 +28,10 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<UserProfile | null>;
   login: (email: string, password: string) => Promise<void>;
   loginWithCustomToken: (token: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, language?: "ru" | "en" | "zh") => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -46,17 +47,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshProfile() {
     if (!auth.currentUser) {
       setProfile(null);
-      return;
+      return null;
+    }
+    try {
+      await auth.currentUser.reload();
+      await syncEmailVerified(auth.currentUser.uid, auth.currentUser.emailVerified);
+    } catch {
+      // Не критично — просто покажем то, что уже знаем
     }
     const p = await getUserProfile(auth.currentUser.uid);
     setProfile(p);
+    return p;
   }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        try {
+          await u.reload();
+        } catch {
+          // офлайн или сеть недоступна — просто продолжаем с тем, что уже знаем
+        }
         const p = await ensureUserProfile(u.uid, u.email ?? "", u.displayName ?? u.email ?? "Игрок", u.photoURL ?? undefined);
+        if (u.emailVerified && !p.emailVerified) {
+          await syncEmailVerified(u.uid, true);
+          p.emailVerified = true;
+        }
         setProfile(p);
       } else {
         setProfile(null);
@@ -74,11 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithCustomToken(auth, token);
   }
 
-  async function register(email: string, password: string, name: string) {
+  async function register(email: string, password: string, name: string, language?: "ru" | "en" | "zh") {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
     await sendEmailVerification(cred.user);
-    await ensureUserProfile(cred.user.uid, email, name);
+    await ensureUserProfile(cred.user.uid, email, name, undefined, language);
   }
 
   async function loginWithGoogle() {
@@ -95,9 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       throw new Error(data.error ?? "Не удалось отправить письмо для восстановления пароля");
+    }
+    // Ссылку генерирует сервер (нужен Admin SDK), а само письмо отправляем отсюда, из браузера:
+    // у REST API EmailJS строгая проверка Origin-заголовка, и вызов с сервера (Vercel) её не проходит.
+    if (data.resetLink) {
+      await sendPasswordResetEmailViaTemplate(email, data.resetLink);
     }
   }
 

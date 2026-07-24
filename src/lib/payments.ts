@@ -45,6 +45,33 @@ export async function cancelPayment(orderId: string): Promise<void> {
   }
 }
 
+/** Автоматически отменяет собственные просроченные платежи пользователя (если он ушёл и не заплатил). */
+export async function sweepExpiredPayments(): Promise<{ cancelled: number; credited: number }> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return { cancelled: 0, credited: 0 };
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/payments/sweep-expired", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) return { cancelled: 0, credited: 0 };
+  return res.json();
+}
+
+/** Админ: отменяет прямо сейчас все платежи "Ждём оплату" у всех пользователей. */
+export async function cancelAllPendingPayments(): Promise<{ total: number; cancelled: number; credited: number; failed: number }> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/admin/cancel-all-pending-payments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось выполнить массовую отмену");
+  return data;
+}
+
 export async function getPayment(orderId: string): Promise<Payment | null> {
   const snap = await getDoc(doc(db, "payments", orderId));
   if (!snap.exists()) return null;

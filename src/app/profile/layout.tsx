@@ -7,9 +7,11 @@ import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, 
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
+import { useLanguage } from "@/lib/languageStore";
 
 export default function ProfileLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout } = useAuth();
+  const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -18,18 +20,18 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
   }, [loading, user, router]);
 
   if (loading || !user || !profile) {
-    return <div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>;
+    return <div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">{t("common_loading")}</div>;
   }
 
   const links = [
-    { href: "/profile", label: "Профиль", icon: Settings },
-    { href: "/profile/orders", label: "История покупок", icon: ShoppingBag },
-    { href: "/profile/topup", label: "Пополнение баланса", icon: Wallet },
-    { href: "/profile/sell", label: "Продать предметы", icon: Tag },
-    { href: "/profile/promos", label: "Промо-подарки", icon: Gift },
-    { href: "/profile/favorites", label: "Любимые товары", icon: Heart },
-    { href: "/profile/appearance", label: "Оформление", icon: Palette },
-    { href: "/profile/security", label: "Безопасность", icon: Shield },
+    { href: "/profile", label: t("profile_nav_overview"), icon: Settings },
+    { href: "/profile/orders", label: t("profile_nav_orders"), icon: ShoppingBag },
+    { href: "/profile/topup", label: t("profile_nav_topup"), icon: Wallet },
+    { href: "/profile/sell", label: t("profile_nav_sell"), icon: Tag },
+    { href: "/profile/promos", label: t("profile_nav_promos"), icon: Gift },
+    { href: "/profile/favorites", label: t("profile_nav_favorites"), icon: Heart },
+    { href: "/profile/appearance", label: t("profile_nav_appearance"), icon: Palette },
+    { href: "/profile/security", label: t("profile_nav_security"), icon: Shield },
   ];
 
   return (
@@ -70,14 +72,14 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
             href="/admin"
             className="flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-accent hover:bg-accent/10"
           >
-            <LayoutDashboard size={16} /> Админ-панель
+            <LayoutDashboard size={16} /> {t("profile_nav_admin")}
           </Link>
         )}
         <button
           onClick={() => logout()}
           className="flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-red-400 hover:bg-red-400/10 w-full"
         >
-          <LogOut size={16} /> Выйти
+          <LogOut size={16} /> {t("profile_nav_logout")}
         </button>
       </aside>
       <div>{children}</div>

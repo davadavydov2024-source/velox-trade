@@ -18,7 +18,7 @@ const usersCol = collection(db, "users");
 const ordersCol = collection(db, "orders");
 const topUpsCol = collection(db, "topups");
 
-export async function ensureUserProfile(uid: string, email: string, displayName: string, photoURL?: string) {
+export async function ensureUserProfile(uid: string, email: string, displayName: string, photoURL?: string, language?: "ru" | "en" | "zh") {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   if (snap.exists()) {
@@ -35,15 +35,36 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
     banned: false,
     createdAt: Date.now(),
     lastLoginAt: Date.now(),
+    language: language ?? "ru",
   };
   await setDoc(ref, profile);
   return { uid, ...profile } as UserProfile;
+}
+
+/** Меняет язык интерфейса в профиле пользователя (вызывается из настроек). */
+export async function setUserLanguage(uid: string, language: "ru" | "en" | "zh") {
+  return updateDoc(doc(db, "users", uid), { language });
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, "users", uid));
   if (!snap.exists()) return null;
   return { uid, ...snap.data() } as UserProfile;
+}
+
+/**
+ * Firebase Auth сам знает, подтверждён ли email (user.emailVerified), но это отдельно от нашего
+ * профиля в Firestore. Раньше emailVerified в профиле проставлялся один раз при регистрации (false)
+ * и никогда не обновлялся — из-за этого раздел "Безопасность" всегда показывал "не подтверждён",
+ * даже если человек реально перешёл по ссылке в письме. Эта функция подтягивает реальный статус.
+ */
+export async function syncEmailVerified(uid: string, verifiedInAuth: boolean): Promise<void> {
+  if (!verifiedInAuth) return;
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists() && !(snap.data() as UserProfile).emailVerified) {
+    await updateDoc(ref, { emailVerified: true });
+  }
 }
 
 export async function getAllUsers(): Promise<UserProfile[]> {

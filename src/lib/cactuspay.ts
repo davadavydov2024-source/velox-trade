@@ -1,6 +1,9 @@
 const CACTUSPAY_TOKEN = process.env.CACTUSPAY_TOKEN;
 const BASE_URL = "https://lk.cactuspay.pro";
 
+/** Если платёж всё ещё "Ждём оплату" дольше этого времени — считаем, что человек ушёл и не заплатил. */
+export const PENDING_PAYMENT_TIMEOUT_MS = 20 * 60 * 1000; // 20 минут
+
 export class CactusPayError extends Error {}
 
 interface CreatePaymentResult {

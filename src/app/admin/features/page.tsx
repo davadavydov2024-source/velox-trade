@@ -103,6 +103,26 @@ export default function AdminFeaturesPage() {
       </div>
 
       <div className="card p-5">
+        <p className="font-medium text-sm mb-1">Комиссия с продажи предметов</p>
+        <p className="text-xs text-white/40 mb-3">
+          Применяется к заявкам в «Продать предметы»: если пользователь указал цену 100 ₽, а комиссия 20% — ему с
+          продажи ≈ 80 ₽, платформе — 20 ₽. Процент фиксируется в момент подачи заявки, так что изменение здесь не
+          повлияет на уже поданные заявки — только на новые.
+        </p>
+        <div className="relative w-40">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={flags.sellCommissionPercent}
+            onChange={(e) => setFlags((f) => ({ ...f, sellCommissionPercent: Math.max(0, Math.min(100, Number(e.target.value))) }))}
+            className="input-field py-2.5 pr-8"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">%</span>
+        </div>
+      </div>
+
+      <div className="card p-5">
         <p className="font-medium text-sm mb-1">Принудительное обновление сайта у всех</p>
         <p className="text-xs text-white/40 mb-3">
           Полезно после деплоя новой версии — у всех, кто держит сайт открытым в браузере, страница перезагрузится

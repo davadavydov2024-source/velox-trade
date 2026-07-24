@@ -118,6 +118,7 @@ export interface UserProfile {
   lastAvatarChangeAt?: number;
   ratingSum?: number;
   ratingCount?: number;
+  language?: "ru" | "en" | "zh";
 }
 
 export const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -205,6 +206,7 @@ export interface FeatureFlags {
   telegramLoginEnabled: boolean;
   telegramRegisterEnabled: boolean;
   balanceTopupEnabled: boolean;
+  sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
   updatedAt: number;
 }
 
@@ -214,6 +216,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   telegramLoginEnabled: false,
   telegramRegisterEnabled: false,
   balanceTopupEnabled: true,
+  sellCommissionPercent: 20,
   updatedAt: 0,
 };
 
@@ -254,13 +257,18 @@ export interface Payment {
   cancelledAt?: number;
 }
 
+export const MIN_SELL_PRICE = 78;
+
 export interface SellRequest {
   id: string;
   userId: string;
   userNick: string;
   itemName: string;
-  game: string;
-  price: number;
+  gameId: string;
+  gameName: string;
+  imageUrl: string;
+  price: number; // цена, которую хочет получить продавец (то, что он ввёл в форме)
+  commissionPercent: number; // комиссия платформы на момент подачи заявки (снимок текущей настройки, чтобы не менялась задним числом)
   description: string;
   status: "pending" | "approved" | "rejected";
   createdAt: number;

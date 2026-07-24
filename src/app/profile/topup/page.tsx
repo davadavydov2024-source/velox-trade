@@ -15,7 +15,7 @@ import {
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createTopUpRequest, getUserTopUpRequests } from "@/lib/users";
-import { createCactusPayment, getUserPayments, watchPayment, cancelPayment } from "@/lib/payments";
+import { createCactusPayment, getUserPayments, watchPayment, cancelPayment, sweepExpiredPayments } from "@/lib/payments";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { TopUpRequest, Payment } from "@/types";
 import { useSearchParams } from "next/navigation";
@@ -100,6 +100,7 @@ function TopUpPageInner() {
     if (!user) return;
     setLoadingPayments(true);
     try {
+      await sweepExpiredPayments().catch(() => {});
       setPayments(await getUserPayments(user.uid));
     } catch (err) {
       console.error("Не удалось загрузить платежи:", err);

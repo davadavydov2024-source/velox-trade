@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { Search, ShoppingCart, Wallet, User as UserIcon, Menu, X, Swords } from "lucide-react";
 import { useCart } from "@/lib/cartStore";
 import { useAuth } from "@/lib/authContext";
+import { useLanguage } from "@/lib/languageStore";
 
 export function Header() {
   const cartCount = useCart((s) => s.count());
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   // Корзина читается из localStorage, которого нет на сервере — поэтому первая отрисовка
@@ -29,16 +31,16 @@ export function Header() {
 
         <nav className="hidden lg:flex items-center gap-6 text-sm text-white/70 shrink-0">
           <Link href="/games" className="hover:text-white transition-colors">
-            Игры
+            {t("nav_games")}
           </Link>
           <Link href="/catalog" className="hover:text-white transition-colors">
-            Каталог
+            {t("nav_catalog")}
           </Link>
           <Link href="/catalog?new=1" className="hover:text-white transition-colors">
-            Новинки
+            {t("nav_new")}
           </Link>
           <Link href="/chats" className="hover:text-white transition-colors">
-            Чаты
+            {t("nav_chats")}
           </Link>
         </nav>
 
@@ -80,7 +82,7 @@ export function Header() {
             </Link>
           ) : (
             <Link href="/auth/login" className="btn-primary py-2 px-4 text-sm">
-              Войти
+              {t("nav_login")}
             </Link>
           )}
           <button className="lg:hidden btn-secondary py-2 px-3" onClick={() => setMenuOpen((v) => !v)}>
@@ -92,16 +94,16 @@ export function Header() {
       {menuOpen && (
         <nav className="lg:hidden flex flex-col gap-1 px-4 pb-4 text-sm text-white/80">
           <Link href="/games" className="py-2" onClick={() => setMenuOpen(false)}>
-            Игры
+            {t("nav_games")}
           </Link>
           <Link href="/catalog" className="py-2" onClick={() => setMenuOpen(false)}>
-            Каталог
+            {t("nav_catalog")}
           </Link>
           <Link href="/catalog?new=1" className="py-2" onClick={() => setMenuOpen(false)}>
-            Новинки
+            {t("nav_new")}
           </Link>
           <Link href="/chats" className="py-2" onClick={() => setMenuOpen(false)}>
-            Чаты
+            {t("nav_chats")}
           </Link>
         </nav>
       )}
