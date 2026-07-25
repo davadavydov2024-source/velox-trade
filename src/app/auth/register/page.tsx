@@ -14,16 +14,16 @@ import { LANGUAGES } from "@/lib/i18n";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
-function translateAuthError(t: (key: string) => string, code?: string) {
+function translateAuthError(code?: string) {
   switch (code) {
     case "auth/email-already-in-use":
-      return t("auth_error_email_in_use");
+      return "Этот email уже зарегистрирован";
     case "auth/invalid-email":
-      return t("auth_error_invalid_email");
+      return "Некорректный email";
     case "auth/weak-password":
-      return t("auth_error_weak_password");
+      return "Слишком простой пароль";
     default:
-      return t("auth_error_generic");
+      return "Ошибка регистрации. Попробуйте снова";
   }
 }
 
@@ -72,16 +72,16 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password.length < 6) {
-      toast("warning", t("register_toast_short_password"));
+      toast("warning", "Пароль должен быть не короче 6 символов");
       return;
     }
     setLoading(true);
     try {
       await register(email, password, name, language);
-      toast("success", t("register_toast_created"));
+      toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
       router.push("/profile");
     } catch (err: any) {
-      toast("error", translateAuthError(t, err?.code));
+      toast("error", translateAuthError(err?.code));
     } finally {
       setLoading(false);
     }
@@ -109,9 +109,9 @@ export default function RegisterPage() {
       }, 3000);
     } catch (err: any) {
       if (err?.code === "permission-denied") {
-        toast("error", t("register_toast_no_permission"));
+        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
       } else {
-        toast("error", t("register_toast_start_failed"));
+        toast("error", "Не удалось начать регистрацию");
       }
     } finally {
       setTgCreating(false);
@@ -119,17 +119,19 @@ export default function RegisterPage() {
   }
 
   if (!flagsLoaded) {
-    return <div className="max-w-md mx-auto px-4 py-16 text-center text-white/40">{t("common_loading")}</div>;
+    return <div className="max-w-md mx-auto px-4 py-16 text-center text-white/40">Загрузка...</div>;
   }
 
   if (!flags.registrationEnabled) {
     return (
       <div className="max-w-md mx-auto px-4 py-16">
         <div className="card p-8 text-center">
-          <h1 className="text-xl font-bold mb-2">{t("register_disabled_title")}</h1>
-          <p className="text-white/40 text-sm">{t("register_disabled_body")}</p>
+          <h1 className="text-xl font-bold mb-2">Регистрация временно закрыта</h1>
+          <p className="text-white/40 text-sm">
+            Администратор временно отключил регистрацию новых аккаунтов. Попробуй зайти позже.
+          </p>
           <Link href="/auth/login" className="text-accent hover:underline text-sm mt-4 inline-block">
-            {t("register_back_to_login")}
+            ← Ко входу
           </Link>
         </div>
       </div>
@@ -168,7 +170,7 @@ export default function RegisterPage() {
                 mode === "password" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              {t("register_email_mode")}
+              Email и пароль
             </button>
             <button
               onClick={() => setMode("telegram")}
@@ -176,7 +178,7 @@ export default function RegisterPage() {
                 mode === "telegram" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              <MessageCircle size={14} /> {t("register_telegram_mode")}
+              <MessageCircle size={14} /> Через Telegram
             </button>
           </div>
         )}
@@ -218,11 +220,11 @@ export default function RegisterPage() {
             <label className="flex items-start gap-2 text-xs text-white/50">
               <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5" />
               <span>
-                {t("register_agree_prefix")}{" "}
+                Я согласен с{" "}
                 <Link href="/rules" target="_blank" className="text-accent hover:underline">
-                  {t("register_agree_rules")}
+                  правилами платформы
                 </Link>{" "}
-                {t("register_agree_suffix")}
+                и понимаю, что за оплату через CactusPay отвечает сама платёжная система lk.cactuspay.pro.
               </span>
             </label>
             <button disabled={loading || !agreed} className="btn-primary w-full py-3 disabled:opacity-50">
@@ -232,9 +234,11 @@ export default function RegisterPage() {
         ) : tgConfirmed ? (
           <div className="text-center py-4 space-y-4">
             <CheckCircle2 className="mx-auto text-green-400" size={36} />
-            <p className="text-sm text-white/70">{t("register_tg_confirmed")}</p>
+            <p className="text-sm text-white/70">
+              Аккаунт создан! Код для входа уже отправлен тебе в Telegram — введи его на странице входа.
+            </p>
             <Link href="/auth/login" className="btn-primary inline-block px-6 py-3 text-sm">
-              {t("register_tg_go_to_login")}
+              Перейти ко входу
             </Link>
           </div>
         ) : tgLinkUrl ? (
@@ -245,11 +249,14 @@ export default function RegisterPage() {
               rel="noopener noreferrer"
               className="btn-primary px-6 py-3 text-sm inline-flex items-center gap-2"
             >
-              {t("register_tg_open_bot")} <ExternalLink size={14} />
+              Открыть Telegram-бота <ExternalLink size={14} />
             </a>
-            <p className="text-xs text-white/40">{t("register_tg_waiting_hint")}</p>
+            <p className="text-xs text-white/40">
+              Нажми «Start» в боте — аккаунт создастся автоматически, и мы пришлём код для входа прямо туда. Эта
+              страница обновится сама.
+            </p>
             <div className="flex items-center justify-center gap-2 text-xs text-white/30 pt-2">
-              <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> {t("register_tg_waiting")}
+              <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Ждём подтверждения...
             </div>
           </div>
         ) : (
@@ -260,7 +267,7 @@ export default function RegisterPage() {
                 required
                 value={tgName}
                 onChange={(e) => setTgName(e.target.value)}
-                placeholder={t("register_tg_name_placeholder")}
+                placeholder="Имя пользователя"
                 className="input-field pl-10"
               />
             </div>
@@ -271,14 +278,14 @@ export default function RegisterPage() {
                 required
                 value={tgEmail}
                 onChange={(e) => setTgEmail(e.target.value)}
-                placeholder={t("login_email_placeholder")}
+                placeholder="Email"
                 className="input-field pl-10"
               />
             </div>
             <button disabled={tgCreating} className="btn-primary w-full py-3 disabled:opacity-50">
-              {tgCreating ? t("register_tg_preparing") : t("register_tg_continue")}
+              {tgCreating ? "Готовим ссылку..." : "Продолжить в Telegram"}
             </button>
-            <p className="text-xs text-white/30 text-center">{t("register_tg_no_password_hint")}</p>
+            <p className="text-xs text-white/30 text-center">Без пароля — вход будет по коду из Telegram.</p>
           </form>
         )}
 

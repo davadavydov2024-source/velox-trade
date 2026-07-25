@@ -6,11 +6,9 @@ import { Megaphone, ExternalLink } from "lucide-react";
 import { getNewsPosts } from "@/lib/newsChannel";
 import { NewsPost } from "@/types";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
-import { useLanguage } from "@/lib/languageStore";
 
 /** Read-only лента канала «Velox Trade Новости» — админ постит, все остальные читают. */
 export function NewsPanel() {
-  const { t } = useLanguage();
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,15 +23,15 @@ export function NewsPanel() {
       <div className="flex items-center gap-2 mb-6">
         <Megaphone size={20} className="text-accent" />
         <div>
-          <p className="font-bold">{t("news_title")}</p>
-          <p className="text-xs text-white/40">{t("news_subtitle")}</p>
+          <p className="font-bold">Velox Trade Новости</p>
+          <p className="text-xs text-white/40">Официальный канал — обновления, акции и объявления</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="card p-6 text-center text-white/40 text-sm">{t("common_loading")}</div>
+        <div className="card p-6 text-center text-white/40 text-sm">Загрузка...</div>
       ) : posts.length === 0 ? (
-        <div className="card p-8 text-center text-white/40 text-sm">{t("news_empty")}</div>
+        <div className="card p-8 text-center text-white/40 text-sm">Пока нет новостей. Загляните позже!</div>
       ) : (
         <div className="space-y-4">
           {posts.map((post) => (

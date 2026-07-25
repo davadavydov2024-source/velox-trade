@@ -11,11 +11,8 @@ import { createOrder, adjustUserBalance } from "@/lib/users";
 import { validateDiscountCode, markPromoCodeUsed } from "@/lib/promoCodes";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useRouter } from "next/navigation";
-import { useLanguage } from "@/lib/languageStore";
-import { tf } from "@/lib/i18n";
 
 export default function CartPage() {
-  const { t, language } = useLanguage();
   const { lines, remove, setQuantity, clear, total } = useCart();
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
@@ -31,7 +28,7 @@ export default function CartPage() {
 
   async function applyPromo() {
     if (!user) {
-      toast("warning", t("cart_promo_need_login"));
+      toast("warning", "Войдите в аккаунт, чтобы применить промокод");
       return;
     }
     if (!promo.trim()) return;
@@ -40,9 +37,9 @@ export default function CartPage() {
       const found = await validateDiscountCode(promo, user.uid);
       setDiscount(found.discountPercent ?? 0);
       setAppliedPromoId(found.id);
-      toast("success", tf(language, "cart_promo_applied", { pct: found.discountPercent ?? 0 }));
+      toast("success", `Промокод применён: -${found.discountPercent}%`);
     } catch (err: any) {
-      toast("error", err?.message ?? t("cart_promo_not_found"));
+      toast("error", err?.message ?? "Промокод не найден");
     } finally {
       setApplyingPromo(false);
     }
@@ -50,13 +47,13 @@ export default function CartPage() {
 
   async function checkout() {
     if (!user || !profile) {
-      toast("warning", t("cart_need_login"));
+      toast("warning", "Войдите в аккаунт, чтобы оформить заказ");
       router.push("/auth/login");
       return;
     }
     if (lines.length === 0) return;
     if (profile.balance < finalTotal) {
-      toast("error", t("cart_insufficient_balance"));
+      toast("error", "Недостаточно средств на балансе. Пополните баланс.");
       router.push("/profile/topup");
       return;
     }
@@ -93,10 +90,10 @@ export default function CartPage() {
       }
       await refreshProfile();
       clear();
-      toast("success", t("cart_order_placed"));
+      toast("success", "Заказ оформлен! Подтверди получение предмета в истории заказов, когда получишь его.");
       router.push("/profile/orders");
     } catch (e) {
-      toast("error", t("cart_order_failed"));
+      toast("error", "Не удалось оформить заказ. Попробуйте снова.");
     } finally {
       setPlacing(false);
     }
@@ -105,9 +102,9 @@ export default function CartPage() {
   if (lines.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-24 text-center">
-        <p className="text-white/40 mb-6">{t("cart_empty")}</p>
+        <p className="text-white/40 mb-6">Корзина пуста.</p>
         <Link href="/catalog" className="btn-primary px-6 py-3 inline-block">
-          {t("cart_go_to_catalog")}
+          Перейти в каталог
         </Link>
       </div>
     );
@@ -115,7 +112,7 @@ export default function CartPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl font-bold mb-6">{t("cart_title")}</h1>
+      <h1 className="text-2xl font-bold mb-6">Корзина</h1>
       <div className="grid md:grid-cols-[1fr_320px] gap-8">
         <div className="space-y-3">
           {lines.map((line) => (
@@ -150,38 +147,42 @@ export default function CartPage() {
               <input
                 value={promo}
                 onChange={(e) => setPromo(e.target.value)}
-                placeholder={t("cart_promo_placeholder")}
+                placeholder="Промокод"
                 className="input-field pl-9 py-2 text-sm"
               />
             </div>
             <button onClick={applyPromo} disabled={applyingPromo || !promo.trim()} className="btn-secondary px-4 text-sm disabled:opacity-50">
-              {applyingPromo ? t("cart_promo_applying") : t("cart_promo_apply")}
+              {applyingPromo ? "..." : "Применить"}
             </button>
           </div>
 
           <div className="space-y-2 text-sm border-t border-border pt-4">
             <div className="flex justify-between text-white/50">
-              <span>{t("cart_subtotal")}</span>
+              <span>Подытог</span>
               <span>{subtotal.toFixed(2)} ₽</span>
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-green-400">
-                <span>{tf(language, "cart_discount", { pct: discount })}</span>
+                <span>Скидка ({discount}%)</span>
                 <span>-{(subtotal - finalTotal).toFixed(2)} ₽</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg border-t border-border pt-2">
-              <span>{t("cart_total")}</span>
+              <span>Итого</span>
               <span className="text-accent">{finalTotal.toFixed(2)} ₽</span>
             </div>
           </div>
 
-          <p className="text-[11px] text-yellow-400/70 leading-relaxed">{t("cart_safety_note")}</p>
+          <p className="text-[11px] text-yellow-400/70 leading-relaxed">
+            Оплата списывается с баланса сайта — никогда не переводите деньги продавцу напрямую вне сайта и не
+            выполняйте ничего, что выглядит подозрительно (просьбы «доплатить отдельно», перейти по сторонней
+            ссылке и т.п.). Если что-то смущает — сначала напишите в поддержку.
+          </p>
 
           <button onClick={checkout} disabled={placing} className="btn-primary w-full py-3 disabled:opacity-50">
-            {placing ? t("cart_checkout_placing") : t("cart_checkout")}
+            {placing ? "Оформляем..." : "Оплатить с баланса"}
           </button>
-          {profile && <p className="text-xs text-white/30 text-center">{tf(language, "cart_balance_label", { balance: profile.balance.toFixed(2) })}</p>}
+          {profile && <p className="text-xs text-white/30 text-center">Баланс: {profile.balance.toFixed(2)} ₽</p>}
         </div>
       </div>
     </div>

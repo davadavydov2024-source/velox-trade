@@ -11,11 +11,8 @@ import { getFeatureFlags } from "@/lib/featureFlags";
 import { Game, MIN_SELL_PRICE, DEFAULT_FEATURE_FLAGS } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
-import { useLanguage } from "@/lib/languageStore";
-import { tf } from "@/lib/i18n";
 
 export default function SellPage() {
-  const { t, language } = useLanguage();
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
@@ -45,23 +42,23 @@ export default function SellPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !profile) {
-      toast("warning", t("sell_toast_need_login"));
+      toast("warning", "Войдите в аккаунт, чтобы продавать предметы");
       return;
     }
     if (!selectedGame) {
-      toast("warning", t("sell_toast_choose_game"));
+      toast("warning", "Выбери игру");
       return;
     }
     if (!imageUrl) {
-      toast("warning", t("sell_toast_need_photo"));
+      toast("warning", "Загрузи фото предмета");
       return;
     }
     if (!description.trim()) {
-      toast("warning", t("sell_toast_need_description"));
+      toast("warning", "Опиши предмет — описание обязательно");
       return;
     }
     if (priceNum < MIN_SELL_PRICE) {
-      toast("warning", tf(language, "sell_toast_min_price", { min: MIN_SELL_PRICE }));
+      toast("warning", `Минимальная цена — ${MIN_SELL_PRICE} ₽`);
       return;
     }
 
@@ -86,7 +83,7 @@ export default function SellPage() {
         body: JSON.stringify({ itemName, game: selectedGame.name, price: priceNum, userNick: profile.displayName }),
       }).catch((err) => console.error("Не удалось уведомить админа:", err));
 
-      toast("success", t("sell_toast_sent"));
+      toast("success", "Заявка на продажу отправлена. Администратор проверит её и свяжется с тобой.");
       setSelectedGame(null);
       setImageUrl("");
       setItemName("");
@@ -94,9 +91,9 @@ export default function SellPage() {
       setDescription("");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
-        toast("error", t("sell_toast_no_permission"));
+        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
       } else {
-        toast("error", t("sell_toast_failed"));
+        toast("error", "Не удалось отправить заявку. Попробуй ещё раз.");
       }
       console.error(err);
     } finally {
@@ -107,13 +104,16 @@ export default function SellPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold flex items-center gap-2">
-        <Tag size={20} className="text-accent" /> {t("sell_title")}
+        <Tag size={20} className="text-accent" /> Продать предметы
       </h1>
-      <p className="text-sm text-white/40">{t("sell_intro")}</p>
+      <p className="text-sm text-white/40">
+        Заполни форму — заявка сразу уйдёт администратору (в том числе уведомлением в Telegram), он проверит предмет
+        и свяжется с тобой для оформления продажи.
+      </p>
 
       <form onSubmit={handleSubmit} className="card p-6 space-y-5 max-w-xl">
         <div>
-          <p className="text-sm font-medium mb-2">{t("sell_game_label")}</p>
+          <p className="text-sm font-medium mb-2">Игра</p>
           {!gamesLoaded ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -121,7 +121,9 @@ export default function SellPage() {
               ))}
             </div>
           ) : games.length === 0 ? (
-            <p className="text-sm text-white/30">{t("sell_no_games")}</p>
+            <p className="text-sm text-white/30">
+              Игры ещё не добавлены администратором — обратись в поддержку, чтобы уточнить, куда отнести предмет.
+            </p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {games.map((game) => {
@@ -152,7 +154,7 @@ export default function SellPage() {
         </div>
 
         <div>
-          <p className="text-sm font-medium mb-2">{t("sell_photo_label")}</p>
+          <p className="text-sm font-medium mb-2">Фото предмета</p>
           <ImageUploadField value={imageUrl} onChange={setImageUrl} folder="sell-requests" size={96} />
         </div>
 
@@ -160,7 +162,7 @@ export default function SellPage() {
           required
           value={itemName}
           onChange={(e) => setItemName(e.target.value)}
-          placeholder={t("sell_item_name_placeholder")}
+          placeholder="Название предмета"
           className="input-field py-2.5"
         />
 
@@ -168,7 +170,7 @@ export default function SellPage() {
           required
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder={t("sell_description_placeholder")}
+          placeholder="Описание предмета (обязательно)"
           rows={3}
           className="input-field py-2.5"
         />
@@ -180,19 +182,18 @@ export default function SellPage() {
             min={MIN_SELL_PRICE}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder={tf(language, "sell_price_placeholder", { min: MIN_SELL_PRICE })}
+            placeholder={`Желаемая цена, ₽ (минимум ${MIN_SELL_PRICE} ₽)`}
             className="input-field py-2.5"
           />
           {priceNum > 0 && (
             <p className="text-xs text-white/40 mt-2">
-              {tf(language, "sell_commission_note", { pct: commissionPercent, commission })}{" "}
-              <span className="text-accent font-medium">{payout} ₽</span>
+              Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
             </p>
           )}
         </div>
 
         <button disabled={submitting} className="btn-primary w-full py-3 disabled:opacity-50">
-          {submitting ? t("sell_submitting") : t("sell_submit")}
+          {submitting ? "Отправляем..." : "Отправить заявку"}
         </button>
       </form>
     </div>
