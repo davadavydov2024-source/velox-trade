@@ -73,6 +73,24 @@ const TRANSLATIONS: Record<Language, Dict> = {
     common_loading: "Загрузка...",
     common_save: "Сохранить",
     common_cancel: "Отмена",
+
+    my_products_title: "Мои товары",
+    my_products_intro: "Продвигай свои товары, чтобы их видело больше покупателей.",
+    my_products_empty: "У тебя пока нет товаров в каталоге.",
+    my_products_balance_label: "Баланс: {balance} ₽",
+    my_products_stock: "{n} шт.",
+    my_products_boost_active_game: "В топе игры до {date}",
+    my_products_boost_active_home: "На главной до {date}",
+    my_products_boost_game_title: "Топ в игре",
+    my_products_boost_game_desc: "Поднять товар в топ выдачи игры на {days} дн.",
+    my_products_boost_home_title: "На главной",
+    my_products_boost_home_desc: "Показывать товар на главной странице {days} дн.",
+    my_products_boost_buy: "Купить за {price} ₽",
+    my_products_boost_extend: "Продлить за {price} ₽",
+    my_products_boost_confirming: "Оформляем...",
+    my_products_toast_insufficient: "Недостаточно средств на балансе",
+    my_products_toast_success: "Продвижение оформлено!",
+    my_products_toast_failed: "Не удалось оформить продвижение",
   },
   en: {
     nav_catalog: "Catalog",
@@ -124,6 +142,24 @@ const TRANSLATIONS: Record<Language, Dict> = {
     common_loading: "Loading...",
     common_save: "Save",
     common_cancel: "Cancel",
+
+    my_products_title: "My Products",
+    my_products_intro: "Boost your listings so more buyers see them.",
+    my_products_empty: "You don't have any products in the catalog yet.",
+    my_products_balance_label: "Balance: {balance} ₽",
+    my_products_stock: "{n} in stock",
+    my_products_boost_active_game: "Top of game listing until {date}",
+    my_products_boost_active_home: "Featured on homepage until {date}",
+    my_products_boost_game_title: "Top of game",
+    my_products_boost_game_desc: "Boost to the top of this game's listing for {days} days.",
+    my_products_boost_home_title: "Homepage feature",
+    my_products_boost_home_desc: "Show this item on the homepage for {days} days.",
+    my_products_boost_buy: "Buy for {price} ₽",
+    my_products_boost_extend: "Extend for {price} ₽",
+    my_products_boost_confirming: "Processing...",
+    my_products_toast_insufficient: "Insufficient balance",
+    my_products_toast_success: "Boost activated!",
+    my_products_toast_failed: "Couldn't activate boost",
   },
   zh: {
     nav_catalog: "商品目录",
@@ -175,9 +211,46 @@ const TRANSLATIONS: Record<Language, Dict> = {
     common_loading: "加载中...",
     common_save: "保存",
     common_cancel: "取消",
+
+    my_products_title: "我的商品",
+    my_products_intro: "推广你的商品，让更多买家看到。",
+    my_products_empty: "你的商品目录还是空的。",
+    my_products_balance_label: "余额：{balance} ₽",
+    my_products_stock: "库存 {n}",
+    my_products_boost_active_game: "游戏置顶至 {date}",
+    my_products_boost_active_home: "首页展示至 {date}",
+    my_products_boost_game_title: "游戏置顶",
+    my_products_boost_game_desc: "在该游戏列表置顶 {days} 天。",
+    my_products_boost_home_title: "首页展示",
+    my_products_boost_home_desc: "在首页展示该商品 {days} 天。",
+    my_products_boost_buy: "购买 {price} ₽",
+    my_products_boost_extend: "续费 {price} ₽",
+    my_products_boost_confirming: "处理中...",
+    my_products_toast_insufficient: "余额不足",
+    my_products_toast_success: "推广已开通！",
+    my_products_toast_failed: "推广开通失败",
   },
 };
 
 export function t(lang: Language, key: string): string {
   return TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS[DEFAULT_LANGUAGE][key] ?? key;
+}
+
+/** Как t(), но подставляет параметры вида {name} в строку перевода. */
+export function tf(lang: Language, key: string, params: Record<string, string | number>): string {
+  const template = t(lang, key);
+  return Object.entries(params).reduce(
+    (str, [name, value]) => str.replaceAll(`{${name}}`, String(value)),
+    template
+  );
+}
+
+const RARITY_LABELS: Record<Language, Record<import("@/types").Rarity, string>> = {
+  ru: { common: "Обычный", uncommon: "Необычный", rare: "Редкий", epic: "Эпический", legendary: "Легендарный" },
+  en: { common: "Common", uncommon: "Uncommon", rare: "Rare", epic: "Epic", legendary: "Legendary" },
+  zh: { common: "普通", uncommon: "非凡", rare: "稀有", epic: "史诗", legendary: "传说" },
+};
+
+export function rarityLabel(lang: Language, rarity: import("@/types").Rarity): string {
+  return RARITY_LABELS[lang]?.[rarity] ?? RARITY_LABELS[DEFAULT_LANGUAGE][rarity] ?? rarity;
 }

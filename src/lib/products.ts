@@ -88,6 +88,21 @@ export async function deleteProduct(id: string) {
   return deleteDoc(doc(db, "products", id));
 }
 
+/** Покупка продвижения товара продавцом за баланс — идёт через сервер (см. api/products/boost). */
+export async function boostProduct(productId: string, tier: "game" | "home"): Promise<{ boostTier: string; boostUntil: number }> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/products/boost", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ productId, tier }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось оформить продвижение");
+  return data;
+}
+
 export async function createGame(data: Omit<Game, "id">) {
   return addDoc(gamesCol, data);
 }

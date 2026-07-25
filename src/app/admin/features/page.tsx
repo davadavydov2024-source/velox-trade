@@ -123,6 +123,52 @@ export default function AdminFeaturesPage() {
       </div>
 
       <div className="card p-5">
+        <p className="font-medium text-sm mb-3">Продвижение товаров («Мои товары»)</p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">Топ в игре — цена, ₽</p>
+            <input
+              type="number"
+              min={0}
+              value={flags.boostGamePriceRub}
+              onChange={(e) => setFlags((f) => ({ ...f, boostGamePriceRub: Math.max(0, Number(e.target.value)) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">Топ в игре — на сколько дней</p>
+            <input
+              type="number"
+              min={1}
+              value={flags.boostGameDays}
+              onChange={(e) => setFlags((f) => ({ ...f, boostGameDays: Math.max(1, Number(e.target.value)) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">На главной — цена, ₽</p>
+            <input
+              type="number"
+              min={0}
+              value={flags.boostHomePriceRub}
+              onChange={(e) => setFlags((f) => ({ ...f, boostHomePriceRub: Math.max(0, Number(e.target.value)) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">На главной — на сколько дней</p>
+            <input
+              type="number"
+              min={1}
+              value={flags.boostHomeDays}
+              onChange={(e) => setFlags((f) => ({ ...f, boostHomeDays: Math.max(1, Number(e.target.value)) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-5">
         <p className="font-medium text-sm mb-1">Принудительное обновление сайта у всех</p>
         <p className="text-xs text-white/40 mb-3">
           Полезно после деплоя новой версии — у всех, кто держит сайт открытым в браузере, страница перезагрузится

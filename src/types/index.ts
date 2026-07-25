@@ -28,6 +28,8 @@ export interface Product {
   stock: number;
   isNew?: boolean;
   discountPercent?: number;
+  boostTier?: "game" | "home"; // продвижение продавцом за баланс — "home" старше "game"
+  boostUntil?: number; // до какого момента (Date.now()) продвижение активно
   createdAt: number;
 }
 
@@ -207,6 +209,10 @@ export interface FeatureFlags {
   telegramRegisterEnabled: boolean;
   balanceTopupEnabled: boolean;
   sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
+  boostGamePriceRub: number; // цена продвижения "в топ игры" за период boostGameDays
+  boostGameDays: number;
+  boostHomePriceRub: number; // цена продвижения "на главную" за период boostHomeDays (старший тир)
+  boostHomeDays: number;
   updatedAt: number;
 }
 
@@ -217,6 +223,10 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   telegramRegisterEnabled: false,
   balanceTopupEnabled: true,
   sellCommissionPercent: 20,
+  boostGamePriceRub: 49,
+  boostGameDays: 3,
+  boostHomePriceRub: 149,
+  boostHomeDays: 3,
   updatedAt: 0,
 };
 
