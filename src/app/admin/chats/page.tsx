@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MessageSquare, Send, CheckCircle2, Megaphone, Plus, Trash2, Link as LinkIcon } from "lucide-react";
 import { getAllTickets, addTicketMessage, setTicketStatus } from "@/lib/tickets";
 import { getNewsPosts, createNewsPost, deleteNewsPost } from "@/lib/newsChannel";
+import { notifyTelegram } from "@/lib/telegramNotify";
 import { SupportTicket, NewsPost, NewsButton } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { ImageUploadField } from "@/components/ImageUploadField";
@@ -51,6 +52,7 @@ function SupportTab() {
     setSending(true);
     try {
       await addTicketMessage(active.id, "admin", reply);
+      notifyTelegram(active.userId, `💬 Поддержка ответила на ваше обращение «${active.subject}»:\n\n${reply}`);
       const updatedMsg = { from: "admin" as const, text: reply, createdAt: Date.now() };
       setTickets((list) =>
         list.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, updatedMsg], status: "answered" } : t))

@@ -19,35 +19,32 @@ import { createCactusPayment, getUserPayments, watchPayment, cancelPayment, swee
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { TopUpRequest, Payment } from "@/types";
 import { useSearchParams } from "next/navigation";
-import { useLanguage } from "@/lib/languageStore";
-import { tf } from "@/lib/i18n";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 const QUICK_AMOUNTS = [100, 300, 500, 1000, 2000, 5000];
 
-const METHOD_OPTIONS: { value: TopUpRequest["method"]; labelKey: string; icon: typeof QrCode }[] = [
-  { value: "qr", labelKey: "topup_method_qr", icon: QrCode },
-  { value: "playerok", labelKey: "topup_method_playerok", icon: ExternalLink },
-  { value: "funpay", labelKey: "topup_method_funpay", icon: ExternalLink },
-  { value: "phone", labelKey: "topup_method_phone", icon: Smartphone },
+const METHOD_OPTIONS: { value: TopUpRequest["method"]; label: string; icon: typeof QrCode }[] = [
+  { value: "qr", label: "QR-код", icon: QrCode },
+  { value: "playerok", label: "Playerok", icon: ExternalLink },
+  { value: "funpay", label: "FunPay", icon: ExternalLink },
+  { value: "phone", label: "По номеру телефона", icon: Smartphone },
 ];
 
-const TOPUP_STATUS_META: Record<TopUpRequest["status"], { key: string; color: string; icon: typeof Clock }> = {
-  pending: { key: "topup_status_pending", color: "#ff9800", icon: Clock },
-  approved: { key: "topup_status_approved", color: "#4caf50", icon: CheckCircle2 },
-  rejected: { key: "topup_status_rejected", color: "#f44336", icon: XCircle },
+const TOPUP_STATUS_LABEL: Record<TopUpRequest["status"], { text: string; color: string; icon: typeof Clock }> = {
+  pending: { text: "На рассмотрении", color: "#ff9800", icon: Clock },
+  approved: { text: "Одобрена", color: "#4caf50", icon: CheckCircle2 },
+  rejected: { text: "Отклонена", color: "#f44336", icon: XCircle },
 };
 
-const PAYMENT_STATUS_META: Record<Payment["status"], { key: string; color: string; icon: typeof Clock }> = {
-  pending: { key: "payment_status_pending", color: "#ff9800", icon: Clock },
-  paid: { key: "payment_status_paid", color: "#4caf50", icon: CheckCircle2 },
-  failed: { key: "payment_status_failed", color: "#f44336", icon: XCircle },
-  cancelled: { key: "payment_status_cancelled", color: "#9aa3b2", icon: XCircle },
+const PAYMENT_STATUS_LABEL: Record<Payment["status"], { text: string; color: string; icon: typeof Clock }> = {
+  pending: { text: "Ждём оплату", color: "#ff9800", icon: Clock },
+  paid: { text: "Оплачен", color: "#4caf50", icon: CheckCircle2 },
+  failed: { text: "Не оплачен", color: "#f44336", icon: XCircle },
+  cancelled: { text: "Отменён", color: "#9aa3b2", icon: XCircle },
 };
 
 function TopUpPageInner() {
-  const { t, language } = useLanguage();
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -89,7 +86,7 @@ function TopUpPageInner() {
     setPendingOrderId(orderId);
     const unsub = watchPayment(orderId, (payment) => {
       if (payment?.status === "paid") {
-        toast("success", tf(language, "topup_balance_topped_up", { amount: payment.amount }));
+        toast("success", `Баланс пополнен на ${payment.amount} ₽!`);
         refreshProfile();
         refreshPayments();
         setPendingOrderId(null);
@@ -128,7 +125,7 @@ function TopUpPageInner() {
     e.preventDefault();
     const num = Number(depositAmount);
     if (!num || num < 100) {
-      toast("warning", t("topup_toast_min_amount"));
+      toast("warning", "Минимальная сумма пополнения — 100 ₽");
       return;
     }
     setPayingNow(true);
@@ -136,7 +133,7 @@ function TopUpPageInner() {
       const { url } = await createCactusPayment(num);
       window.location.href = url;
     } catch (err: any) {
-      toast("error", err?.message || t("topup_toast_pay_failed"));
+      toast("error", err?.message || "Не удалось создать платёж");
       setPayingNow(false);
     }
   }
@@ -145,11 +142,11 @@ function TopUpPageInner() {
     setCancellingId(orderId);
     try {
       await cancelPayment(orderId);
-      toast("success", t("topup_toast_cancelled"));
+      toast("success", "Платёж отменён");
       if (pendingOrderId === orderId) setPendingOrderId(null);
       refreshPayments();
     } catch (err: any) {
-      toast("error", err?.message || t("topup_toast_cancel_failed"));
+      toast("error", err?.message || "Не удалось отменить платёж");
       refreshPayments(); // на случай, если сервер уже зачислил баланс (оплата пришла раньше отмены)
       refreshProfile();
     } finally {
@@ -162,11 +159,11 @@ function TopUpPageInner() {
     if (!user || !profile) return;
     const num = Number(withdrawAmount);
     if (!num || num <= 0) {
-      toast("warning", t("topup_toast_bad_amount"));
+      toast("warning", "Введите корректную сумму");
       return;
     }
     if (num > profile.balance) {
-      toast("error", t("topup_toast_over_balance"));
+      toast("error", "Сумма вывода больше доступного баланса");
       return;
     }
     setSubmittingWithdraw(true);
@@ -179,15 +176,15 @@ function TopUpPageInner() {
         method,
         comment: comment.trim() || undefined,
       });
-      toast("success", t("topup_toast_withdraw_sent"));
+      toast("success", "Заявка на вывод создана. Администратор рассмотрит её.");
       setWithdrawAmount("");
       setComment("");
       refreshRequests();
     } catch (err: any) {
       if (err?.code === "permission-denied") {
-        toast("error", t("topup_toast_no_permission"));
+        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
       } else {
-        toast("error", t("topup_toast_withdraw_failed"));
+        toast("error", "Не удалось создать заявку. Попробуйте снова.");
       }
       console.error(err);
     } finally {
@@ -197,17 +194,17 @@ function TopUpPageInner() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <h1 className="text-xl font-bold">{t("topup_title")}</h1>
+      <h1 className="text-xl font-bold">Пополнение и вывод баланса</h1>
 
       {!flagsLoaded ? (
-        <div className="card p-10 text-center text-white/40">{t("common_loading")}</div>
+        <div className="card p-10 text-center text-white/40">Загрузка...</div>
       ) : !enabled ? (
         <div className="card p-8 text-center">
-          <p className="text-white/60">{t("topup_disabled")}</p>
+          <p className="text-white/60">Пополнение и вывод баланса временно отключены администратором.</p>
           <p className="text-white/40 text-sm mt-2">
-            {t("topup_need_help")}{" "}
+            Если нужна помощь — напиши в{" "}
             <a href="/chats?tab=support" className="text-accent hover:underline">
-              {t("topup_support_link")}
+              поддержку
             </a>
             .
           </p>
@@ -222,7 +219,7 @@ function TopUpPageInner() {
                 tab === "deposit" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              <ArrowDownCircle size={16} /> {t("topup_tab_deposit")}
+              <ArrowDownCircle size={16} /> Пополнить
             </button>
             <button
               type="button"
@@ -231,33 +228,45 @@ function TopUpPageInner() {
                 tab === "withdraw" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              <ArrowUpCircle size={16} /> {t("topup_tab_withdraw")}
+              <ArrowUpCircle size={16} /> Вывести
             </button>
           </div>
 
           {tab === "deposit" ? (
             <>
               <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5">
-                <p className="text-sm text-white/70 leading-relaxed">{t("topup_deposit_notice")}</p>
+                <p className="text-sm text-white/70 leading-relaxed">
+                  Оплата принимается через платёжную систему{" "}
+                  <a href="https://lk.cactuspay.pro" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                    CactusPay
+                  </a>
+                  . Нажимая «Оплатить», вы соглашаетесь с тем, что за проведение платежа (в том числе за сроки
+                  зачисления, работу выбранного способа оплаты и возможные технические сбои) отвечает сама платёжная
+                  система lk.cactuspay.pro, а не Velox Trade. Баланс зачисляется автоматически после подтверждения
+                  оплаты.
+                </p>
               </div>
 
               {pendingOrderId && (
                 <div className="card p-4 border border-accent/30 bg-accent/5 flex items-center gap-3">
                   <Clock size={18} className="text-accent shrink-0 animate-pulse" />
-                  <p className="text-sm text-white/70">{t("topup_waiting_confirmation")}</p>
+                  <p className="text-sm text-white/70">
+                    Ждём подтверждения оплаты от CactusPay — обычно занимает несколько секунд. Страница обновится
+                    автоматически.
+                  </p>
                 </div>
               )}
 
               <div className="card p-5">
                 <form onSubmit={handlePay} className="space-y-4">
                   <div>
-                    <label className="text-xs text-white/40 mb-1.5 block">{t("topup_amount_label")}</label>
+                    <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽ (минимум 100)</label>
                     <input
                       type="number"
                       min={100}
                       value={depositAmount}
                       onChange={(e) => setDepositAmount(e.target.value)}
-                      placeholder={t("topup_amount_placeholder")}
+                      placeholder="Например, 500"
                       className="input-field py-2.5 mb-2"
                       required
                     />
@@ -275,22 +284,22 @@ function TopUpPageInner() {
                     </div>
                   </div>
                   <button disabled={payingNow} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                    <CreditCard size={16} /> {payingNow ? t("topup_pay_redirecting") : t("topup_pay_button")}
+                    <CreditCard size={16} /> {payingNow ? "Переходим к оплате..." : "Оплатить картой / СБП"}
                   </button>
                 </form>
               </div>
 
               <div>
-                <h2 className="text-sm font-medium text-white/60 mb-2">{t("topup_history_title")}</h2>
+                <h2 className="text-sm font-medium text-white/60 mb-2">История пополнений</h2>
                 {loadingPayments ? (
-                  <div className="card p-6 text-center text-white/30 text-sm">{t("common_loading")}</div>
+                  <div className="card p-6 text-center text-white/30 text-sm">Загрузка...</div>
                 ) : payments.length === 0 ? (
-                  <div className="card p-6 text-center text-white/30 text-sm">{t("topup_no_payments")}</div>
+                  <div className="card p-6 text-center text-white/30 text-sm">Пополнений пока не было</div>
                 ) : (
                   <div className="space-y-2">
                     {payments.map((p) => {
-                      const meta = PAYMENT_STATUS_META[p.status];
-                      const StatusIcon = meta.icon;
+                      const s = PAYMENT_STATUS_LABEL[p.status];
+                      const StatusIcon = s.icon;
                       return (
                         <div key={p.id} className="card p-3.5 flex items-center justify-between gap-3">
                           <div>
@@ -298,8 +307,8 @@ function TopUpPageInner() {
                             <p className="text-xs text-white/30">{new Date(p.createdAt).toLocaleString("ru-RU")}</p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
-                            <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: meta.color }}>
-                              <StatusIcon size={14} /> {t(meta.key)}
+                            <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: s.color }}>
+                              <StatusIcon size={14} /> {s.text}
                             </span>
                             {p.status === "pending" && (
                               <button
@@ -307,7 +316,7 @@ function TopUpPageInner() {
                                 disabled={cancellingId === p.id}
                                 className="text-xs text-white/40 hover:text-red-400 underline underline-offset-2 disabled:opacity-50"
                               >
-                                {cancellingId === p.id ? t("topup_cancelling") : t("topup_cancel")}
+                                {cancellingId === p.id ? "Отменяем..." : "Отменить"}
                               </button>
                             )}
                           </div>
@@ -321,35 +330,38 @@ function TopUpPageInner() {
           ) : (
             <>
               <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5">
-                <p className="text-sm text-white/70 leading-relaxed">{t("topup_withdraw_notice")}</p>
+                <p className="text-sm text-white/70 leading-relaxed">
+                  Вывод обрабатывается <strong>вручную администратором</strong> — после отправки жди, пока статус
+                  изменится на «Одобрена». Администратор свяжется с тобой для уточнения реквизитов.
+                </p>
                 <a
                   href={`https://t.me/${TELEGRAM_BOT}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline mt-2"
                 >
-                  {t("topup_withdraw_telegram")} <ExternalLink size={12} />
+                  Или обсудить прямо в Telegram-боте <ExternalLink size={12} />
                 </a>
               </div>
 
               <div className="card p-5">
                 <form onSubmit={handleWithdraw} className="space-y-4">
                   <div>
-                    <label className="text-xs text-white/40 mb-1.5 block">{t("topup_withdraw_amount_label")}</label>
+                    <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽</label>
                     <input
                       type="number"
                       min={1}
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
-                      placeholder={t("topup_amount_placeholder")}
+                      placeholder="Например, 500"
                       className="input-field py-2.5"
                       required
                     />
-                    {profile && <p className="text-xs text-white/30 mt-1.5">{tf(language, "topup_withdraw_available", { balance: profile.balance.toFixed(2) })}</p>}
+                    {profile && <p className="text-xs text-white/30 mt-1.5">Доступно для вывода: {profile.balance.toFixed(2)} ₽</p>}
                   </div>
 
                   <div>
-                    <label className="text-xs text-white/40 mb-1.5 block">{t("topup_withdraw_method_label")}</label>
+                    <label className="text-xs text-white/40 mb-1.5 block">Удобный способ получения средств</label>
                     <div className="grid grid-cols-2 gap-2">
                       {METHOD_OPTIONS.map((m) => {
                         const Icon = m.icon;
@@ -363,7 +375,7 @@ function TopUpPageInner() {
                               active ? "bg-accent/15 text-accent border border-accent/40" : "bg-surface text-white/60 border border-transparent"
                             }`}
                           >
-                            <Icon size={14} /> {t(m.labelKey)}
+                            <Icon size={14} /> {m.label}
                           </button>
                         );
                       })}
@@ -371,40 +383,40 @@ function TopUpPageInner() {
                   </div>
 
                   <div>
-                    <label className="text-xs text-white/40 mb-1.5 block">{t("topup_withdraw_comment_label")}</label>
+                    <label className="text-xs text-white/40 mb-1.5 block">Комментарий (необязательно)</label>
                     <input
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      placeholder={t("topup_withdraw_comment_placeholder")}
+                      placeholder="Например, свой ник на Playerok"
                       className="input-field py-2.5"
                     />
                   </div>
 
                   <button disabled={submittingWithdraw} className="btn-primary w-full py-3 disabled:opacity-50">
-                    {submittingWithdraw ? t("topup_withdraw_submitting") : t("topup_withdraw_submit")}
+                    {submittingWithdraw ? "Создаём заявку..." : "Создать заявку на вывод"}
                   </button>
                 </form>
               </div>
 
               <div>
-                <h2 className="text-sm font-medium text-white/60 mb-2">{t("topup_my_requests_title")}</h2>
+                <h2 className="text-sm font-medium text-white/60 mb-2">Мои заявки на вывод</h2>
                 {loadingRequests ? (
-                  <div className="card p-6 text-center text-white/30 text-sm">{t("common_loading")}</div>
+                  <div className="card p-6 text-center text-white/30 text-sm">Загрузка...</div>
                 ) : requests.length === 0 ? (
-                  <div className="card p-6 text-center text-white/30 text-sm">{t("topup_no_requests")}</div>
+                  <div className="card p-6 text-center text-white/30 text-sm">Заявок пока нет</div>
                 ) : (
                   <div className="space-y-2">
                     {requests.map((r) => {
-                      const meta = TOPUP_STATUS_META[r.status];
-                      const StatusIcon = meta.icon;
+                      const s = TOPUP_STATUS_LABEL[r.status];
+                      const StatusIcon = s.icon;
                       return (
                         <div key={r.id} className="card p-3.5 flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium">{tf(language, "topup_withdraw_line", { amount: r.amount })}</p>
+                            <p className="text-sm font-medium">Вывод {r.amount} ₽</p>
                             <p className="text-xs text-white/30">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>
                           </div>
-                          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: meta.color }}>
-                            <StatusIcon size={14} /> {t(meta.key)}
+                          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: s.color }}>
+                            <StatusIcon size={14} /> {s.text}
                           </span>
                         </div>
                       );
@@ -422,7 +434,7 @@ function TopUpPageInner() {
 
 export default function TopUpPage() {
   return (
-    <Suspense fallback={<div className="max-w-xl mx-auto py-10 text-center text-white/40">…</div>}>
+    <Suspense fallback={<div className="max-w-xl mx-auto py-10 text-center text-white/40">Загрузка...</div>}>
       <TopUpPageInner />
     </Suspense>
   );

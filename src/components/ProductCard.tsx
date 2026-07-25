@@ -2,13 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Rocket } from "lucide-react";
-import { Product } from "@/types";
+import { ShoppingCart } from "lucide-react";
+import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
-import { useLanguage } from "@/lib/languageStore";
-import { rarityLabel, tf } from "@/lib/i18n";
 
 const RARITY_BORDER: Record<string, string> = {
   common: "border-rarity-common/40",
@@ -19,14 +17,12 @@ const RARITY_BORDER: Record<string, string> = {
 };
 
 export function ProductCard({ product }: { product: Product }) {
-  const { t, language } = useLanguage();
   const add = useCart((s) => s.add);
   const { toast } = useToast();
 
   const finalPrice = product.discountPercent
     ? +(product.price * (1 - product.discountPercent / 100)).toFixed(2)
     : product.price;
-  const isBoosted = (product.boostUntil ?? 0) > Date.now();
 
   return (
     <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1`}>
@@ -48,17 +44,12 @@ export function ProductCard({ product }: { product: Product }) {
             -{product.discountPercent}%
           </span>
         )}
-        {isBoosted && (
-          <span className="absolute bottom-2 left-2 bg-black/70 text-accent text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1">
-            <Rocket size={10} /> {t("catalog_boosted_badge")}
-          </span>
-        )}
       </Link>
 
       <Link href={`/product/${product.id}`}>
         <h3 className="font-medium text-sm truncate hover:text-accent transition-colors">{product.name}</h3>
       </Link>
-      <p className="text-xs text-white/40 mb-2">{rarityLabel(language, product.rarity)}</p>
+      <p className="text-xs text-white/40 mb-2">{RARITY_LABEL[product.rarity]}</p>
 
       <div className="flex items-center justify-between">
         <div>
@@ -71,15 +62,15 @@ export function ProductCard({ product }: { product: Product }) {
           disabled={product.stock <= 0}
           onClick={() => {
             add(product, 1);
-            toast("success", tf(language, "product_added_to_cart", { name: product.name, qty: 1 }));
+            toast("success", `${product.name} добавлен в корзину`);
           }}
           className="btn-primary py-2 px-3 disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label={t("product_add_to_cart")}
+          aria-label="Добавить в корзину"
         >
           <ShoppingCart size={16} />
         </button>
       </div>
-      {product.stock <= 0 && <p className="text-xs text-red-400 mt-1">{t("product_out_of_stock")}</p>}
+      {product.stock <= 0 && <p className="text-xs text-red-400 mt-1">Нет в наличии</p>}
     </div>
   );
 }

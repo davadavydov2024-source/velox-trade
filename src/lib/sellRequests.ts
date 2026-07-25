@@ -2,6 +2,7 @@ import { collection, addDoc, getDocs, query, doc, updateDoc } from "firebase/fir
 import { db } from "./firebase";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
+import { notifyTelegram } from "./telegramNotify";
 
 const sellRequestsCol = collection(db, "sellRequests");
 
@@ -15,27 +16,36 @@ export async function getAllSellRequests(): Promise<SellRequest[]> {
   return requests.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function setSellRequestStatus(id: string, status: "approved" | "rejected") {
-  return updateDoc(doc(db, "sellRequests", id), { status });
+/**
+ * Отклоняет заявку — просто меняет статус, товар в каталог не добавляется.
+ * Для одобрения используй approveSellRequest — она ещё и создаёт сам товар.
+ */
+export async function setSellRequestStatus(request: SellRequest, status: "approved" | "rejected") {
+  await updateDoc(doc(db, "sellRequests", request.id), { status });
+  if (status === "rejected") {
+    notifyTelegram(request.userId, `❌ Заявка на продажу «${request.itemName}» отклонена.`);
+  }
 }
 
 /**
- * Одобряет заявку на продажу и сразу создаёт товар в каталоге из её данных —
- * продавцом становится автор заявки (sellerId = r.userId), остаток 1 шт., редкость берётся из
- * самой заявки (пользователь выбирает её в форме «Продать предметы»).
- * Раньше одобрение только меняло статус заявки, а товар приходилось добавлять вручную,
- * из-за чего он либо забывался, либо не появлялся вовсе.
+ * Одобряет заявку на продажу И сразу создаёт товар в каталоге на основе её данных —
+ * раньше одобрение только меняло статус заявки, а товар приходилось добавлять вручную
+ * через «Товары», из-за чего он нигде не появлялся, если админ забывал это сделать.
+ * Продавец — сам автор заявки (его uid), начальный остаток — 1 шт (это конкретный сданный предмет).
+ * Редкость по умолчанию "common" — админ может поправить её и остальные детали в «Товары» после создания.
  */
-export async function approveSellRequest(r: SellRequest) {
-  await createProduct({
-    gameId: r.gameId,
-    sellerId: r.userId,
-    name: r.itemName,
-    description: r.description,
-    image: r.imageUrl,
-    price: r.price,
-    rarity: r.rarity,
+export async function approveSellRequest(request: SellRequest): Promise<string> {
+  const productRef = await createProduct({
+    gameId: request.gameId,
+    sellerId: request.userId,
+    name: request.itemName,
+    description: request.description,
+    image: request.imageUrl,
+    price: request.price,
+    rarity: "common",
     stock: 1,
   });
-  await setSellRequestStatus(r.id, "approved");
+  await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });
+  notifyTelegram(request.userId, `✅ Заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге!`);
+  return productRef.id;
 }

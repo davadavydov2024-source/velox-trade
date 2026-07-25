@@ -8,21 +8,20 @@ import { useToast } from "@/lib/toastContext";
 import { createTicket, getUserTickets, addTicketMessage } from "@/lib/tickets";
 import { sendSupportAutoReply } from "@/lib/emailjs";
 import { SupportTicket } from "@/types";
-import { useLanguage } from "@/lib/languageStore";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
-const FAQ_KEYS = [
-  { qKey: "support_faq_1_q", aKey: "support_faq_1_a" },
-  { qKey: "support_faq_2_q", aKey: "support_faq_2_a" },
-  { qKey: "support_faq_3_q", aKey: "support_faq_3_a" },
-  { qKey: "support_faq_4_q", aKey: "support_faq_4_a" },
+const FAQ = [
+  { q: "Как пополнить баланс?", a: "Перейдите в личный кабинет → Пополнение баланса, создайте заявку и дождитесь, пока администратор её одобрит." },
+  { q: "Как быстро приходит товар?", a: "Обычно доставка занимает от нескольких минут до пары часов после оплаты заказа." },
+  { q: "Что делать, если товар не пришёл?", a: "Создайте обращение ниже с номером заказа — мы разберёмся в течение суток." },
+  { q: "Можно ли вернуть деньги?", a: "Да, если товар не был выдан. Создайте обращение ниже, приложив номер заказа." },
 ];
 
-const STATUS_META: Record<SupportTicket["status"], { key: string; color: string }> = {
-  open: { key: "support_status_open", color: "#ff9800" },
-  answered: { key: "support_status_answered", color: "#4caf50" },
-  closed: { key: "support_status_closed", color: "#9aa3b2" },
+const STATUS_LABEL: Record<SupportTicket["status"], { text: string; color: string }> = {
+  open: { text: "Ожидает ответа", color: "#ff9800" },
+  answered: { text: "Отвечено", color: "#4caf50" },
+  closed: { text: "Закрыто", color: "#9aa3b2" },
 };
 
 /**
@@ -30,7 +29,6 @@ const STATUS_META: Record<SupportTicket["status"], { key: string; color: string 
  * Telegram-бот, мои обращения (тикеты) и FAQ. Теперь встроена как один из чатов в /chats.
  */
 export function SupportPanel() {
-  const { t } = useLanguage();
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -53,7 +51,7 @@ export function SupportPanel() {
       .then(setTickets)
       .catch((err) => {
         console.error("Не удалось загрузить обращения:", err);
-        toast("error", t("support_toast_load_failed"));
+        toast("error", "Не удалось загрузить обращения. Подробности — в консоли браузера (F12).");
         setTickets([]);
       })
       .finally(() => setLoadingTickets(false));
@@ -62,7 +60,7 @@ export function SupportPanel() {
   async function handleCreateTicket(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !profile) {
-      toast("warning", t("support_toast_need_login"));
+      toast("warning", "Войдите в аккаунт, чтобы создать обращение");
       return;
     }
     setSubmitting(true);
@@ -77,7 +75,7 @@ export function SupportPanel() {
       sendSupportAutoReply(profile.email, profile.displayName, subject).catch((err) => {
         console.error("Не удалось отправить автоответ:", err);
       });
-      toast("success", t("support_toast_created"));
+      toast("success", "Обращение создано. Мы ответим в ближайшее время.");
       setSubject("");
       setMessage("");
       setShowNewForm(false);
@@ -85,9 +83,9 @@ export function SupportPanel() {
       setTickets(updated);
     } catch (err: any) {
       if (err?.code === "permission-denied") {
-        toast("error", t("support_toast_no_permission"));
+        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
       } else {
-        toast("error", t("support_toast_create_failed"));
+        toast("error", "Не удалось создать обращение");
       }
     } finally {
       setSubmitting(false);
@@ -105,7 +103,7 @@ export function SupportPanel() {
       setTickets((list) => list.map((t) => (t.id === updated.id ? updated : t)));
       setReply("");
     } catch {
-      toast("error", t("support_toast_reply_failed"));
+      toast("error", "Не удалось отправить сообщение");
     } finally {
       setSubmitting(false);
     }
@@ -115,8 +113,8 @@ export function SupportPanel() {
     <div>
       <div className="card p-5 mb-6 flex items-center justify-between gap-3">
         <div>
-          <p className="font-medium">{t("support_telegram_title")}</p>
-          <p className="text-sm text-white/40">{t("support_telegram_hint")}</p>
+          <p className="font-medium">Написать в Telegram-бота</p>
+          <p className="text-sm text-white/40">Быстрый способ получить ответ или обсудить пополнение</p>
         </div>
         <a
           href={`https://t.me/${TELEGRAM_BOT}`}
@@ -124,18 +122,18 @@ export function SupportPanel() {
           rel="noopener noreferrer"
           className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm shrink-0"
         >
-          {t("support_telegram_open")} <ExternalLink size={14} />
+          Открыть бота <ExternalLink size={14} />
         </a>
       </div>
 
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
-            <MessageSquare size={18} className="text-accent" /> {t("support_my_tickets")}
+            <MessageSquare size={18} className="text-accent" /> Мои обращения
           </h2>
           {user && (
             <button onClick={() => setShowNewForm((v) => !v)} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
-              <Plus size={14} /> {t("support_new_ticket")}
+              <Plus size={14} /> Новое обращение
             </button>
           )}
         </div>
@@ -143,9 +141,9 @@ export function SupportPanel() {
         {!user ? (
           <div className="card p-6 text-center text-white/40 text-sm">
             <Link href="/auth/login" className="text-accent hover:underline">
-              {t("support_need_login_prefix")}
+              Войдите в аккаунт
             </Link>
-            {t("support_need_login_suffix")}
+            , чтобы создавать обращения и видеть ответы поддержки.
           </div>
         ) : (
           <>
@@ -155,39 +153,39 @@ export function SupportPanel() {
                   required
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder={t("support_subject_placeholder")}
+                  placeholder="Тема обращения"
                   className="input-field py-2.5 text-sm"
                 />
                 <textarea
                   required
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder={t("support_message_placeholder")}
+                  placeholder="Опиши проблему подробно..."
                   rows={4}
                   className="input-field py-2.5 text-sm"
                 />
                 <button disabled={submitting} className="btn-primary px-5 py-2.5 text-sm disabled:opacity-50">
-                  {submitting ? t("support_sending") : t("support_send")}
+                  {submitting ? "Отправляем..." : "Отправить"}
                 </button>
               </form>
             )}
 
             {loadingTickets ? (
-              <div className="card p-6 text-center text-white/40 text-sm">{t("common_loading")}</div>
+              <div className="card p-6 text-center text-white/40 text-sm">Загрузка...</div>
             ) : tickets.length === 0 ? (
-              <div className="card p-6 text-center text-white/40 text-sm">{t("support_no_tickets")}</div>
+              <div className="card p-6 text-center text-white/40 text-sm">У тебя пока нет обращений.</div>
             ) : activeTicket ? (
               <div className="card p-5">
                 <button onClick={() => setActiveTicket(null)} className="text-xs text-white/40 hover:text-white/70 mb-3">
-                  {t("support_back_to_all")}
+                  ← Ко всем обращениям
                 </button>
                 <div className="flex items-center justify-between mb-4">
                   <p className="font-medium">{activeTicket.subject}</p>
                   <span
                     className="text-xs font-semibold px-2 py-1 rounded-md"
-                    style={{ background: `${STATUS_META[activeTicket.status].color}22`, color: STATUS_META[activeTicket.status].color }}
+                    style={{ background: `${STATUS_LABEL[activeTicket.status].color}22`, color: STATUS_LABEL[activeTicket.status].color }}
                   >
-                    {t(STATUS_META[activeTicket.status].key)}
+                    {STATUS_LABEL[activeTicket.status].text}
                   </span>
                 </div>
                 <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
@@ -198,7 +196,7 @@ export function SupportPanel() {
                           m.from === "admin" ? "bg-accent/15 text-white" : "bg-surface text-white/80"
                         }`}
                       >
-                        <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? t("support_admin") : t("support_you")}</p>
+                        <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? "Поддержка" : "Вы"}</p>
                         {m.text}
                       </div>
                     </div>
@@ -209,7 +207,7 @@ export function SupportPanel() {
                     <input
                       value={reply}
                       onChange={(e) => setReply(e.target.value)}
-                      placeholder={t("support_message_placeholder_reply")}
+                      placeholder="Написать сообщение..."
                       className="input-field py-2.5 text-sm flex-1"
                     />
                     <button disabled={submitting || !reply.trim()} className="btn-primary px-4 disabled:opacity-50">
@@ -220,21 +218,21 @@ export function SupportPanel() {
               </div>
             ) : (
               <div className="space-y-2">
-                {tickets.map((ticket) => (
+                {tickets.map((t) => (
                   <button
-                    key={ticket.id}
-                    onClick={() => setActiveTicket(ticket)}
+                    key={t.id}
+                    onClick={() => setActiveTicket(t)}
                     className="card p-4 w-full text-left flex items-center justify-between hover:bg-white/[0.02]"
                   >
                     <div>
-                      <p className="font-medium text-sm">{ticket.subject}</p>
-                      <p className="text-xs text-white/40">{new Date(ticket.updatedAt).toLocaleString("ru-RU")}</p>
+                      <p className="font-medium text-sm">{t.subject}</p>
+                      <p className="text-xs text-white/40">{new Date(t.updatedAt).toLocaleString("ru-RU")}</p>
                     </div>
                     <span
                       className="text-xs font-semibold px-2 py-1 rounded-md shrink-0"
-                      style={{ background: `${STATUS_META[ticket.status].color}22`, color: STATUS_META[ticket.status].color }}
+                      style={{ background: `${STATUS_LABEL[t.status].color}22`, color: STATUS_LABEL[t.status].color }}
                     >
-                      {t(STATUS_META[ticket.status].key)}
+                      {STATUS_LABEL[t.status].text}
                     </span>
                   </button>
                 ))}
@@ -245,22 +243,22 @@ export function SupportPanel() {
       </div>
 
       <h2 id="faq" className="text-lg font-bold mb-4">
-        {t("support_faq_title")}
+        Частые вопросы
       </h2>
       <div className="space-y-2">
-        {FAQ_KEYS.map((item, i) => (
+        {FAQ.map((item, i) => (
           <div key={i} className="card overflow-hidden">
             <button
               onClick={() => setOpenFaq(openFaq === i ? null : i)}
               className="w-full flex items-center justify-between p-4 text-left"
             >
-              <span className="font-medium text-sm">{t(item.qKey)}</span>
+              <span className="font-medium text-sm">{item.q}</span>
               <ChevronDown
                 size={18}
                 className={`text-white/40 transition-transform ${openFaq === i ? "rotate-180" : ""}`}
               />
             </button>
-            {openFaq === i && <div className="px-4 pb-4 text-sm text-white/50">{t(item.aKey)}</div>}
+            {openFaq === i && <div className="px-4 pb-4 text-sm text-white/50">{item.a}</div>}
           </div>
         ))}
       </div>

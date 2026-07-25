@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, X, Zap } from "lucide-react";
 import { getTopUpRequests, setTopUpStatus, adjustUserBalance } from "@/lib/users";
 import { cancelAllPendingPayments } from "@/lib/payments";
+import { notifyTelegram } from "@/lib/telegramNotify";
 import { TopUpRequest } from "@/types";
 import { useToast } from "@/lib/toastContext";
 
@@ -40,6 +41,7 @@ export default function AdminTopUpsPage() {
       const delta = req.type === "deposit" ? req.amount : -req.amount;
       await adjustUserBalance(req.userId, delta);
       await setTopUpStatus(req.id, "approved");
+      notifyTelegram(req.userId, `✅ Заявка на ${req.type === "deposit" ? "пополнение" : "вывод"} ${req.amount} ₽ подтверждена.`);
       setRequests((list) => list.map((r) => (r.id === req.id ? { ...r, status: "approved" } : r)));
       toast("success", "Заявка подтверждена, баланс обновлён");
     } catch (err: any) {
@@ -54,6 +56,7 @@ export default function AdminTopUpsPage() {
 
   async function handleReject(req: TopUpRequest) {
     await setTopUpStatus(req.id, "rejected");
+    notifyTelegram(req.userId, `❌ Заявка на ${req.type === "deposit" ? "пополнение" : "вывод"} ${req.amount} ₽ отклонена.`);
     setRequests((list) => list.map((r) => (r.id === req.id ? { ...r, status: "rejected" } : r)));
     toast("warning", "Заявка отклонена");
   }

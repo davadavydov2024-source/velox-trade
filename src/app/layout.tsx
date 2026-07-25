@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { cookies } from "next/headers";
 import { Providers } from "./providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AdBanner } from "@/components/AdBanner";
-import { isLanguage } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Velox Trade — Лучший магазин игровых предметов",
@@ -25,22 +23,9 @@ export const metadata: Metadata = {
   },
 };
 
-function readLanguageCookie(): string {
-  try {
-    const raw = cookies().get("velox-trade-language")?.value;
-    if (!raw) return "ru";
-    const parsed = JSON.parse(raw);
-    const lang = parsed?.state?.language;
-    return isLanguage(lang) ? lang : "ru";
-  } catch {
-    return "ru";
-  }
-}
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const lang = readLanguageCookie();
   return (
-    <html lang={lang}>
+    <html lang="ru">
       <body className="bg-bg text-white min-h-screen flex flex-col">
         <Providers>
           <Header />

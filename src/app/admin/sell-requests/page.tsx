@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Check, X, Tag } from "lucide-react";
 import { getAllSellRequests, setSellRequestStatus, approveSellRequest } from "@/lib/sellRequests";
-import { SellRequest, RARITY_LABEL } from "@/types";
+import { SellRequest } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 
@@ -30,7 +30,7 @@ export default function AdminSellRequestsPage() {
       if (status === "approved") {
         await approveSellRequest(r);
       } else {
-        await setSellRequestStatus(r.id, status);
+        await setSellRequestStatus(r, "rejected");
       }
       setRequests((list) => list.map((x) => (x.id === r.id ? { ...x, status } : x)));
       toast("success", status === "approved" ? "Заявка одобрена, товар добавлен в каталог" : "Заявка отклонена");
@@ -53,10 +53,9 @@ export default function AdminSellRequestsPage() {
           <Tag className="text-accent" size={22} /> Заявки на продажу
         </h1>
         <p className="text-sm text-white/40 mb-4">
-          При одобрении товар сразу создаётся в каталоге (продавец — автор заявки, остаток 1 шт., редкость — та,
-          что выбрал пользователь в заявке; поправить её можно в «Товарах»). Одобряй только после того, как
-          договорился с продавцом. Комиссия ниже — сколько платформа удерживает с этой продажи (процент зафиксирован
-          на момент подачи заявки, в «Функциях сайта» его можно менять для будущих заявок).
+          Одобрение сразу создаёт товар в каталоге с этими данными (продавец, цена, описание) — при необходимости
+          поправь редкость и остальные детали потом в «Товары». Комиссия ниже — сколько платформа удерживает с этой
+          продажи (процент зафиксирован на момент подачи заявки, в «Функциях сайта» его можно менять для будущих заявок).
         </p>
 
         {loading ? (
@@ -82,9 +81,7 @@ export default function AdminSellRequestsPage() {
                       </p>
                       <p className="text-xs text-white/30 shrink-0">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>
                     </div>
-                    <p className="text-sm text-white/60 mb-1">
-                      От: {r.userNick} · Редкость: {RARITY_LABEL[r.rarity] ?? r.rarity}
-                    </p>
+                    <p className="text-sm text-white/60 mb-1">От: {r.userNick}</p>
                     {r.commissionPercent != null ? (
                       <p className="text-sm text-white/60 mb-1">
                         Цена: {r.price} ₽ · Комиссия {r.commissionPercent}%: −{commission} ₽ · К выплате продавцу:{" "}

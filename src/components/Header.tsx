@@ -56,7 +56,7 @@ export function Header() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("header_search_placeholder")}
+            placeholder="Поиск предметов..."
             className="input-field pl-10 py-2.5"
           />
         </form>

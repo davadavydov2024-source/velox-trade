@@ -6,16 +6,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 import { getProductById, getProducts } from "@/lib/products";
-import { Product } from "@/types";
-import { useLanguage } from "@/lib/languageStore";
-import { rarityLabel, tf } from "@/lib/i18n";
+import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { ProductCard } from "@/components/ProductCard";
 import { safeImageSrc } from "@/lib/safeImage";
 
 export default function ProductPage() {
-  const { t, language } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -41,10 +38,10 @@ export default function ProductPage() {
   }, [product]);
 
   if (notFound) {
-    return <div className="max-w-7xl mx-auto px-4 py-20 text-center text-white/40">{t("product_not_found")}</div>;
+    return <div className="max-w-7xl mx-auto px-4 py-20 text-center text-white/40">Товар не найден.</div>;
   }
   if (!product) {
-    return <div className="max-w-7xl mx-auto px-4 py-20 text-center text-white/40">{t("common_loading")}</div>;
+    return <div className="max-w-7xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>;
   }
 
   const finalPrice = product.discountPercent
@@ -60,7 +57,7 @@ export default function ProductPage() {
 
         <div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-accent/15 text-accent">
-            {rarityLabel(language, product.rarity)}
+            {RARITY_LABEL[product.rarity]}
           </span>
           <h1 className="text-3xl font-bold mt-3 mb-2">{product.name}</h1>
           <p className="text-white/50 mb-6">{product.description}</p>
@@ -74,7 +71,7 @@ export default function ProductPage() {
             <button
               className="btn-secondary p-2.5"
               onClick={() => setQty((q) => Math.max(1, q - 1))}
-              aria-label={t("product_decrease_qty")}
+              aria-label="Уменьшить количество"
             >
               <Minus size={16} />
             </button>
@@ -82,11 +79,11 @@ export default function ProductPage() {
             <button
               className="btn-secondary p-2.5"
               onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
-              aria-label={t("product_increase_qty")}
+              aria-label="Увеличить количество"
             >
               <Plus size={16} />
             </button>
-            <span className="text-sm text-white/40 ml-2">{tf(language, "product_stock_label", { n: product.stock })}</span>
+            <span className="text-sm text-white/40 ml-2">Наличие: {product.stock} шт.</span>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -95,17 +92,17 @@ export default function ProductPage() {
               onClick={() => add(product, qty)}
               className="btn-primary px-6 py-3 flex items-center gap-2"
             >
-              <Zap size={18} /> {t("product_buy_now")}
+              <Zap size={18} /> Купить сейчас
             </Link>
             <button
               onClick={() => {
                 add(product, qty);
-                toast("success", tf(language, "product_added_to_cart", { name: product.name, qty }));
+                toast("success", `${product.name} ×${qty} добавлен в корзину`);
               }}
               className="btn-secondary px-6 py-3 flex items-center gap-2"
               disabled={product.stock <= 0}
             >
-              <ShoppingCart size={18} /> {t("product_add_to_cart")}
+              <ShoppingCart size={18} /> В корзину
             </button>
           </div>
         </div>
@@ -113,7 +110,7 @@ export default function ProductPage() {
 
       {related.length > 0 && (
         <section className="mt-16">
-          <h2 className="text-xl font-bold mb-4">{t("product_related")}</h2>
+          <h2 className="text-xl font-bold mb-4">Похожие товары</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {related.map((p) => (
               <ProductCard key={p.id} product={p} />

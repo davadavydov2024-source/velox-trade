@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
+import { notifyTelegram } from "./telegramNotify";
 
 const usersCol = collection(db, "users");
 const ordersCol = collection(db, "orders");
@@ -85,17 +86,25 @@ export async function setUserBadges(uid: string, badges: UserBadge[]) {
 }
 
 export async function setUserBan(uid: string, banned: boolean, reason?: string, until?: number | "forever" | null) {
-  return updateDoc(doc(db, "users", uid), {
+  await updateDoc(doc(db, "users", uid), {
     banned,
     banReason: reason ?? null,
     banUntil: until ?? null,
   });
+  if (banned) {
+    notifyTelegram(uid, `🚫 Ваш аккаунт заблокирован.${reason ? `\nПричина: ${reason}` : ""}`);
+  } else {
+    notifyTelegram(uid, "✅ Блокировка аккаунта снята.");
+  }
 }
 
 // ---- Orders ----
 
 export async function createOrder(order: Omit<Order, "id" | "createdAt">) {
-  return addDoc(ordersCol, { ...order, createdAt: Date.now() });
+  const ref = await addDoc(ordersCol, { ...order, createdAt: Date.now() });
+  const itemsText = order.items.map((i) => `${i.name} × ${i.quantity}`).join(", ");
+  notifyTelegram(order.userId, `✅ Покупка оформлена: ${itemsText}\nСумма: ${order.total} ₽`);
+  return ref;
 }
 
 export async function getOrdersForUser(userId: string): Promise<Order[]> {
