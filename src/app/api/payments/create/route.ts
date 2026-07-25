@@ -48,11 +48,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // CactusPay подбирает получателю уникальные реквизиты (карту/СБП) под КОНКРЕТНУЮ сумму — если
+    // два разных человека (не обязательно у нас — у любого магазина, использующего CactusPay) в
+    // одно и то же время пытаются заплатить одну и ту же круглую сумму, второму приходит ошибка
+    // «Не удалось найти реквизиты, сумма занята другим пользователем». Обходим это тем же способом,
+    // что и сами платёжные агрегаторы обычно рекомендуют: добавляем к сумме случайные копейки —
+    // так итоговая сумма почти наверняка уникальна. Баланс потом зачисляется по фактически
+    // оплаченной сумме (с копейками), так что пользователь получает ровно то, что заплатил.
+    const pendingForAmountSnap = await db
+      .collection("payments")
+      .where("status", "==", "pending")
+      .get();
+    const takenAmounts = new Set(pendingForAmountSnap.docs.map((d) => (d.data() as { amount: number }).amount));
+    let finalAmount = num;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const cents = Math.floor(Math.random() * 98) + 1; // 0.01–0.98, никогда ровно круглая сумма
+      const candidate = Math.round((num + cents / 100) * 100) / 100;
+      if (!takenAmounts.has(candidate)) {
+        finalAmount = candidate;
+        break;
+      }
+    }
+
     const orderId = `vt_${uid.slice(0, 8)}_${Date.now()}`;
     const origin = req.headers.get("origin") || req.nextUrl.origin;
 
     const { url } = await cactusCreatePayment({
-      amount: num,
+      amount: finalAmount,
       orderId,
       description: `Пополнение баланса Velox Trade — ${userData.displayName}`,
       redirectUrl: `${origin}/profile/topup?order_id=${orderId}`,
@@ -61,7 +83,7 @@ export async function POST(req: NextRequest) {
     await db.collection("payments").doc(orderId).set({
       userId: uid,
       userNick: userData.displayName,
-      amount: num,
+      amount: finalAmount,
       status: "pending",
       paymentUrl: url,
       createdAt: Date.now(),

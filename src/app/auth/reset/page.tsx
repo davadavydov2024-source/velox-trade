@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Mail } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
+import { useLanguage } from "@/lib/languageStore";
+import { tf } from "@/lib/i18n";
 
 export default function ResetPasswordPage() {
+  const { t, language } = useLanguage();
   const { resetPassword } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
@@ -19,9 +22,9 @@ export default function ResetPasswordPage() {
     try {
       await resetPassword(email);
       setSent(true);
-      toast("success", "Письмо для восстановления пароля отправлено");
+      toast("success", t("reset_toast_sent"));
     } catch (err: any) {
-      toast("error", err?.message || "Не удалось отправить письмо. Проверь email и настройки EmailJS на сервере.");
+      toast("error", err?.message || t("reset_toast_failed"));
     } finally {
       setLoading(false);
     }
@@ -30,13 +33,11 @@ export default function ResetPasswordPage() {
   return (
     <div className="max-w-md mx-auto px-4 py-16">
       <div className="card p-8">
-        <h1 className="text-2xl font-bold mb-1">Восстановление пароля</h1>
-        <p className="text-white/40 text-sm mb-6">Укажи email, на который зарегистрирован аккаунт</p>
+        <h1 className="text-2xl font-bold mb-1">{t("reset_title")}</h1>
+        <p className="text-white/40 text-sm mb-6">{t("reset_subtitle")}</p>
 
         {sent ? (
-          <p className="text-green-400 text-sm">
-            Письмо отправлено на {email}. Проверьте почту и перейдите по ссылке для сброса пароля.
-          </p>
+          <p className="text-green-400 text-sm">{tf(language, "reset_sent", { email })}</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">
@@ -46,19 +47,19 @@ export default function ResetPasswordPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
+                placeholder={t("login_email_placeholder")}
                 className="input-field pl-10"
               />
             </div>
             <button disabled={loading} className="btn-primary w-full py-3 disabled:opacity-50">
-              {loading ? "Отправляем..." : "Отправить ссылку"}
+              {loading ? t("reset_submitting") : t("reset_submit")}
             </button>
           </form>
         )}
 
         <p className="text-center text-sm text-white/40 mt-6">
           <Link href="/auth/login" className="text-accent hover:underline">
-            ← Вернуться ко входу
+            {t("reset_back_to_login")}
           </Link>
         </p>
       </div>

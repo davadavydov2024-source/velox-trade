@@ -1,18 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { cookies } from "next/headers";
 import { Providers } from "./providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AdBanner } from "@/components/AdBanner";
-
-// Весь сайт по сути персонализированный (баланс, заказы, чаты, роль админа зависят от того, кто
-// вошёл) — статическая генерация страниц на этапе сборки тут не нужна и, более того, вредна:
-// Next.js пытается заранее отрисовать "use client" страницы прямо во время `next build`, а это
-// исполняет код Firebase в Node.js-окружении без браузера. Если на этом этапе (например, в Docker-сборке
-// на хостинге без переменных окружения) не заданы NEXT_PUBLIC_FIREBASE_*, Firebase бросает
-// "auth/invalid-api-key" и ломает всю сборку. force-dynamic отключает эту прероговорную отрисовку —
-// каждая страница рендерится по запросу на уже запущенном сервере, где переменные окружения точно есть.
-export const dynamic = "force-dynamic";
+import { isLanguage } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Velox Trade — Лучший магазин игровых предметов",
@@ -32,9 +25,22 @@ export const metadata: Metadata = {
   },
 };
 
+function readLanguageCookie(): string {
+  try {
+    const raw = cookies().get("velox-trade-language")?.value;
+    if (!raw) return "ru";
+    const parsed = JSON.parse(raw);
+    const lang = parsed?.state?.language;
+    return isLanguage(lang) ? lang : "ru";
+  } catch {
+    return "ru";
+  }
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = readLanguageCookie();
   return (
-    <html lang="ru">
+    <html lang={lang}>
       <body className="bg-bg text-white min-h-screen flex flex-col">
         <Providers>
           <Header />

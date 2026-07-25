@@ -28,6 +28,8 @@ export interface Product {
   stock: number;
   isNew?: boolean;
   discountPercent?: number;
+  boostTier?: "game" | "home"; // платное продвижение: "game" — закреп в топе каталога игры, "home" — вдобавок показ в блоке «Рекомендуемые» на главной
+  boostUntil?: number; // до какого момента (timestamp) действует продвижение
   createdAt: number;
 }
 
@@ -207,6 +209,11 @@ export interface FeatureFlags {
   telegramRegisterEnabled: boolean;
   balanceTopupEnabled: boolean;
   sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
+  minSellPrice: number; // минимальная цена предмета в заявке "Продать предметы", ₽
+  boostGamePriceRub: number; // цена продвижения "закреп в игре" (тир 1), ₽
+  boostGameDays: number; // на сколько дней действует тир 1
+  boostHomePriceRub: number; // цена продвижения "топ показ + главная" (тир 2), ₽
+  boostHomeDays: number; // на сколько дней действует тир 2
   updatedAt: number;
 }
 
@@ -217,6 +224,11 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   telegramRegisterEnabled: false,
   balanceTopupEnabled: true,
   sellCommissionPercent: 20,
+  minSellPrice: 78,
+  boostGamePriceRub: 20,
+  boostGameDays: 23,
+  boostHomePriceRub: 75,
+  boostHomeDays: 45,
   updatedAt: 0,
 };
 
@@ -267,6 +279,7 @@ export interface SellRequest {
   gameId: string;
   gameName: string;
   imageUrl: string;
+  rarity: Rarity;
   price: number; // цена, которую хочет получить продавец (то, что он ввёл в форме)
   commissionPercent: number; // комиссия платформы на момент подачи заявки (снимок текущей настройки, чтобы не менялась задним числом)
   description: string;

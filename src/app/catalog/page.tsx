@@ -5,11 +5,14 @@ import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { getProducts } from "@/lib/products";
-import { Product, Rarity, RARITY_LABEL } from "@/types";
+import { Product, Rarity } from "@/types";
+import { useLanguage } from "@/lib/languageStore";
+import { rarityLabel } from "@/lib/i18n";
 
 const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
 function CatalogInner() {
+  const { t, language } = useLanguage();
   const params = useSearchParams();
   const gameSlug = params.get("game") ?? "";
   const initialQuery = params.get("q") ?? "";
@@ -45,7 +48,7 @@ function CatalogInner() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl md:text-3xl font-bold">
-          {gameSlug ? `Каталог — ${gameSlug.replace(/-/g, " ")}` : "Каталог товаров"}
+          {gameSlug ? t("catalog_title_for_game").replace("{game}", gameSlug.replace(/-/g, " ")) : t("catalog_title")}
         </h1>
         <button className="md:hidden btn-secondary py-2 px-3" onClick={() => setFiltersOpen((v) => !v)}>
           <SlidersHorizontal size={18} />
@@ -56,17 +59,17 @@ function CatalogInner() {
         {/* Filters */}
         <aside className={`${filtersOpen ? "block" : "hidden"} md:block space-y-6`}>
           <div>
-            <label className="text-xs text-white/40 mb-2 block">Поиск</label>
+            <label className="text-xs text-white/40 mb-2 block">{t("catalog_search_label")}</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Название предмета..."
+              placeholder={t("catalog_search_placeholder")}
               className="input-field py-2.5 text-sm"
             />
           </div>
 
           <div>
-            <p className="text-xs text-white/40 mb-2">Редкость</p>
+            <p className="text-xs text-white/40 mb-2">{t("catalog_rarity_label")}</p>
             <div className="flex flex-col gap-1.5">
               <button
                 onClick={() => setRarity("")}
@@ -74,7 +77,7 @@ function CatalogInner() {
                   rarity === "" ? "bg-accent/15 text-accent" : "text-white/60 hover:bg-white/5"
                 }`}
               >
-                Все
+                {t("catalog_rarity_all")}
               </button>
               {RARITIES.map((r) => (
                 <button
@@ -84,28 +87,28 @@ function CatalogInner() {
                     rarity === r ? "bg-accent/15 text-accent" : "text-white/60 hover:bg-white/5"
                   }`}
                 >
-                  {RARITY_LABEL[r]}
+                  {rarityLabel(language, r)}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <p className="text-xs text-white/40 mb-2">Сортировка</p>
+            <p className="text-xs text-white/40 mb-2">{t("catalog_sort_label")}</p>
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as typeof sort)}
               className="input-field py-2.5 text-sm"
             >
-              <option value="newest">Новинки</option>
-              <option value="price_asc">Цена: по возрастанию</option>
-              <option value="price_desc">Цена: по убыванию</option>
+              <option value="newest">{t("catalog_sort_newest")}</option>
+              <option value="price_asc">{t("catalog_sort_price_asc")}</option>
+              <option value="price_desc">{t("catalog_sort_price_desc")}</option>
             </select>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-white/70">
             <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
-            Только в наличии
+            {t("catalog_only_available")}
           </label>
         </aside>
 
@@ -119,9 +122,7 @@ function CatalogInner() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="card p-10 text-center text-white/40">
-              {products.length === 0
-                ? "Товары появятся здесь, как только администратор добавит их в каталог."
-                : "Ничего не найдено по заданным фильтрам."}
+              {products.length === 0 ? t("catalog_no_products") : t("catalog_no_results")}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

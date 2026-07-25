@@ -12,7 +12,7 @@ import {
   deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { Game, Product } from "@/types";
 
 const gamesCol = collection(db, "games");
@@ -52,7 +52,18 @@ export async function getProducts(opts?: {
 
   if (opts?.sort === "price_asc") products.sort((a, b) => a.price - b.price);
   else if (opts?.sort === "price_desc") products.sort((a, b) => b.price - a.price);
-  else products.sort((a, b) => b.createdAt - a.createdAt);
+  else {
+    // Продвинутые товары (купленный буст, ещё не истёкший) поднимаются в топ при сортировке по
+    // умолчанию — это и есть эффект "закрепа в игре" из платного продвижения. Явный выбор
+    // сортировки по цене эту очерёдность не трогает — если человек попросил "сначала дешёвые",
+    // мы это уважаем.
+    const now = Date.now();
+    const isBoosted = (p: Product) => (p.boostUntil ?? 0) > now;
+    products.sort((a, b) => {
+      const diff = Number(isBoosted(b)) - Number(isBoosted(a));
+      return diff !== 0 ? diff : b.createdAt - a.createdAt;
+    });
+  }
 
   return products;
 }
@@ -62,6 +73,17 @@ export async function getProductById(id: string): Promise<Product | null> {
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() } as Product;
+}
+
+/** Товары с активным тиром "home" продвижения — блок «Рекомендуемые» на главной странице. */
+export async function getFeaturedProducts(max = 8): Promise<Product[]> {
+  const snap = await getDocs(query(productsCol, where("boostTier", "==", "home")));
+  const now = Date.now();
+  const products = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as Product)
+    .filter((p) => (p.boostUntil ?? 0) > now);
+  products.sort((a, b) => (b.boostUntil ?? 0) - (a.boostUntil ?? 0));
+  return products.slice(0, max);
 }
 
 export async function createProduct(data: Omit<Product, "id" | "createdAt">) {
@@ -89,3 +111,21 @@ export async function deleteGame(id: string) {
 }
 
 export { serverTimestamp };
+
+/** Продавец покупает платное продвижение своего товара (списание с баланса — на сервере, см. api/products/boost). */
+export async function boostProduct(productId: string, tier: "game" | "home"): Promise<{ boostTier: string; boostUntil: number }> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/products/boost", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ productId, tier }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Не удалось оформить продвижение");
+  }
+  return data;
+}

@@ -8,22 +8,25 @@ import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
+import { useLanguage } from "@/lib/languageStore";
+import { t as translate } from "@/lib/i18n";
 
-function translateAuthError(code?: string) {
+function translateAuthError(lang: import("@/lib/i18n").Language, code?: string) {
   switch (code) {
     case "auth/invalid-credential":
     case "auth/wrong-password":
-      return "Неверный email или пароль";
+      return translate(lang, "login_error_invalid_credential");
     case "auth/user-not-found":
-      return "Пользователь с таким email не найден";
+      return translate(lang, "login_error_user_not_found");
     case "auth/too-many-requests":
-      return "Слишком много попыток. Попробуйте позже";
+      return translate(lang, "login_error_too_many_requests");
     default:
-      return "Ошибка входа. Проверьте данные и попробуйте снова";
+      return translate(lang, "login_error_generic");
   }
 }
 
 export default function LoginPage() {
+  const { t, language } = useLanguage();
   const { login, loginWithGoogle, loginWithCustomToken } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -54,10 +57,10 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      toast("success", "Вы успешно вошли в аккаунт");
+      toast("success", t("login_toast_success"));
       router.push("/profile");
     } catch (err: any) {
-      toast("error", translateAuthError(err?.code));
+      toast("error", translateAuthError(language, err?.code));
     } finally {
       setLoading(false);
     }
@@ -66,16 +69,16 @@ export default function LoginPage() {
   async function handleGoogle() {
     try {
       await loginWithGoogle();
-      toast("success", "Вы успешно вошли через Google");
+      toast("success", t("login_toast_google_success"));
       router.push("/profile");
     } catch (err: any) {
       if (err?.code === "auth/popup-closed-by-user") return;
       if (err?.code === "auth/unauthorized-domain") {
-        toast("error", "Этот домен не добавлен в Firebase Authentication → Settings → Authorized domains.");
+        toast("error", t("login_google_error_domain"));
       } else if (err?.code === "auth/popup-blocked") {
-        toast("error", "Браузер заблокировал всплывающее окно входа. Разреши всплывающие окна для этого сайта.");
+        toast("error", t("login_google_error_popup_blocked"));
       } else {
-        toast("error", "Не удалось войти через Google. Попробуй ещё раз.");
+        toast("error", t("login_google_error_generic"));
       }
     }
   }
@@ -91,13 +94,13 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast("error", data.error ?? "Не удалось отправить код");
+        toast("error", data.error ?? t("login_toast_code_send_failed"));
         return;
       }
       setCodeSent(true);
-      toast("success", "Код отправлен в Telegram. Проверь бота.");
+      toast("success", t("login_toast_code_sent"));
     } catch {
-      toast("error", "Не удалось связаться с сервером. Проверь подключение к интернету.");
+      toast("error", t("login_toast_server_unreachable"));
     } finally {
       setTgSending(false);
     }
@@ -114,14 +117,14 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast("error", data.error ?? "Неверный код");
+        toast("error", data.error ?? t("login_toast_wrong_code"));
         return;
       }
       await loginWithCustomToken(data.token);
-      toast("success", "Вы успешно вошли по коду из Telegram");
+      toast("success", t("login_toast_tg_success"));
       router.push("/profile");
     } catch {
-      toast("error", "Не удалось войти. Попробуй ещё раз.");
+      toast("error", t("login_toast_tg_failed"));
     } finally {
       setTgVerifying(false);
     }
@@ -130,8 +133,8 @@ export default function LoginPage() {
   return (
     <div className="max-w-md mx-auto px-4 py-16">
       <div className="card p-8">
-        <h1 className="text-2xl font-bold mb-1">Вход в аккаунт</h1>
-        <p className="text-white/40 text-sm mb-6">Рады видеть тебя снова в Velox Trade</p>
+        <h1 className="text-2xl font-bold mb-1">{t("login_title")}</h1>
+        <p className="text-white/40 text-sm mb-6">{t("login_subtitle")}</p>
 
         {flags.telegramLoginEnabled && (
           <div className="flex gap-2 mb-6">
@@ -141,7 +144,7 @@ export default function LoginPage() {
                 mode === "password" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              Пароль
+              {t("login_tab_password")}
             </button>
             <button
               onClick={() => setMode("telegram")}
@@ -149,7 +152,7 @@ export default function LoginPage() {
                 mode === "telegram" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              <MessageCircle size={14} /> Код в Telegram
+              <MessageCircle size={14} /> {t("login_tab_telegram")}
             </button>
           </div>
         )}
@@ -164,7 +167,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
+                  placeholder={t("login_email_placeholder")}
                   className="input-field pl-10"
                 />
               </div>
@@ -175,17 +178,17 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Пароль"
+                  placeholder={t("login_password_placeholder")}
                   className="input-field pl-10"
                 />
               </div>
               <div className="text-right">
                 <Link href="/auth/reset" className="text-xs text-accent hover:underline">
-                  Забыли пароль?
+                  {t("login_forgot_password")}
                 </Link>
               </div>
               <button disabled={loading} className="btn-primary w-full py-3 disabled:opacity-50">
-                {loading ? "Входим..." : "Войти"}
+                {loading ? t("login_submitting") : t("login_submit")}
               </button>
             </form>
 
@@ -193,22 +196,19 @@ export default function LoginPage() {
               <>
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-white/30">или</span>
+                  <span className="text-xs text-white/30">{t("login_or")}</span>
                   <div className="flex-1 h-px bg-border" />
                 </div>
 
                 <button onClick={handleGoogle} className="btn-secondary w-full py-3">
-                  Войти через Google
+                  {t("login_google")}
                 </button>
               </>
             )}
           </>
         ) : (
           <div className="space-y-4">
-            <p className="text-xs text-white/40">
-              Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
-              вошёл).
-            </p>
+            <p className="text-xs text-white/40">{t("login_tg_hint")}</p>
             {!codeSent ? (
               <form onSubmit={handleRequestCode} className="space-y-4">
                 <div className="relative">
@@ -218,12 +218,12 @@ export default function LoginPage() {
                     required
                     value={tgEmail}
                     onChange={(e) => setTgEmail(e.target.value)}
-                    placeholder="Email аккаунта"
+                    placeholder={t("login_tg_email_placeholder")}
                     className="input-field pl-10"
                   />
                 </div>
                 <button disabled={tgSending} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                  <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
+                  <Send size={16} /> {tgSending ? t("login_tg_sending") : t("login_tg_send_code")}
                 </button>
               </form>
             ) : (
@@ -232,19 +232,19 @@ export default function LoginPage() {
                   required
                   value={tgCode}
                   onChange={(e) => setTgCode(e.target.value)}
-                  placeholder="Код из Telegram (6 цифр)"
+                  placeholder={t("login_tg_code_placeholder")}
                   maxLength={6}
                   className="input-field text-center tracking-[0.3em] font-mono text-lg"
                 />
                 <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
-                  {tgVerifying ? "Проверяем..." : "Войти"}
+                  {tgVerifying ? t("login_tg_verifying") : t("login_tg_submit")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setCodeSent(false)}
                   className="text-xs text-white/40 hover:text-white/70 w-full text-center"
                 >
-                  Ввести другой email
+                  {t("login_tg_other_email")}
                 </button>
               </form>
             )}
@@ -252,9 +252,9 @@ export default function LoginPage() {
         )}
 
         <p className="text-center text-sm text-white/40 mt-6">
-          Нет аккаунта?{" "}
+          {t("login_no_account")}{" "}
           <Link href="/auth/register" className="text-accent hover:underline">
-            Зарегистрироваться
+            {t("login_register_link")}
           </Link>
         </p>
       </div>
