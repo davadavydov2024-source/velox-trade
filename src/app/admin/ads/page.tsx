@@ -5,6 +5,7 @@ import { Send, Megaphone, Mail, Plus, Trash2, Edit3, Power, FlaskConical, Messag
 import { getAllUsers } from "@/lib/users";
 import { sendBroadcastEmail, sendEmail } from "@/lib/emailjs";
 import { getAds, createAd, updateAd, deleteAd } from "@/lib/ads";
+import { createNewsPost } from "@/lib/newsChannel";
 import { Ad } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
@@ -156,12 +157,25 @@ export default function AdminAdsPage() {
         toast("error", data.error ?? "Не удалось отправить рассылку в Telegram");
         return;
       }
+
+      // Публикуем и в общую ленту новостей сайта (/chats) — так сообщение увидят ВСЕ
+      // пользователи, а не только те, кто привязал Telegram.
+      try {
+        await createNewsPost({
+          text: tgText,
+          image: tgPhotoUrl || null,
+          buttons: tgButtonText && tgButtonLink ? [{ text: tgButtonText, link: tgButtonLink }] : [],
+        });
+      } catch (err) {
+        console.error("Не удалось опубликовать в ленту новостей:", err);
+      }
+
       if (data.total === 0) {
-        toast("warning", "Пока ни один пользователь не привязал Telegram — рассылать некому.");
+        toast("success", "Опубликовано в ленте новостей сайта. Пока никто не привязал Telegram — туда рассылка не ушла.");
       } else if (data.failed === 0) {
-        toast("success", `Отправлено ${data.sent} из ${data.total} привязанных пользователей`);
+        toast("success", `Отправлено ${data.sent} в Telegram + опубликовано в ленте новостей для всех`);
       } else {
-        toast("warning", `Отправлено ${data.sent} из ${data.total}. ${data.failed} не доставлено.`);
+        toast("warning", `Telegram: ${data.sent} из ${data.total}. Плюс опубликовано в ленте новостей для всех.`);
       }
       setTgText("");
       setTgPhotoUrl("");

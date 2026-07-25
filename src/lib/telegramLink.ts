@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 
 export interface TelegramLink {
   chatId: number;
@@ -27,4 +27,16 @@ export async function getTelegramLink(uid: string): Promise<TelegramLink | null>
   const snap = await getDoc(doc(db, "telegramLinks", uid));
   if (!snap.exists()) return null;
   return snap.data() as TelegramLink;
+}
+
+/** Отвязывает Telegram от аккаунта (после этого уведомления и рассылки туда приходить не будут). */
+export async function unlinkTelegram(): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/telegram/unlink", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error("Не удалось отвязать Telegram");
 }

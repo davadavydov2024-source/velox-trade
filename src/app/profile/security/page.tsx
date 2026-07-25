@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { sendEmailVerification } from "firebase/auth";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
+import { createTelegramLinkRequest, getTelegramLink, unlinkTelegram, TelegramLink } from "@/lib/telegramLink";
+
+const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -26,6 +29,57 @@ export default function SecurityPage() {
   const [cooldown, setCooldown] = useState(0);
   const [checking, setChecking] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [tgLink, setTgLink] = useState<TelegramLink | null>(null);
+  const [tgLoading, setTgLoading] = useState(true);
+  const [tgConnecting, setTgConnecting] = useState(false);
+  const [tgUnlinking, setTgUnlinking] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    getTelegramLink(user.uid)
+      .then(setTgLink)
+      .finally(() => setTgLoading(false));
+  }, [user]);
+
+  async function handleConnectTelegram() {
+    if (!user) return;
+    setTgConnecting(true);
+    try {
+      const code = await createTelegramLinkRequest(user.uid);
+      window.open(`https://t.me/${TELEGRAM_BOT}?start=${code}`, "_blank");
+      toast("success", "Открылся Telegram — нажми Start в боте, затем вернись сюда и нажми «Проверить».");
+    } catch {
+      toast("error", "Не удалось создать код привязки. Попробуй ещё раз.");
+    } finally {
+      setTgConnecting(false);
+    }
+  }
+
+  async function handleCheckTelegram() {
+    if (!user) return;
+    setTgLoading(true);
+    try {
+      const link = await getTelegramLink(user.uid);
+      setTgLink(link);
+      toast(link ? "success" : "warning", link ? "Telegram привязан!" : "Пока не привязан — сначала нажми Start в боте по открывшейся ссылке.");
+    } finally {
+      setTgLoading(false);
+    }
+  }
+
+  async function handleUnlinkTelegram() {
+    if (!confirm("Отвязать Telegram? Уведомления и рассылки перестанут приходить туда.")) return;
+    setTgUnlinking(true);
+    try {
+      await unlinkTelegram();
+      setTgLink(null);
+      toast("success", "Telegram отвязан");
+    } catch {
+      toast("error", "Не удалось отвязать Telegram");
+    } finally {
+      setTgUnlinking(false);
+    }
+  }
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -98,6 +152,35 @@ export default function SecurityPage() {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="card p-5 flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium">Telegram</p>
+          <p className="text-sm text-white/40">
+            {tgLoading
+              ? "Проверяем..."
+              : tgLink
+              ? `Привязан${tgLink.telegramUsername ? ` — @${tgLink.telegramUsername}` : ""}`
+              : "Не привязан — уведомления о заказах, заявках и рассылки будут приходить в Telegram"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {tgLink ? (
+            <button onClick={handleUnlinkTelegram} disabled={tgUnlinking} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
+              {tgUnlinking ? "..." : "Отвязать"}
+            </button>
+          ) : (
+            <>
+              <button onClick={handleCheckTelegram} disabled={tgLoading} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
+                Проверить
+              </button>
+              <button onClick={handleConnectTelegram} disabled={tgConnecting} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
+                {tgConnecting ? "..." : "Подключить Telegram"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="card p-5 flex items-center justify-between">
