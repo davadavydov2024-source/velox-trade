@@ -9,6 +9,7 @@ import { getUserProfile } from "@/lib/users";
 import { SupportPanel } from "@/components/SupportPanel";
 import { NewsPanel } from "@/components/NewsPanel";
 import { OrderChatThread } from "@/components/OrderChatThread";
+import { useLanguage } from "@/lib/languageStore";
 
 type ChatView = { kind: "support" } | { kind: "news" } | { kind: "order"; orderId: string; counterpartName: string };
 
@@ -26,6 +27,7 @@ function itemClasses(active: boolean) {
 }
 
 function ChatsInner() {
+  const { t } = useLanguage();
   const params = useSearchParams();
   const { user } = useAuth();
   const [view, setView] = useState<ChatView | null>(null);
@@ -47,9 +49,9 @@ function ChatsInner() {
         const enriched = await Promise.all(
           chats.map(async (chat) => {
             const counterpartId = chat.buyerId === user.uid ? chat.sellerId : chat.buyerId;
-            let counterpartName = "Пользователь";
+            let counterpartName = t("chats_default_user");
             if (counterpartId === "store") {
-              counterpartName = "Магазин";
+              counterpartName = t("chats_store");
             } else {
               try {
                 const p = await getUserProfile(counterpartId);
@@ -62,7 +64,7 @@ function ChatsInner() {
             return {
               orderId: chat.orderId,
               counterpartName,
-              lastMessage: last ? last.text : "Сообщений пока нет",
+              lastMessage: last ? last.text : t("chats_no_messages"),
               updatedAt: chat.updatedAt,
             } as ChatListItem;
           })
@@ -82,7 +84,7 @@ function ChatsInner() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl font-bold mb-6">Чаты</h1>
+      <h1 className="text-2xl font-bold mb-6">{t("chats_title")}</h1>
       <div className="grid md:grid-cols-[320px_1fr] gap-5">
         <div className={`card p-2 md:max-h-[70vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
           <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
@@ -91,10 +93,10 @@ function ChatsInner() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
-                <p className="font-medium text-sm truncate">Поддержка</p>
-                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
+                <p className="font-medium text-sm truncate">{t("chats_support")}</p>
+                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label={t("chats_official_chat")} />
               </div>
-              <p className="text-xs text-white/40 truncate">Мы поможем с любым вопросом</p>
+              <p className="text-xs text-white/40 truncate">{t("chats_support_hint")}</p>
             </div>
           </button>
 
@@ -104,23 +106,21 @@ function ChatsInner() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
-                <p className="font-medium text-sm truncate">Velox Trade Новости</p>
-                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
+                <p className="font-medium text-sm truncate">{t("chats_news")}</p>
+                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label={t("chats_official_chat")} />
               </div>
-              <p className="text-xs text-white/40 truncate">Официальный канал</p>
+              <p className="text-xs text-white/40 truncate">{t("chats_news_hint")}</p>
             </div>
           </button>
 
           <div className="border-t border-border my-2" />
 
           {!user ? (
-            <p className="text-xs text-white/30 text-center py-6 px-2">
-              Войдите в аккаунт, чтобы увидеть чаты по своим сделкам.
-            </p>
+            <p className="text-xs text-white/30 text-center py-6 px-2">{t("chats_need_login")}</p>
           ) : loading ? (
-            <p className="text-xs text-white/30 text-center py-6">Загрузка...</p>
+            <p className="text-xs text-white/30 text-center py-6">{t("common_loading")}</p>
           ) : items.length === 0 ? (
-            <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
+            <p className="text-xs text-white/30 text-center py-6 px-2">{t("chats_empty")}</p>
           ) : (
             items.map((item) => (
               <button
@@ -144,12 +144,12 @@ function ChatsInner() {
           {!view ? (
             <div className="text-center text-white/30 py-24">
               <MessageCircle className="mx-auto mb-2" size={28} />
-              Выберите чат слева
+              {t("chats_choose_chat")}
             </div>
           ) : (
             <>
               <button onClick={() => setView(null)} className="md:hidden text-xs text-white/40 hover:text-white/70 mb-4 flex items-center gap-1">
-                <ChevronLeft size={14} /> Ко всем чатам
+                <ChevronLeft size={14} /> {t("chats_back_to_all")}
               </button>
               {view.kind === "support" && <SupportPanel />}
               {view.kind === "news" && <NewsPanel />}
@@ -164,7 +164,7 @@ function ChatsInner() {
 
 export default function ChatsPage() {
   return (
-    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>}>
+    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">…</div>}>
       <ChatsInner />
     </Suspense>
   );

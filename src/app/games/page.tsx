@@ -6,8 +6,10 @@ import { useEffect, useState } from "react";
 import { getGames } from "@/lib/products";
 import { Game } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
+import { useLanguage } from "@/lib/languageStore";
 
 export default function GamesPage() {
+  const { t } = useLanguage();
   const [games, setGames] = useState<Game[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -20,7 +22,7 @@ export default function GamesPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-      <h1 className="text-3xl font-bold mb-8">Все игры</h1>
+      <h1 className="text-3xl font-bold mb-8">{t("games_title")}</h1>
 
       {!loaded ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
@@ -29,9 +31,7 @@ export default function GamesPage() {
           ))}
         </div>
       ) : games.length === 0 ? (
-        <div className="card p-10 text-center text-white/40">
-          Игры появятся здесь, как только администратор добавит их в админ-панели.
-        </div>
+        <div className="card p-10 text-center text-white/40">{t("home_no_games")}</div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
           {games.map((game) => (

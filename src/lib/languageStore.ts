@@ -1,22 +1,25 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { Language, DEFAULT_LANGUAGE, t } from "./i18n";
+import { cookieStorage } from "./cookies";
 
 interface LanguageState {
   language: Language;
   setLanguage: (lang: Language) => void;
 }
 
-/** Текущий язык интерфейса, хранится в браузере. Синхронизируется с профилем через UserLanguageSync. */
+/** Текущий язык интерфейса, хранится в куке (velox-trade-language), а не в localStorage —
+ *  так его может прочитать и сервер при первом рендере страницы. Синхронизируется с профилем
+ *  через UserLanguageSync. */
 export const useLanguageStore = create<LanguageState>()(
   persist(
     (set) => ({
       language: DEFAULT_LANGUAGE,
       setLanguage: (language) => set({ language }),
     }),
-    { name: "velox-trade-language" }
+    { name: "velox-trade-language", storage: createJSONStorage(() => cookieStorage) }
   )
 );
 

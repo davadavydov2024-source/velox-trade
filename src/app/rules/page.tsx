@@ -1,7 +1,12 @@
+"use client";
+
+import { useLanguage } from "@/lib/languageStore";
+
 export default function RulesPage() {
+  const { t } = useLanguage();
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-4 text-sm text-white/70 leading-relaxed">
-      <h1 className="text-2xl font-bold text-white mb-4">Правила платформы</h1>
+      <h1 className="text-2xl font-bold text-white mb-4">{t("rules_title")}</h1>
       <p>1. Velox Trade — торговая площадка игровых предметов. Администрация не является продавцом товаров, а обеспечивает площадку для сделок между пользователями.</p>
       <p>2. Оплата и пополнение баланса производятся через платёжную систему CactusPay (lk.cactuspay.pro). За проведение платежа, сроки зачисления и работу способов оплаты отвечает сама платёжная система, а не Velox Trade.</p>
       <p>3. Никогда не переводите деньги напрямую другим пользователям в обход баланса сайта, не переходите по подозрительным ссылкам и не сообщайте пароли/коды подтверждения третьим лицам — администрация никогда их не запрашивает.</p>

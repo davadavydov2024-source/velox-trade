@@ -8,11 +8,14 @@ import { getUidByUsername } from "@/lib/usernames";
 import { getUserProfile } from "@/lib/users";
 import { getSellerReviews } from "@/lib/reviews";
 import { getProducts } from "@/lib/products";
-import { UserProfile, Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
+import { UserProfile, Review, Product, BADGE_COLOR, CHECKMARK_BADGES } from "@/types";
+import { useLanguage } from "@/lib/languageStore";
+import { badgeLabel, tf } from "@/lib/i18n";
 import { ProductCard } from "@/components/ProductCard";
 import { safeImageSrc } from "@/lib/safeImage";
 
 export default function SellerProfilePage() {
+  const { t, language } = useLanguage();
   const { username } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -40,8 +43,8 @@ export default function SellerProfilePage() {
     });
   }, [username]);
 
-  if (loading) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>;
-  if (notFound || !profile) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-white/40">Продавец не найден.</div>;
+  if (loading) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-white/40">{t("common_loading")}</div>;
+  if (notFound || !profile) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-white/40">{t("seller_not_found")}</div>;
 
   const avgRating = profile.ratingCount ? (profile.ratingSum ?? 0) / profile.ratingCount : null;
   const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
@@ -57,7 +60,7 @@ export default function SellerProfilePage() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <h1 className="text-xl font-bold">{profile.displayName}</h1>
             {checkmarks.map((b) => (
-              <ShieldCheck key={b} size={18} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
+              <ShieldCheck key={b} size={18} style={{ color: BADGE_COLOR[b] }} aria-label={badgeLabel(language, b)} />
             ))}
           </div>
           <p className="text-white/40 text-sm mb-2">@{profile.username}</p>
@@ -75,7 +78,7 @@ export default function SellerProfilePage() {
                   className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                   style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b] }}
                 >
-                  {BADGE_LABEL[b]}
+                  {badgeLabel(language, b)}
                 </span>
               ))}
             </div>
@@ -84,9 +87,9 @@ export default function SellerProfilePage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-bold mb-3">Товары продавца ({products.length})</h2>
+        <h2 className="text-lg font-bold mb-3">{tf(language, "seller_products_title", { n: products.length })}</h2>
         {products.length === 0 ? (
-          <div className="card p-8 text-center text-white/40">У продавца пока нет товаров в каталоге.</div>
+          <div className="card p-8 text-center text-white/40">{t("seller_no_products")}</div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {products.map((p) => (
@@ -97,9 +100,9 @@ export default function SellerProfilePage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-bold mb-3">Отзывы ({reviews.length})</h2>
+        <h2 className="text-lg font-bold mb-3">{tf(language, "seller_reviews_title", { n: reviews.length })}</h2>
         {reviews.length === 0 ? (
-          <div className="card p-8 text-center text-white/40">Отзывов пока нет.</div>
+          <div className="card p-8 text-center text-white/40">{t("seller_no_reviews")}</div>
         ) : (
           <div className="space-y-2">
             {reviews.map((r) => (
