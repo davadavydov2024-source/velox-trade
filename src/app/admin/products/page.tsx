@@ -59,6 +59,10 @@ export default function AdminProductsPage() {
       toast("warning", "Ссылка на изображение должна начинаться с http:// или https://");
       return;
     }
+    if (!form.price || form.price <= 0) {
+      toast("warning", "Укажи цену товара больше 0 — сейчас поле пустое или равно 0");
+      return;
+    }
     try {
       if (editing) {
         await updateProduct(editing.id, form);
@@ -131,8 +135,9 @@ export default function AdminProductsPage() {
           <input
             required
             type="number"
+            min={1}
             placeholder="Цена"
-            value={form.price}
+            value={form.price || ""}
             onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
             className="input-field py-2.5"
           />

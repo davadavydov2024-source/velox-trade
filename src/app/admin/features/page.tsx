@@ -12,6 +12,7 @@ const ROWS: { key: keyof Omit<FeatureFlags, "updatedAt">; label: string; hint: s
   { key: "googleLoginEnabled", label: "Вход через Google", hint: "Кнопка «Войти через Google» на странице входа" },
   { key: "telegramLoginEnabled", label: "Вход по коду в Telegram", hint: "Вкладка «Код в Telegram» на странице входа" },
   { key: "telegramRegisterEnabled", label: "Регистрация через Telegram", hint: "Вкладка «через Telegram» на странице регистрации" },
+  { key: "vkLoginEnabled", label: "Вход через VK", hint: "Кнопка «Войти через VK» на странице входа (нужен NEXT_PUBLIC_VK_CLIENT_ID в .env)" },
   { key: "balanceTopupEnabled", label: "Пополнение баланса", hint: "Форма заявки на пополнение/вывод в личном кабинете" },
 ];
 

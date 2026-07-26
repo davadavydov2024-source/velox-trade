@@ -207,6 +207,7 @@ export interface FeatureFlags {
   googleLoginEnabled: boolean;
   telegramLoginEnabled: boolean;
   telegramRegisterEnabled: boolean;
+  vkLoginEnabled: boolean;
   balanceTopupEnabled: boolean;
   sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
   boostGamePriceRub: number; // цена продвижения "в топ игры" за период boostGameDays
@@ -221,6 +222,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   googleLoginEnabled: true,
   telegramLoginEnabled: false,
   telegramRegisterEnabled: false,
+  vkLoginEnabled: true,
   balanceTopupEnabled: true,
   sellCommissionPercent: 20,
   boostGamePriceRub: 49,

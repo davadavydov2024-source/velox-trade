@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Send, MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
@@ -23,10 +23,11 @@ function translateAuthError(code?: string) {
   }
 }
 
-export default function LoginPage() {
+function LoginInner() {
   const { login, loginWithGoogle, loginWithCustomToken } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"password" | "telegram">("password");
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
 
@@ -35,6 +36,12 @@ export default function LoginPage() {
       setFlags(f);
       if (!f.telegramLoginEnabled) setMode("password");
     });
+  }, []);
+
+  useEffect(() => {
+    const vkError = searchParams.get("vkError");
+    if (vkError) toast("error", vkError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- вход по паролю ---
@@ -78,6 +85,17 @@ export default function LoginPage() {
         toast("error", "Не удалось войти через Google. Попробуй ещё раз.");
       }
     }
+  }
+
+  function handleVk() {
+    const clientId = process.env.NEXT_PUBLIC_VK_CLIENT_ID;
+    if (!clientId) {
+      toast("error", "Вход через VK не настроен (нет NEXT_PUBLIC_VK_CLIENT_ID).");
+      return;
+    }
+    const redirectUri = `${window.location.origin}/api/auth/vk-callback`;
+    const url = `https://oauth.vk.com/authorize?client_id=${clientId}&display=page&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email&response_type=code&v=5.131`;
+    window.location.href = url;
   }
 
   async function handleRequestCode(e: React.FormEvent) {
@@ -189,7 +207,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {flags.googleLoginEnabled && (
+            {(flags.googleLoginEnabled || flags.vkLoginEnabled) && (
               <>
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px bg-border" />
@@ -197,9 +215,18 @@ export default function LoginPage() {
                   <div className="flex-1 h-px bg-border" />
                 </div>
 
-                <button onClick={handleGoogle} className="btn-secondary w-full py-3">
-                  Войти через Google
-                </button>
+                <div className="space-y-2">
+                  {flags.googleLoginEnabled && (
+                    <button onClick={handleGoogle} className="btn-secondary w-full py-3">
+                      Войти через Google
+                    </button>
+                  )}
+                  {flags.vkLoginEnabled && (
+                    <button onClick={handleVk} className="btn-secondary w-full py-3">
+                      Войти через VK
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </>
@@ -259,5 +286,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="max-w-md mx-auto px-4 py-16 text-center text-white/40">Загрузка...</div>}>
+      <LoginInner />
+    </Suspense>
   );
 }

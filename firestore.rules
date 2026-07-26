@@ -150,6 +150,10 @@ service cloud.firestore {
     match /loginCodes/{uid} {
       allow read, write: if false;
     }
+    // vkLoginTokens: одноразовый код для завершения входа через VK — полностью серверная логика.
+    match /vkLoginTokens/{code} {
+      allow read, write: if false;
+    }
 
     // telegramRegisterRequests: регистрация через Telegram происходит ДО входа, поэтому создание открыто всем.
     // Обрабатывается вебхуком через Admin SDK (в обход правил); статус проверяется через отдельный API-роут,

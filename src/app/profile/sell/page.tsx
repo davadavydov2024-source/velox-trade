@@ -68,7 +68,7 @@ export default function SellPage() {
         userId: user.uid,
         userNick: profile.displayName,
         itemName: itemName.trim(),
-        gameId: selectedGame.id,
+        gameId: selectedGame.slug,
         gameName: selectedGame.name,
         imageUrl,
         price: priceNum,
