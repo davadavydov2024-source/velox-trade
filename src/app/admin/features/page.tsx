@@ -124,6 +124,32 @@ export default function AdminFeaturesPage() {
       </div>
 
       <div className="card p-5">
+        <p className="font-medium text-sm mb-3">Минимальные суммы</p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">Мин. цена товара, ₽ (создание в «Товары» и заявки на продажу)</p>
+            <input
+              type="number"
+              min={1}
+              value={flags.minProductPriceRub}
+              onChange={(e) => setFlags((f) => ({ ...f, minProductPriceRub: Math.max(1, Number(e.target.value)) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">Мин. сумма пополнения баланса, ₽</p>
+            <input
+              type="number"
+              min={1}
+              value={flags.minTopupAmountRub}
+              onChange={(e) => setFlags((f) => ({ ...f, minTopupAmountRub: Math.max(1, Number(e.target.value)) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-5">
         <p className="font-medium text-sm mb-3">Продвижение товаров («Мои товары»)</p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>

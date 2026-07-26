@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Send, Megaphone, Mail, Plus, Trash2, Edit3, Power, FlaskConical, MessageCircle } from "lucide-react";
 import { getAllUsers } from "@/lib/users";
-import { sendBroadcastEmail, sendEmail } from "@/lib/emailjs";
+import { queueBroadcastEmail, broadcastHtml } from "@/lib/firebaseMail";
 import { getAds, createAd, updateAd, deleteAd } from "@/lib/ads";
 import { createNewsPost } from "@/lib/newsChannel";
 import { Ad } from "@/types";
@@ -35,7 +35,6 @@ export default function AdminAdsPage() {
   const [buttonText, setButtonText] = useState("");
   const [buttonLink, setButtonLink] = useState("");
   const [sending, setSending] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   // --- telegram broadcast state ---
   const [tgText, setTgText] = useState("");
@@ -116,23 +115,19 @@ export default function AdminAdsPage() {
     if (!profile?.email) return;
     setTestSending(true);
     try {
-      await sendEmail({
-        to_email: profile.email,
-        to_name: profile.displayName,
-        subject: "Тестовое письмо — Velox Trade",
-        message: "Если ты видишь это письмо — EmailJS настроен верно и рассылка будет работать.",
-      });
-      toast("success", `Тестовое письмо отправлено на ${profile.email}. Проверь папку «Входящие» и «Спам».`);
-    } catch (err: any) {
-      console.error("Тестовое письмо EmailJS не отправилось:", err);
-      const status = err?.status;
-      if (status === 403 || status === 401) {
-        toast("error", "EmailJS отклонил запрос (403/401). Проверь Public Key и разрешённые домены (Allowed origins) в настройках EmailJS.");
-      } else if (status === 400) {
-        toast("error", "EmailJS вернул ошибку 400 — вероятно, не совпадают названия переменных в шаблоне. Смотри консоль (F12).");
-      } else {
-        toast("error", "Не удалось отправить тестовое письмо. Подробности — в консоли браузера (F12).");
-      }
+      await queueBroadcastEmail(
+        [profile.email],
+        "Тестовое письмо — Velox Trade",
+        broadcastHtml("Если ты видишь это письмо — рассылка через Firebase настроена верно.")
+      );
+      toast(
+        "success",
+        `Письмо поставлено в очередь на ${profile.email}. Проверь папку «Входящие»/«Спам» через минуту — ` +
+          `если ничего не придёт, проверь, установлено ли в Firebase расширение "Trigger Email from Firestore" и настроен ли в нём SMTP.`
+      );
+    } catch (err) {
+      console.error("Не удалось поставить тестовое письмо в очередь:", err);
+      toast("error", "Не удалось поставить тестовое письмо в очередь — подробности в консоли браузера (F12).");
     } finally {
       setTestSending(false);
     }
@@ -194,40 +189,22 @@ export default function AdminAdsPage() {
       return;
     }
     setSending(true);
-    let failCount = 0;
-    let lastError: any = null;
     try {
       const users = await getAllUsers();
-      setProgress({ done: 0, total: users.length });
-      // EmailJS отправляет по одному письму за раз — для большой базы это может занять время.
-      // Небольшая пауза между письмами снижает риск упереться в лимит запросов в секунду у EmailJS.
-      // Для production-нагрузки лучше перенести рассылку на серверный SDK (Resend/SendGrid) через Cloud Function.
-      for (let i = 0; i < users.length; i++) {
-        const u = users[i];
-        try {
-          await sendBroadcastEmail(u.email, title, text, buttonText, buttonLink);
-        } catch (err) {
-          failCount++;
-          lastError = err;
-          console.error(`Не удалось отправить письмо на ${u.email}:`, err);
-        }
-        setProgress({ done: i + 1, total: users.length });
-        if (i < users.length - 1) await new Promise((r) => setTimeout(r, 250));
-      }
-      if (failCount === 0) {
-        toast("success", `Рассылка отправлена ${users.length} пользователям`);
-      } else if (failCount === users.length) {
-        toast("error", "Ни одно письмо не отправлено. Проверь настройки EmailJS (см. раздел про почту в README).");
-        console.error("Последняя ошибка EmailJS:", lastError);
-      } else {
-        toast("warning", `Отправлено ${users.length - failCount} из ${users.length}. ${failCount} писем не ушли — смотри консоль браузера (F12).`);
-      }
+      const emails = users.map((u) => u.email).filter(Boolean);
+      const html = `<h2 style="font-family:sans-serif;">${title}</h2>${broadcastHtml(text, buttonText, buttonLink)}`;
+      const { batches } = await queueBroadcastEmail(emails, title, html);
+      toast(
+        "success",
+        `Рассылка поставлена в очередь для ${emails.length} пользователей (${batches} писем). ` +
+          `Реальная отправка произойдёт, если в Firebase установлено и настроено расширение "Trigger Email from Firestore".`
+      );
       setTitle("");
       setText("");
       setButtonText("");
       setButtonLink("");
     } catch (err) {
-      toast("error", "Ошибка при отправке рассылки. Проверь настройки EmailJS в .env.local.");
+      toast("error", "Не удалось поставить рассылку в очередь — проверь консоль браузера (F12).");
       console.error(err);
     } finally {
       setSending(false);
@@ -352,7 +329,7 @@ export default function AdminAdsPage() {
               disabled={sending}
               className="btn-primary px-6 py-3 flex items-center gap-2 disabled:opacity-50"
             >
-              <Send size={16} /> {sending ? `Отправка ${progress?.done ?? 0}/${progress?.total ?? "?"}...` : "Отправить всем"}
+              <Send size={16} /> {sending ? "Ставим в очередь..." : "Отправить всем"}
             </button>
           </div>
         </div>

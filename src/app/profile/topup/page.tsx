@@ -66,10 +66,12 @@ function TopUpPageInner() {
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
   const [requests, setRequests] = useState<TopUpRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const [minTopup, setMinTopup] = useState(100);
 
   useEffect(() => {
     getFeatureFlags().then((f) => {
       setEnabled(f.balanceTopupEnabled);
+      setMinTopup(f.minTopupAmountRub || 100);
       setFlagsLoaded(true);
     });
   }, []);
@@ -124,8 +126,8 @@ function TopUpPageInner() {
   async function handlePay(e: React.FormEvent) {
     e.preventDefault();
     const num = Number(depositAmount);
-    if (!num || num < 100) {
-      toast("warning", "Минимальная сумма пополнения — 100 ₽");
+    if (!num || num < minTopup) {
+      toast("warning", `Минимальная сумма пополнения — ${minTopup} ₽`);
       return;
     }
     setPayingNow(true);
@@ -263,7 +265,7 @@ function TopUpPageInner() {
                     <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽ (минимум 100)</label>
                     <input
                       type="number"
-                      min={100}
+                      min={minTopup}
                       value={depositAmount}
                       onChange={(e) => setDepositAmount(e.target.value)}
                       placeholder="Например, 500"

@@ -150,6 +150,12 @@ service cloud.firestore {
     match /loginCodes/{uid} {
       allow read, write: if false;
     }
+    // mail: очередь писем для расширения Firebase "Trigger Email from Firestore" —
+    // только админ может ставить письма в очередь, само расширение обрабатывает их Admin SDK.
+    match /mail/{docId} {
+      allow create: if isAdmin();
+      allow read, update, delete: if false;
+    }
     // vkLoginTokens: одноразовый код для завершения входа через VK — полностью серверная логика.
     match /vkLoginTokens/{code} {
       allow read, write: if false;

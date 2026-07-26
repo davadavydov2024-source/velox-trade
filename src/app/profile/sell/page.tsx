@@ -8,7 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { createSellRequest } from "@/lib/sellRequests";
 import { getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { Game, MIN_SELL_PRICE, DEFAULT_FEATURE_FLAGS } from "@/types";
+import { Game, DEFAULT_FEATURE_FLAGS } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
 
@@ -19,6 +19,7 @@ export default function SellPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoaded, setGamesLoaded] = useState(false);
   const [commissionPercent, setCommissionPercent] = useState(DEFAULT_FEATURE_FLAGS.sellCommissionPercent);
+  const [minSellPrice, setMinSellPrice] = useState(DEFAULT_FEATURE_FLAGS.minProductPriceRub);
 
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [imageUrl, setImageUrl] = useState("");
@@ -32,7 +33,10 @@ export default function SellPage() {
       .then(setGames)
       .catch(() => setGames([]))
       .finally(() => setGamesLoaded(true));
-    getFeatureFlags().then((f) => setCommissionPercent(f.sellCommissionPercent));
+    getFeatureFlags().then((f) => {
+      setCommissionPercent(f.sellCommissionPercent);
+      setMinSellPrice(f.minProductPriceRub);
+    });
   }, []);
 
   const priceNum = Number(price) || 0;
@@ -57,8 +61,8 @@ export default function SellPage() {
       toast("warning", "Опиши предмет — описание обязательно");
       return;
     }
-    if (priceNum < MIN_SELL_PRICE) {
-      toast("warning", `Минимальная цена — ${MIN_SELL_PRICE} ₽`);
+    if (priceNum < minSellPrice) {
+      toast("warning", `Минимальная цена — ${minSellPrice} ₽`);
       return;
     }
 
@@ -179,10 +183,10 @@ export default function SellPage() {
           <input
             required
             type="number"
-            min={MIN_SELL_PRICE}
+            min={minSellPrice}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder={`Желаемая цена, ₽ (минимум ${MIN_SELL_PRICE} ₽)`}
+            placeholder={`Желаемая цена, ₽ (минимум ${minSellPrice} ₽)`}
             className="input-field py-2.5"
           />
           {priceNum > 0 && (

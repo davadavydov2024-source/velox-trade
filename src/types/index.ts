@@ -209,6 +209,8 @@ export interface FeatureFlags {
   telegramRegisterEnabled: boolean;
   vkLoginEnabled: boolean;
   balanceTopupEnabled: boolean;
+  minTopupAmountRub: number; // минимальная сумма пополнения баланса
+  minProductPriceRub: number; // минимальная цена при создании товара (в админке и в заявках на продажу)
   sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
   boostGamePriceRub: number; // цена продвижения "в топ игры" за период boostGameDays
   boostGameDays: number;
@@ -224,6 +226,8 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   telegramRegisterEnabled: false,
   vkLoginEnabled: true,
   balanceTopupEnabled: true,
+  minTopupAmountRub: 100,
+  minProductPriceRub: 1,
   sellCommissionPercent: 20,
   boostGamePriceRub: 49,
   boostGameDays: 3,

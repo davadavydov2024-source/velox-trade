@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Plus, Trash2, Edit3 } from "lucide-react";
 import { getProducts, createProduct, updateProduct, deleteProduct } from "@/lib/products";
+import { getFeatureFlags } from "@/lib/featureFlags";
 import { Product, Rarity, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
@@ -26,10 +27,12 @@ export default function AdminProductsPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
+  const [minPrice, setMinPrice] = useState(1);
   const { toast } = useToast();
 
   useEffect(() => {
     refresh();
+    getFeatureFlags().then((f) => setMinPrice(f.minProductPriceRub || 1));
   }, []);
 
   async function refresh() {
@@ -59,8 +62,8 @@ export default function AdminProductsPage() {
       toast("warning", "Ссылка на изображение должна начинаться с http:// или https://");
       return;
     }
-    if (!form.price || form.price <= 0) {
-      toast("warning", "Укажи цену товара больше 0 — сейчас поле пустое или равно 0");
+    if (!form.price || form.price < minPrice) {
+      toast("warning", `Укажи цену товара не меньше ${minPrice} ₽ — сейчас поле пустое или меньше минимума`);
       return;
     }
     try {
@@ -135,7 +138,7 @@ export default function AdminProductsPage() {
           <input
             required
             type="number"
-            min={1}
+            min={minPrice}
             placeholder="Цена"
             value={form.price || ""}
             onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
