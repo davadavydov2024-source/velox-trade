@@ -1,6 +1,12 @@
 import { adminDb } from "./firebaseAdmin";
 
-export type BotMode = "awaiting_topup" | "awaiting_support" | "awaiting_partnership" | null;
+export type BotMode =
+  | "awaiting_topup"
+  | "awaiting_support"
+  | "awaiting_partnership"
+  | "awaiting_donate_amount"
+  | "admin_awaiting_promo_create"
+  | null;
 
 export async function getBotState(chatId: number): Promise<BotMode> {
   const snap = await adminDb().collection("telegramBotState").doc(String(chatId)).get();

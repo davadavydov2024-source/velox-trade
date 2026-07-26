@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { sendTelegramMessage, editTelegramMessage, answerCallbackQuery, generateSixDigitCode } from "@/lib/telegramBot";
+import {
+  sendTelegramMessage,
+  editTelegramMessage,
+  answerCallbackQuery,
+  answerPreCheckoutQuery,
+  sendInvoice,
+  generateSixDigitCode,
+} from "@/lib/telegramBot";
 import { getBotState, setBotState } from "@/lib/telegramBotState";
 import {
   mainMenuText,
@@ -11,18 +18,53 @@ import {
   SUPPORT_INSTRUCTIONS,
   PARTNERSHIP_INSTRUCTIONS,
   backOnlyButtons,
+  DONATE_MIN,
+  DONATE_MAX,
+  DONATE_PROMPT_TEXT,
 } from "@/lib/telegramMenus";
+import {
+  adminMenuButtons,
+  ADMIN_MENU_TEXT,
+  sendPendingSellRequests,
+  approveSellRequestFromBot,
+  rejectSellRequestFromBot,
+  sendPendingTopUps,
+  approveTopUpFromBot,
+  rejectTopUpFromBot,
+  promoMenuButtons,
+  PROMO_CREATE_INSTRUCTIONS,
+  createPromoCodeFromText,
+  sendActivePromoCodes,
+  deactivatePromoCodeFromBot,
+} from "@/lib/telegramAdminPanel";
+import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 
 export const runtime = "nodejs";
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TELEGRAM_ADMIN_CHAT_ID) : null;
+const SITE_NAME = "Velox Trade";
 
 const PARTNERSHIP_TRIGGER = "хочу сотрудничать с velox trade";
 
-async function notifyAdmin(text: string) {
+const KIND_ICON: Record<ForwardKind, string> = { topup: "💰", support: "🆘", partnership: "🤝" };
+const KIND_LABEL: Record<ForwardKind, string> = {
+  topup: "Пополнение/вывод",
+  support: "Поддержка",
+  partnership: "Запрос на сотрудничество",
+};
+
+function isAdminChat(chatId: number): boolean {
+  return ADMIN_CHAT_ID !== null && chatId === ADMIN_CHAT_ID;
+}
+
+async function forwardToAdmin(kind: ForwardKind, chatId: number, firstName: string, userTag: string, text: string) {
   if (!ADMIN_CHAT_ID) return;
-  await sendTelegramMessage(ADMIN_CHAT_ID, text);
+  const body = `${KIND_ICON[kind]} ${KIND_LABEL[kind]} от ${firstName} (${userTag}):\n\n${text}\n\n↩️ Чтобы ответить человеку — сделай Reply прямо на это сообщение.`;
+  const messageId = await sendTelegramMessage(ADMIN_CHAT_ID, body);
+  if (messageId) {
+    await rememberForwardedMessage(messageId, { chatId, firstName, userTag, kind, createdAt: Date.now() });
+  }
 }
 
 async function handleAccountLinking(code: string, chatId: number, telegramUsername: string | null): Promise<boolean> {
@@ -34,7 +76,7 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
     const { uid } = linkReqSnap.data() as { uid: string };
     await db.collection("telegramLinks").doc(uid).set({ chatId, telegramUsername, linkedAt: Date.now() });
     await linkReqRef.delete();
-    await sendTelegramMessage(chatId, "Telegram успешно привязан к твоему аккаунту Velox Trade! Теперь при входе с нового устройства код будет приходить сюда.");
+    await sendTelegramMessage(chatId, `Telegram успешно привязан к твоему аккаунту ${SITE_NAME}! Теперь при входе с нового устройства код будет приходить сюда.`);
     return true;
   }
 
@@ -82,7 +124,7 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
     await regReqRef.update({ status: "done", uid });
     await sendTelegramMessage(
       chatId,
-      `Аккаунт Velox Trade создан! Код для входа на сайте: ${loginCode}\nВведи его на странице входа (вкладка «Код в Telegram»). Код действителен 10 минут.`
+      `Аккаунт ${SITE_NAME} создан! Код для входа на сайте: ${loginCode}\nВведи его на странице входа (вкладка «Код в Telegram»). Код действителен 10 минут.`
     );
     return true;
   }
@@ -101,7 +143,12 @@ export async function POST(req: NextRequest) {
   try {
     const update = await req.json();
 
-    // --- Нажатие на inline-кнопку ---
+    const preCheckout = update?.pre_checkout_query;
+    if (preCheckout) {
+      await answerPreCheckoutQuery(preCheckout.id, true);
+      return NextResponse.json({ ok: true });
+    }
+
     const callback = update?.callback_query;
     if (callback) {
       const chatId: number = callback.message.chat.id;
@@ -114,7 +161,7 @@ export async function POST(req: NextRequest) {
 
       if (data === "menu_back") {
         await setBotState(chatId, null);
-        await editTelegramMessage(chatId, messageId, mainMenuText(firstName, username), mainMenuButtons());
+        await editTelegramMessage(chatId, messageId, mainMenuText(firstName, username), mainMenuButtons(isAdminChat(chatId)));
       } else if (data === "menu_feedback") {
         await setBotState(chatId, null);
         await editTelegramMessage(chatId, messageId, FEEDBACK_MENU_TEXT, feedbackMenuButtons());
@@ -127,19 +174,71 @@ export async function POST(req: NextRequest) {
       } else if (data === "menu_partnership") {
         await setBotState(chatId, "awaiting_partnership");
         await editTelegramMessage(chatId, messageId, PARTNERSHIP_INSTRUCTIONS, backOnlyButtons("menu_back"));
+      } else if (data === "menu_donate") {
+        await setBotState(chatId, "awaiting_donate_amount");
+        await editTelegramMessage(chatId, messageId, DONATE_PROMPT_TEXT, backOnlyButtons("menu_back"));
+      } else if (isAdminChat(chatId)) {
+        if (data === "admin_menu") {
+          await setBotState(chatId, null);
+          await editTelegramMessage(chatId, messageId, ADMIN_MENU_TEXT, adminMenuButtons());
+        } else if (data === "admin_sell_requests") {
+          await sendPendingSellRequests(chatId);
+        } else if (data === "admin_topups") {
+          await sendPendingTopUps(chatId);
+        } else if (data === "admin_promo_menu") {
+          await editTelegramMessage(chatId, messageId, "🎁 Промокоды:", promoMenuButtons());
+        } else if (data === "admin_promo_new") {
+          await setBotState(chatId, "admin_awaiting_promo_create");
+          await sendTelegramMessage(chatId, PROMO_CREATE_INSTRUCTIONS);
+        } else if (data === "admin_promo_list") {
+          await sendActivePromoCodes(chatId);
+        } else if (data.startsWith("sell_approve_")) {
+          await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length));
+        } else if (data.startsWith("sell_reject_")) {
+          await rejectSellRequestFromBot(chatId, messageId, data.slice("sell_reject_".length));
+        } else if (data.startsWith("topup_approve_")) {
+          await approveTopUpFromBot(chatId, messageId, data.slice("topup_approve_".length));
+        } else if (data.startsWith("topup_reject_")) {
+          await rejectTopUpFromBot(chatId, messageId, data.slice("topup_reject_".length));
+        } else if (data.startsWith("promo_deactivate_")) {
+          await deactivatePromoCodeFromBot(chatId, messageId, data.slice("promo_deactivate_".length));
+        }
       }
 
       return NextResponse.json({ ok: true });
     }
 
-    // --- Обычное сообщение ---
     const message = update?.message;
-    const text: string | undefined = message?.text;
+    if (!message) return NextResponse.json({ ok: true });
+
     const chatId: number | undefined = message?.chat?.id;
-    if (!chatId || !text) return NextResponse.json({ ok: true });
+    if (!chatId) return NextResponse.json({ ok: true });
+
+    if (message.successful_payment) {
+      const totalAmount = message.successful_payment.total_amount;
+      const firstName: string = message.from?.first_name ?? "друг";
+      const userTag = message.from?.username ? `@${message.from.username}` : `id${chatId}`;
+      await sendTelegramMessage(chatId, `Спасибо за поддержку — ${totalAmount} ⭐! 💫`);
+      if (ADMIN_CHAT_ID) {
+        await sendTelegramMessage(ADMIN_CHAT_ID, `💫 Донат от ${firstName} (${userTag}): ${totalAmount} ⭐`);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    const text: string | undefined = message?.text;
+    if (!text) return NextResponse.json({ ok: true });
 
     const firstName: string = message?.from?.first_name ?? "друг";
     const telegramUsername: string | null = message?.from?.username ?? null;
+
+    if (isAdminChat(chatId) && message.reply_to_message) {
+      const mapping = await findForwardedMessage(message.reply_to_message.message_id);
+      if (mapping) {
+        await sendTelegramMessage(mapping.chatId, `💬 Ответ от ${SITE_NAME}:\n\n${text}`);
+        await sendTelegramMessage(chatId, `✅ Отправлено пользователю ${mapping.userTag}`);
+        return NextResponse.json({ ok: true });
+      }
+    }
 
     if (text.startsWith("/start")) {
       const parts = text.trim().split(/\s+/);
@@ -148,29 +247,47 @@ export async function POST(req: NextRequest) {
       const handled = code ? await handleAccountLinking(code, chatId, telegramUsername) : false;
       if (!handled) {
         await setBotState(chatId, null);
-        await sendTelegramMessage(chatId, mainMenuText(firstName, telegramUsername), mainMenuButtons());
+        await sendTelegramMessage(chatId, mainMenuText(firstName, telegramUsername), mainMenuButtons(isAdminChat(chatId)));
       }
       return NextResponse.json({ ok: true });
     }
 
-    // --- Свободный текст: смотрим, в каком режиме находится диалог ---
+    if (text.startsWith("/admin")) {
+      if (!isAdminChat(chatId)) return NextResponse.json({ ok: true });
+      await setBotState(chatId, null);
+      await sendTelegramMessage(chatId, ADMIN_MENU_TEXT, adminMenuButtons());
+      return NextResponse.json({ ok: true });
+    }
+
     const mode = await getBotState(chatId);
     const userTag = telegramUsername ? `@${telegramUsername}` : `id${chatId}`;
 
-    if (mode === "awaiting_topup") {
-      await notifyAdmin(`💰 Пополнение/вывод от ${firstName} (${userTag}):\n\n${text}`);
+    if (mode === "admin_awaiting_promo_create" && isAdminChat(chatId)) {
+      const reply = await createPromoCodeFromText(text);
+      await sendTelegramMessage(chatId, reply);
+      await setBotState(chatId, null);
+    } else if (mode === "awaiting_donate_amount") {
+      const amount = Number(text.trim());
+      if (!Number.isInteger(amount) || amount < DONATE_MIN || amount > DONATE_MAX) {
+        await sendTelegramMessage(chatId, `Введи целое число от ${DONATE_MIN} до ${DONATE_MAX}.`);
+        return NextResponse.json({ ok: true });
+      }
+      await sendInvoice(chatId, "Поддержка проекта", `Донат ${SITE_NAME} — ${amount} ⭐`, `donate_${chatId}_${Date.now()}`, amount);
+      await setBotState(chatId, null);
+    } else if (mode === "awaiting_topup") {
+      await forwardToAdmin("topup", chatId, firstName, userTag, text);
       await sendTelegramMessage(chatId, "Спасибо! Администратор скоро свяжется с тобой.", backOnlyButtons("menu_back"));
       await setBotState(chatId, null);
     } else if (mode === "awaiting_support") {
-      await notifyAdmin(`🆘 Поддержка от ${firstName} (${userTag}):\n\n${text}`);
+      await forwardToAdmin("support", chatId, firstName, userTag, text);
       await sendTelegramMessage(chatId, "Обращение принято, администратор скоро ответит.", backOnlyButtons("menu_back"));
       await setBotState(chatId, null);
     } else if (mode === "awaiting_partnership" || text.trim().toLowerCase().includes(PARTNERSHIP_TRIGGER)) {
-      await notifyAdmin(`🤝 Запрос на сотрудничество от ${firstName} (${userTag}):\n\n${text}`);
+      await forwardToAdmin("partnership", chatId, firstName, userTag, text);
       await sendTelegramMessage(chatId, "Заявка на сотрудничество отправлена. Ожидай ответа администратора.", backOnlyButtons("menu_back"));
       await setBotState(chatId, null);
     } else {
-      await sendTelegramMessage(chatId, mainMenuText(firstName, telegramUsername), mainMenuButtons());
+      await sendTelegramMessage(chatId, mainMenuText(firstName, telegramUsername), mainMenuButtons(isAdminChat(chatId)));
     }
 
     return NextResponse.json({ ok: true });

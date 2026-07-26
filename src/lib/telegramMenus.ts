@@ -8,14 +8,23 @@ export function mainMenuText(firstName: string, username: string | null): string
   return `Приветствуем ${firstName} (${uname}) в ${SITE_NAME}! Выберите действие, что вам нужно:`;
 }
 
-export function mainMenuButtons(): InlineButton[][] {
+export function mainMenuButtons(isAdmin: boolean = false): InlineButton[][] {
   const rows: InlineButton[][] = [
     [{ text: "💬 Обратная связь", callback_data: "menu_feedback" }],
     [{ text: "🤝 Сотрудничество", callback_data: "menu_partnership" }],
+    [{ text: "💫 Поддержать проект", callback_data: "menu_donate" }],
   ];
   if (CHANNEL_URL) rows.push([{ text: "📢 Наш канал", url: CHANNEL_URL }]);
+  if (isAdmin) rows.push([{ text: "🛠 Админка", callback_data: "admin_menu" }]);
   return rows;
 }
+
+export const DONATE_MIN = 10;
+export const DONATE_MAX = 5000;
+
+export const DONATE_PROMPT_TEXT =
+  `Спасибо, что хочешь поддержать ${SITE_NAME}! ⭐\n\n` +
+  `Введи количество звёзд Telegram — целое число от ${DONATE_MIN} до ${DONATE_MAX}.`;
 
 export const FEEDBACK_MENU_TEXT = "Здравствуйте, выберите действие для чего вы выбрали этот режим!";
 
