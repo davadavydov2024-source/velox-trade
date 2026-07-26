@@ -208,7 +208,6 @@ export default function AdminAdsPage() {
       console.error(err);
     } finally {
       setSending(false);
-      setProgress(null);
     }
   }
 
