@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { SupportTicket, TicketMessage } from "@/types";
+import { notifyAdminTelegram } from "./telegramNotify";
 
 const ticketsCol = collection(db, "tickets");
 
@@ -24,6 +25,7 @@ export async function createTicket(data: {
 }) {
   const now = Date.now();
   const firstMessage: TicketMessage = { from: "user", text: data.message, createdAt: now };
+  notifyAdminTelegram(`🆘 Новое обращение в поддержку от ${data.userName}: «${data.subject}»`);
   return addDoc(ticketsCol, {
     userId: data.userId,
     userName: data.userName,

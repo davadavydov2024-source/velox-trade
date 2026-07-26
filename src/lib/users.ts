@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
-import { notifyTelegram } from "./telegramNotify";
+import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
 
 const usersCol = collection(db, "users");
 const ordersCol = collection(db, "orders");
@@ -39,6 +39,7 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
     language: language ?? "ru",
   };
   await setDoc(ref, profile);
+  notifyAdminTelegram(`🆕 Новый пользователь: ${displayName} (${email})`);
   return { uid, ...profile } as UserProfile;
 }
 
@@ -181,7 +182,10 @@ export async function updateProfileInfo(
 // ---- Top-up requests (ручное пополнение — заявка обрабатывается администратором вручную) ----
 
 export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
-  return addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
+  const ref = await addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
+  const kind = data.type === "deposit" ? "пополнение" : "вывод";
+  notifyAdminTelegram(`💰 Новая заявка на ${kind}: ${data.userNick} — ${data.amount} ₽`);
+  return ref;
 }
 
 export async function getUserTopUpRequests(userId: string): Promise<TopUpRequest[]> {

@@ -2,12 +2,14 @@ import { collection, addDoc, getDocs, query, doc, updateDoc } from "firebase/fir
 import { db } from "./firebase";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
-import { notifyTelegram } from "./telegramNotify";
+import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
 
 const sellRequestsCol = collection(db, "sellRequests");
 
 export async function createSellRequest(data: Omit<SellRequest, "id" | "createdAt" | "status">) {
-  return addDoc(sellRequestsCol, { ...data, status: "pending", createdAt: Date.now() });
+  const ref = await addDoc(sellRequestsCol, { ...data, status: "pending", createdAt: Date.now() });
+  notifyAdminTelegram(`🏷️ Новая заявка на продажу: «${data.itemName}» от ${data.userNick} — ${data.price} ₽`);
+  return ref;
 }
 
 export async function getAllSellRequests(): Promise<SellRequest[]> {

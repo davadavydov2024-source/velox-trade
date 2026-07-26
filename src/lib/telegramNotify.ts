@@ -12,3 +12,13 @@ export function notifyTelegram(uid: string, text: string): void {
     // Намеренно игнорируем: уведомление не критично для основного действия.
   });
 }
+
+/** Шлёт уведомление прямо админу (не привязано к конкретному пользователю) — для новых
+ * пользователей, новых заявок и т.п., которые админ должен увидеть проактивно. */
+export function notifyAdminTelegram(text: string): void {
+  fetch("/api/notify/admin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }).catch(() => {});
+}

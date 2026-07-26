@@ -9,12 +9,12 @@ import {
   signInWithPopup,
   signOut as fbSignOut,
   sendEmailVerification,
+  sendPasswordResetEmail,
   updateProfile,
   User,
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 import { ensureUserProfile, getUserProfile, syncEmailVerified } from "./users";
-import { sendPasswordResetEmailViaTemplate } from "./emailjs";
 import { UserProfile } from "@/types";
 
 /** Бан считается действующим, если banned=true и (until не задан/"forever", либо ещё не истёк). */
@@ -107,20 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function resetPassword(email: string) {
-    const res = await fetch("/api/auth/send-reset-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error ?? "Не удалось отправить письмо для восстановления пароля");
-    }
-    // Ссылку генерирует сервер (нужен Admin SDK), а само письмо отправляем отсюда, из браузера:
-    // у REST API EmailJS строгая проверка Origin-заголовка, и вызов с сервера (Vercel) её не проходит.
-    if (data.resetLink) {
-      await sendPasswordResetEmailViaTemplate(email, data.resetLink);
-    }
+    // Firebase сам генерирует ссылку и шлёт письмо со своего сервера — не нужен ни серверный
+    // роут с Admin SDK, ни сторонний EmailJS. Шаблон письма можно настроить в
+    // Firebase Console → Authentication → Templates → Password reset.
+    await sendPasswordResetEmail(auth, email);
   }
 
   return (
