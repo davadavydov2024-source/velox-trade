@@ -223,6 +223,7 @@ export interface FeatureFlags {
   balanceTopupEnabled: boolean;
   minTopupAmountRub: number; // минимальная сумма пополнения баланса
   minProductPriceRub: number; // минимальная цена при создании товара (в админке и в заявках на продажу)
+  referralEnabled: boolean;
   referralBonusRub: number; // бонус на баланс и приглашённому, и пригласившему за регистрацию по реф-ссылке
   sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
   boostGamePriceRub: number; // цена продвижения "в топ игры" за период boostGameDays
@@ -241,6 +242,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   balanceTopupEnabled: true,
   minTopupAmountRub: 100,
   minProductPriceRub: 1,
+  referralEnabled: true,
   referralBonusRub: 50,
   sellCommissionPercent: 20,
   boostGamePriceRub: 49,

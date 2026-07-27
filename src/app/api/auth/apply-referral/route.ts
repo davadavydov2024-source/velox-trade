@@ -22,6 +22,12 @@ export async function POST(req: NextRequest) {
     }
 
     const db = adminDb();
+    const flagsSnap = await db.collection("settings").doc("features").get();
+    const flags = flagsSnap.exists ? flagsSnap.data() : undefined;
+    if (flags?.referralEnabled === false) {
+      return NextResponse.json({ error: "Реферальная система сейчас отключена" }, { status: 400 });
+    }
+
     const codeSnap = await db.collection("referralCodes").doc(code.toUpperCase()).get();
     if (!codeSnap.exists) {
       return NextResponse.json({ error: "Реферальный код не найден" }, { status: 404 });
@@ -32,8 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     const newUserRef = db.collection("users").doc(newUid);
-    const flagsSnap = await db.collection("settings").doc("features").get();
-    const bonus = (flagsSnap.exists ? flagsSnap.data()?.referralBonusRub : undefined) ?? DEFAULT_FEATURE_FLAGS.referralBonusRub;
+    const bonus = flags?.referralBonusRub ?? DEFAULT_FEATURE_FLAGS.referralBonusRub;
 
     const applied = await db.runTransaction(async (tx) => {
       const freshNewUser = await tx.get(newUserRef);

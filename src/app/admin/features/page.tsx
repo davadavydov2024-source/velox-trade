@@ -14,6 +14,7 @@ const ROWS: { key: keyof Omit<FeatureFlags, "updatedAt">; label: string; hint: s
   { key: "telegramRegisterEnabled", label: "Регистрация через Telegram", hint: "Вкладка «через Telegram» на странице регистрации" },
   { key: "vkLoginEnabled", label: "Вход через VK", hint: "Кнопка «Войти через VK» на странице входа (нужен NEXT_PUBLIC_VK_CLIENT_ID в .env)" },
   { key: "balanceTopupEnabled", label: "Пополнение баланса", hint: "Форма заявки на пополнение/вывод в личном кабинете" },
+  { key: "referralEnabled", label: "Реферальная система", hint: "Ссылка «Пригласи друга» в профиле и начисление бонуса за регистрацию по ней" },
 ];
 
 export default function AdminFeaturesPage() {
@@ -41,6 +42,7 @@ export default function AdminFeaturesPage() {
         sellCommissionPercent: Math.max(0, Math.min(100, Number(flags.sellCommissionPercent) || 0)),
         minProductPriceRub: Math.max(1, Number(flags.minProductPriceRub) || 1),
         minTopupAmountRub: Math.max(1, Number(flags.minTopupAmountRub) || 1),
+        referralBonusRub: Math.max(0, Number(flags.referralBonusRub) || 0),
         boostGamePriceRub: Math.max(0, Number(flags.boostGamePriceRub) || 0),
         boostGameDays: Math.max(1, Number(flags.boostGameDays) || 1),
         boostHomePriceRub: Math.max(0, Number(flags.boostHomePriceRub) || 0),
@@ -154,6 +156,16 @@ export default function AdminFeaturesPage() {
               min={1}
               value={flags.minTopupAmountRub}
               onChange={(e) => setFlags((f) => ({ ...f, minTopupAmountRub: Number(e.target.value) }))}
+              className="input-field py-2.5"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-white/40 mb-1.5">Реферальный бонус, ₽ (получают оба — и пригласивший, и приглашённый)</p>
+            <input
+              type="number"
+              min={0}
+              value={flags.referralBonusRub}
+              onChange={(e) => setFlags((f) => ({ ...f, referralBonusRub: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>

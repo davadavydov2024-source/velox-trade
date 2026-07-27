@@ -15,10 +15,14 @@ export default function PromoGiftsPage() {
   const [code, setCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [referralBonus, setReferralBonus] = useState(DEFAULT_FEATURE_FLAGS.referralBonusRub);
+  const [referralEnabled, setReferralEnabled] = useState(true);
   const [referralCode, setReferralCode] = useState<string | null>(profile?.referralCode ?? null);
 
   useEffect(() => {
-    getFeatureFlags().then((f) => setReferralBonus(f.referralBonusRub));
+    getFeatureFlags().then((f) => {
+      setReferralBonus(f.referralBonusRub);
+      setReferralEnabled(f.referralEnabled);
+    });
   }, []);
 
   useEffect(() => {
@@ -101,24 +105,26 @@ export default function PromoGiftsPage() {
         Промокоды на скидку (для заказов) вводятся отдельно — в корзине при оформлении покупки.
       </p>
 
-      <div className="card p-5 space-y-3">
-        <div className="flex items-center gap-2 text-sm text-white/50 mb-1">
-          <Users size={15} className="text-accent" /> Пригласи друга
-        </div>
-        <p className="text-sm text-white/40">
-          Отправь другу свою ссылку — когда он зарегистрируется по ней, вы оба получите по {referralBonus} ₽ на баланс.
-        </p>
-        {referralLink ? (
-          <div className="flex gap-2">
-            <input readOnly value={referralLink} className="input-field py-2.5 text-sm flex-1" />
-            <button onClick={copyReferralLink} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-1.5 shrink-0">
-              <Copy size={14} /> Скопировать
-            </button>
+      {referralEnabled && (
+        <div className="card p-5 space-y-3">
+          <div className="flex items-center gap-2 text-sm text-white/50 mb-1">
+            <Users size={15} className="text-accent" /> Пригласи друга
           </div>
-        ) : (
-          <p className="text-sm text-white/30">Загрузка ссылки...</p>
-        )}
-      </div>
+          <p className="text-sm text-white/40">
+            Отправь другу свою ссылку — когда он зарегистрируется по ней, вы оба получите по {referralBonus} ₽ на баланс.
+          </p>
+          {referralLink ? (
+            <div className="flex gap-2">
+              <input readOnly value={referralLink} className="input-field py-2.5 text-sm flex-1" />
+              <button onClick={copyReferralLink} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-1.5 shrink-0">
+                <Copy size={14} /> Скопировать
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-white/30">Загрузка ссылки...</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
