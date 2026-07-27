@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
+import { auth } from "@/lib/firebase";
 import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
@@ -27,10 +28,12 @@ function translateAuthError(code?: string) {
   }
 }
 
-export default function RegisterPage() {
+function RegisterInner() {
   const { register } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get("ref");
   const { t } = useLanguage();
   const language = useLanguageStore((s) => s.language);
   const setLanguage = useLanguageStore((s) => s.setLanguage);
@@ -78,6 +81,20 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(email, password, name, language);
+      if (refCode) {
+        try {
+          const idToken = await auth.currentUser?.getIdToken();
+          if (idToken) {
+            await fetch("/api/auth/apply-referral", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({ code: refCode }),
+            });
+          }
+        } catch {
+          // Реферальный бонус не критичен для регистрации — молча игнорируем ошибку.
+        }
+      }
       toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
       router.push("/profile");
     } catch (err: any) {
@@ -297,5 +314,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="max-w-md mx-auto px-4 py-16 text-center text-white/40">Загрузка...</div>}>
+      <RegisterInner />
+    </Suspense>
   );
 }

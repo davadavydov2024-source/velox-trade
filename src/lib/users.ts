@@ -19,6 +19,10 @@ const usersCol = collection(db, "users");
 const ordersCol = collection(db, "orders");
 const topUpsCol = collection(db, "topups");
 
+function generateReferralCode(): string {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
 export async function ensureUserProfile(uid: string, email: string, displayName: string, photoURL?: string, language?: "ru" | "en" | "zh") {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -26,6 +30,7 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
     await updateDoc(ref, { lastLoginAt: Date.now() });
     return { uid: snap.id, ...snap.data() } as UserProfile;
   }
+  const referralCode = generateReferralCode();
   const profile: Omit<UserProfile, "uid"> = {
     email,
     displayName,
@@ -37,8 +42,10 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
     createdAt: Date.now(),
     lastLoginAt: Date.now(),
     language: language ?? "ru",
+    referralCode,
   };
   await setDoc(ref, profile);
+  await setDoc(doc(db, "referralCodes", referralCode), { uid });
   notifyAdminTelegram(`🆕 Новый пользователь: ${displayName} (${email})`);
   return { uid, ...profile } as UserProfile;
 }

@@ -121,6 +121,8 @@ export interface UserProfile {
   ratingSum?: number;
   ratingCount?: number;
   language?: "ru" | "en" | "zh";
+  referralCode?: string;
+  referredBy?: string; // uid того, кто пригласил (заполняется один раз, при регистрации по ссылке)
 }
 
 export const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -211,6 +213,7 @@ export interface FeatureFlags {
   balanceTopupEnabled: boolean;
   minTopupAmountRub: number; // минимальная сумма пополнения баланса
   minProductPriceRub: number; // минимальная цена при создании товара (в админке и в заявках на продажу)
+  referralBonusRub: number; // бонус на баланс и приглашённому, и пригласившему за регистрацию по реф-ссылке
   sellCommissionPercent: number; // комиссия платформы с продажи предмета через "Продать предметы", %
   boostGamePriceRub: number; // цена продвижения "в топ игры" за период boostGameDays
   boostGameDays: number;
@@ -228,6 +231,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   balanceTopupEnabled: true,
   minTopupAmountRub: 100,
   minProductPriceRub: 1,
+  referralBonusRub: 50,
   sellCommissionPercent: 20,
   boostGamePriceRub: 49,
   boostGameDays: 3,

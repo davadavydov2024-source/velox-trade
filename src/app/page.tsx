@@ -4,19 +4,27 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
-import { getGames } from "@/lib/products";
-import { Game } from "@/types";
+import { getGames, getProducts } from "@/lib/products";
+import { Game, Product } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
+import { ProductCard } from "@/components/ProductCard";
 
 export default function HomePage() {
   const [games, setGames] = useState<Game[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [featured, setFeatured] = useState<Product[]>([]);
 
   useEffect(() => {
     getGames()
       .then(setGames)
       .catch((err) => { console.error("Ошибка загрузки игр:", err); setGames([]); })
       .finally(() => setLoaded(true));
+    getProducts()
+      .then((products) => {
+        const now = Date.now();
+        setFeatured(products.filter((p) => p.boostTier === "home" && (p.boostUntil ?? 0) > now).slice(0, 6));
+      })
+      .catch(() => setFeatured([]));
   }, []);
 
   return (
@@ -73,6 +81,19 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {featured.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">⭐ Рекомендуем</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {featured.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Popular games */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">

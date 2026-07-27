@@ -36,7 +36,18 @@ export default function AdminFeaturesPage() {
   async function handleSave() {
     setSaving(true);
     try {
-      await saveFeatureFlags(flags);
+      const clamped = {
+        ...flags,
+        sellCommissionPercent: Math.max(0, Math.min(100, Number(flags.sellCommissionPercent) || 0)),
+        minProductPriceRub: Math.max(1, Number(flags.minProductPriceRub) || 1),
+        minTopupAmountRub: Math.max(1, Number(flags.minTopupAmountRub) || 1),
+        boostGamePriceRub: Math.max(0, Number(flags.boostGamePriceRub) || 0),
+        boostGameDays: Math.max(1, Number(flags.boostGameDays) || 1),
+        boostHomePriceRub: Math.max(0, Number(flags.boostHomePriceRub) || 0),
+        boostHomeDays: Math.max(1, Number(flags.boostHomeDays) || 1),
+      };
+      setFlags(clamped);
+      await saveFeatureFlags(clamped);
       toast("success", "Настройки функций сохранены и применены для всех пользователей");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
@@ -116,7 +127,7 @@ export default function AdminFeaturesPage() {
             min={0}
             max={100}
             value={flags.sellCommissionPercent}
-            onChange={(e) => setFlags((f) => ({ ...f, sellCommissionPercent: Math.max(0, Math.min(100, Number(e.target.value))) }))}
+            onChange={(e) => setFlags((f) => ({ ...f, sellCommissionPercent: Number(e.target.value) }))}
             className="input-field py-2.5 pr-8"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">%</span>
@@ -132,7 +143,7 @@ export default function AdminFeaturesPage() {
               type="number"
               min={1}
               value={flags.minProductPriceRub}
-              onChange={(e) => setFlags((f) => ({ ...f, minProductPriceRub: Math.max(1, Number(e.target.value)) }))}
+              onChange={(e) => setFlags((f) => ({ ...f, minProductPriceRub: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>
@@ -142,7 +153,7 @@ export default function AdminFeaturesPage() {
               type="number"
               min={1}
               value={flags.minTopupAmountRub}
-              onChange={(e) => setFlags((f) => ({ ...f, minTopupAmountRub: Math.max(1, Number(e.target.value)) }))}
+              onChange={(e) => setFlags((f) => ({ ...f, minTopupAmountRub: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>
@@ -158,7 +169,7 @@ export default function AdminFeaturesPage() {
               type="number"
               min={0}
               value={flags.boostGamePriceRub}
-              onChange={(e) => setFlags((f) => ({ ...f, boostGamePriceRub: Math.max(0, Number(e.target.value)) }))}
+              onChange={(e) => setFlags((f) => ({ ...f, boostGamePriceRub: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>
@@ -168,7 +179,7 @@ export default function AdminFeaturesPage() {
               type="number"
               min={1}
               value={flags.boostGameDays}
-              onChange={(e) => setFlags((f) => ({ ...f, boostGameDays: Math.max(1, Number(e.target.value)) }))}
+              onChange={(e) => setFlags((f) => ({ ...f, boostGameDays: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>
@@ -178,7 +189,7 @@ export default function AdminFeaturesPage() {
               type="number"
               min={0}
               value={flags.boostHomePriceRub}
-              onChange={(e) => setFlags((f) => ({ ...f, boostHomePriceRub: Math.max(0, Number(e.target.value)) }))}
+              onChange={(e) => setFlags((f) => ({ ...f, boostHomePriceRub: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>
@@ -188,7 +199,7 @@ export default function AdminFeaturesPage() {
               type="number"
               min={1}
               value={flags.boostHomeDays}
-              onChange={(e) => setFlags((f) => ({ ...f, boostHomeDays: Math.max(1, Number(e.target.value)) }))}
+              onChange={(e) => setFlags((f) => ({ ...f, boostHomeDays: Number(e.target.value) }))}
               className="input-field py-2.5"
             />
           </div>

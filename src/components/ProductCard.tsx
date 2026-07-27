@@ -24,8 +24,10 @@ export function ProductCard({ product }: { product: Product }) {
     ? +(product.price * (1 - product.discountPercent / 100)).toFixed(2)
     : product.price;
 
+  const isBoosted = (product.boostUntil ?? 0) > Date.now();
+
   return (
-    <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1`}>
+    <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1 ${isBoosted ? "ring-1 ring-accent/60" : ""}`}>
       <Link href={`/product/${product.id}`} className="block relative aspect-square rounded-[12px] overflow-hidden bg-black/30 mb-3">
         <Image
           src={safeImageSrc(product.image)}
@@ -37,6 +39,11 @@ export function ProductCard({ product }: { product: Product }) {
         {product.isNew && (
           <span className="absolute top-2 left-2 bg-rarity-rare text-white text-[10px] font-bold px-2 py-1 rounded-md">
             NEW
+          </span>
+        )}
+        {isBoosted && (
+          <span className="absolute bottom-2 left-2 bg-accent text-black text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1">
+            {product.boostTier === "home" ? "⭐ ТОП" : "🚀 В топе"}
           </span>
         )}
         {!!product.discountPercent && (

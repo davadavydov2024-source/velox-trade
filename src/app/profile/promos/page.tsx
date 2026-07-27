@@ -1,16 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { Gift, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Gift, Sparkles, Users, Copy } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { redeemGiftCode } from "@/lib/promoCodes";
+import { getFeatureFlags } from "@/lib/featureFlags";
+import { DEFAULT_FEATURE_FLAGS } from "@/types";
 
 export default function PromoGiftsPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [code, setCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [referralBonus, setReferralBonus] = useState(DEFAULT_FEATURE_FLAGS.referralBonusRub);
+
+  useEffect(() => {
+    getFeatureFlags().then((f) => setReferralBonus(f.referralBonusRub));
+  }, []);
+
+  const referralLink =
+    profile?.referralCode && typeof window !== "undefined"
+      ? `${window.location.origin}/auth/register?ref=${profile.referralCode}`
+      : "";
+
+  function copyReferralLink() {
+    if (!referralLink) return;
+    navigator.clipboard.writeText(referralLink);
+    toast("success", "Ссылка скопирована");
+  }
 
   async function handleRedeem(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +82,25 @@ export default function PromoGiftsPage() {
       <p className="text-xs text-white/30">
         Промокоды на скидку (для заказов) вводятся отдельно — в корзине при оформлении покупки.
       </p>
+
+      <div className="card p-5 space-y-3">
+        <div className="flex items-center gap-2 text-sm text-white/50 mb-1">
+          <Users size={15} className="text-accent" /> Пригласи друга
+        </div>
+        <p className="text-sm text-white/40">
+          Отправь другу свою ссылку — когда он зарегистрируется по ней, вы оба получите по {referralBonus} ₽ на баланс.
+        </p>
+        {referralLink ? (
+          <div className="flex gap-2">
+            <input readOnly value={referralLink} className="input-field py-2.5 text-sm flex-1" />
+            <button onClick={copyReferralLink} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-1.5 shrink-0">
+              <Copy size={14} /> Скопировать
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-white/30">Загрузка ссылки...</p>
+        )}
+      </div>
     </div>
   );
 }

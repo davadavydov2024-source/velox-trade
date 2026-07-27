@@ -31,14 +31,21 @@ function CatalogInner() {
   }, [sort]);
 
   const filtered = useMemo(() => {
-    return products.filter((p) => {
-      if (gameSlug && p.gameId !== gameSlug) return false;
-      if (onlyNew && !p.isNew) return false;
-      if (rarity && p.rarity !== rarity) return false;
-      if (onlyAvailable && p.stock <= 0) return false;
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
+    const now = Date.now();
+    const boostRank = (p: Product) => {
+      if ((p.boostUntil ?? 0) <= now) return 0;
+      return p.boostTier === "home" ? 2 : 1;
+    };
+    return products
+      .filter((p) => {
+        if (gameSlug && p.gameId !== gameSlug) return false;
+        if (onlyNew && !p.isNew) return false;
+        if (rarity && p.rarity !== rarity) return false;
+        if (onlyAvailable && p.stock <= 0) return false;
+        if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => boostRank(b) - boostRank(a));
   }, [products, gameSlug, onlyNew, rarity, onlyAvailable, search]);
 
   return (
