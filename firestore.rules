@@ -50,6 +50,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // events: сезонные/тематические ивенты (оформление сайта + бонус на баланс) — читают все, пишет только админ.
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // --- orders ---
     // Пользователь создаёт только свои заказы и видит только свои; админ видит и меняет всё.
@@ -159,6 +164,12 @@ service cloud.firestore {
     // vkLoginTokens: одноразовый код для завершения входа через VK — полностью серверная логика.
     match /vkLoginTokens/{code} {
       allow read, write: if false;
+    }
+    // referralCodes: код -> uid владельца. Создаёт сам пользователь себе (при регистрации или
+    // при первом заходе на страницу с реферальной ссылкой), дальше не меняется.
+    match /referralCodes/{code} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
     }
 
     // telegramRegisterRequests: регистрация через Telegram происходит ДО входа, поэтому создание открыто всем.

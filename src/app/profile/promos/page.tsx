@@ -5,6 +5,7 @@ import { Gift, Sparkles, Users, Copy } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { redeemGiftCode } from "@/lib/promoCodes";
+import { getOrCreateReferralCode } from "@/lib/users";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS } from "@/types";
 
@@ -14,15 +15,32 @@ export default function PromoGiftsPage() {
   const [code, setCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [referralBonus, setReferralBonus] = useState(DEFAULT_FEATURE_FLAGS.referralBonusRub);
+  const [referralCode, setReferralCode] = useState<string | null>(profile?.referralCode ?? null);
 
   useEffect(() => {
     getFeatureFlags().then((f) => setReferralBonus(f.referralBonusRub));
   }, []);
 
-  const referralLink =
-    profile?.referralCode && typeof window !== "undefined"
-      ? `${window.location.origin}/auth/register?ref=${profile.referralCode}`
-      : "";
+  useEffect(() => {
+    if (!user) return;
+    if (profile?.referralCode) {
+      setReferralCode(profile.referralCode);
+      return;
+    }
+    // У пользователей, созданных до появления реферальной системы, кода ещё нет — создаём при заходе на страницу.
+    getOrCreateReferralCode(user.uid)
+      .then((c) => {
+        setReferralCode(c);
+        refreshProfile();
+      })
+      .catch((err) => {
+        console.error("Не удалось создать реферальный код:", err);
+        toast("error", "Не удалось получить реферальную ссылку — попробуй обновить страницу");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile?.referralCode]);
+
+  const referralLink = referralCode && typeof window !== "undefined" ? `${window.location.origin}/auth/register?ref=${referralCode}` : "";
 
   function copyReferralLink() {
     if (!referralLink) return;

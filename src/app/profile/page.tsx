@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/authContext";
-import { Wallet, Mail, CheckCircle2, AlertCircle, User, Save } from "lucide-react";
+import { Wallet, Mail, CheckCircle2, AlertCircle, User, Save, Copy } from "lucide-react";
 import Link from "next/link";
 import { updateProfileInfo } from "@/lib/users";
 import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
@@ -131,9 +131,33 @@ export default function ProfilePage() {
           <User size={18} className="text-accent" /> Публичный профиль
         </h2>
         {profile.username && (
-          <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
-            Посмотреть, как видят твой профиль другие →
-          </Link>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
+              Посмотреть, как видят твой профиль другие →
+            </Link>
+            <button
+              type="button"
+              onClick={async () => {
+                const link = `${window.location.origin}/seller/${profile.username}`;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({ title: "Мой профиль", url: link });
+                  } catch {
+                    // Пользователь закрыл системное окно "Поделиться" — это не ошибка
+                  }
+                } else {
+                  navigator.clipboard.writeText(link);
+                  toast("success", "Ссылка на профиль скопирована");
+                }
+              }}
+              className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
+            >
+              <Copy size={12} /> Скопировать / поделиться ссылкой на профиль
+            </button>
+          </div>
+        )}
+        {!profile.username && (
+          <p className="text-xs text-white/30">Придумай имя пользователя ниже, чтобы получить ссылку на свой профиль, которой можно делиться.</p>
         )}
 
         <div>

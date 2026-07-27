@@ -50,6 +50,19 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
   return { uid, ...profile } as UserProfile;
 }
 
+/** Для пользователей, созданных до появления реферальной системы — генерирует и сохраняет код при первом обращении. */
+export async function getOrCreateReferralCode(uid: string): Promise<string> {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  const existing = snap.data()?.referralCode;
+  if (existing) return existing;
+
+  const referralCode = generateReferralCode();
+  await updateDoc(ref, { referralCode });
+  await setDoc(doc(db, "referralCodes", referralCode), { uid });
+  return referralCode;
+}
+
 /** Меняет язык интерфейса в профиле пользователя (вызывается из настроек). */
 export async function setUserLanguage(uid: string, language: "ru" | "en" | "zh") {
   return updateDoc(doc(db, "users", uid), { language });

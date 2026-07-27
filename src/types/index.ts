@@ -123,6 +123,16 @@ export interface UserProfile {
   language?: "ru" | "en" | "zh";
   referralCode?: string;
   referredBy?: string; // uid того, кто пригласил (заполняется один раз, при регистрации по ссылке)
+  claimedEventIds?: string[]; // id ивентов, за которые уже получен бонус (чтобы не выдавать повторно)
+}
+
+export interface SiteEvent {
+  id: string;
+  name: string; // "Зима", "Лето" и т.д.
+  bonusRub: number; // сколько начисляется на баланс при получении бонуса ивента
+  theme: "winter" | "summer" | "none";
+  active: boolean; // показывать ли сейчас на сайте (обычно активен один ивент за раз)
+  createdAt: number;
 }
 
 export const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
