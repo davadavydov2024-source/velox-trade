@@ -19,7 +19,8 @@
     "@emailjs/browser": "^4.3.3",
     "lucide-react": "^0.412.0",
     "zustand": "^4.5.4",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "react-easy-crop": "^5.0.8"
   },
   "devDependencies": {
     "typescript": "^5.5.4",

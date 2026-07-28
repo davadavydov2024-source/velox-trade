@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Upload, Loader2, X } from "lucide-react";
+import { Loader2, X, Crop } from "lucide-react";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { useToast } from "@/lib/toastContext";
+import { ImageCropModal } from "./ImageCropModal";
 
 interface ImageUploadFieldProps {
   value: string;
@@ -15,17 +16,37 @@ interface ImageUploadFieldProps {
   shape?: "square" | "round";
   size?: number;
   disabled?: boolean;
+  aspect?: number; // соотношение сторон при обрезке — по умолчанию квадрат
 }
 
-export function ImageUploadField({ value, onChange, folder, label, shape = "square", size = 96, disabled = false }: ImageUploadFieldProps) {
+export function ImageUploadField({
+  value,
+  onChange,
+  folder,
+  label,
+  shape = "square",
+  size = 96,
+  disabled = false,
+  aspect = 1,
+}: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const { toast } = useToast();
 
-  async function handleFile(file: File | undefined) {
+  function handleFile(file: File | undefined) {
     if (!file) return;
+    // Сначала показываем обрезку — сама загрузка произойдёт после подтверждения кадра.
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleCropped(blob: Blob) {
+    setCropSrc(null);
     setUploading(true);
     try {
+      const file = new File([blob], "upload.jpg", { type: blob.type || "image/jpeg" });
       const url = await uploadImage(file, folder);
       onChange(url);
     } catch (err) {
@@ -45,6 +66,17 @@ export function ImageUploadField({ value, onChange, folder, label, shape = "squa
 
   return (
     <div>
+      {cropSrc && (
+        <ImageCropModal
+          imageSrc={cropSrc}
+          aspect={shape === "round" ? 1 : aspect}
+          onCancel={() => {
+            setCropSrc(null);
+            if (inputRef.current) inputRef.current.value = "";
+          }}
+          onCropped={handleCropped}
+        />
+      )}
       {label && <label className="text-xs text-white/40 mb-1.5 block">{label}</label>}
       <div className="flex items-center gap-3">
         <div className={`relative bg-black/30 shrink-0 overflow-hidden ${radius}`} style={{ width: size, height: size }}>
@@ -69,7 +101,7 @@ export function ImageUploadField({ value, onChange, folder, label, shape = "squa
             htmlFor={disabled ? undefined : inputId}
             className={`btn-secondary py-2 px-3 text-sm inline-flex items-center gap-2 ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            <Upload size={14} /> {uploading ? "Загрузка..." : value ? "Заменить файл" : "Загрузить файл"}
+            <Crop size={14} /> {uploading ? "Загрузка..." : value ? "Заменить файл (с обрезкой)" : "Загрузить файл (с обрезкой)"}
           </label>
           {value && !disabled && (
             <button

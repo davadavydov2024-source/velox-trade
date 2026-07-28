@@ -10,6 +10,7 @@ import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { ProductCard } from "@/components/ProductCard";
+import { Lightbox } from "@/components/Lightbox";
 import { safeImageSrc } from "@/lib/safeImage";
 
 export default function ProductPage() {
@@ -18,6 +19,7 @@ export default function ProductPage() {
   const [notFound, setNotFound] = useState(false);
   const [qty, setQty] = useState(1);
   const [related, setRelated] = useState<Product[]>([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
 
@@ -51,9 +53,15 @@ export default function ProductPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
       <div className="grid md:grid-cols-2 gap-10">
-        <div className="card p-8 aspect-square relative">
-          <Image src={safeImageSrc(product.image)} alt={product.name} fill className="object-contain p-10" sizes="500px" />
+        <div
+          className="card p-4 aspect-square relative cursor-zoom-in group"
+          onClick={() => setLightboxOpen(true)}
+        >
+          <Image src={safeImageSrc(product.image)} alt={product.name} fill className="object-contain p-2 transition-transform group-hover:scale-[1.03]" sizes="500px" />
         </div>
+        {lightboxOpen && (
+          <Lightbox src={safeImageSrc(product.image)} alt={product.name} onClose={() => setLightboxOpen(false)} />
+        )}
 
         <div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-accent/15 text-accent">
