@@ -18,8 +18,8 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         <UserLanguageSync />
         <ForceReloadListener />
-        <SessionManager />
         <ToastProvider>
+          <SessionManager />
           <EventBanner />
           <BanGate>{children}</BanGate>
         </ToastProvider>
