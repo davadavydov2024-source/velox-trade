@@ -8,6 +8,7 @@ import { UserThemeSync } from "@/components/UserThemeSync";
 import { UserLanguageSync } from "@/components/UserLanguageSync";
 import { BanGate } from "@/components/BanGate";
 import { ForceReloadListener } from "@/components/ForceReloadListener";
+import { SessionManager } from "@/components/SessionManager";
 import { EventBanner } from "@/components/EventBanner";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         <UserLanguageSync />
         <ForceReloadListener />
+        <SessionManager />
         <ToastProvider>
           <EventBanner />
           <BanGate>{children}</BanGate>

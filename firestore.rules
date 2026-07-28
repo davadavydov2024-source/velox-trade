@@ -239,6 +239,25 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // --- сессии устройств (Профиль → Безопасность, "как в Telegram") ---
+    // id документа = `${uid}_${deviceId}`. Устройство читает/создаёт/обновляет только свою же
+    // запись (heartbeat последней активности). Пометка revoked=true (завершение сессии С ДРУГОГО
+    // устройства) и проверка правила "не раньше 25 часов после первого входа" живут только в
+    // серверном роуте /api/sessions/terminate (Admin SDK, в обход правил) — с клиента так нельзя.
+    match /sessions/{sessionId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.revoked == false;
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == resource.data.uid &&
+          (
+            // heartbeat при повторном заходе с уже известного устройства
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["lastActiveAt", "deviceLabel"]) ||
+            // "оживление" сессии после завершения — сюда уже нельзя попасть без пароля/входа через Firebase Auth заново
+            (resource.data.revoked == true && request.resource.data.revoked == false)
+          ));
+      allow delete: if isAdmin();
+    }
+
     // --- жалобы на сделки ---
     match /disputes/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid);

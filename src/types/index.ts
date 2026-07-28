@@ -151,6 +151,18 @@ export interface SiteEvent {
 
 export const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Сессия одного устройства/браузера (Профиль → Безопасность, "как в Telegram").
+ * Документ хранится в коллекции `sessions` с id = `${uid}_${deviceId}`. */
+export interface UserSession {
+  uid: string;
+  deviceId: string;
+  deviceLabel: string; // например "Chrome · Windows"
+  createdAt: number; // первый вход именно с этого устройства
+  lastActiveAt: number;
+  revoked: boolean;
+  revokedAt?: number | null;
+}
+
 export interface OrderChatMessage {
   from: "buyer" | "seller" | "admin";
   text: string;
