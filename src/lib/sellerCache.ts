@@ -1,14 +1,37 @@
-import { getUserProfile } from "./users";
-import { UserProfile } from "@/types";
+export interface PublicProfile {
+  uid: string;
+  displayName: string;
+  username: string | null;
+  bio?: string;
+  photoURL: string | null;
+  badges: import("@/types").UserBadge[];
+  ratingSum: number;
+  ratingCount: number;
+  createdAt: number | null;
+  isOnline: boolean;
+}
 
-const cache = new Map<string, Promise<UserProfile | null>>();
+const cache = new Map<string, Promise<PublicProfile | null>>();
 
-/** Отдаёт профиль продавца, кэшируя запрос — если на странице много карточек одного и того же
- * продавца, Firestore читается только один раз. */
-export function getSellerProfileCached(uid: string): Promise<UserProfile | null> {
-  if (uid === "store") return Promise.resolve(null); // "store" — товары от площадки, не от продавца
+async function fetchPublicProfile(uid: string): Promise<PublicProfile | null> {
+  try {
+    const res = await fetch(`/api/public-profile?uid=${encodeURIComponent(uid)}`);
+    const data = await res.json();
+    return data.profile ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Публичная (безопасная) информация о продавце — кэшируется, чтобы много карточек одного
+ * продавца на странице не плодили повторные запросы. Раньше здесь читали users/{uid} напрямую
+ * с клиента, но правила Firestore разрешают читать чужой профиль только владельцу/админу —
+ * поэтому теперь используем серверный роут /api/public-profile, отдающий только безопасное
+ * подмножество полей (без email, баланса и т.п.). */
+export function getPublicProfileCached(uid: string): Promise<PublicProfile | null> {
+  if (uid === "store") return Promise.resolve(null);
   if (!cache.has(uid)) {
-    cache.set(uid, getUserProfile(uid).catch(() => null));
+    cache.set(uid, fetchPublicProfile(uid));
   }
   return cache.get(uid)!;
 }

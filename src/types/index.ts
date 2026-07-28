@@ -138,6 +138,7 @@ export interface UserProfile {
   referralCode?: string;
   referredBy?: string; // uid того, кто пригласил (заполняется один раз, при регистрации по ссылке)
   claimedEventIds?: string[]; // id ивентов, за которые уже получен бонус (чтобы не выдавать повторно)
+  lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
 }
 
 export interface SiteEvent {

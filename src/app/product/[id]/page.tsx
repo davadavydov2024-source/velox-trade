@@ -6,13 +6,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck } from "lucide-react";
 import { getProductById, getProducts } from "@/lib/products";
-import { Product, RARITY_LABEL, UserProfile, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
+import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { ProductCard } from "@/components/ProductCard";
 import { Lightbox } from "@/components/Lightbox";
 import { safeImageSrc } from "@/lib/safeImage";
-import { getSellerProfileCached } from "@/lib/sellerCache";
+import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
 
 export default function ProductPage() {
@@ -22,7 +22,7 @@ export default function ProductPage() {
   const [qty, setQty] = useState(1);
   const [related, setRelated] = useState<Product[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [seller, setSeller] = useState<UserProfile | null>(null);
+  const [seller, setSeller] = useState<PublicProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
@@ -41,7 +41,7 @@ export default function ProductPage() {
     getProducts({ gameId: product.gameId })
       .then((list) => setRelated(list.filter((p) => p.id !== product.id).slice(0, 4)))
       .catch((err) => { console.error("Ошибка загрузки похожих товаров:", err); setRelated([]); });
-    getSellerProfileCached(product.sellerId).then(setSeller);
+    getPublicProfileCached(product.sellerId).then(setSeller);
     if (product.sellerId !== "store") {
       getSellerReviews(product.sellerId)
         .then((r) => setReviews(r.slice(0, 5)))
@@ -78,6 +78,9 @@ export default function ProductPage() {
             <Link href={`/seller/${seller.username}`} className="card p-4 mt-4 flex items-center gap-3 hover:border-accent/40 transition-colors block">
               <div className="relative w-11 h-11 rounded-full overflow-hidden bg-black/30 shrink-0">
                 <Image src={safeImageSrc(seller.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="44px" />
+                {seller.isOnline && (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-surface" />
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
@@ -86,7 +89,9 @@ export default function ProductPage() {
                     <ShieldCheck key={b} size={14} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
                   ))}
                 </div>
-                <p className="text-xs text-white/40">@{seller.username}</p>
+                <p className="text-xs text-white/40">
+                  @{seller.username} · {seller.isOnline ? <span className="text-green-400">в сети</span> : "не в сети"}
+                </p>
               </div>
               {seller.ratingCount ? (
                 <span className="flex items-center gap-1 text-sm text-accent font-medium shrink-0">

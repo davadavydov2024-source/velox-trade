@@ -10,6 +10,7 @@ import { BanGate } from "@/components/BanGate";
 import { ForceReloadListener } from "@/components/ForceReloadListener";
 import { SessionManager } from "@/components/SessionManager";
 import { EventBanner } from "@/components/EventBanner";
+import { PresenceSync } from "@/components/PresenceSync";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <ForceReloadListener />
         <ToastProvider>
           <SessionManager />
+          <PresenceSync />
           <EventBanner />
           <BanGate>{children}</BanGate>
         </ToastProvider>

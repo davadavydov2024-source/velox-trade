@@ -5,16 +5,16 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import { Star, ShieldCheck } from "lucide-react";
 import { getUidByUsername } from "@/lib/usernames";
-import { getUserProfile } from "@/lib/users";
+import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
 import { getProducts } from "@/lib/products";
-import { UserProfile, Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
+import { Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
 import { safeImageSrc } from "@/lib/safeImage";
 
 export default function SellerProfilePage() {
   const { username } = useParams<{ username: string }>();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [notFound, setNotFound] = useState(false);
@@ -28,7 +28,7 @@ export default function SellerProfilePage() {
         setLoading(false);
         return;
       }
-      const [p, r, prod] = await Promise.all([getUserProfile(uid), getSellerReviews(uid), getProducts({ sellerId: uid })]);
+      const [p, r, prod] = await Promise.all([getPublicProfileCached(uid), getSellerReviews(uid), getProducts({ sellerId: uid })]);
       setProfile(p);
       setReviews(r);
       setProducts(prod);
@@ -52,6 +52,9 @@ export default function SellerProfilePage() {
       <div className="card p-6 flex items-start gap-5">
         <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">
           <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
+          {profile.isOnline && (
+            <span className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-surface" />
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -60,7 +63,9 @@ export default function SellerProfilePage() {
               <ShieldCheck key={b} size={18} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
             ))}
           </div>
-          <p className="text-white/40 text-sm mb-2">@{profile.username}</p>
+          <p className="text-white/40 text-sm mb-2">
+            @{profile.username} · {profile.isOnline ? <span className="text-green-400">в сети</span> : "не в сети"}
+          </p>
           {profile.bio && <p className="text-white/60 text-sm mb-2">{profile.bio}</p>}
           <div className="flex items-center gap-3 flex-wrap">
             {avgRating !== null && (

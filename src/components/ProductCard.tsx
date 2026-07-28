@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart, Star } from "lucide-react";
-import { Product, RARITY_LABEL, UserProfile } from "@/types";
+import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
-import { getSellerProfileCached } from "@/lib/sellerCache";
+import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 
 const RARITY_BORDER: Record<string, string> = {
   common: "border-rarity-common/40",
@@ -21,11 +21,11 @@ const RARITY_BORDER: Record<string, string> = {
 export function ProductCard({ product }: { product: Product }) {
   const add = useCart((s) => s.add);
   const { toast } = useToast();
-  const [seller, setSeller] = useState<UserProfile | null>(null);
+  const [seller, setSeller] = useState<PublicProfile | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    getSellerProfileCached(product.sellerId).then((p) => {
+    getPublicProfileCached(product.sellerId).then((p) => {
       if (!cancelled) setSeller(p);
     });
     return () => {
@@ -79,6 +79,9 @@ export function ProductCard({ product }: { product: Product }) {
         >
           <span className="relative w-4 h-4 rounded-full overflow-hidden bg-black/30 shrink-0">
             <Image src={safeImageSrc(seller.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="16px" />
+            {seller.isOnline && (
+              <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-green-400 border border-black/50" />
+            )}
           </span>
           <span className="truncate max-w-[80px]">{seller.displayName}</span>
           {avgRating !== null && (

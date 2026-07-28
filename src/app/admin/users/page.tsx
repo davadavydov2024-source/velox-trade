@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff } from "lucide-react";
 import { getAllUsers, setUserBalance, setUserBan, setUserBadges } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
@@ -163,7 +164,23 @@ export default function AdminUsersPage() {
             ) : (
               filtered.map((u) => (
                 <tr key={u.uid} className="border-b border-border/50 hover:bg-white/[0.02]">
-                  <td className="p-3 font-medium">{u.displayName}</td>
+                  <td className="p-3 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          Date.now() - (u.lastActiveAt ?? 0) < 2 * 60 * 1000 ? "bg-green-400" : "bg-white/20"
+                        }`}
+                        title={Date.now() - (u.lastActiveAt ?? 0) < 2 * 60 * 1000 ? "В сети" : "Не в сети"}
+                      />
+                      {u.username ? (
+                        <Link href={`/seller/${u.username}`} target="_blank" className="hover:text-accent hover:underline">
+                          {u.displayName}
+                        </Link>
+                      ) : (
+                        u.displayName
+                      )}
+                    </span>
+                  </td>
                   <td className="p-3 text-white/50">{u.email}</td>
                   <td className="p-3">{u.balance.toFixed(2)} ₽</td>
                   <td className="p-3">
