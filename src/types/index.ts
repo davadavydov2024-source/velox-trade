@@ -30,6 +30,20 @@ export interface Product {
   discountPercent?: number;
   boostTier?: "game" | "home"; // продвижение продавцом за баланс — "home" старше "game"
   boostUntil?: number; // до какого момента (Date.now()) продвижение активно
+  editCount?: number; // сколько раз продавец уже редактировал этот товар (лимит — 3)
+  createdAt: number;
+}
+
+export interface ProductEditRequest {
+  id: string;
+  productId: string;
+  sellerId: string;
+  productName: string; // название на момент подачи — для удобства админа
+  proposedName: string;
+  proposedDescription: string;
+  proposedPrice: number;
+  proposedImage: string;
+  status: "pending" | "approved" | "rejected";
   createdAt: number;
 }
 

@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart } from "lucide-react";
-import { Product, RARITY_LABEL } from "@/types";
+import { ShoppingCart, Star } from "lucide-react";
+import { Product, RARITY_LABEL, UserProfile } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
+import { getSellerProfileCached } from "@/lib/sellerCache";
 
 const RARITY_BORDER: Record<string, string> = {
   common: "border-rarity-common/40",
@@ -19,12 +21,24 @@ const RARITY_BORDER: Record<string, string> = {
 export function ProductCard({ product }: { product: Product }) {
   const add = useCart((s) => s.add);
   const { toast } = useToast();
+  const [seller, setSeller] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSellerProfileCached(product.sellerId).then((p) => {
+      if (!cancelled) setSeller(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [product.sellerId]);
 
   const finalPrice = product.discountPercent
     ? +(product.price * (1 - product.discountPercent / 100)).toFixed(2)
     : product.price;
 
   const isBoosted = (product.boostUntil ?? 0) > Date.now();
+  const avgRating = seller?.ratingCount ? (seller.ratingSum ?? 0) / seller.ratingCount : null;
 
   return (
     <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1 ${isBoosted ? "ring-1 ring-accent/60" : ""}`}>
@@ -56,7 +70,24 @@ export function ProductCard({ product }: { product: Product }) {
       <Link href={`/product/${product.id}`}>
         <h3 className="font-medium text-sm truncate hover:text-accent transition-colors">{product.name}</h3>
       </Link>
-      <p className="text-xs text-white/40 mb-2">{RARITY_LABEL[product.rarity]}</p>
+      <p className="text-xs text-white/40 mb-1">{RARITY_LABEL[product.rarity]}</p>
+      {seller?.username && (
+        <Link
+          href={`/seller/${seller.username}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 mb-2 text-xs text-white/40 hover:text-accent transition-colors"
+        >
+          <span className="relative w-4 h-4 rounded-full overflow-hidden bg-black/30 shrink-0">
+            <Image src={safeImageSrc(seller.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="16px" />
+          </span>
+          <span className="truncate max-w-[80px]">{seller.displayName}</span>
+          {avgRating !== null && (
+            <span className="flex items-center gap-0.5 text-accent shrink-0">
+              <Star size={10} className="fill-accent" /> {avgRating.toFixed(1)}
+            </span>
+          )}
+        </Link>
+      )}
 
       <div className="flex items-center justify-between">
         <div>

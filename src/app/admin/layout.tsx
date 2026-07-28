@@ -18,6 +18,7 @@ import {
   Tag,
   Gift,
   PartyPopper,
+  Pencil,
   Menu,
   X,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const NAV = [
   { href: "/admin", label: "Дашборд", icon: LayoutDashboard },
   { href: "/admin/users", label: "Пользователи", icon: Users },
   { href: "/admin/products", label: "Товары", icon: Package },
+  { href: "/admin/product-edits", label: "Правки товаров", icon: Pencil },
   { href: "/admin/games", label: "Игры", icon: Gamepad2 },
   { href: "/admin/topups", label: "Баланс / заявки", icon: Wallet },
   { href: "/admin/disputes", label: "Жалобы", icon: AlertTriangle },

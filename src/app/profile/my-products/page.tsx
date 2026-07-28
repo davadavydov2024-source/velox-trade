@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Rocket, Zap, Star } from "lucide-react";
+import { Rocket, Zap, Star, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { getProducts, boostProduct } from "@/lib/products";
+import { getProducts, boostProduct, deleteProduct } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
+import { createProductEditRequest, MAX_PRODUCT_EDITS } from "@/lib/productEditRequests";
 import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
+import { ImageUploadField } from "@/components/ImageUploadField";
 import { useLanguage } from "@/lib/languageStore";
 import { tf, rarityLabel } from "@/lib/i18n";
 
@@ -18,15 +20,67 @@ function ProductBoostCard({
   product,
   flags,
   onBoosted,
+  onDeleted,
 }: {
   product: Product;
   flags: FeatureFlags;
   onBoosted: (id: string, tier: "game" | "home", boostUntil: number) => void;
+  onDeleted: (id: string) => void;
 }) {
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const { profile, refreshProfile } = useAuth();
   const [buying, setBuying] = useState<"game" | "home" | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    image: product.image,
+  });
+
+  const editCount = product.editCount ?? 0;
+  const editsLeft = MAX_PRODUCT_EDITS - editCount;
+
+  async function handleSubmitEdit() {
+    if (!editForm.name.trim() || !editForm.description.trim() || !editForm.image || editForm.price <= 0) {
+      toast("warning", "Заполни все поля корректно");
+      return;
+    }
+    setSubmittingEdit(true);
+    try {
+      await createProductEditRequest({
+        productId: product.id,
+        sellerId: product.sellerId,
+        productName: product.name,
+        proposedName: editForm.name,
+        proposedDescription: editForm.description,
+        proposedPrice: editForm.price,
+        proposedImage: editForm.image,
+      });
+      toast("success", "Заявка на редактирование отправлена админу");
+      setEditing(false);
+    } catch {
+      toast("error", "Не удалось отправить заявку");
+    } finally {
+      setSubmittingEdit(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Удалить товар «${product.name}» безвозвратно?`)) return;
+    setDeleting(true);
+    try {
+      await deleteProduct(product.id);
+      toast("success", "Товар удалён");
+      onDeleted(product.id);
+    } catch {
+      toast("error", "Не удалось удалить товар");
+      setDeleting(false);
+    }
+  }
 
   const now = Date.now();
   const isActive = (product.boostUntil ?? 0) > now;
@@ -107,6 +161,53 @@ function ProductBoostCard({
           </button>
         </div>
       </div>
+
+      {editing ? (
+        <div className="mt-3 rounded-btn border border-border p-3 space-y-2.5">
+          <ImageUploadField value={editForm.image} onChange={(url) => setEditForm((f) => ({ ...f, image: url }))} folder="products" label="Фото" size={64} />
+          <input
+            value={editForm.name}
+            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Название"
+            className="input-field py-2 text-sm w-full"
+          />
+          <textarea
+            value={editForm.description}
+            onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="Описание"
+            className="input-field py-2 text-sm w-full min-h-[70px]"
+          />
+          <input
+            type="number"
+            min={1}
+            value={editForm.price || ""}
+            onChange={(e) => setEditForm((f) => ({ ...f, price: Number(e.target.value) }))}
+            placeholder="Цена, ₽"
+            className="input-field py-2 text-sm w-full"
+          />
+          <div className="flex gap-2">
+            <button onClick={handleSubmitEdit} disabled={submittingEdit} className="btn-primary flex-1 py-2 text-xs disabled:opacity-50">
+              {submittingEdit ? "Отправка..." : "Отправить на проверку админу"}
+            </button>
+            <button onClick={() => setEditing(false)} className="btn-secondary px-3 py-2 text-xs">
+              Отмена
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+          <button
+            onClick={() => setEditing(true)}
+            disabled={editsLeft <= 0}
+            className="text-xs text-white/40 hover:text-accent flex items-center gap-1.5 disabled:opacity-40 disabled:hover:text-white/40"
+          >
+            <Pencil size={13} /> {editsLeft > 0 ? `Редактировать (осталось ${editsLeft} из ${MAX_PRODUCT_EDITS})` : "Лимит правок исчерпан (3/3)"}
+          </button>
+          <button onClick={handleDelete} disabled={deleting} className="text-xs text-red-400/70 hover:text-red-400 flex items-center gap-1.5 disabled:opacity-50">
+            <Trash2 size={13} /> {deleting ? "Удаление..." : "Удалить товар"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -132,6 +233,10 @@ export default function MyProductsPage() {
     setProducts((list) => list.map((p) => (p.id === id ? { ...p, boostTier: tier, boostUntil } : p)));
   }
 
+  function handleDeleted(id: string) {
+    setProducts((list) => list.filter((p) => p.id !== id));
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -149,7 +254,7 @@ export default function MyProductsPage() {
       ) : (
         <div className="space-y-3">
           {products.map((p) => (
-            <ProductBoostCard key={p.id} product={p} flags={flags} onBoosted={handleBoosted} />
+            <ProductBoostCard key={p.id} product={p} flags={flags} onBoosted={handleBoosted} onDeleted={handleDeleted} />
           ))}
         </div>
       )}

@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, ShoppingCart, Zap } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck } from "lucide-react";
 import { getProductById, getProducts } from "@/lib/products";
-import { Product, RARITY_LABEL } from "@/types";
+import { Product, RARITY_LABEL, UserProfile, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { ProductCard } from "@/components/ProductCard";
 import { Lightbox } from "@/components/Lightbox";
 import { safeImageSrc } from "@/lib/safeImage";
+import { getSellerProfileCached } from "@/lib/sellerCache";
+import { getSellerReviews } from "@/lib/reviews";
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +22,8 @@ export default function ProductPage() {
   const [qty, setQty] = useState(1);
   const [related, setRelated] = useState<Product[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [seller, setSeller] = useState<UserProfile | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
 
@@ -37,6 +41,12 @@ export default function ProductPage() {
     getProducts({ gameId: product.gameId })
       .then((list) => setRelated(list.filter((p) => p.id !== product.id).slice(0, 4)))
       .catch((err) => { console.error("Ошибка загрузки похожих товаров:", err); setRelated([]); });
+    getSellerProfileCached(product.sellerId).then(setSeller);
+    if (product.sellerId !== "store") {
+      getSellerReviews(product.sellerId)
+        .then((r) => setReviews(r.slice(0, 5)))
+        .catch(() => setReviews([]));
+    }
   }, [product]);
 
   if (notFound) {
@@ -53,15 +63,65 @@ export default function ProductPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
       <div className="grid md:grid-cols-2 gap-10">
-        <div
-          className="card p-4 aspect-square relative cursor-zoom-in group"
-          onClick={() => setLightboxOpen(true)}
-        >
-          <Image src={safeImageSrc(product.image)} alt={product.name} fill className="object-contain p-2 transition-transform group-hover:scale-[1.03]" sizes="500px" />
+        <div>
+          <div
+            className="card p-4 aspect-square relative cursor-zoom-in group"
+            onClick={() => setLightboxOpen(true)}
+          >
+            <Image src={safeImageSrc(product.image)} alt={product.name} fill className="object-contain p-2 transition-transform group-hover:scale-[1.03]" sizes="500px" />
+          </div>
+          {lightboxOpen && (
+            <Lightbox src={safeImageSrc(product.image)} alt={product.name} onClose={() => setLightboxOpen(false)} />
+          )}
+
+          {seller?.username && (
+            <Link href={`/seller/${seller.username}`} className="card p-4 mt-4 flex items-center gap-3 hover:border-accent/40 transition-colors block">
+              <div className="relative w-11 h-11 rounded-full overflow-hidden bg-black/30 shrink-0">
+                <Image src={safeImageSrc(seller.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="44px" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <p className="font-medium text-sm truncate">{seller.displayName}</p>
+                  {seller.badges.filter((b) => CHECKMARK_BADGES.includes(b)).map((b) => (
+                    <ShieldCheck key={b} size={14} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
+                  ))}
+                </div>
+                <p className="text-xs text-white/40">@{seller.username}</p>
+              </div>
+              {seller.ratingCount ? (
+                <span className="flex items-center gap-1 text-sm text-accent font-medium shrink-0">
+                  <Star size={13} className="fill-accent" /> {((seller.ratingSum ?? 0) / seller.ratingCount).toFixed(1)}
+                </span>
+              ) : (
+                <span className="text-xs text-white/30 shrink-0">Нет отзывов</span>
+              )}
+            </Link>
+          )}
+
+          {reviews.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-white/40">Последние отзывы о продавце</p>
+              {reviews.map((r) => (
+                <div key={r.id} className="card p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="font-medium text-xs">{r.buyerName}</p>
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} size={10} className={i < r.rating ? "text-accent fill-accent" : "text-white/15"} />
+                      ))}
+                    </div>
+                  </div>
+                  {r.text && <p className="text-xs text-white/60">{r.text}</p>}
+                </div>
+              ))}
+              {seller?.username && (
+                <Link href={`/seller/${seller.username}`} className="text-xs text-accent hover:underline block text-center pt-1">
+                  Все отзывы →
+                </Link>
+              )}
+            </div>
+          )}
         </div>
-        {lightboxOpen && (
-          <Lightbox src={safeImageSrc(product.image)} alt={product.name} onClose={() => setLightboxOpen(false)} />
-        )}
 
         <div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-accent/15 text-accent">
