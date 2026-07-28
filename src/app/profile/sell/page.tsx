@@ -8,9 +8,11 @@ import { useToast } from "@/lib/toastContext";
 import { createSellRequest } from "@/lib/sellRequests";
 import { getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { Game, DEFAULT_FEATURE_FLAGS } from "@/types";
+import { Game, DEFAULT_FEATURE_FLAGS, Rarity, RARITY_LABEL } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
+
+const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
 export default function SellPage() {
   const { user, profile } = useAuth();
@@ -25,6 +27,8 @@ export default function SellPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [itemName, setItemName] = useState("");
   const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("1");
+  const [rarity, setRarity] = useState<Rarity>("common");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,6 +69,11 @@ export default function SellPage() {
       toast("warning", `Минимальная цена — ${minSellPrice} ₽`);
       return;
     }
+    const stockNum = Number(stock) || 0;
+    if (stockNum < 1) {
+      toast("warning", "Укажи количество предметов — минимум 1");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -78,6 +87,8 @@ export default function SellPage() {
         price: priceNum,
         commissionPercent,
         description: description.trim(),
+        stock: stockNum,
+        rarity,
       });
 
       // Уведомление админу в Telegram не должно блокировать создание заявки, если бот недоступен.
@@ -92,6 +103,8 @@ export default function SellPage() {
       setImageUrl("");
       setItemName("");
       setPrice("");
+      setStock("1");
+      setRarity("common");
       setDescription("");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
@@ -169,6 +182,31 @@ export default function SellPage() {
           placeholder="Название предмета"
           className="input-field py-2.5"
         />
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-sm font-medium mb-2">Количество</p>
+            <input
+              required
+              type="number"
+              min={1}
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              placeholder="Кол-во предметов"
+              className="input-field py-2.5"
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-2">Редкость</p>
+            <select value={rarity} onChange={(e) => setRarity(e.target.value as Rarity)} className="input-field py-2.5 w-full">
+              {RARITIES.map((r) => (
+                <option key={r} value={r}>
+                  {RARITY_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <textarea
           required

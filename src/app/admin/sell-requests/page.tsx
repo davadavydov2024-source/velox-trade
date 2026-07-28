@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Check, X, Tag } from "lucide-react";
 import { getAllSellRequests, setSellRequestStatus, approveSellRequest } from "@/lib/sellRequests";
-import { SellRequest } from "@/types";
+import { SellRequest, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 
@@ -90,7 +90,10 @@ export default function AdminSellRequestsPage() {
                     ) : (
                       <p className="text-sm text-white/60 mb-1">Цена: {r.price} ₽</p>
                     )}
-                    {r.description && <p className="text-sm text-white/40 mb-3">{r.description}</p>}
+                    {r.description && <p className="text-sm text-white/40 mb-1">{r.description}</p>}
+                    <p className="text-xs text-white/40 mb-3">
+                      Кол-во: {r.stock ?? 1} шт. · Редкость: {RARITY_LABEL[r.rarity] ?? "Обычный"}
+                    </p>
                     <div className="flex gap-2">
                       <button onClick={() => handleStatus(r, "approved")} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
                         <Check size={14} /> Одобрить

@@ -329,6 +329,8 @@ export interface SellRequest {
   price: number; // цена, которую хочет получить продавец (то, что он ввёл в форме)
   commissionPercent: number; // комиссия платформы на момент подачи заявки (снимок текущей настройки, чтобы не менялась задним числом)
   description: string;
+  stock: number; // количество предметов на продажу
+  rarity: Rarity;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }

@@ -13,6 +13,8 @@ interface SellRequest {
   price: number;
   commissionPercent: number;
   description: string;
+  stock?: number;
+  rarity?: string;
   status: "pending" | "approved" | "rejected";
 }
 
@@ -86,8 +88,8 @@ export async function approveSellRequestFromBot(chatId: number, messageId: numbe
     description: r.description,
     image: r.imageUrl,
     price: r.price,
-    rarity: "common",
-    stock: 1,
+    rarity: r.rarity ?? "common",
+    stock: r.stock ?? 1,
     createdAt: Date.now(),
   });
   await ref.update({ status: "approved", productId: productRef.id });

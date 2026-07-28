@@ -36,6 +36,10 @@ export async function setSellRequestStatus(request: SellRequest, status: "approv
  * Продавец — сам автор заявки (его uid), начальный остаток — 1 шт (это конкретный сданный предмет).
  * Редкость по умолчанию "common" — админ может поправить её и остальные детали в «Товары» после создания.
  */
+/**
+ * Одобряет заявку на продажу И сразу создаёт товар в каталоге на основе её данных —
+ * количество и редкость берём из того, что выбрал продавец в форме заявки.
+ */
 export async function approveSellRequest(request: SellRequest): Promise<string> {
   const productRef = await createProduct({
     gameId: request.gameId,
@@ -44,8 +48,8 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
     description: request.description,
     image: request.imageUrl,
     price: request.price,
-    rarity: "common",
-    stock: 1,
+    rarity: request.rarity ?? "common",
+    stock: request.stock ?? 1,
   });
   await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });
   notifyTelegram(request.userId, `✅ Заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге!`);
