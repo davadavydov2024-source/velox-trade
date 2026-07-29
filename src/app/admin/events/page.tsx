@@ -1,22 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Power, Snowflake, Sun, Sparkles } from "lucide-react";
+import { Plus, Trash2, Power, Snowflake, Sun, Sparkles, Cake, Rocket, RefreshCw } from "lucide-react";
 import { getAllEvents, createEvent, updateEvent, deleteEvent } from "@/lib/events";
-import { SiteEvent } from "@/types";
+import { SiteEvent, EventTheme } from "@/types";
 import { useToast } from "@/lib/toastContext";
 
 type FormState = {
   name: string;
   bonusRub: number;
-  theme: "winter" | "summer" | "none";
+  theme: EventTheme;
   active: boolean;
 };
 
 const EMPTY_FORM: FormState = { name: "", bonusRub: 15, theme: "none", active: false };
 
-const THEME_ICON = { winter: Snowflake, summer: Sun, none: Sparkles };
-const THEME_LABEL = { winter: "Зимнее оформление", summer: "Летнее оформление", none: "Без оформления" };
+const THEME_ICON: Record<EventTheme, typeof Snowflake> = {
+  winter: Snowflake,
+  summer: Sun,
+  birthday: Cake,
+  milestone: Sparkles,
+  update: Rocket,
+  weekly: RefreshCw,
+  none: Sparkles,
+};
+
+const THEME_LABEL: Record<EventTheme, string> = {
+  winter: "Зимнее оформление (снег)",
+  summer: "Летнее оформление (солнце)",
+  birthday: "День рождения (шарики, конфетти)",
+  milestone: "Веха / круглая дата (салют, искры)",
+  update: "Обновление сайта (ракеты вверх)",
+  weekly: "Еженедельный ивент (звёзды)",
+  none: "Без оформления",
+};
+
+// Готовые заготовки — один клик заполняет форму, дальше можно поправить любое поле.
+const PRESETS: { label: string; name: string; bonusRub: number; theme: EventTheme }[] = [
+  { label: "Зима", name: "Зима", bonusRub: 15, theme: "winter" },
+  { label: "Лето", name: "Лето", bonusRub: 18, theme: "summer" },
+  { label: "День 67", name: "День 67", bonusRub: 20, theme: "milestone" },
+  { label: "День 62", name: "День 62", bonusRub: 20, theme: "milestone" },
+  { label: "ДР админа", name: "День рождения администратора 🎂", bonusRub: 25, theme: "birthday" },
+  { label: "Еженедельный ивент", name: "Еженедельный ивент", bonusRub: 10, theme: "weekly" },
+  { label: "Ивент обновлений", name: "Новое обновление сайта!", bonusRub: 12, theme: "update" },
+];
 
 export default function AdminEventsPage() {
   const { toast } = useToast();
@@ -63,8 +91,8 @@ export default function AdminEventsPage() {
     await refresh();
   }
 
-  function createPreset(name: string, bonusRub: number, theme: FormState["theme"]) {
-    setForm({ name, bonusRub, theme, active: false });
+  function applyPreset(preset: (typeof PRESETS)[number]) {
+    setForm({ name: preset.name, bonusRub: preset.bonusRub, theme: preset.theme, active: false });
     setShowForm(true);
   }
 
@@ -74,8 +102,8 @@ export default function AdminEventsPage() {
         <div>
           <h1 className="text-2xl font-bold mb-1">Ивенты</h1>
           <p className="text-sm text-white/40">
-            Сезонные события: тематическое оформление сайта + бонус на баланс, который пользователь получает один раз
-            за ивент. Обычно активен один ивент за раз — включай/выключай кнопкой.
+            Сезонные и разовые события: тематическое оформление сайта + бонус на баланс, который пользователь
+            получает один раз за ивент. Обычно активен один ивент за раз — включай/выключай кнопкой.
           </p>
         </div>
         <button onClick={() => setShowForm((v) => !v)} className="btn-primary px-4 py-2.5 flex items-center gap-2">
@@ -83,17 +111,21 @@ export default function AdminEventsPage() {
         </button>
       </div>
 
-      {events.length === 0 && !loading && (
-        <div className="card p-5 flex flex-wrap gap-3">
-          <p className="text-sm text-white/40 w-full mb-1">Быстрый старт — готовые заготовки:</p>
-          <button onClick={() => createPreset("Зима", 15, "winter")} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
-            <Snowflake size={14} /> Зима (+15 ₽)
-          </button>
-          <button onClick={() => createPreset("Лето", 18, "summer")} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
-            <Sun size={14} /> Лето (+18 ₽)
-          </button>
-        </div>
-      )}
+      <div className="card p-5 flex flex-wrap gap-2">
+        <p className="text-sm text-white/40 w-full mb-1">Готовые заготовки — жми, дальше можно поправить в форме:</p>
+        {PRESETS.map((preset) => {
+          const Icon = THEME_ICON[preset.theme];
+          return (
+            <button
+              key={preset.label}
+              onClick={() => applyPreset(preset)}
+              className="btn-secondary px-3.5 py-2 text-sm flex items-center gap-2"
+            >
+              <Icon size={14} /> {preset.label}
+            </button>
+          );
+        })}
+      </div>
 
       {showForm && (
         <form onSubmit={handleCreate} className="card p-5 space-y-3">
@@ -115,12 +147,14 @@ export default function AdminEventsPage() {
           </div>
           <select
             value={form.theme}
-            onChange={(e) => setForm({ ...form, theme: e.target.value as FormState["theme"] })}
+            onChange={(e) => setForm({ ...form, theme: e.target.value as EventTheme })}
             className="input-field py-2.5 w-full"
           >
-            <option value="none">Без оформления</option>
-            <option value="winter">Зимнее оформление (снег)</option>
-            <option value="summer">Летнее оформление (солнце)</option>
+            {(Object.keys(THEME_LABEL) as EventTheme[]).map((theme) => (
+              <option key={theme} value={theme}>
+                {THEME_LABEL[theme]}
+              </option>
+            ))}
           </select>
           <label className="flex items-center gap-2 text-sm text-white/60">
             <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
@@ -138,11 +172,11 @@ export default function AdminEventsPage() {
       {loading ? (
         <div className="card p-10 text-center text-white/40">Загрузка...</div>
       ) : events.length === 0 ? (
-        <div className="card p-10 text-center text-white/40">Ивентов пока нет — создай первый выше.</div>
+        <div className="card p-10 text-center text-white/40">Ивентов пока нет — выбери заготовку или создай свой выше.</div>
       ) : (
         <div className="space-y-3">
           {events.map((ev) => {
-            const Icon = THEME_ICON[ev.theme];
+            const Icon = THEME_ICON[ev.theme] ?? Sparkles;
             return (
               <div key={ev.id} className={`card p-4 flex items-center justify-between gap-4 ${ev.active ? "border-accent/50" : ""}`}>
                 <div className="flex items-center gap-3">
@@ -150,7 +184,7 @@ export default function AdminEventsPage() {
                   <div>
                     <p className="font-medium">{ev.name}</p>
                     <p className="text-xs text-white/40">
-                      +{ev.bonusRub} ₽ на баланс · {THEME_LABEL[ev.theme]} · {ev.active ? "Активен" : "Выключен"}
+                      +{ev.bonusRub} ₽ на баланс · {THEME_LABEL[ev.theme] ?? "Без оформления"} · {ev.active ? "Активен" : "Выключен"}
                     </p>
                   </div>
                 </div>

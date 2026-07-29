@@ -141,11 +141,13 @@ export interface UserProfile {
   lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
 }
 
+export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";
+
 export interface SiteEvent {
   id: string;
-  name: string; // "Зима", "Лето" и т.д.
+  name: string; // "Зима", "Лето", "День 67", "ДР админа" и т.д.
   bonusRub: number; // сколько начисляется на баланс при получении бонуса ивента
-  theme: "winter" | "summer" | "none";
+  theme: EventTheme;
   active: boolean; // показывать ли сейчас на сайте (обычно активен один ивент за раз)
   createdAt: number;
 }
