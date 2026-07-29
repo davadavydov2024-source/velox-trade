@@ -218,33 +218,46 @@ export default function SecurityPage() {
         )}
       </div>
 
-      <div className="card p-5 flex items-center justify-between gap-3">
-        <div>
-          <p className="font-medium">Telegram</p>
-          <p className="text-sm text-white/40">
-            {tgLoading
-              ? "Проверяем..."
-              : tgLink
-              ? `Привязан${tgLink.telegramUsername ? ` — @${tgLink.telegramUsername}` : ""}`
-              : "Не привязан — уведомления о заказах, заявках и рассылки будут приходить в Telegram"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {tgLink ? (
-            <button onClick={handleUnlinkTelegram} disabled={tgUnlinking} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
-              {tgUnlinking ? "..." : "Отвязать"}
-            </button>
-          ) : (
-            <>
-              <button onClick={handleCheckTelegram} disabled={tgLoading} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
-                Проверить
+      <div className="card p-5 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-medium">Telegram</p>
+            <p className="text-sm text-white/40">
+              {tgLoading
+                ? "Проверяем..."
+                : tgLink
+                ? `Привязан${tgLink.telegramUsername ? ` — @${tgLink.telegramUsername}` : ""}`
+                : "Не привязан — уведомления о заказах, заявках и рассылки будут приходить в Telegram"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {tgLink ? (
+              <button onClick={handleUnlinkTelegram} disabled={tgUnlinking} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
+                {tgUnlinking ? "..." : "Отвязать"}
               </button>
-              <button onClick={handleConnectTelegram} disabled={tgConnecting} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
-                {tgConnecting ? "..." : "Подключить Telegram"}
-              </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button onClick={handleCheckTelegram} disabled={tgLoading} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
+                  Проверить
+                </button>
+                <button onClick={handleConnectTelegram} disabled={tgConnecting} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
+                  {tgConnecting ? "..." : "Подключить Telegram"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {!tgLink && (
+          <div className="pt-1">
+            <p className="text-xs text-white/40 mb-2">
+              Не уверен, что это безопасно? Посмотри короткое видео — там показано, что происходит при подключении и что мы не получаем доступ ни к чему лишнему.
+            </p>
+            <video controls preload="metadata" className="w-full rounded-btn border border-border" style={{ maxHeight: 360 }}>
+              <source src="/videos/telegram-connect-tutorial.mp4" type="video/mp4" />
+            </video>
+          </div>
+        )}
       </div>
 
       <div className="card p-5 space-y-3">
