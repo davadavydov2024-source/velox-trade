@@ -9,6 +9,7 @@ import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
+import { FavoriteButton } from "./FavoriteButton";
 
 const RARITY_BORDER: Record<string, string> = {
   common: "border-rarity-common/40",
@@ -65,6 +66,9 @@ export function ProductCard({ product }: { product: Product }) {
             -{product.discountPercent}%
           </span>
         )}
+        <div className="absolute bottom-2 right-2">
+          <FavoriteButton productId={product.id} />
+        </div>
       </Link>
 
       <Link href={`/product/${product.id}`}>

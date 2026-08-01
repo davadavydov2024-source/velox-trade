@@ -258,6 +258,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // favorites: избранные товары — владелец видит и правит только свои.
+    match /favorites/{favId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // --- жалобы на сделки ---
     match /disputes/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid);

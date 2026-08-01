@@ -38,6 +38,7 @@ import {
   deactivatePromoCodeFromBot,
 } from "@/lib/telegramAdminPanel";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
+import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
 
 export const runtime = "nodejs";
 
@@ -177,6 +178,20 @@ export async function POST(req: NextRequest) {
       } else if (data === "menu_donate") {
         await setBotState(chatId, "awaiting_donate_amount");
         await editTelegramMessage(chatId, messageId, DONATE_PROMPT_TEXT, backOnlyButtons("menu_back"));
+      } else if (data === "cmd_balance") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+        } else {
+          await sendTelegramMessage(chatId, await getBalanceMessage(uid));
+        }
+      } else if (data === "cmd_orders") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+        } else {
+          await sendTelegramMessage(chatId, await getRecentOrdersMessage(uid));
+        }
       } else if (isAdminChat(chatId)) {
         if (data === "admin_menu") {
           await setBotState(chatId, null);
@@ -256,6 +271,18 @@ export async function POST(req: NextRequest) {
       if (!isAdminChat(chatId)) return NextResponse.json({ ok: true });
       await setBotState(chatId, null);
       await sendTelegramMessage(chatId, ADMIN_MENU_TEXT, adminMenuButtons());
+      return NextResponse.json({ ok: true });
+    }
+
+    if (text.startsWith("/balance") || text.startsWith("/orders")) {
+      const uid = await findUidByChatId(chatId);
+      if (!uid) {
+        await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+      } else if (text.startsWith("/balance")) {
+        await sendTelegramMessage(chatId, await getBalanceMessage(uid));
+      } else {
+        await sendTelegramMessage(chatId, await getRecentOrdersMessage(uid));
+      }
       return NextResponse.json({ ok: true });
     }
 

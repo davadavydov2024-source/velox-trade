@@ -10,6 +10,10 @@ export function mainMenuText(firstName: string, username: string | null): string
 
 export function mainMenuButtons(isAdmin: boolean = false): InlineButton[][] {
   const rows: InlineButton[][] = [
+    [
+      { text: "💰 Баланс", callback_data: "cmd_balance" },
+      { text: "📦 Мои заказы", callback_data: "cmd_orders" },
+    ],
     [{ text: "💬 Обратная связь", callback_data: "menu_feedback" }],
     [{ text: "🤝 Сотрудничество", callback_data: "menu_partnership" }],
     [{ text: "💫 Поддержать проект", callback_data: "menu_donate" }],

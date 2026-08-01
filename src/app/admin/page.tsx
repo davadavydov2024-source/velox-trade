@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { Users, ShoppingCart, DollarSign, TrendingUp, AlertCircle, Package } from "lucide-react";
+import { Users, ShoppingCart, DollarSign, TrendingUp, AlertCircle, Package, Crown } from "lucide-react";
+import Link from "next/link";
 import { getAllUsers, getAllOrders } from "@/lib/users";
 import { getProducts } from "@/lib/products";
 
@@ -12,9 +13,18 @@ interface Stat {
   icon: typeof Users;
 }
 
+interface TopSeller {
+  sellerId: string;
+  name: string;
+  username: string | null;
+  revenue: number;
+  orders: number;
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stat[]>([]);
   const [chartData, setChartData] = useState<{ date: string; revenue: number; orders: number }[]>([]);
+  const [topSellers, setTopSellers] = useState<TopSeller[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,6 +69,28 @@ export default function AdminDashboard() {
           }
         });
         setChartData(Object.entries(days).map(([date, v]) => ({ date, ...v })));
+
+        // Топ продавцов по выручке с подтверждённых заказов (sellerId "store" — товары площадки, не считаем).
+        const revenueBySeller: Record<string, { revenue: number; orders: number }> = {};
+        orders
+          .filter((o) => o.status === "confirmed" && o.sellerId !== "store")
+          .forEach((o) => {
+            if (!revenueBySeller[o.sellerId]) revenueBySeller[o.sellerId] = { revenue: 0, orders: 0 };
+            revenueBySeller[o.sellerId].revenue += o.total;
+            revenueBySeller[o.sellerId].orders += 1;
+          });
+        const usersById = Object.fromEntries(users.map((u) => [u.uid, u]));
+        const ranked = Object.entries(revenueBySeller)
+          .map(([sellerId, v]) => ({
+            sellerId,
+            name: usersById[sellerId]?.displayName ?? "Удалённый пользователь",
+            username: usersById[sellerId]?.username ?? null,
+            revenue: v.revenue,
+            orders: v.orders,
+          }))
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+        setTopSellers(ranked);
       } catch {
         setStats([]);
       } finally {
@@ -109,6 +141,34 @@ export default function AdminDashboard() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+
+          {topSellers.length > 0 && (
+            <div className="card p-5">
+              <p className="font-medium mb-4 flex items-center gap-2">
+                <Crown size={16} className="text-accent" /> Топ продавцов (по выручке)
+              </p>
+              <div className="space-y-2">
+                {topSellers.map((s, i) => (
+                  <div key={s.sellerId} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                    <div className="flex items-center gap-3">
+                      <span className="text-white/30 text-sm w-4">{i + 1}</span>
+                      {s.username ? (
+                        <Link href={`/seller/${s.username}`} target="_blank" className="text-sm font-medium hover:text-accent hover:underline">
+                          {s.name}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium">{s.name}</span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{s.revenue.toFixed(0)} ₽</p>
+                      <p className="text-xs text-white/30">{s.orders} заказ(ов)</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

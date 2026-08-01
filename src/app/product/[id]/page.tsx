@@ -11,6 +11,7 @@ import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { ProductCard } from "@/components/ProductCard";
 import { Lightbox } from "@/components/Lightbox";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
@@ -177,6 +178,10 @@ export default function ProductPage() {
             >
               <ShoppingCart size={18} /> В корзину
             </button>
+            <FavoriteButton
+              productId={product.id}
+              className="btn-secondary px-4 py-3 flex items-center gap-2"
+            />
           </div>
         </div>
       </div>

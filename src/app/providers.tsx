@@ -11,6 +11,7 @@ import { ForceReloadListener } from "@/components/ForceReloadListener";
 import { SessionManager } from "@/components/SessionManager";
 import { EventBanner } from "@/components/EventBanner";
 import { PresenceSync } from "@/components/PresenceSync";
+import { FavoritesSync } from "@/components/FavoritesSync";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -22,6 +23,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <ToastProvider>
           <SessionManager />
           <PresenceSync />
+          <FavoritesSync />
           <EventBanner />
           <BanGate>{children}</BanGate>
         </ToastProvider>
