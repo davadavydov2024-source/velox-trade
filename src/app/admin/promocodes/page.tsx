@@ -9,7 +9,7 @@ import { useToast } from "@/lib/toastContext";
 
 type FormState = {
   code: string;
-  type: "discount" | "gift";
+  type: "discount" | "gift" | "wheel";
   discountPercent: number;
   giftType: "balance" | "product";
   giftBalance: number;
@@ -78,16 +78,25 @@ export default function AdminPromoCodesPage() {
           active: form.active,
           expiresAt,
         });
+      } else if (form.type === "wheel") {
+        await createPromoCode({
+          code: form.code,
+          type: "wheel",
+          maxUses,
+          active: form.active,
+          expiresAt,
+        });
       } else {
         const product = products.find((p) => p.id === form.giftProductId);
+        const giftFields =
+          form.giftType === "balance"
+            ? { giftBalance: form.giftBalance }
+            : { giftProductId: form.giftProductId, giftProductName: product?.name ?? "", giftProductImage: product?.image ?? "" };
         await createPromoCode({
           code: form.code,
           type: "gift",
           giftType: form.giftType,
-          giftBalance: form.giftType === "balance" ? form.giftBalance : undefined,
-          giftProductId: form.giftType === "product" ? form.giftProductId : undefined,
-          giftProductName: form.giftType === "product" ? product?.name : undefined,
-          giftProductImage: form.giftType === "product" ? product?.image : undefined,
+          ...giftFields,
           maxUses,
           active: form.active,
           expiresAt,
@@ -123,6 +132,7 @@ export default function AdminPromoCodesPage() {
 
   function describe(code: PromoCode): string {
     if (code.type === "discount") return `Скидка ${code.discountPercent ?? 0}% в корзине`;
+    if (code.type === "wheel") return "🎡 Запускает Колесо Фортуны (раз в 24 часа на человека)";
     if (code.giftType === "balance") return `Подарок: +${code.giftBalance ?? 0} ₽ на баланс`;
     if (code.giftType === "product") return `Подарок: предмет «${code.giftProductName ?? "?"}»`;
     return "—";
@@ -166,7 +176,22 @@ export default function AdminPromoCodesPage() {
             >
               <GiftIcon size={14} /> Промо-подарок
             </button>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, type: "wheel" })}
+              className={`flex-1 py-2.5 rounded-btn text-sm flex items-center justify-center gap-2 ${form.type === "wheel" ? "bg-accent text-black" : "bg-surface text-white/50"}`}
+            >
+              🎡 Колесо
+            </button>
           </div>
+
+          {form.type === "wheel" && (
+            <p className="text-xs text-white/40">
+              Этот код запускает вращение Колеса Фортуны. Каждый пользователь может использовать его раз в 24 часа —
+              коду не нужны отдельные настройки суммы/скидки, приз выбирается случайно из списка на странице{" "}
+              <a href="/admin/wheel" className="text-accent hover:underline">«Колесо Фортуны»</a>.
+            </p>
+          )}
 
           {form.type === "discount" ? (
             <input
@@ -178,7 +203,7 @@ export default function AdminPromoCodesPage() {
               placeholder="Процент скидки"
               className="input-field py-2.5 text-sm"
             />
-          ) : (
+          ) : form.type === "gift" ? (
             <div className="space-y-3">
               <div className="flex gap-2">
                 <button
@@ -221,7 +246,7 @@ export default function AdminPromoCodesPage() {
                 </select>
               )}
             </div>
-          )}
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <input

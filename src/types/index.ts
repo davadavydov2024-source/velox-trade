@@ -139,6 +139,7 @@ export interface UserProfile {
   referredBy?: string; // uid того, кто пригласил (заполняется один раз, при регистрации по ссылке)
   claimedEventIds?: string[]; // id ивентов, за которые уже получен бонус (чтобы не выдавать повторно)
   lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
+  lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 24 часа
 }
 
 export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";
@@ -341,7 +342,7 @@ export interface SellRequest {
 // "discount" — обычная скидка, применяется в корзине при оформлении заказа.
 // "gift" — промо-подарок, активируется в личном кабинете (раздел «Промо-подарки»)
 // и сразу же выдаёт награду: пополнение баланса или бесплатный предмет из каталога.
-export type PromoCodeType = "discount" | "gift";
+export type PromoCodeType = "discount" | "gift" | "wheel";
 export type PromoGiftType = "balance" | "product";
 
 export interface PromoCode {
@@ -358,6 +359,21 @@ export interface PromoCode {
   usedBy: string[]; // uid пользователей, которые уже использовали этот код (каждый код — один раз на человека)
   active: boolean;
   expiresAt: number | null;
+  createdAt: number;
+}
+
+// ---- Колесо Фортуны ----
+export type WheelPrizeType = "product" | "balance" | "nothing";
+
+export interface WheelPrize {
+  id: string;
+  type: WheelPrizeType;
+  name: string; // название приза (для "nothing" — например "Пусто")
+  image?: string; // для товара — картинка из каталога
+  productId?: string; // только для type === "product"
+  balanceRub?: number; // только для type === "balance"
+  weight: number; // "вес" — шанс выпадения относительно других призов (не обязательно проценты)
+  remaining: number; // сколько раз ещё можно выиграть этот приз — при 0 приз пропадает из колеса
   createdAt: number;
 }
 

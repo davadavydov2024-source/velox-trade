@@ -11,7 +11,10 @@ export async function getAllPromoCodes(): Promise<PromoCode[]> {
 }
 
 export async function createPromoCode(data: Omit<PromoCode, "id" | "usedBy" | "createdAt">) {
-  return addDoc(promoCol, { ...data, code: data.code.trim().toUpperCase(), usedBy: [], createdAt: Date.now() });
+  // Firestore addDoc() падает с ошибкой, если хоть одно поле объекта — undefined (а не отсутствует).
+  // Чистим на всякий случай, независимо от того, что именно передал вызывающий код.
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  return addDoc(promoCol, { ...clean, code: data.code.trim().toUpperCase(), usedBy: [], createdAt: Date.now() });
 }
 
 export async function updatePromoCode(id: string, changes: Partial<PromoCode>) {
