@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Wallet, Package, Ban } from "lucide-react";
 import { getAllWheelPrizes, createWheelPrize, updateWheelPrize, deleteWheelPrize } from "@/lib/wheelPrizes";
 import { getProducts } from "@/lib/products";
+import { safeImageSrc } from "@/lib/safeImage";
 import { WheelPrize, WheelPrizeType, Product } from "@/types";
 import { useToast } from "@/lib/toastContext";
 
@@ -219,13 +220,20 @@ export default function AdminWheelPage() {
             const chance = totalWeight > 0 && !depleted ? ((p.weight / totalWeight) * 100).toFixed(1) : "0";
             return (
               <div key={p.id} className={`card p-4 flex items-center justify-between gap-4 ${depleted ? "opacity-40" : ""}`}>
-                <div>
-                  <p className="font-medium text-sm">
-                    {p.type === "balance" ? "💰" : p.type === "product" ? "🎁" : "🚫"} {p.name}
-                  </p>
-                  <p className="text-xs text-white/40">
-                    Остаток: {depleted ? "закончился, убран из колеса" : p.remaining} · Шанс: ~{chance}%
-                  </p>
+                <div className="flex items-center gap-3">
+                  {p.type === "product" && p.image ? (
+                    <img src={safeImageSrc(p.image)} alt={p.name} className="w-10 h-10 rounded-btn object-cover shrink-0" />
+                  ) : (
+                    <span className="w-10 h-10 rounded-btn bg-black/30 flex items-center justify-center text-lg shrink-0">
+                      {p.type === "balance" ? "💰" : "🚫"}
+                    </span>
+                  )}
+                  <div>
+                    <p className="font-medium text-sm">{p.name}</p>
+                    <p className="text-xs text-white/40">
+                      Остаток: {depleted ? "закончился, убран из колеса" : p.remaining} · Шанс: ~{chance}%
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <input

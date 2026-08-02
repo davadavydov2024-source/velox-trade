@@ -68,10 +68,15 @@ export async function POST(req: NextRequest) {
     }
 
     const prizeRef = db.collection("wheelPrizes").doc(chosen.id);
+    const productRef = chosen.type === "product" && chosen.productId ? db.collection("products").doc(chosen.productId) : null;
 
     const result = await db.runTransaction(async (tx) => {
+      // Firestore-транзакции требуют, чтобы ВСЕ чтения шли до ЛЮБЫХ записей — поэтому сначала
+      // читаем всё, что нужно (включая товар, если приз — товар), и только потом пишем.
       const freshPrizeSnap = await tx.get(prizeRef);
       const freshUserSnap = await tx.get(userRef);
+      const productSnap = productRef ? await tx.get(productRef) : null;
+
       if (!freshPrizeSnap.exists || (freshPrizeSnap.data()?.remaining ?? 0) <= 0) {
         throw new Error("prize-depleted");
       }
@@ -80,34 +85,31 @@ export async function POST(req: NextRequest) {
         throw new Error("cooldown");
       }
 
+      const userUpdates: Record<string, unknown> = { lastWheelSpinAt: Date.now() };
+      if (chosen.type === "balance" && chosen.balanceRub) {
+        userUpdates.balance = FieldValue.increment(chosen.balanceRub);
+      }
+
       tx.update(prizeRef, { remaining: FieldValue.increment(-1) });
-      tx.update(userRef, { lastWheelSpinAt: Date.now() });
+      tx.update(userRef, userUpdates);
       tx.update(promoDoc.ref, { usedBy: FieldValue.arrayUnion(uid) });
 
-      if (chosen.type === "balance" && chosen.balanceRub) {
-        tx.update(userRef, { balance: FieldValue.increment(chosen.balanceRub) });
+      if (productRef && productSnap?.exists && (productSnap.data()?.stock ?? 0) > 0) {
+        const product = productSnap.data() as { sellerId: string; name: string; price: number };
+        tx.update(productRef, { stock: FieldValue.increment(-1) });
+        const orderRef = db.collection("orders").doc();
+        tx.set(orderRef, {
+          userId: uid,
+          sellerId: product.sellerId,
+          items: [{ productId: chosen.productId, name: product.name, price: 0, quantity: 1 }],
+          total: 0,
+          status: "confirmed",
+          createdAt: Date.now(),
+          confirmedAt: Date.now(),
+        });
       }
 
-      if (chosen.type === "product" && chosen.productId) {
-        const productRef = db.collection("products").doc(chosen.productId);
-        const productSnap = await tx.get(productRef);
-        if (productSnap.exists && (productSnap.data()?.stock ?? 0) > 0) {
-          const product = productSnap.data() as { sellerId: string; name: string; price: number };
-          tx.update(productRef, { stock: FieldValue.increment(-1) });
-          const orderRef = db.collection("orders").doc();
-          tx.set(orderRef, {
-            userId: uid,
-            sellerId: product.sellerId,
-            items: [{ productId: chosen.productId, name: product.name, price: 0, quantity: 1 }],
-            total: 0,
-            status: "confirmed",
-            createdAt: Date.now(),
-            confirmedAt: Date.now(),
-          });
-        }
-      }
-
-      return { type: chosen.type, name: chosen.name, image: chosen.image, balanceRub: chosen.balanceRub };
+      return { id: chosen.id, type: chosen.type, name: chosen.name, image: chosen.image, balanceRub: chosen.balanceRub };
     });
 
     return NextResponse.json({ ok: true, prize: result });
