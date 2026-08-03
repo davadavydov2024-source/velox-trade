@@ -168,7 +168,7 @@ export interface UserSession {
 }
 
 export interface OrderChatMessage {
-  from: "buyer" | "seller" | "admin";
+  from: "buyer" | "seller" | "admin" | "system";
   text: string;
   createdAt: number;
 }
@@ -289,6 +289,7 @@ export interface Dispute {
   buyerName: string;
   sellerId: string;
   reason: string;
+  filedBy: "buyer" | "seller";
   status: "open" | "approved" | "rejected";
   createdAt: number;
   resolvedAt?: number;

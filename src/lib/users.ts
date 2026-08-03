@@ -11,8 +11,9 @@ import {
   addDoc,
   increment,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
+import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
 
 const usersCol = collection(db, "users");
@@ -136,6 +137,13 @@ export async function getOrdersForUser(userId: string): Promise<Order[]> {
   return orders.sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Продажи продавца — заказы, где он sellerId (для страницы «Мои продажи»). */
+export async function getOrdersForSeller(sellerId: string): Promise<Order[]> {
+  const snap = await getDocs(query(ordersCol, where("sellerId", "==", sellerId)));
+  const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+  return orders.sort((a, b) => b.createdAt - a.createdAt);
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   const snap = await getDocs(query(ordersCol, orderBy("createdAt", "desc")));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
@@ -148,8 +156,23 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 }
 
 /** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв. */
-export async function confirmOrderReceipt(orderId: string) {
-  return updateDoc(doc(db, "orders", orderId), { status: "confirmed", confirmedAt: Date.now() });
+export async function confirmOrderReceipt(order: Order, buyerName: string) {
+  await updateDoc(doc(db, "orders", order.id), { status: "confirmed", confirmedAt: Date.now() });
+  await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.`);
+  notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.total} ₽.`);
+}
+
+/** Продавец отменяет ещё не подтверждённый заказ — деньги возвращаются покупателю, товар возвращается на склад. */
+export async function cancelOrderBySeller(orderId: string, reason?: string): Promise<void> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Нужно войти в аккаунт");
+  const res = await fetch("/api/orders/seller-cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ orderId, reason }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось отменить заказ");
 }
 
 /**

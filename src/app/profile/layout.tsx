@@ -29,6 +29,7 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
     { href: "/profile/topup", label: t("profile_nav_topup"), icon: Wallet },
     { href: "/profile/sell", label: t("profile_nav_sell"), icon: Tag },
     { href: "/profile/my-products", label: t("my_products_title"), icon: Rocket },
+    { href: "/profile/sales", label: "Мои продажи", icon: ShoppingBag },
     { href: "/profile/promos", label: t("profile_nav_promos"), icon: Gift },
     { href: "/profile/wheel", label: "Колесо Фортуны", icon: Disc3 },
     { href: "/profile/favorites", label: t("profile_nav_favorites"), icon: Heart },

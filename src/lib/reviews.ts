@@ -1,6 +1,8 @@
 import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
 import { Review } from "@/types";
+import { sendOrderChatMessage } from "./orderChats";
+import { notifyTelegram } from "./telegramNotify";
 
 const reviewsCol = collection(db, "reviews");
 
@@ -20,6 +22,17 @@ export async function createReview(data: Omit<Review, "id" | "createdAt">) {
     ratingSum: increment(data.rating),
     ratingCount: increment(1),
   });
+
+  const order = orderSnap.data() as { userId: string; sellerId: string };
+  const stars = "⭐".repeat(data.rating);
+  await sendOrderChatMessage(
+    data.orderId,
+    order.userId,
+    order.sellerId,
+    "system",
+    `${stars} ${data.buyerName} оставил(а) отзыв${data.text ? `: «${data.text}»` : "."}`
+  );
+  notifyTelegram(data.sellerId, `${stars} Новый отзыв от покупателя${data.text ? `: «${data.text}»` : ""}`);
 }
 
 export async function getSellerReviews(sellerId: string): Promise<Review[]> {

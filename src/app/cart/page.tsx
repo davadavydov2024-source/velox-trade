@@ -59,41 +59,24 @@ export default function CartPage() {
     }
     setPlacing(true);
     try {
-      // Товары могут принадлежать разным продавцам — группируем по продавцу
-      // и создаём отдельный заказ на каждого, чтобы чат/подтверждение/отзыв были привязаны к конкретной сделке.
-      const bySeller = new Map<string, typeof lines>();
-      for (const line of lines) {
-        const sellerId = line.product.sellerId || "store";
-        const group = bySeller.get(sellerId) ?? [];
-        group.push(line);
-        bySeller.set(sellerId, group);
-      }
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/orders/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+          promoCode: appliedPromoId ? promo : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Не удалось оформить заказ");
 
-      const discountRatio = subtotal > 0 ? finalTotal / subtotal : 1;
-
-      for (const [sellerId, group] of bySeller) {
-        const groupSubtotal = group.reduce((sum, l) => sum + l.product.price * l.quantity, 0);
-        await createOrder({
-          userId: user.uid,
-          sellerId,
-          items: group.map((l) => ({ productId: l.product.id, name: l.product.name, price: l.product.price, quantity: l.quantity })),
-          total: +(groupSubtotal * discountRatio).toFixed(2),
-          status: "pending_confirmation",
-        });
-      }
-
-      await adjustUserBalance(user.uid, -finalTotal);
-      if (appliedPromoId) {
-        await markPromoCodeUsed(appliedPromoId, user.uid).catch(() => {
-          // Заказ уже оплачен — если пометить код использованным не удалось, не рушим оформление заказа.
-        });
-      }
       await refreshProfile();
       clear();
       toast("success", "Заказ оформлен! Подтверди получение предмета в истории заказов, когда получишь его.");
       router.push("/profile/orders");
-    } catch (e) {
-      toast("error", "Не удалось оформить заказ. Попробуйте снова.");
+    } catch (e: any) {
+      toast("error", e.message || "Не удалось оформить заказ. Попробуйте снова.");
     } finally {
       setPlacing(false);
     }

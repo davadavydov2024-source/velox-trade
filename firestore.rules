@@ -68,7 +68,8 @@ service cloud.firestore {
     // --- orders ---
     // Пользователь создаёт только свои заказы и видит только свои; админ видит и меняет всё.
     match /orders/{orderId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // Раньше продавец вообще не мог прочитать свои же продажи через сайт — только покупатель.
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sellerId == request.auth.uid));
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
       // Покупатель может: подтвердить получение, открыть спор, отметить что отзыв оставлен —
       // но не может менять сумму, состав заказа или чужие поля.
@@ -82,7 +83,15 @@ service cloud.firestore {
             (resource.data.status == "pending_confirmation" && request.resource.data.status == "confirmed") ||
             (resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed") ||
             (request.resource.data.status == resource.data.status && request.resource.data.reviewSubmitted == true)
-          ));
+          )) ||
+        // Продавец может открыть спор на покупателя, пока заказ ждёт подтверждения — отмена и
+        // возврат денег покупателю идут только через сервер (Admin SDK), не отсюда.
+        (isSignedIn() && resource.data.sellerId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.sellerId == resource.data.sellerId &&
+          request.resource.data.total == resource.data.total &&
+          request.resource.data.items == resource.data.items &&
+          resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed");
       allow delete: if isAdmin();
     }
 
@@ -273,8 +282,8 @@ service cloud.firestore {
 
     // --- жалобы на сделки ---
     match /disputes/{orderId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));
+      allow create: if isSignedIn() && (request.resource.data.buyerId == request.auth.uid || request.resource.data.sellerId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

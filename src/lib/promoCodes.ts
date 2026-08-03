@@ -1,7 +1,6 @@
 import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, arrayUnion } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { PromoCode } from "@/types";
-import { adjustUserBalance, createOrder } from "./users";
 
 const promoCol = collection(db, "promoCodes");
 
@@ -56,26 +55,20 @@ export async function validateDiscountCode(code: string, uid: string): Promise<P
   return promo;
 }
 
-/** Проверяет и сразу выдаёт промо-подарок (баланс или предмет), помечая код использованным. */
-export async function redeemGiftCode(code: string, uid: string): Promise<PromoCode> {
-  const promo = await findByCode(code);
-  if (!promo || promo.type !== "gift") throw new Error("Промокод не найден");
-  const err = checkUsable(promo, uid);
-  if (err) throw new Error(err);
-
-  if (promo.giftType === "balance" && promo.giftBalance) {
-    await adjustUserBalance(uid, promo.giftBalance);
-  } else if (promo.giftType === "product" && promo.giftProductId) {
-    await createOrder({
-      userId: uid,
-      sellerId: "store",
-      items: [{ productId: promo.giftProductId, name: promo.giftProductName ?? "Промо-подарок", price: 0, quantity: 1 }],
-      total: 0,
-      status: "confirmed",
-      confirmedAt: Date.now(),
-    });
-  }
-
-  await markPromoCodeUsed(promo.id, uid);
-  return promo;
+/**
+ * Проверяет и сразу выдаёт промо-подарок (баланс или предмет), помечая код использованным.
+ * Идёт через сервер (api/promo/redeem-gift), потому что обычный пользователь не может ни менять
+ * свой баланс напрямую (запрещают правила Firestore), ни списывать остаток чужого товара.
+ */
+export async function redeemGiftCode(code: string, uid: string): Promise<{ giftType: "balance" | "product"; giftBalance?: number; giftProductName?: string }> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Нужно войти в аккаунт");
+  const res = await fetch("/api/promo/redeem-gift", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ code }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось активировать промокод");
+  return data;
 }
