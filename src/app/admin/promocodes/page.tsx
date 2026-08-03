@@ -154,6 +154,7 @@ export default function AdminPromoCodesPage() {
       {showForm && (
         <form onSubmit={handleCreate} className="card p-5 space-y-4 max-w-xl">
           <input
+            autoComplete="off"
             required
             value={form.code}
             onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
@@ -195,6 +196,7 @@ export default function AdminPromoCodesPage() {
 
           {form.type === "discount" ? (
             <input
+            autoComplete="off"
               type="number"
               min={1}
               max={100}
@@ -223,6 +225,7 @@ export default function AdminPromoCodesPage() {
               </div>
               {form.giftType === "balance" ? (
                 <input
+            autoComplete="off"
                   type="number"
                   min={1}
                   value={form.giftBalance}
@@ -250,6 +253,7 @@ export default function AdminPromoCodesPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <input
+            autoComplete="off"
               type="number"
               min={1}
               value={form.maxUses}
@@ -258,6 +262,7 @@ export default function AdminPromoCodesPage() {
               className="input-field py-2.5 text-sm"
             />
             <input
+            autoComplete="off"
               type="date"
               value={form.expiresAt}
               onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
@@ -266,7 +271,8 @@ export default function AdminPromoCodesPage() {
           </div>
 
           <label className="flex items-center gap-2 text-sm text-white/70">
-            <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+            <input
+            autoComplete="off" type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
             Активен сразу после создания
           </label>
 

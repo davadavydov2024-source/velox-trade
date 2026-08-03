@@ -125,6 +125,7 @@ export default function AdminFeaturesPage() {
         </p>
         <div className="relative w-40">
           <input
+            autoComplete="off"
             type="number"
             min={0}
             max={100}
@@ -142,6 +143,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">Мин. цена товара, ₽ (создание в «Товары» и заявки на продажу)</p>
             <input
+            autoComplete="off"
               type="number"
               min={1}
               value={flags.minProductPriceRub}
@@ -152,6 +154,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">Мин. сумма пополнения баланса, ₽</p>
             <input
+            autoComplete="off"
               type="number"
               min={1}
               value={flags.minTopupAmountRub}
@@ -162,6 +165,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">Реферальный бонус, ₽ (получают оба — и пригласивший, и приглашённый)</p>
             <input
+            autoComplete="off"
               type="number"
               min={0}
               value={flags.referralBonusRub}
@@ -178,6 +182,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">Топ в игре — цена, ₽</p>
             <input
+            autoComplete="off"
               type="number"
               min={0}
               value={flags.boostGamePriceRub}
@@ -188,6 +193,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">Топ в игре — на сколько дней</p>
             <input
+            autoComplete="off"
               type="number"
               min={1}
               value={flags.boostGameDays}
@@ -198,6 +204,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">На главной — цена, ₽</p>
             <input
+            autoComplete="off"
               type="number"
               min={0}
               value={flags.boostHomePriceRub}
@@ -208,6 +215,7 @@ export default function AdminFeaturesPage() {
           <div>
             <p className="text-xs text-white/40 mb-1.5">На главной — на сколько дней</p>
             <input
+            autoComplete="off"
               type="number"
               min={1}
               value={flags.boostHomeDays}

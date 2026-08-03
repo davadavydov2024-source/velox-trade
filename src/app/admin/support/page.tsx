@@ -145,6 +145,7 @@ export default function AdminSupportPage() {
               {active.status !== "closed" && (
                 <form onSubmit={handleReply} className="flex gap-2">
                   <input
+            autoComplete="off"
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Ответить пользователю..."

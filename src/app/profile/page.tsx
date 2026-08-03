@@ -180,6 +180,7 @@ export default function ProfilePage() {
         <div>
           <label className="text-xs text-white/40 mb-1 block">Ник</label>
           <input
+            autoComplete="off"
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={nameCooldown > 0}
@@ -195,6 +196,7 @@ export default function ProfilePage() {
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">@</span>
             <input
+            autoComplete="off"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase())}
               placeholder="my_nickname"

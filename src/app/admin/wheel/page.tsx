@@ -141,6 +141,7 @@ export default function AdminWheelPage() {
 
           {form.type === "balance" && (
             <input
+            autoComplete="off"
               type="number"
               min={1}
               value={form.balanceRub}
@@ -168,6 +169,7 @@ export default function AdminWheelPage() {
 
           {form.type === "nothing" && (
             <input
+            autoComplete="off"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Текст приза (например «Пусто» или «Повезёт в следующий раз»)"
@@ -179,6 +181,7 @@ export default function AdminWheelPage() {
             <div>
               <p className="text-xs text-white/40 mb-1">Вес (шанс)</p>
               <input
+            autoComplete="off"
                 type="number"
                 min={1}
                 value={form.weight}
@@ -191,6 +194,7 @@ export default function AdminWheelPage() {
                 {form.type === "product" ? "Сколько раз можно выиграть (по умолч. = остаток на складе)" : "Сколько раз можно выиграть"}
               </p>
               <input
+            autoComplete="off"
                 type="number"
                 min={0}
                 value={form.remaining}
@@ -237,6 +241,7 @@ export default function AdminWheelPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <input
+            autoComplete="off"
                     type="number"
                     min={1}
                     defaultValue={p.weight}

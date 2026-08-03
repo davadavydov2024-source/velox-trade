@@ -105,6 +105,7 @@ export default function AdminProductsPage() {
       {showForm && (
         <form onSubmit={handleSave} className="card p-5 grid sm:grid-cols-2 gap-4">
           <input
+            autoComplete="off"
             required
             placeholder="Название"
             value={form.name}
@@ -112,6 +113,7 @@ export default function AdminProductsPage() {
             className="input-field py-2.5"
           />
           <input
+            autoComplete="off"
             required
             placeholder="ID игры (slug, напр. adopt-me)"
             value={form.gameId}
@@ -119,6 +121,7 @@ export default function AdminProductsPage() {
             className="input-field py-2.5"
           />
           <input
+            autoComplete="off"
             required
             placeholder='UID продавца (оставь "store" для товаров магазина)'
             value={form.sellerId}
@@ -136,6 +139,7 @@ export default function AdminProductsPage() {
             rows={2}
           />
           <input
+            autoComplete="off"
             required
             type="number"
             min={minPrice}
@@ -145,6 +149,7 @@ export default function AdminProductsPage() {
             className="input-field py-2.5"
           />
           <input
+            autoComplete="off"
             required
             type="number"
             placeholder="Остаток"
@@ -165,6 +170,7 @@ export default function AdminProductsPage() {
           </select>
           <label className="flex items-center gap-2 text-sm text-white/70">
             <input
+            autoComplete="off"
               type="checkbox"
               checked={!!form.isNew}
               onChange={(e) => setForm({ ...form, isNew: e.target.checked })}

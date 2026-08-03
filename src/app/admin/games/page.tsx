@@ -89,6 +89,7 @@ export default function AdminGamesPage() {
       {showForm && (
         <form onSubmit={handleSave} className="card p-5 grid sm:grid-cols-2 gap-4">
           <input
+            autoComplete="off"
             required
             placeholder="Название (напр. Adopt Me)"
             value={form.name}
@@ -96,6 +97,7 @@ export default function AdminGamesPage() {
             className="input-field py-2.5"
           />
           <input
+            autoComplete="off"
             required
             placeholder="Slug (напр. adopt-me)"
             value={form.slug}

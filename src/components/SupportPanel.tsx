@@ -150,6 +150,7 @@ export function SupportPanel() {
             {showNewForm && (
               <form onSubmit={handleCreateTicket} className="card p-5 space-y-3 mb-4">
                 <input
+            autoComplete="off"
                   required
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
@@ -205,6 +206,7 @@ export function SupportPanel() {
                 {activeTicket.status !== "closed" && (
                   <form onSubmit={handleReply} className="flex gap-2">
                     <input
+            autoComplete="off"
                       value={reply}
                       onChange={(e) => setReply(e.target.value)}
                       placeholder="Написать сообщение..."

@@ -166,6 +166,7 @@ function ProductBoostCard({
         <div className="mt-3 rounded-btn border border-border p-3 space-y-2.5">
           <ImageUploadField value={editForm.image} onChange={(url) => setEditForm((f) => ({ ...f, image: url }))} folder="products" label="Фото" size={64} />
           <input
+            autoComplete="off"
             value={editForm.name}
             onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Название"
@@ -178,6 +179,7 @@ function ProductBoostCard({
             className="input-field py-2 text-sm w-full min-h-[70px]"
           />
           <input
+            autoComplete="off"
             type="number"
             min={1}
             value={editForm.price || ""}

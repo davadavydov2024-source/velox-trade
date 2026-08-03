@@ -59,6 +59,7 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
           <div>
             <p className="text-xs text-white/40 mb-1">Масштаб</p>
             <input
+            autoComplete="off"
               type="range"
               min={1}
               max={3}

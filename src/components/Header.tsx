@@ -54,6 +54,7 @@ export function Header() {
         >
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
           <input
+            autoComplete="off"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск предметов..."

@@ -149,6 +149,7 @@ function SupportTab() {
               {active.status !== "closed" && (
                 <form onSubmit={handleReply} className="flex gap-2">
                   <input
+            autoComplete="off"
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Ответить пользователю..."
@@ -255,12 +256,14 @@ function NewsTab() {
             {buttons.map((b, i) => (
               <div key={i} className="flex gap-2">
                 <input
+            autoComplete="off"
                   value={b.text}
                   onChange={(e) => updateButton(i, { text: e.target.value })}
                   placeholder="Текст кнопки"
                   className="input-field py-2 text-sm flex-1"
                 />
                 <input
+            autoComplete="off"
                   value={b.link}
                   onChange={(e) => updateButton(i, { link: e.target.value })}
                   placeholder="https://..."

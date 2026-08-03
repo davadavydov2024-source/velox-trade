@@ -72,6 +72,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
 
       <form onSubmit={handleSend} className="flex gap-2">
         <input
+            autoComplete="off"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Написать сообщение..."

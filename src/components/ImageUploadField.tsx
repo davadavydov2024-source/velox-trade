@@ -89,6 +89,7 @@ export function ImageUploadField({
         </div>
         <div className="flex-1 space-y-2">
           <input
+            autoComplete="off"
             ref={inputRef}
             type="file"
             accept="image/*"

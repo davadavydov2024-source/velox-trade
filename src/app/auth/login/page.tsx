@@ -180,6 +180,7 @@ function LoginInner() {
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Email"
@@ -191,6 +192,7 @@ function LoginInner() {
                 <input
                   type="password"
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Пароль"
@@ -243,6 +245,7 @@ function LoginInner() {
                   <input
                     type="email"
                     required
+                    autoComplete="email"
                     value={tgEmail}
                     onChange={(e) => setTgEmail(e.target.value)}
                     placeholder="Email аккаунта"
@@ -257,6 +260,7 @@ function LoginInner() {
               <form onSubmit={handleVerifyCode} className="space-y-4">
                 <input
                   required
+                  autoComplete="one-time-code"
                   value={tgCode}
                   onChange={(e) => setTgCode(e.target.value)}
                   placeholder="Код из Telegram (6 цифр)"

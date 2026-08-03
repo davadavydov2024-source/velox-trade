@@ -176,6 +176,7 @@ export default function SellPage() {
         </div>
 
         <input
+            autoComplete="off"
           required
           value={itemName}
           onChange={(e) => setItemName(e.target.value)}
@@ -187,6 +188,7 @@ export default function SellPage() {
           <div>
             <p className="text-sm font-medium mb-2">Количество</p>
             <input
+            autoComplete="off"
               required
               type="number"
               min={1}
@@ -219,6 +221,7 @@ export default function SellPage() {
 
         <div>
           <input
+            autoComplete="off"
             required
             type="number"
             min={minSellPrice}

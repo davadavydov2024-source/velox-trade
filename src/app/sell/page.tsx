@@ -34,6 +34,7 @@ export default function SellPage() {
       </p>
       <form onSubmit={handleSubmit} className="card p-6 space-y-4">
         <input
+            autoComplete="off"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -41,6 +42,7 @@ export default function SellPage() {
           className="input-field py-2.5"
         />
         <input
+            autoComplete="off"
           required
           value={game}
           onChange={(e) => setGame(e.target.value)}
@@ -48,6 +50,7 @@ export default function SellPage() {
           className="input-field py-2.5"
         />
         <input
+            autoComplete="off"
           required
           type="number"
           value={price}

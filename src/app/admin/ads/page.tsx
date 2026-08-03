@@ -258,12 +258,14 @@ export default function AdminAdsPage() {
           />
           <div className="grid grid-cols-2 gap-3">
             <input
+            autoComplete="off"
               value={tgButtonText}
               onChange={(e) => setTgButtonText(e.target.value)}
               placeholder="Текст кнопки (необязательно)"
               className="input-field py-2.5"
             />
             <input
+            autoComplete="off"
               value={tgButtonLink}
               onChange={(e) => setTgButtonLink(e.target.value)}
               placeholder="Ссылка кнопки"
@@ -297,6 +299,7 @@ export default function AdminAdsPage() {
               консоль браузера (F12 → Console), там EmailJS покажет точную причину.
             </p>
             <input
+            autoComplete="off"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Заголовок"
@@ -311,12 +314,14 @@ export default function AdminAdsPage() {
             />
             <div className="grid grid-cols-2 gap-3">
               <input
+            autoComplete="off"
                 value={buttonText}
                 onChange={(e) => setButtonText(e.target.value)}
                 placeholder="Текст кнопки (необязательно)"
                 className="input-field py-2.5"
               />
               <input
+            autoComplete="off"
                 value={buttonLink}
                 onChange={(e) => setButtonLink(e.target.value)}
                 placeholder="Ссылка кнопки"
@@ -341,6 +346,7 @@ export default function AdminAdsPage() {
           {showForm && (
             <form onSubmit={handleSaveAd} className="card p-5 grid sm:grid-cols-2 gap-4">
               <input
+            autoComplete="off"
                 required
                 placeholder="Заголовок"
                 value={form.title}
@@ -360,6 +366,7 @@ export default function AdminAdsPage() {
               <div className="flex items-center gap-2">
                 <label className="text-xs text-white/40 shrink-0">Цвет</label>
                 <input
+            autoComplete="off"
                   type="color"
                   value={form.color}
                   onChange={(e) => setForm({ ...form, color: e.target.value })}
@@ -367,6 +374,7 @@ export default function AdminAdsPage() {
                 />
               </div>
               <input
+            autoComplete="off"
                 type="number"
                 placeholder="Приоритет (чем выше — тем выше в списке)"
                 value={form.priority}
@@ -374,18 +382,21 @@ export default function AdminAdsPage() {
                 className="input-field py-2.5"
               />
               <input
+            autoComplete="off"
                 placeholder="Текст кнопки"
                 value={form.buttonText}
                 onChange={(e) => setForm({ ...form, buttonText: e.target.value })}
                 className="input-field py-2.5"
               />
               <input
+            autoComplete="off"
                 placeholder="Ссылка кнопки"
                 value={form.buttonLink}
                 onChange={(e) => setForm({ ...form, buttonLink: e.target.value })}
                 className="input-field py-2.5"
               />
               <input
+            autoComplete="off"
                 type="date"
                 value={form.endsAt ? new Date(form.endsAt).toISOString().slice(0, 10) : ""}
                 onChange={(e) => setForm({ ...form, endsAt: e.target.value ? new Date(e.target.value).getTime() : null })}
@@ -393,6 +404,7 @@ export default function AdminAdsPage() {
               />
               <label className="flex items-center gap-2 text-sm text-white/70">
                 <input
+            autoComplete="off"
                   type="checkbox"
                   checked={form.active}
                   onChange={(e) => setForm({ ...form, active: e.target.checked })}

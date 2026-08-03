@@ -211,6 +211,7 @@ function SaleCard({ order }: { order: Order }) {
 
               <form onSubmit={handleSendChat} className="flex gap-2">
                 <input
+            autoComplete="off"
                   value={chatText}
                   onChange={(e) => setChatText(e.target.value)}
                   placeholder="Написать сообщение..."

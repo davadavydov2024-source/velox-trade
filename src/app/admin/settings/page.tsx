@@ -59,19 +59,22 @@ export default function AdminSettingsPage() {
       <div className="card p-5 space-y-5">
         <div>
           <label className="text-sm font-medium mb-2 block">Название сайта</label>
-          <input value={siteName} onChange={(e) => setSiteName(e.target.value)} className="input-field py-2.5" />
+          <input
+            autoComplete="off" value={siteName} onChange={(e) => setSiteName(e.target.value)} className="input-field py-2.5" />
         </div>
 
         <div>
           <label className="text-sm font-medium mb-2 block">Основной цвет (акцент)</label>
           <div className="flex items-center gap-3 mb-3">
             <input
+            autoComplete="off"
               type="color"
               value={settings.primaryColor}
               onChange={(e) => applyPreview({ primaryColor: e.target.value })}
               className="h-11 w-16 rounded-btn bg-surface border border-border cursor-pointer"
             />
             <input
+            autoComplete="off"
               value={settings.primaryColor}
               onChange={(e) => applyPreview({ primaryColor: e.target.value })}
               className="input-field py-2.5 font-mono text-sm"
@@ -93,12 +96,14 @@ export default function AdminSettingsPage() {
           <label className="text-sm font-medium mb-2 block">Дополнительный оттенок (светлее)</label>
           <div className="flex items-center gap-3">
             <input
+            autoComplete="off"
               type="color"
               value={settings.secondaryColor}
               onChange={(e) => applyPreview({ secondaryColor: e.target.value })}
               className="h-11 w-16 rounded-btn bg-surface border border-border cursor-pointer"
             />
             <input
+            autoComplete="off"
               value={settings.secondaryColor}
               onChange={(e) => applyPreview({ secondaryColor: e.target.value })}
               className="input-field py-2.5 font-mono text-sm"
@@ -110,12 +115,14 @@ export default function AdminSettingsPage() {
           <label className="text-sm font-medium mb-2 block">Цвет фона</label>
           <div className="flex items-center gap-3">
             <input
+            autoComplete="off"
               type="color"
               value={settings.bgColor}
               onChange={(e) => applyPreview({ bgColor: e.target.value })}
               className="h-11 w-16 rounded-btn bg-surface border border-border cursor-pointer"
             />
             <input
+            autoComplete="off"
               value={settings.bgColor}
               onChange={(e) => applyPreview({ bgColor: e.target.value })}
               className="input-field py-2.5 font-mono text-sm"

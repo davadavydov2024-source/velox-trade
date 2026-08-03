@@ -90,6 +90,7 @@ export default function PromoGiftsPage() {
         </div>
         <div className="flex gap-2">
           <input
+            autoComplete="off"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             placeholder="Промокод"
@@ -115,7 +116,8 @@ export default function PromoGiftsPage() {
           </p>
           {referralLink ? (
             <div className="flex gap-2">
-              <input readOnly value={referralLink} className="input-field py-2.5 text-sm flex-1" />
+              <input
+            autoComplete="off" readOnly value={referralLink} className="input-field py-2.5 text-sm flex-1" />
               <button onClick={copyReferralLink} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-1.5 shrink-0">
                 <Copy size={14} /> Скопировать
               </button>

@@ -264,6 +264,7 @@ function TopUpPageInner() {
                   <div>
                     <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽ (минимум 100)</label>
                     <input
+            autoComplete="off"
                       type="number"
                       min={minTopup}
                       value={depositAmount}
@@ -351,6 +352,7 @@ function TopUpPageInner() {
                   <div>
                     <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽</label>
                     <input
+            autoComplete="off"
                       type="number"
                       min={1}
                       value={withdrawAmount}
@@ -387,6 +389,7 @@ function TopUpPageInner() {
                   <div>
                     <label className="text-xs text-white/40 mb-1.5 block">Комментарий (необязательно)</label>
                     <input
+            autoComplete="off"
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Например, свой ник на Playerok"

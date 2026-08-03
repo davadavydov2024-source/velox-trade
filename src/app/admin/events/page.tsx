@@ -131,12 +131,14 @@ export default function AdminEventsPage() {
         <form onSubmit={handleCreate} className="card p-5 space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <input
+            autoComplete="off"
               placeholder="Название (например Зима)"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="input-field py-2.5"
             />
             <input
+            autoComplete="off"
               type="number"
               min={0}
               placeholder="Бонус на баланс, ₽"
@@ -157,7 +159,8 @@ export default function AdminEventsPage() {
             ))}
           </select>
           <label className="flex items-center gap-2 text-sm text-white/60">
-            <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+            <input
+            autoComplete="off" type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
             Сделать активным сразу
           </label>
           <div className="flex gap-2">

@@ -65,6 +65,7 @@ function CatalogInner() {
           <div>
             <label className="text-xs text-white/40 mb-2 block">Поиск</label>
             <input
+            autoComplete="off"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Название предмета..."
@@ -111,7 +112,8 @@ function CatalogInner() {
           </div>
 
           <label className="flex items-center gap-2 text-sm text-white/70">
-            <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
+            <input
+            autoComplete="off" type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
             Только в наличии
           </label>
         </aside>

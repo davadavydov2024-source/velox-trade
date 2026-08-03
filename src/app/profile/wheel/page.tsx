@@ -216,6 +216,7 @@ export default function WheelPage() {
 
       <form onSubmit={handleSpin} className="flex gap-2">
         <input
+            autoComplete="off"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="Промокод колеса"

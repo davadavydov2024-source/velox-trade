@@ -206,6 +206,7 @@ function RegisterInner() {
               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
               <input
                 required
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={t("auth_name_placeholder")}
@@ -217,6 +218,7 @@ function RegisterInner() {
               <input
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t("auth_email_placeholder")}
@@ -228,6 +230,7 @@ function RegisterInner() {
               <input
                 type="password"
                 required
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("auth_password_placeholder")}
@@ -282,6 +285,7 @@ function RegisterInner() {
               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
               <input
                 required
+                autoComplete="name"
                 value={tgName}
                 onChange={(e) => setTgName(e.target.value)}
                 placeholder="Имя пользователя"
@@ -293,6 +297,7 @@ function RegisterInner() {
               <input
                 type="email"
                 required
+                autoComplete="email"
                 value={tgEmail}
                 onChange={(e) => setTgEmail(e.target.value)}
                 placeholder="Email"
