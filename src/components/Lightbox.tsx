@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { X } from "lucide-react";
 
@@ -13,7 +14,7 @@ export function Lightbox({ src, alt, onClose }: { src: string; alt: string; onCl
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 cursor-zoom-out"
       onClick={onClose}
@@ -24,6 +25,7 @@ export function Lightbox({ src, alt, onClose }: { src: string; alt: string; onCl
       <div className="relative w-full h-full max-w-4xl">
         <Image src={src} alt={alt} fill className="object-contain" sizes="100vw" />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

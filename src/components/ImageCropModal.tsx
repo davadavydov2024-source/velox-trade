@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import Cropper, { Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import { X, Check } from "lucide-react";
@@ -34,7 +35,7 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
       <div className="bg-surface w-full max-w-lg rounded-xl overflow-hidden flex flex-col" style={{ maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -60,7 +61,7 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
           <div>
             <p className="text-xs text-white/40 mb-1">Масштаб</p>
             <input
-            autoComplete="off"
+              autoComplete="off"
               type="range"
               min={1}
               max={3}
@@ -84,6 +85,7 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
