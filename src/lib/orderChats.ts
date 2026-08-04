@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import { OrderChat, OrderChatMessage } from "@/types";
+import { notifyTelegram } from "./telegramNotify";
 
 function chatRef(orderId: string) {
   return doc(db, "orderChats", orderId);
@@ -40,5 +41,18 @@ export async function sendOrderChatMessage(
     await setDoc(ref, { orderId, buyerId, sellerId, messages: [message], updatedAt: Date.now() });
   } else {
     await updateDoc(ref, { messages: arrayUnion(message), updatedAt: Date.now() });
+  }
+
+  // Уведомляем в Telegram того, кому адресовано сообщение (если у него привязан бот) —
+  // только для настоящих реплик участников, автоматические системные записи (подтверждение
+  // получения, открытие спора и т.п.) уведомлений не шлют, чтобы не спамить.
+  const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  if (from === "buyer") {
+    notifyTelegram(sellerId, `💬 Новое сообщение по заказу от покупателя:\n${preview}`);
+  } else if (from === "seller") {
+    notifyTelegram(buyerId, `💬 Новое сообщение по заказу от продавца:\n${preview}`);
+  } else if (from === "admin") {
+    notifyTelegram(buyerId, `💬 Администратор написал в чате по заказу:\n${preview}`);
+    notifyTelegram(sellerId, `💬 Администратор написал в чате по заказу:\n${preview}`);
   }
 }

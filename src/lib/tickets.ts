@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { SupportTicket, TicketMessage } from "@/types";
-import { notifyAdminTelegram } from "./telegramNotify";
+import { notifyAdminTelegram, notifyTelegram } from "./telegramNotify";
 
 const ticketsCol = collection(db, "tickets");
 
@@ -60,11 +60,26 @@ export async function getTicket(id: string): Promise<SupportTicket | null> {
 
 export async function addTicketMessage(id: string, from: "user" | "admin", text: string) {
   const message: TicketMessage = { from, text, createdAt: Date.now() };
-  return updateDoc(doc(db, "tickets", id), {
+  const ticketSnap = await getDoc(doc(db, "tickets", id));
+  const ticket = ticketSnap.exists() ? (ticketSnap.data() as SupportTicket) : null;
+
+  const result = await updateDoc(doc(db, "tickets", id), {
     messages: arrayUnion(message),
     updatedAt: Date.now(),
     status: from === "admin" ? "answered" : "open",
   });
+
+  // Уведомляем в Telegram того, кому адресована реплика (если у него привязан бот).
+  if (ticket) {
+    const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+    if (from === "admin") {
+      notifyTelegram(ticket.userId, `💬 Ответ в поддержке по обращению «${ticket.subject}»:\n${preview}`);
+    } else {
+      notifyAdminTelegram(`💬 Новое сообщение в поддержке от ${ticket.userName} по «${ticket.subject}»: ${preview}`);
+    }
+  }
+
+  return result;
 }
 
 export async function setTicketStatus(id: string, status: SupportTicket["status"]) {
