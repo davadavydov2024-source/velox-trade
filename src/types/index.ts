@@ -226,6 +226,19 @@ export interface Ad {
   createdAt: number;
 }
 
+export interface AppNotification {
+  id: string;
+  title: string;
+  text: string;
+  category: "trade" | "transactions" | "general";
+  color: string;
+  pinned: boolean;
+  active: boolean;
+  buttonText: string;
+  buttonLink: string;
+  createdAt: number;
+}
+
 export interface TicketMessage {
   from: "user" | "admin";
   text: string;

@@ -126,6 +126,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // --- промокоды ---
     // Читать может кто угодно (нужно, чтобы найти документ по полю "code" ещё до применения кода).
     // Создавать/удалять/менять условия — только админ. Единственное исключение для обычного пользователя:

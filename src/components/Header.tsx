@@ -6,6 +6,7 @@ import { Search, ShoppingCart, Wallet, User as UserIcon, Menu, X, Swords } from 
 import { useCart } from "@/lib/cartStore";
 import { useAuth } from "@/lib/authContext";
 import { useLanguage } from "@/lib/languageStore";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function Header() {
   const cartCount = useCart((s) => s.count());
@@ -77,6 +78,7 @@ export function Header() {
               </span>
             )}
           </Link>
+          <NotificationBell />
           {user ? (
             <Link href="/profile" className="btn-secondary py-2 px-3">
               <UserIcon size={18} />
