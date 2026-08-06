@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 
 export const runtime = "nodejs";
 
@@ -128,6 +129,14 @@ export async function POST(req: NextRequest) {
       }
       return ids;
     });
+
+    // Уведомляем каждого продавца о покупке — прямо с сервера, долетит в Telegram
+    // независимо от того, закрыл ли покупатель вкладку сразу после оплаты.
+    for (const [sellerId, items] of bySeller) {
+      if (sellerId === "store") continue; // товары самого магазина — уведомлять некого
+      const list = items.map((it) => `«${it.name}» × ${it.quantity}`).join(", ");
+      notifyTelegramServer(sellerId, `🛒 У вас купили: ${list}`);
+    }
 
     return NextResponse.json({ ok: true, orderIds });
   } catch (err: any) {

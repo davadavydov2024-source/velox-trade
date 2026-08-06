@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 
 export const runtime = "nodejs";
 
@@ -70,6 +71,9 @@ export async function POST(req: NextRequest) {
     const prizeRef = db.collection("wheelPrizes").doc(chosen.id);
     const productRef = chosen.type === "product" && chosen.productId ? db.collection("products").doc(chosen.productId) : null;
 
+    let wonSellerId: string | null = null;
+    let wonProductName = "";
+
     const result = await db.runTransaction(async (tx) => {
       // Firestore-транзакции требуют, чтобы ВСЕ чтения шли до ЛЮБЫХ записей — поэтому сначала
       // читаем всё, что нужно (включая товар, если приз — товар), и только потом пишем.
@@ -107,10 +111,18 @@ export async function POST(req: NextRequest) {
           createdAt: Date.now(),
           confirmedAt: Date.now(),
         });
+        wonSellerId = product.sellerId;
+        wonProductName = product.name;
       }
 
       return { id: chosen.id, type: chosen.type, name: chosen.name, image: chosen.image, balanceRub: chosen.balanceRub };
     });
+
+    // Уведомляем владельца товара, что его вещь выиграли на колесе — с сервера, уже после
+    // того, как транзакция реально прошла, и независимо от того, закрыл ли вкладку тот, кто крутил.
+    if (wonSellerId && wonSellerId !== "store") {
+      notifyTelegramServer(wonSellerId, `🎡 Ваш товар «${wonProductName}» выиграли на колесе фортуны`);
+    }
 
     return NextResponse.json({ ok: true, prize: result });
   } catch (err: any) {

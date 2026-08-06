@@ -45,7 +45,7 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
           </button>
         </div>
 
-        <div className="relative w-full bg-black" style={{ height: 360 }}>
+        <div className="relative w-full bg-black" style={{ height: "min(360px, 45vh)" }}>
           <Cropper
             image={imageSrc}
             crop={crop}

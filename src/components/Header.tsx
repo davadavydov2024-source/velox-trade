@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, ShoppingCart, Wallet, User as UserIcon, Menu, X, Swords } from "lucide-react";
 import { useCart } from "@/lib/cartStore";
 import { useAuth } from "@/lib/authContext";
@@ -14,11 +14,16 @@ export function Header() {
   const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
   // Корзина читается из localStorage, которого нет на сервере — поэтому первая отрисовка
   // на сервере и в браузере отличается. Показываем бейдж только после монтирования на клиенте,
   // чтобы избежать ошибки гидратации Next.js.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (mobileSearchOpen) mobileSearchRef.current?.focus();
+  }, [mobileSearchOpen]);
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-border">
@@ -70,6 +75,13 @@ export function Header() {
               {profile.balance.toLocaleString("ru-RU")} ₽
             </Link>
           )}
+          <button
+            className="md:hidden btn-secondary py-2 px-3"
+            onClick={() => setMobileSearchOpen((v) => !v)}
+            aria-label="Поиск"
+          >
+            {mobileSearchOpen ? <X size={18} /> : <Search size={18} />}
+          </button>
           <Link href="/cart" className="relative btn-secondary py-2 px-3">
             <ShoppingCart size={18} />
             {mounted && cartCount > 0 && (
@@ -93,6 +105,27 @@ export function Header() {
           </button>
         </div>
       </div>
+
+      {mobileSearchOpen && (
+        <form
+          action="/catalog"
+          className="md:hidden px-4 pb-3 relative"
+          onSubmit={(e) => {
+            e.preventDefault();
+            window.location.href = `/catalog?q=${encodeURIComponent(search)}`;
+          }}
+        >
+          <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-white/30" size={18} />
+          <input
+            ref={mobileSearchRef}
+            autoComplete="off"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск предметов..."
+            className="input-field pl-10 py-2.5 w-full"
+          />
+        </form>
+      )}
 
       {menuOpen && (
         <nav className="lg:hidden flex flex-col gap-1 px-4 pb-4 text-sm text-white/80">
