@@ -75,7 +75,7 @@ export default function HomePage() {
           <Link href="/catalog" className="btn-primary flex-1 py-3 text-sm text-center">
             Начать покупки
           </Link>
-          <Link href="/sell" className="btn-secondary flex-1 py-3 text-sm text-center">
+          <Link href="/profile/sell" className="btn-secondary flex-1 py-3 text-sm text-center">
             Продать предмет
           </Link>
         </div>

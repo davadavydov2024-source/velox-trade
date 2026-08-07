@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Search, ShoppingCart, Wallet, User as UserIcon, Menu, X, Swords } from "lucide-react";
 import { useCart } from "@/lib/cartStore";
@@ -12,6 +13,7 @@ export function Header() {
   const cartCount = useCart((s) => s.count());
   const { user, profile } = useAuth();
   const { t } = useLanguage();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -24,6 +26,12 @@ export function Header() {
   useEffect(() => {
     if (mobileSearchOpen) mobileSearchRef.current?.focus();
   }, [mobileSearchOpen]);
+  // Шапка не перемонтируется при переходах между страницами (живёт в корневом layout),
+  // поэтому без этого открытый поиск/мобильное меню "прилипали" на следующей странице.
+  useEffect(() => {
+    setMobileSearchOpen(false);
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-border">
@@ -92,11 +100,11 @@ export function Header() {
           </Link>
           <NotificationBell />
           {user ? (
-            <Link href="/profile" className="btn-secondary py-2 px-3">
+            <Link href="/profile" className="hidden lg:flex btn-secondary py-2 px-3">
               <UserIcon size={18} />
             </Link>
           ) : (
-            <Link href="/auth/login" className="btn-primary py-2 px-4 text-sm">
+            <Link href="/auth/login" className="hidden lg:flex btn-primary py-2 px-4 text-sm">
               {t("nav_login")}
             </Link>
           )}
@@ -132,14 +140,8 @@ export function Header() {
           <Link href="/games" className="py-2" onClick={() => setMenuOpen(false)}>
             {t("nav_games")}
           </Link>
-          <Link href="/catalog" className="py-2" onClick={() => setMenuOpen(false)}>
-            {t("nav_catalog")}
-          </Link>
           <Link href="/catalog?new=1" className="py-2" onClick={() => setMenuOpen(false)}>
             {t("nav_new")}
-          </Link>
-          <Link href="/chats" className="py-2" onClick={() => setMenuOpen(false)}>
-            {t("nav_chats")}
           </Link>
         </nav>
       )}

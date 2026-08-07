@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/authContext";
 
 const TABS = [
   { href: "/catalog", label: "Каталог", icon: LayoutGrid },
-  { href: "/sell", label: "Продать", icon: Plus },
+  { href: "/profile/sell", label: "Продать", icon: Plus },
   { href: "/chats", label: "Чаты", icon: MessageSquare },
 ];
 
@@ -22,6 +22,10 @@ export function MobileTabBar() {
     : { href: "/auth/login", label: "Войти", icon: UserIcon };
 
   const tabs = [...TABS, profileTab];
+  const activeHref = tabs
+    .map((t) => t.href)
+    .filter((href) => pathname === href || pathname.startsWith(href + "/"))
+    .sort((a, b) => b.length - a.length)[0];
 
   return (
     <nav
@@ -29,7 +33,7 @@ export function MobileTabBar() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {tabs.map((tab) => {
-        const active = pathname === tab.href || (tab.href !== "/" && pathname.startsWith(tab.href));
+        const active = tab.href === activeHref;
         const Icon = tab.icon;
         return (
           <Link
