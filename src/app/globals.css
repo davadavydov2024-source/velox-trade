@@ -18,6 +18,14 @@ body {
   color: #f5f6f8;
 }
 
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 * {
   scrollbar-color: #ff9800 #151922;
 }

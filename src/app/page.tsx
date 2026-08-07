@@ -29,8 +29,60 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border">
+      {/* Mobile hero — компактный, с реальными данными вместо статичного лого */}
+      <section className="lg:hidden border-b border-border px-4 pt-4 pb-6 space-y-4">
+        <div>
+          <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-3">
+            <Sparkles size={13} /> №1 маркетплейс игровых предметов
+          </span>
+          <h1 className="text-2xl font-extrabold leading-tight mb-1.5 tracking-tight">Лучший магазин игровых предметов</h1>
+          <p className="text-white/50 text-sm">Roblox-предметы быстро, безопасно и по честным ценам</p>
+        </div>
+
+        <Link
+          href="/profile/wheel"
+          className="block rounded-2xl p-4 relative overflow-hidden"
+          style={{ background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))" }}
+        >
+          <p className="text-black/60 text-[11px] font-semibold mb-1">Колесо фортуны</p>
+          <p className="text-black font-bold text-base">Крути и выигрывай предметы</p>
+        </Link>
+
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-sm font-semibold text-white/70">Игры</p>
+            <Link href="/games" className="text-accent text-xs">
+              Все игры →
+            </Link>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
+            {(loaded ? games.slice(0, 8) : Array.from({ length: 5 })).map((game, i) =>
+              loaded && game ? (
+                <Link key={(game as Game).id} href={`/catalog?game=${(game as Game).slug}`} className="flex-none flex flex-col items-center gap-1.5 w-14">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/30 ring-1 ring-white/5">
+                    <Image src={safeImageSrc((game as Game).image)} alt={(game as Game).name} fill className="object-cover" sizes="48px" />
+                  </div>
+                  <span className="text-[10px] text-center text-white/60 leading-tight truncate w-full">{(game as Game).name}</span>
+                </Link>
+              ) : (
+                <div key={i} className="flex-none w-12 h-12 rounded-xl bg-white/5 animate-pulse" />
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2.5">
+          <Link href="/catalog" className="btn-primary flex-1 py-3 text-sm text-center">
+            Начать покупки
+          </Link>
+          <Link href="/sell" className="btn-secondary flex-1 py-3 text-sm text-center">
+            Продать предмет
+          </Link>
+        </div>
+      </section>
+
+      {/* Hero (десктоп) */}
+      <section className="hidden lg:block relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-28 grid md:grid-cols-2 gap-12 items-center relative">
           <div>

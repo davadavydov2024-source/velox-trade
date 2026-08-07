@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AdBanner } from "@/components/AdBanner";
+import { MobileTabBar } from "@/components/MobileTabBar";
 
 export const metadata: Metadata = {
   title: "Velox Trade — Лучший магазин игровых предметов",
@@ -30,8 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <Header />
           <AdBanner />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 pb-16 lg:pb-0">{children}</main>
           <Footer />
+          <MobileTabBar />
         </Providers>
       </body>
     </html>
