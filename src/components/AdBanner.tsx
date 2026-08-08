@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, ExternalLink } from "lucide-react";
 import { getAds } from "@/lib/ads";
+import { normalizeExternalUrl } from "@/lib/normalizeUrl";
 import { Ad } from "@/types";
 
 export function AdBanner() {
@@ -37,7 +38,7 @@ export function AdBanner() {
           <div className="flex items-center gap-2 shrink-0">
             {ad.buttonText && ad.buttonLink && (
               <a
-                href={ad.buttonLink}
+                href={normalizeExternalUrl(ad.buttonLink)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-semibold px-3 py-1.5 rounded-btn flex items-center gap-1"

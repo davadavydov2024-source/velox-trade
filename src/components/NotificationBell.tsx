@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, X, Pin, ExternalLink } from "lucide-react";
 import { getActiveNotifications } from "@/lib/notifications";
+import { normalizeExternalUrl } from "@/lib/normalizeUrl";
 import { AppNotification } from "@/types";
 
 const DISMISSED_KEY = "dismissedNotifications";
@@ -121,7 +122,7 @@ export function NotificationBell() {
                   <p className="text-xs text-white/50 mt-1.5 whitespace-pre-line">{n.text}</p>
                   {n.buttonText && n.buttonLink && (
                     <a
-                      href={n.buttonLink}
+                      href={normalizeExternalUrl(n.buttonLink)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-primary w-full mt-3 py-2.5 text-sm flex items-center justify-center gap-1.5"

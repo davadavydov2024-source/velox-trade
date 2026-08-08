@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck } from "lucide-react";
-import { getProductById, getProducts } from "@/lib/products";
+import { getProductById, getProducts, getGameBySlug } from "@/lib/products";
 import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
@@ -16,6 +16,14 @@ import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
 
+const RARITY_COLOR: Record<string, string> = {
+  common: "#9aa3b2",
+  uncommon: "#4ade80",
+  rare: "#4a6cf7",
+  epic: "#c084fc",
+  legendary: "#ff9800",
+};
+
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
@@ -25,6 +33,7 @@ export default function ProductPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [seller, setSeller] = useState<PublicProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [gameName, setGameName] = useState<string | null>(null);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
 
@@ -43,6 +52,7 @@ export default function ProductPage() {
       .then((list) => setRelated(list.filter((p) => p.id !== product.id).slice(0, 4)))
       .catch((err) => { console.error("Ошибка загрузки похожих товаров:", err); setRelated([]); });
     getPublicProfileCached(product.sellerId).then(setSeller);
+    getGameBySlug(product.gameId).then((g) => setGameName(g?.name ?? null)).catch(() => setGameName(null));
     if (product.sellerId !== "store") {
       getSellerReviews(product.sellerId)
         .then((r) => setReviews(r.slice(0, 5)))
@@ -67,6 +77,7 @@ export default function ProductPage() {
         <div>
           <div
             className="card p-4 aspect-square relative cursor-zoom-in group"
+            style={{ borderColor: `${RARITY_COLOR[product.rarity]}80` }}
             onClick={() => setLightboxOpen(true)}
           >
             <Image src={safeImageSrc(product.image)} alt={product.name} fill className="object-contain p-2 transition-transform group-hover:scale-[1.03]" sizes="500px" />
@@ -130,7 +141,15 @@ export default function ProductPage() {
         </div>
 
         <div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-accent/15 text-accent">
+          {gameName && (
+            <Link href={`/catalog?game=${product.gameId}`} className="text-xs text-white/40 hover:text-accent mb-2 inline-block">
+              {gameName} →
+            </Link>
+          )}
+          <span
+            className="text-xs font-semibold px-2.5 py-1 rounded-md block w-fit"
+            style={{ background: `${RARITY_COLOR[product.rarity]}22`, color: RARITY_COLOR[product.rarity] }}
+          >
             {RARITY_LABEL[product.rarity]}
           </span>
           <h1 className="text-3xl font-bold mt-3 mb-2">{product.name}</h1>
