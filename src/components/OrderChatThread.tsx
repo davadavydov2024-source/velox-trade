@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Send, CheckCircle2, AlertTriangle, Star, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { getOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
+import { subscribeOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
 import { getOrderById, confirmOrderReceipt, cancelOrderBySeller } from "@/lib/users";
 import { getProductById } from "@/lib/products";
 import { createDispute, getDispute } from "@/lib/disputes";
@@ -63,9 +63,8 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getOrderChat(orderId), getOrderById(orderId)])
-      .then(([chat, ord]) => {
-        setMessages(chat?.messages ?? []);
+    getOrderById(orderId)
+      .then((ord) => {
         setOrder(ord);
         const firstItem = ord?.items[0];
         if (firstItem?.productId) {
@@ -75,6 +74,10 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
         }
       })
       .finally(() => setLoading(false));
+
+    // Живая подписка — новые сообщения появляются сами, без перезагрузки страницы.
+    const unsub = subscribeOrderChat(orderId, (chat) => setMessages(chat?.messages ?? []));
+    return unsub;
   }, [orderId]);
 
   useEffect(() => {
@@ -90,7 +93,6 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
     const value = text.trim();
     setText("");
     const from: OrderChatMessage["from"] = isBuyer ? "buyer" : "seller";
-    setMessages((m) => [...m, { from, text: value, createdAt: Date.now() }]);
     try {
       await sendOrderChatMessage(orderId, order.userId, order.sellerId, from, value);
     } catch {

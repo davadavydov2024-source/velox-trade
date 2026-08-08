@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronDown, ExternalLink, MessageSquare, Send, Plus } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { createTicket, getUserTickets, addTicketMessage } from "@/lib/tickets";
+import { createTicket, subscribeUserTickets, addTicketMessage } from "@/lib/tickets";
 import { sendSupportAutoReply } from "@/lib/emailjs";
 import { SupportTicket } from "@/types";
 
@@ -35,7 +35,8 @@ export function SupportPanel() {
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
-  const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const activeTicket = tickets.find((t) => t.id === activeTicketId) ?? null;
   const [showNewForm, setShowNewForm] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -47,14 +48,12 @@ export function SupportPanel() {
       setLoadingTickets(false);
       return;
     }
-    getUserTickets(user.uid)
-      .then(setTickets)
-      .catch((err) => {
-        console.error("Не удалось загрузить обращения:", err);
-        toast("error", "Не удалось загрузить обращения. Подробности — в консоли браузера (F12).");
-        setTickets([]);
-      })
-      .finally(() => setLoadingTickets(false));
+    // Живая подписка — ответ поддержки появляется сам, без перезагрузки страницы.
+    const unsub = subscribeUserTickets(user.uid, (list) => {
+      setTickets(list);
+      setLoadingTickets(false);
+    });
+    return unsub;
   }, [user]);
 
   async function handleCreateTicket(e: React.FormEvent) {
@@ -65,7 +64,7 @@ export function SupportPanel() {
     }
     setSubmitting(true);
     try {
-      await createTicket({
+      const ref = await createTicket({
         userId: user.uid,
         userName: profile.displayName,
         userEmail: profile.email,
@@ -79,8 +78,7 @@ export function SupportPanel() {
       setSubject("");
       setMessage("");
       setShowNewForm(false);
-      const updated = await getUserTickets(user.uid);
-      setTickets(updated);
+      setActiveTicketId(ref.id);
     } catch (err: any) {
       if (err?.code === "permission-denied") {
         toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
@@ -98,9 +96,6 @@ export function SupportPanel() {
     setSubmitting(true);
     try {
       await addTicketMessage(activeTicket.id, "user", reply);
-      const updated = { ...activeTicket, messages: [...activeTicket.messages, { from: "user" as const, text: reply, createdAt: Date.now() }] };
-      setActiveTicket(updated);
-      setTickets((list) => list.map((t) => (t.id === updated.id ? updated : t)));
       setReply("");
     } catch {
       toast("error", "Не удалось отправить сообщение");
@@ -177,7 +172,7 @@ export function SupportPanel() {
               <div className="card p-6 text-center text-white/40 text-sm">У тебя пока нет обращений.</div>
             ) : activeTicket ? (
               <div className="card p-5">
-                <button onClick={() => setActiveTicket(null)} className="text-xs text-white/40 hover:text-white/70 mb-3">
+                <button onClick={() => setActiveTicketId(null)} className="text-xs text-white/40 hover:text-white/70 mb-3">
                   ← Ко всем обращениям
                 </button>
                 <div className="flex items-center justify-between mb-4">
@@ -223,7 +218,7 @@ export function SupportPanel() {
                 {tickets.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => setActiveTicket(t)}
+                    onClick={() => setActiveTicketId(t.id)}
                     className="card p-4 w-full text-left flex items-center justify-between hover:bg-white/[0.02]"
                   >
                     <div>

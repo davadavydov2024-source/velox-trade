@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
 import { db } from "./firebase";
 import { OrderChat, OrderChatMessage } from "@/types";
 import { notifyTelegram } from "./telegramNotify";
@@ -11,6 +11,34 @@ export async function getOrderChat(orderId: string): Promise<OrderChat | null> {
   const snap = await getDoc(chatRef(orderId));
   if (!snap.exists()) return null;
   return snap.data() as OrderChat;
+}
+
+/** Живая подписка на один чат по заказу — сообщения появляются сами, без перезагрузки страницы. */
+export function subscribeOrderChat(orderId: string, cb: (chat: OrderChat | null) => void) {
+  return onSnapshot(chatRef(orderId), (snap) => cb(snap.exists() ? (snap.data() as OrderChat) : null), () => cb(null));
+}
+
+/** Живая подписка на все чаты пользователя (как покупателя и как продавца) — для бейджей
+ * "новое сообщение" и всплывающих уведомлений на сайте, пока человек на сайте. */
+export function subscribeUserOrderChats(uid: string, cb: (chats: OrderChat[]) => void) {
+  const col = collection(db, "orderChats");
+  const state = new Map<string, OrderChat>();
+  const emit = () => cb(Array.from(state.values()).sort((a, b) => b.updatedAt - a.updatedAt));
+
+  const applySnapshot = (snap: QuerySnapshot<DocumentData>) => {
+    snap.docChanges().forEach((change) => {
+      if (change.type === "removed") state.delete(change.doc.id);
+      else state.set(change.doc.id, change.doc.data() as OrderChat);
+    });
+    emit();
+  };
+
+  const unsub1 = onSnapshot(query(col, where("buyerId", "==", uid)), applySnapshot);
+  const unsub2 = onSnapshot(query(col, where("sellerId", "==", uid)), applySnapshot);
+  return () => {
+    unsub1();
+    unsub2();
+  };
 }
 
 /** Все чаты по сделкам, где пользователь — покупатель или продавец, для раздела «Чаты». */

@@ -9,12 +9,20 @@ import {
   addDoc,
   updateDoc,
   arrayUnion,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { SupportTicket, TicketMessage } from "@/types";
 import { notifyAdminTelegram, notifyTelegram } from "./telegramNotify";
 
 const ticketsCol = collection(db, "tickets");
+
+/** Живая подписка на тикеты поддержки пользователя — для всплывающих уведомлений на сайте. */
+export function subscribeUserTickets(uid: string, cb: (tickets: SupportTicket[]) => void) {
+  return onSnapshot(query(ticketsCol, where("userId", "==", uid)), (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SupportTicket));
+  });
+}
 
 export async function createTicket(data: {
   userId: string;
