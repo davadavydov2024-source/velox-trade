@@ -9,6 +9,9 @@ import { getPublicStats } from "@/lib/stats";
 import { Game, Product } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { ProductCard } from "@/components/ProductCard";
+import { PromoCarousel } from "@/components/PromoCarousel";
+import { QuickTopupCard } from "@/components/QuickTopupCard";
+import { SiteRatingWidget } from "@/components/SiteRatingWidget";
 
 const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
 
@@ -184,6 +187,11 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 lg:pt-8 grid lg:grid-cols-[1fr_320px] gap-4">
+        <PromoCarousel />
+        <QuickTopupCard />
+      </section>
+
       {featured.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
           <div className="flex items-center justify-between mb-6">
@@ -232,6 +240,8 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      <SiteRatingWidget />
     </div>
   );
 }

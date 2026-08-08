@@ -5,6 +5,8 @@ import { Disc3, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getAllWheelPrizes } from "@/lib/wheelPrizes";
+import { getProductById } from "@/lib/products";
+import { RARITY_COLOR } from "@/lib/rarityColors";
 import { WheelPrize } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 
@@ -27,6 +29,7 @@ export default function WheelPage() {
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<PrizeResult | null>(null);
   const [rotation, setRotation] = useState(0);
+  const [prizeRarity, setPrizeRarity] = useState<Record<string, string>>({});
   const spinTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -35,6 +38,17 @@ export default function WheelPage() {
       if (spinTimeout.current) clearTimeout(spinTimeout.current);
     };
   }, []);
+
+  useEffect(() => {
+    const productPrizes = prizes.filter((p) => p.type === "product" && p.productId);
+    Promise.all(
+      productPrizes.map((p) =>
+        getProductById(p.productId!)
+          .then((prod) => [p.id, prod?.rarity ?? "common"] as const)
+          .catch(() => [p.id, "common"] as const)
+      )
+    ).then((entries) => setPrizeRarity(Object.fromEntries(entries)));
+  }, [prizes]);
 
   async function loadPrizes() {
     setLoadingPrizes(true);
@@ -227,6 +241,31 @@ export default function WheelPage() {
           {spinning ? "..." : "Крутить"}
         </button>
       </form>
+
+      {prizes.length > 0 && (
+        <div>
+          <p className="text-xs text-white/40 font-medium mb-2.5">Ты можешь получить</p>
+          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+            {prizes.map((p) => {
+              const color = p.type === "product" ? prizeRarity[p.id] ? RARITY_COLOR[prizeRarity[p.id]] : "#3a3f4c" : p.type === "balance" ? "#4caf50" : "#5b6272";
+              return (
+                <div key={p.id} className="flex-none w-20 rounded-btn bg-white/5 p-2 text-center" style={{ borderTop: `2px solid ${color}` }}>
+                  <div className="w-full h-12 rounded-md bg-black/30 mb-1.5 flex items-center justify-center overflow-hidden">
+                    {p.type === "product" && p.image ? (
+                      <img src={safeImageSrc(p.image)} alt={p.name} className="w-full h-full object-cover" />
+                    ) : p.type === "balance" ? (
+                      <span className="text-lg">💰</span>
+                    ) : (
+                      <span className="text-lg">🚫</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-white/60 leading-tight truncate">{p.name}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
