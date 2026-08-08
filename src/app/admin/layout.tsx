@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   Bell,
+  Star,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
@@ -42,6 +43,7 @@ const NAV = [
   { href: "/admin/wheel", label: "Колесо Фортуны", icon: Disc3 },
   { href: "/admin/ads", label: "Реклама и рассылки", icon: Megaphone },
   { href: "/admin/notifications", label: "Уведомления", icon: Bell },
+  { href: "/admin/site-reviews", label: "Отзывы о сайте", icon: Star },
   { href: "/admin/settings", label: "Настройки сайта", icon: Settings },
   { href: "/admin/features", label: "Функции", icon: SlidersHorizontal },
 ];

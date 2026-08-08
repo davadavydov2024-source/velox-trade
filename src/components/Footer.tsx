@@ -28,8 +28,10 @@ export function Footer() {
         <div>
           <p className="text-white/40 mb-3">{t("footer_support")}</p>
           <div className="flex flex-col gap-2 text-white/70">
+            <Link href="/guide">Как пользоваться сайтом</Link>
             <Link href="/chats?tab=support">{t("footer_support_center")}</Link>
             <Link href="/chats?tab=support#faq">{t("footer_faq")}</Link>
+            <Link href="/reviews">Отзывы о сайте</Link>
           </div>
         </div>
         <div>

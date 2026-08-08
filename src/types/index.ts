@@ -194,6 +194,16 @@ export interface Review {
   createdAt: number;
 }
 
+/** Отзыв о самом сайте/сервисе (не о конкретном товаре) — показывается на странице отзывов. */
+export interface SiteReview {
+  id: string;
+  userId: string;
+  userName: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  text: string;
+  createdAt: number;
+}
+
 export interface SiteSettings {
   primaryColor: string;
   secondaryColor: string;

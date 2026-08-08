@@ -16,6 +16,8 @@ html,
 body {
   background-color: #0d1017;
   color: #f5f6f8;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 .scrollbar-none {

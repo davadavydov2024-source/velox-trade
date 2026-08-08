@@ -138,6 +138,13 @@ export async function POST(req: NextRequest) {
       notifyTelegramServer(sellerId, `🛒 У вас купили: ${list}`);
     }
 
+    // Публичный счётчик сделок для главной страницы — пишем только через Admin SDK,
+    // с клиента запись запрещена правилами Firestore.
+    db.collection("stats")
+      .doc("public")
+      .set({ dealsCount: FieldValue.increment(orderIds.length) }, { merge: true })
+      .catch((err) => console.error("stats increment error:", err));
+
     return NextResponse.json({ ok: true, orderIds });
   } catch (err: any) {
     if (typeof err?.message === "string" && err.message.startsWith("insufficient-stock:")) {
