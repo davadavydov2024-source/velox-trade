@@ -22,6 +22,22 @@ const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
 
 const STEPS = ["Оплачен", "В процессе", "Завершён"];
 
+const AVATAR_COLORS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8", "#f87171"];
+
+function avatarColor(name: string) {
+  const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+}
+
 function stepIndex(status: Order["status"]) {
   if (status === "pending_confirmation") return 1;
   if (status === "confirmed") return 2;
@@ -234,9 +250,23 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
               (() => {
                 const isMine = user && order && ((isBuyer && m.from === "buyer") || (isSeller && m.from === "seller"));
                 return (
-                  <div key={i} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-btn px-3 py-2 text-sm ${isMine ? "bg-accent/15 text-white" : "bg-surface text-white/80"}`}>
-                      <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? "Админ" : isMine ? "Вы" : counterpartName}</p>
+                  <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
+                    {!isMine && (
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
+                        style={{ background: `${avatarColor(m.from === "admin" ? "Админ" : counterpartName)}22`, color: avatarColor(m.from === "admin" ? "Админ" : counterpartName) }}
+                      >
+                        {initials(m.from === "admin" ? "Админ" : counterpartName)}
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[75%] px-3 py-2 text-sm ${
+                        isMine
+                          ? "bg-accent text-black rounded-2xl rounded-br-sm"
+                          : "bg-surface text-white/80 rounded-2xl rounded-bl-sm"
+                      }`}
+                    >
+                      {!isMine && <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? "Админ" : counterpartName}</p>}
                       {m.text}
                     </div>
                   </div>
