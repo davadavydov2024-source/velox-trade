@@ -75,11 +75,11 @@ function CatalogInner() {
 
           <div>
             <p className="text-xs text-white/40 mb-2">Редкость</p>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => setRarity("")}
-                className={`text-left text-sm px-3 py-1.5 rounded-lg transition-colors ${
-                  rarity === "" ? "bg-accent/15 text-accent" : "text-white/60 hover:bg-white/5"
+                className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                  rarity === "" ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
                 Все
@@ -88,8 +88,8 @@ function CatalogInner() {
                 <button
                   key={r}
                   onClick={() => setRarity(r)}
-                  className={`text-left text-sm px-3 py-1.5 rounded-lg transition-colors ${
-                    rarity === r ? "bg-accent/15 text-accent" : "text-white/60 hover:bg-white/5"
+                  className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                    rarity === r ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
                   }`}
                 >
                   {RARITY_LABEL[r]}

@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { useAuth } from "@/lib/authContext";
-import { Wallet, Mail, CheckCircle2, AlertCircle, User, Save, Copy } from "lucide-react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { updateProfileInfo } from "@/lib/users";
+import { useAuth } from "@/lib/authContext";
+import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, AlertCircle } from "lucide-react";
+import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
 import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
 import { useToast } from "@/lib/toastContext";
-import { isValidImageSrc } from "@/lib/safeImage";
-import { NAME_CHANGE_COOLDOWN_MS } from "@/types";
+import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
+import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ImageUploadField } from "@/components/ImageUploadField";
 
 function cooldownLeft(lastChangeAt?: number): number {
@@ -29,11 +30,23 @@ export default function ProfilePage() {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.photoURL ?? "");
   const [saving, setSaving] = useState(false);
+  const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getOrdersForUser(user.uid)
+      .then((orders) => setPurchaseCount(orders.filter((o) => o.status === "confirmed").length))
+      .catch(() => setPurchaseCount(null));
+  }, [user]);
 
   if (!profile || !user) return null;
 
   const nameCooldown = cooldownLeft(profile.lastNameChangeAt);
   const avatarCooldown = cooldownLeft(profile.lastAvatarChangeAt);
+  const avgRating = profile.ratingCount ? (profile.ratingSum ?? 0) / profile.ratingCount : null;
+  const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
+  const otherBadges = profile.badges.filter((b) => !CHECKMARK_BADGES.includes(b));
+  const memberSince = new Date(profile.createdAt).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -92,35 +105,89 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       <div className="card p-6">
-        <h1 className="text-xl font-bold mb-4">Личный кабинет</h1>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="glass rounded-card p-4 flex items-center gap-3">
-            <Wallet className="text-accent" size={22} />
-            <div>
-              <p className="text-xs text-white/40">Баланс</p>
-              <p className="text-xl font-bold">{profile.balance.toFixed(2)} ₽</p>
-            </div>
+        <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
+          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">
+            <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
           </div>
-          <div className="glass rounded-card p-4 flex items-center gap-3">
-            <Mail className="text-accent" size={22} />
-            <div>
-              <p className="text-xs text-white/40">Email</p>
-              <p className="text-sm font-medium flex items-center gap-1.5">
-                {profile.email}
-                {profile.emailVerified ? (
-                  <CheckCircle2 size={14} className="text-green-400" />
-                ) : (
-                  <AlertCircle size={14} className="text-yellow-400" />
-                )}
-              </p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h1 className="text-xl font-bold">{profile.displayName}</h1>
+              {checkmarks.map((b) => (
+                <ShieldCheck key={b} size={17} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
+              ))}
             </div>
+            <p className="text-white/40 text-sm mb-1.5">{profile.username ? `@${profile.username}` : "Юзернейм не задан"}</p>
+            <div className="flex items-center gap-3 flex-wrap mb-2">
+              <span className="flex items-center gap-1 text-xs text-white/40">
+                <CalendarDays size={13} /> На сайте с {memberSince}
+              </span>
+              {otherBadges.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {otherBadges.map((b) => (
+                    <span
+                      key={b}
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b] }}
+                    >
+                      {BADGE_LABEL[b]}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {profile.username && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
+                  Как видят другие →
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const link = `${window.location.origin}/seller/${profile.username}`;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ title: "Мой профиль", url: link });
+                      } catch {
+                        // Пользователь закрыл системное окно "Поделиться" — это не ошибка
+                      }
+                    } else {
+                      navigator.clipboard.writeText(link);
+                      toast("success", "Ссылка на профиль скопирована");
+                    }
+                  }}
+                  className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
+                >
+                  <Copy size={12} /> Поделиться профилем
+                </button>
+              </div>
+            )}
           </div>
         </div>
+
+        <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="glass rounded-card p-3 text-center">
+            <Wallet size={16} className="text-accent mx-auto mb-1" />
+            <p className="text-base font-bold">{profile.balance.toFixed(0)} ₽</p>
+            <p className="text-[10px] text-white/40">Баланс</p>
+          </div>
+          <div className="glass rounded-card p-3 text-center">
+            <ShoppingBag size={16} className="text-accent mx-auto mb-1" />
+            <p className="text-base font-bold">{purchaseCount ?? "—"}</p>
+            <p className="text-[10px] text-white/40">Покупок</p>
+          </div>
+          <div className="glass rounded-card p-3 text-center">
+            <Star size={16} className="text-accent mx-auto mb-1" />
+            <p className="text-base font-bold">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
+            <p className="text-[10px] text-white/40">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
+          </div>
+        </div>
+
         {!profile.emailVerified && (
-          <p className="text-xs text-yellow-400/80 mt-3">
-            Email не подтверждён. Проверьте почту или запросите письмо повторно в разделе «Безопасность».
+          <p className="text-xs text-yellow-400/80 flex items-center gap-1.5 mt-4">
+            <AlertCircle size={13} /> Email {profile.email} не подтверждён — проверьте почту в разделе «Безопасность».
           </p>
         )}
+
         <Link href="/profile/topup" className="btn-primary inline-block mt-5 px-5 py-2.5 text-sm">
           Пополнить баланс
         </Link>
@@ -128,34 +195,8 @@ export default function ProfilePage() {
 
       <form onSubmit={handleSaveProfile} className="card p-6 space-y-4">
         <h2 className="font-bold flex items-center gap-2">
-          <User size={18} className="text-accent" /> Публичный профиль
+          <User size={18} className="text-accent" /> Редактировать профиль
         </h2>
-        {profile.username && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
-              Посмотреть, как видят твой профиль другие →
-            </Link>
-            <button
-              type="button"
-              onClick={async () => {
-                const link = `${window.location.origin}/seller/${profile.username}`;
-                if (navigator.share) {
-                  try {
-                    await navigator.share({ title: "Мой профиль", url: link });
-                  } catch {
-                    // Пользователь закрыл системное окно "Поделиться" — это не ошибка
-                  }
-                } else {
-                  navigator.clipboard.writeText(link);
-                  toast("success", "Ссылка на профиль скопирована");
-                }
-              }}
-              className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
-            >
-              <Copy size={12} /> Скопировать / поделиться ссылкой на профиль
-            </button>
-          </div>
-        )}
         {!profile.username && (
           <p className="text-xs text-white/30">Придумай имя пользователя ниже, чтобы получить ссылку на свой профиль, которой можно делиться.</p>
         )}
@@ -196,7 +237,7 @@ export default function ProfilePage() {
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">@</span>
             <input
-            autoComplete="off"
+              autoComplete="off"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase())}
               placeholder="my_nickname"
@@ -209,6 +250,13 @@ export default function ProfilePage() {
         <div>
           <label className="text-xs text-white/40 mb-1 block">О себе (необязательно)</label>
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={2} className="input-field py-2.5" />
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block flex items-center gap-1.5">
+            <Mail size={12} /> Email
+          </label>
+          <p className="text-sm text-white/60">{profile.email}</p>
         </div>
 
         <button disabled={saving} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50">
