@@ -100,7 +100,7 @@ export default function HomePage() {
       {/* Hero (десктоп) */}
       <section className="hidden lg:block relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-24 grid md:grid-cols-2 gap-12 items-center relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 md:pt-24 pb-10 md:pb-12 grid md:grid-cols-2 gap-12 items-center relative">
           <div>
             {dealsCount > 0 && (
               <span className="inline-flex items-center gap-1.5 text-xs text-white/50 bg-white/5 px-3 py-1.5 rounded-full mb-4">
@@ -155,23 +155,23 @@ export default function HomePage() {
                 <Image src="/icons/logo-nobg.png" alt="Velox Trade" fill className="object-contain" sizes="288px" priority />
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-3 pt-2">
                 {games.slice(0, 5).map((game, i) => (
                   <Link
                     key={game.id}
                     href={`/catalog?game=${game.slug}`}
                     className={`relative card p-2.5 hover:-translate-y-1 transition-transform duration-300 ${i === 0 ? "col-span-2 row-span-1 -rotate-1 border-accent/60" : ""}`}
                   >
-                    {i === 0 && (
-                      <span className="absolute -top-2.5 left-3 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
-                        <Flame size={11} /> Хайп
-                      </span>
-                    )}
                     <div
                       className="relative w-full rounded-xl overflow-hidden bg-black/30"
                       style={{ height: i === 0 ? 96 : 76, borderLeft: `3px solid ${ACCENTS[i % ACCENTS.length]}` }}
                     >
                       <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="180px" />
+                      {i === 0 && (
+                        <span className="absolute top-1.5 left-1.5 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
+                          <Flame size={11} /> Хайп
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs font-medium mt-2 truncate">{game.name}</p>
                   </Link>
@@ -188,7 +188,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 lg:pt-8 grid lg:grid-cols-[1fr_320px] gap-4">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid lg:grid-cols-[1fr_320px] gap-4">
         <PromoCarousel />
         <QuickTopupCard />
       </section>

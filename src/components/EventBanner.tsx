@@ -7,22 +7,24 @@ import { useToast } from "@/lib/toastContext";
 import { SiteEvent, EventTheme } from "@/types";
 
 // Фиксированные позиции — без Math.random() при рендере, чтобы не было расхождения SSR/CSR (hydration mismatch).
-const POSITIONS = [3, 9, 15, 22, 29, 36, 43, 50, 57, 64, 71, 78, 85, 92, 97];
+// Раньше было 15 крупных ярких частиц на весь экран — перекрывали текст и кнопки. Сделал их
+// меньше, реже и прозрачнее, чтобы это читалось как лёгкий фоновый акцент, а не мусор поверх контента.
+const POSITIONS = [4, 16, 28, 40, 52, 64, 76, 88];
 
 /** Общий "дождь" эмодзи — используется для всех тем, которые сыплют что-то с неба или снизу вверх. */
 function ParticleRain({ emojis, direction = "fall" }: { emojis: string[]; direction?: "fall" | "rise" }) {
   const keyframeName = direction === "fall" ? "eventFall" : "eventRise";
   return (
-    <div className="fixed inset-0 pointer-events-none z-30 overflow-hidden" aria-hidden="true">
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
       <style>{`
         @keyframes eventFall {
-          0% { transform: translateY(-10vh) rotate(0deg); opacity: 0.9; }
-          100% { transform: translateY(110vh) rotate(360deg); opacity: 0.5; }
+          0% { transform: translateY(-10vh) rotate(0deg); opacity: 0.35; }
+          100% { transform: translateY(110vh) rotate(360deg); opacity: 0.1; }
         }
         @keyframes eventRise {
           0% { transform: translateY(10vh) rotate(0deg); opacity: 0; }
-          15% { opacity: 0.9; }
-          100% { transform: translateY(-110vh) rotate(-20deg); opacity: 0.4; }
+          15% { opacity: 0.35; }
+          100% { transform: translateY(-110vh) rotate(-20deg); opacity: 0.1; }
         }
       `}</style>
       {POSITIONS.map((left, i) => (
@@ -33,9 +35,9 @@ function ParticleRain({ emojis, direction = "fall" }: { emojis: string[]; direct
             left: `${left}%`,
             top: direction === "fall" ? "-5vh" : undefined,
             bottom: direction === "rise" ? "-5vh" : undefined,
-            fontSize: `${10 + (i % 4) * 4}px`,
-            animation: `${keyframeName} ${8 + (i % 5) * 2}s linear infinite`,
-            animationDelay: `${i * 0.7}s`,
+            fontSize: `${9 + (i % 3) * 3}px`,
+            animation: `${keyframeName} ${10 + (i % 5) * 2}s linear infinite`,
+            animationDelay: `${i * 1.1}s`,
           }}
         >
           {emojis[i % emojis.length]}
@@ -47,7 +49,7 @@ function ParticleRain({ emojis, direction = "fall" }: { emojis: string[]; direct
 
 function GlowCorner({ color }: { color: string }) {
   return (
-    <div className="fixed inset-0 pointer-events-none z-30 overflow-hidden" aria-hidden="true">
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
       <div
         style={{
           position: "absolute",
