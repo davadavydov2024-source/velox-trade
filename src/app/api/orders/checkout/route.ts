@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
+import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
       if (sellerId === "store") continue; // товары самого магазина — уведомлять некого
       const list = items.map((it) => `«${it.name}» × ${it.quantity}`).join(", ");
       notifyTelegramServer(sellerId, `🛒 У вас купили: ${list}`);
+      sendWebPush(sellerId, { title: "У вас купили товар", body: list, url: "/profile/sales" });
     }
 
     // Публичный счётчик сделок для главной страницы — пишем только через Admin SDK,

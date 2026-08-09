@@ -14,6 +14,7 @@ import {
 import { db } from "./firebase";
 import { SupportTicket, TicketMessage } from "@/types";
 import { notifyAdminTelegram, notifyTelegram } from "./telegramNotify";
+import { notifyPush } from "./webPushNotify";
 
 const ticketsCol = collection(db, "tickets");
 
@@ -77,11 +78,12 @@ export async function addTicketMessage(id: string, from: "user" | "admin", text:
     status: from === "admin" ? "answered" : "open",
   });
 
-  // Уведомляем в Telegram того, кому адресована реплика (если у него привязан бот).
+  // Уведомляем в Telegram и push-уведомлением того, кому адресована реплика.
   if (ticket) {
     const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
     if (from === "admin") {
       notifyTelegram(ticket.userId, `💬 Ответ в поддержке по обращению «${ticket.subject}»:\n${preview}`);
+      notifyPush(ticket.userId, "Ответ в поддержке", preview, "/chats?tab=support");
     } else {
       notifyAdminTelegram(`💬 Новое сообщение в поддержке от ${ticket.userName} по «${ticket.subject}»: ${preview}`);
     }

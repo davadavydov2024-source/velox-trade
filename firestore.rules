@@ -154,6 +154,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Подписки браузера на Web Push — сам endpoint/ключи никому кроме владельца и сервера
+    // (Admin SDK при отправке) не нужны, поэтому читать может только владелец.
+    match /pushSubscriptions/{id} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update: if false;
+    }
+
     // --- промокоды ---
     // Читать может кто угодно (нужно, чтобы найти документ по полю "code" ещё до применения кода).
     // Создавать/удалять/менять условия — только админ. Единственное исключение для обычного пользователя:

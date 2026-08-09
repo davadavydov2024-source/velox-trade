@@ -249,6 +249,15 @@ export interface AppNotification {
   createdAt: number;
 }
 
+/** Подписка браузера на Web Push — одна запись на устройство/браузер (у одного пользователя
+ * может быть несколько, если он заходил с разных устройств). */
+export interface WebPushSubscription {
+  uid: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  createdAt: number;
+}
+
 export interface TicketMessage {
   from: "user" | "admin";
   text: string;

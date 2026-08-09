@@ -15,6 +15,7 @@ import {
 } from "@/lib/sessions";
 import { UserSession } from "@/types";
 import { Monitor, ShieldCheck } from "lucide-react";
+import { PushToggleCard } from "@/components/PushToggleCard";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -259,6 +260,8 @@ export default function SecurityPage() {
           </div>
         )}
       </div>
+
+      <PushToggleCard />
 
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between gap-3">

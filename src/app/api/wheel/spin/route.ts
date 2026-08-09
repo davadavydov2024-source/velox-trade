@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
+import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
     // того, как транзакция реально прошла, и независимо от того, закрыл ли вкладку тот, кто крутил.
     if (wonSellerId && wonSellerId !== "store") {
       notifyTelegramServer(wonSellerId, `🎡 Ваш товар «${wonProductName}» выиграли на колесе фортуны`);
+      sendWebPush(wonSellerId, { title: "Товар выиграли на колесе", body: wonProductName, url: "/profile/sales" });
     }
 
     return NextResponse.json({ ok: true, prize: result });
