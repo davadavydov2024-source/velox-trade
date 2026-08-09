@@ -12,6 +12,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { PromoCarousel } from "@/components/PromoCarousel";
 import { QuickTopupCard } from "@/components/QuickTopupCard";
 import { SiteRatingWidget } from "@/components/SiteRatingWidget";
+import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
 
 const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
 
@@ -241,6 +242,7 @@ export default function HomePage() {
         )}
       </section>
 
+      <RecentlyViewedSection />
       <SiteRatingWidget />
     </div>
   );

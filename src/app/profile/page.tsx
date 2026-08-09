@@ -11,6 +11,7 @@ import { useToast } from "@/lib/toastContext";
 import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
 import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ImageUploadField } from "@/components/ImageUploadField";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 
 function cooldownLeft(lastChangeAt?: number): number {
   if (!lastChangeAt) return 0;
@@ -104,6 +105,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
+      <OnboardingChecklist />
       <div className="card p-6">
         <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
           <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">

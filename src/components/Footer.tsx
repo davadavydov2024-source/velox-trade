@@ -32,6 +32,7 @@ export function Footer() {
             <Link href="/chats?tab=support">{t("footer_support_center")}</Link>
             <Link href="/chats?tab=support#faq">{t("footer_faq")}</Link>
             <Link href="/reviews">Отзывы о сайте</Link>
+            <Link href="/leaderboard">Топ продавцов</Link>
           </div>
         </div>
         <div>

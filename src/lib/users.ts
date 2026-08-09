@@ -160,6 +160,12 @@ export async function confirmOrderReceipt(order: Order, buyerName: string) {
   await updateDoc(doc(db, "orders", order.id), { status: "confirmed", confirmedAt: Date.now() });
   await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.`);
   notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.total} ₽.`);
+  // Проверка достижений (например бейдж "buyer" за первую покупку) — не критично для основного
+  // действия, поэтому не ждём и не роняем подтверждение заказа, если это не сработает.
+  auth.currentUser
+    ?.getIdToken()
+    .then((idToken) => fetch("/api/users/check-achievements", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }))
+    .catch(() => {});
 }
 
 /** Продавец отменяет ещё не подтверждённый заказ — деньги возвращаются покупателю, товар возвращается на склад. */

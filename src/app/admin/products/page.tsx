@@ -9,6 +9,8 @@ import { Product, Rarity, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
+import { auth } from "@/lib/firebase";
+import { logPriceChange } from "@/lib/priceHistory";
 
 const EMPTY: Omit<Product, "id" | "createdAt"> = {
   gameId: "",
@@ -70,8 +72,31 @@ export default function AdminProductsPage() {
       if (editing) {
         await updateProduct(editing.id, form);
         toast("success", "Товар обновлён");
+        if (form.price !== editing.price) {
+          logPriceChange(editing.id, form.price).catch(() => {});
+        }
+        // Уведомляем тех, у кого товар в избранном, если цена упала или он снова в наличии —
+        // не блокируем сохранение, если это не сработает.
+        auth.currentUser
+          ?.getIdToken()
+          .then((idToken) =>
+            fetch("/api/products/notify-price-change", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({
+                productId: editing.id,
+                productName: form.name,
+                oldPrice: editing.price,
+                newPrice: form.price,
+                oldStock: editing.stock,
+                newStock: form.stock,
+              }),
+            })
+          )
+          .catch(() => {});
       } else {
-        await createProduct(form);
+        const ref = await createProduct(form);
+        logPriceChange(ref.id, form.price).catch(() => {});
         toast("success", "Товар создан");
       }
       setShowForm(false);

@@ -15,6 +15,10 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
+import { addRecentlyViewed } from "@/lib/recentlyViewed";
+import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
+import { getPriceHistory, PricePoint } from "@/lib/priceHistory";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 import { RARITY_COLOR } from "@/lib/rarityColors";
 
@@ -28,14 +32,17 @@ export default function ProductPage() {
   const [seller, setSeller] = useState<PublicProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [gameName, setGameName] = useState<string | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
 
   useEffect(() => {
     getProductById(id)
       .then((p) => {
-        if (p) setProduct(p);
-        else setNotFound(true);
+        if (p) {
+          setProduct(p);
+          addRecentlyViewed(p.id);
+        } else setNotFound(true);
       })
       .catch(() => setNotFound(true));
   }, [id]);
@@ -47,6 +54,7 @@ export default function ProductPage() {
       .catch((err) => { console.error("Ошибка загрузки похожих товаров:", err); setRelated([]); });
     getPublicProfileCached(product.sellerId).then(setSeller);
     getGameBySlug(product.gameId).then((g) => setGameName(g?.name ?? null)).catch(() => setGameName(null));
+    getPriceHistory(product.id).then(setPriceHistory).catch(() => setPriceHistory([]));
     if (product.sellerId !== "store") {
       getSellerReviews(product.sellerId)
         .then((r) => setReviews(r.slice(0, 5)))
@@ -209,6 +217,33 @@ export default function ProductPage() {
           </div>
         </section>
       )}
+
+      {priceHistory.length >= 2 && (
+        <section className="mt-16 card p-5">
+          <h2 className="text-lg font-bold mb-4">История цены</h2>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={priceHistory}>
+              <XAxis
+                dataKey="at"
+                tickFormatter={(v) => new Date(v).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}
+                stroke="#5b6272"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis stroke="#5b6272" fontSize={11} tickLine={false} axisLine={false} width={50} />
+              <Tooltip
+                formatter={(v: number) => [`${v} ₽`, "Цена"]}
+                labelFormatter={(v) => new Date(v).toLocaleDateString("ru-RU")}
+                contentStyle={{ background: "#151922", border: "1px solid #232838", borderRadius: 8, fontSize: 12 }}
+              />
+              <Line type="monotone" dataKey="price" stroke="#ff9800" strokeWidth={2} dot={{ r: 3, fill: "#ff9800" }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </section>
+      )}
+
+      <RecentlyViewedSection excludeId={product.id} />
     </div>
   );
 }
