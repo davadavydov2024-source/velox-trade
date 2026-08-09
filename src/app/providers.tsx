@@ -13,6 +13,7 @@ import { EventBanner } from "@/components/EventBanner";
 import { PresenceSync } from "@/components/PresenceSync";
 import { FavoritesSync } from "@/components/FavoritesSync";
 import { GlobalMessageListener } from "@/components/GlobalMessageListener";
+import { CartSync } from "@/components/CartSync";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -25,6 +26,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <SessionManager />
           <PresenceSync />
           <FavoritesSync />
+          <CartSync />
           <EventBanner />
           <GlobalMessageListener />
           <BanGate>{children}</BanGate>

@@ -11,6 +11,7 @@ import { safeImageSrc } from "@/lib/safeImage";
 import { ProductCard } from "@/components/ProductCard";
 import { PromoCarousel } from "@/components/PromoCarousel";
 import { QuickTopupCard } from "@/components/QuickTopupCard";
+import { AdSlotCard } from "@/components/AdSlotCard";
 import { SiteRatingWidget } from "@/components/SiteRatingWidget";
 import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
 
@@ -190,7 +191,10 @@ export default function HomePage() {
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid lg:grid-cols-[1fr_320px] gap-4">
         <PromoCarousel />
-        <QuickTopupCard />
+        <div className="space-y-4">
+          <QuickTopupCard />
+          <AdSlotCard />
+        </div>
       </section>
 
       {featured.length > 0 && (

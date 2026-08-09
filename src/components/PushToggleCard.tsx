@@ -64,6 +64,7 @@ export function PushToggleCard() {
         </div>
       </div>
       <button
+        type="button"
         onClick={handleToggle}
         disabled={loading || busy}
         className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${enabled ? "bg-accent" : "bg-white/15"}`}

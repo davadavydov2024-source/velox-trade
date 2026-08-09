@@ -161,7 +161,17 @@ function ChatsInner() {
               Войдите в аккаунт, чтобы увидеть чаты по своим сделкам.
             </p>
           ) : loading ? (
-            <p className="text-xs text-white/30 text-center py-6">Загрузка...</p>
+            <div className="space-y-2 px-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-2.5 animate-pulse">
+                  <div className="w-11 h-11 rounded-full bg-white/5 shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-2.5 bg-white/5 rounded w-2/3" />
+                    <div className="h-2 bg-white/5 rounded w-4/5" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : items.length === 0 ? (
             <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
           ) : (

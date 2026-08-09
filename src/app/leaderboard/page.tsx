@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Trophy, Star, ShieldCheck } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { BADGE_COLOR, CHECKMARK_BADGES } from "@/types";
+import { ListRowsSkeleton } from "@/components/Skeletons";
 
 interface LeaderboardSeller {
   uid: string;
@@ -39,7 +40,7 @@ export default function LeaderboardPage() {
       </div>
 
       {loading ? (
-        <div className="card p-8 text-center text-white/40">Загрузка...</div>
+        <ListRowsSkeleton count={6} />
       ) : sellers.length === 0 ? (
         <div className="card p-8 text-center text-white/40">
           Пока недостаточно отзывов, чтобы составить рейтинг — загляните позже.

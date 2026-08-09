@@ -9,6 +9,7 @@ import { getPublicProfileCached } from "@/lib/sellerCache";
 import { Order, OrderChatMessage, Dispute } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { MessageCircle, AlertTriangle, Ban } from "lucide-react";
+import { SalesChart } from "@/components/SalesChart";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ждёт подтверждения", color: "#ff9800" },
@@ -245,6 +246,7 @@ export default function SalesPage() {
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-bold mb-2">Мои продажи</h1>
+      <SalesChart orders={orders} />
       {orders.map((order) => (
         <SaleCard key={order.id} order={order} />
       ))}
