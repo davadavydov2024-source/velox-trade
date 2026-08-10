@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -66,7 +66,6 @@ function TopUpPageInner() {
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const paidOrdersRef = useRef<Set<string>>(new Set());
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [method, setMethod] = useState<TopUpRequest["method"]>("qr");
@@ -96,7 +95,6 @@ function TopUpPageInner() {
     setPendingOrderId(orderId);
     const unsub = watchPayment(orderId, (payment) => {
       if (payment?.status === "paid") {
-        paidOrdersRef.current.add(orderId);
         toast("success", `Баланс пополнен на ${payment.amount} ₽!`);
         refreshProfile();
         refreshPayments();
@@ -106,55 +104,6 @@ function TopUpPageInner() {
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
-
-  // Если пользователь ушёл со страницы оплаты (закрыл вкладку, свернул браузер,
-  // ушёл на другую страницу сайта) и платёж так и не подтвердился — отменяем его сразу,
-  // не дожидаясь серверной чистки просроченных платежей (обычно до 20 минут).
-  useEffect(() => {
-    if (!pendingOrderId || !user) return;
-    const orderId = pendingOrderId;
-    let idToken: string | null = null;
-    let leftPage = false;
-    let fired = false;
-
-    user
-      .getIdToken()
-      .then((t) => {
-        idToken = t;
-        if (leftPage) fireCancel();
-      })
-      .catch(() => {});
-
-    function fireCancel() {
-      if (fired || paidOrdersRef.current.has(orderId) || !idToken) return;
-      fired = true;
-      fetch("/api/payments/cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ orderId }),
-        keepalive: true,
-      }).catch(() => {});
-    }
-
-    function markLeftAndCancel() {
-      leftPage = true;
-      fireCancel();
-    }
-
-    function handleVisibility() {
-      if (document.visibilityState === "hidden") markLeftAndCancel();
-    }
-
-    window.addEventListener("pagehide", markLeftAndCancel);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      window.removeEventListener("pagehide", markLeftAndCancel);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      // Ушли со страницы оплаты внутри сайта (переход на другую страницу) — тоже отменяем.
-      markLeftAndCancel();
-    };
-  }, [pendingOrderId, user]);
 
   async function refreshPayments() {
     if (!user) return;

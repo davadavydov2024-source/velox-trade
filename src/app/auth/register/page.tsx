@@ -243,8 +243,16 @@ function RegisterInner() {
                 Я согласен с{" "}
                 <Link href="/rules" target="_blank" className="text-accent hover:underline">
                   правилами платформы
+                </Link>
+                ,{" "}
+                <Link href="/privacy" target="_blank" className="text-accent hover:underline">
+                  политикой конфиденциальности
                 </Link>{" "}
-                и понимаю, что за оплату через CactusPay отвечает сама платёжная система lk.cactuspay.pro.
+                и{" "}
+                <Link href="/terms" target="_blank" className="text-accent hover:underline">
+                  пользовательским соглашением
+                </Link>
+                .
               </span>
             </label>
             <button disabled={loading || !agreed} className="btn-primary w-full py-3 disabled:opacity-50">

@@ -36,6 +36,14 @@ export function Footer() {
           </div>
         </div>
         <div>
+          <p className="text-white/40 mb-3">Документы</p>
+          <div className="flex flex-col gap-2 text-white/70">
+            <Link href="/rules">Правила платформы</Link>
+            <Link href="/privacy">Политика конфиденциальности</Link>
+            <Link href="/terms">Пользовательское соглашение</Link>
+          </div>
+        </div>
+        <div>
           <p className="text-white/40 mb-3">{t("footer_account")}</p>
           <div className="flex flex-col gap-2 text-white/70">
             <Link href="/profile">{t("footer_my_account")}</Link>

@@ -1,0 +1,17 @@
+[debug] [2026-08-10T15:09:08.137Z] ----------------------------------------------------------------------
+[debug] [2026-08-10T15:09:08.145Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2026-08-10T15:09:08.145Z] CLI Version:   15.26.0
+[debug] [2026-08-10T15:09:08.146Z] Platform:      win32
+[debug] [2026-08-10T15:09:08.146Z] Node Version:  v24.18.0
+[debug] [2026-08-10T15:09:08.146Z] Detected Agent: unknown
+[debug] [2026-08-10T15:09:08.146Z] Time:          Mon Aug 10 2026 18:09:08 GMT+0300 (Москва, стандартное время)
+[debug] [2026-08-10T15:09:08.146Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-08-10T15:09:09.848Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-10T15:09:09.848Z] > authorizing via signed-in user (davadavydov2024@gmail.com)
+[debug] [2026-08-10T15:09:09.848Z] [iam] checking project blade-shoop for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-08-10T15:09:09.871Z] Checked if tokens are valid: false, expires at: 1786375436995
+[debug] [2026-08-10T15:09:09.871Z] Checked if tokens are valid: false, expires at: 1786375436995
+[debug] [2026-08-10T15:09:09.871Z] > refreshing access token with scopes: []
+[debug] [2026-08-10T15:09:09.873Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-08-10T15:09:09.873Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
