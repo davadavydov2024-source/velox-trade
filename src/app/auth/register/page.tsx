@@ -12,6 +12,7 @@ import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { createTelegramRegisterRequest } from "@/lib/telegramRegister";
 import { useLanguage, useLanguageStore } from "@/lib/languageStore";
 import { LANGUAGES } from "@/lib/i18n";
+import { useMascot } from "@/lib/mascotContext";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -31,6 +32,7 @@ function translateAuthError(code?: string) {
 function RegisterInner() {
   const { register } = useAuth();
   const { toast } = useToast();
+  const { celebrate } = useMascot();
   const router = useRouter();
   const searchParams = useSearchParams();
   const refCode = searchParams.get("ref");
@@ -96,6 +98,7 @@ function RegisterInner() {
         }
       }
       toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
+      celebrate("register");
       router.push("/profile");
     } catch (err: any) {
       toast("error", translateAuthError(err?.code));

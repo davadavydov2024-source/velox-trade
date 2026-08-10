@@ -69,3 +69,118 @@ body {
 .animate-glow {
   animation: glow-pulse 2.5s ease-in-out infinite;
 }
+
+/* ===== Маскот: появление, парение и частицы ===== */
+@keyframes mascot-enter-right {
+  0% {
+    opacity: 0;
+    transform: translateX(60px) translateY(20px) scale(0.6) rotate(8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-8px) translateY(-4px) scale(1.06) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes mascot-enter-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-60px) translateY(20px) scale(0.6) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(8px) translateY(-4px) scale(1.06) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes mascot-enter-bottom {
+  0% {
+    opacity: 0;
+    transform: translateY(80px) scale(0.5) rotate(-6deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-14px) scale(1.08) rotate(3deg);
+  }
+  75% {
+    transform: translateY(4px) scale(0.98) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.mascot-enter-right {
+  animation: mascot-enter-right 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.mascot-enter-left {
+  animation: mascot-enter-left 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.mascot-enter-bottom {
+  animation: mascot-enter-bottom 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes mascot-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.75);
+  }
+}
+.mascot-exit {
+  animation: mascot-exit 0.4s ease-in forwards;
+}
+
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.mascot-float {
+  animation: mascot-float 3s ease-in-out infinite;
+}
+
+@keyframes mascot-glow-pulse-kf {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+.mascot-glow-pulse {
+  animation: mascot-glow-pulse-kf 2.2s ease-in-out infinite;
+}
+
+@keyframes mascot-particle-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift, 0px), -160px) scale(1) rotate(180deg);
+  }
+}

@@ -11,11 +11,13 @@ import { createOrder, adjustUserBalance } from "@/lib/users";
 import { validateDiscountCode, markPromoCodeUsed } from "@/lib/promoCodes";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useRouter } from "next/navigation";
+import { useMascot } from "@/lib/mascotContext";
 
 export default function CartPage() {
   const { lines, remove, setQuantity, clear, total } = useCart();
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const { celebrate } = useMascot();
   const router = useRouter();
   const [promo, setPromo] = useState("");
   const [discount, setDiscount] = useState(0);
@@ -74,6 +76,7 @@ export default function CartPage() {
       await refreshProfile();
       clear();
       toast("success", "Заказ оформлен! Подтверди получение предмета в истории заказов, когда получишь его.");
+      celebrate("purchase");
       router.push("/profile/orders");
     } catch (e: any) {
       toast("error", e.message || "Не удалось оформить заказ. Попробуйте снова.");

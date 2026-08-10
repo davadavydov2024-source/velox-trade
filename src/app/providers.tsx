@@ -15,6 +15,8 @@ import { FavoritesSync } from "@/components/FavoritesSync";
 import { GlobalMessageListener } from "@/components/GlobalMessageListener";
 import { CartSync } from "@/components/CartSync";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
+import { MascotProvider } from "@/lib/mascotContext";
+import { MascotCelebration } from "@/components/MascotCelebration";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -24,15 +26,18 @@ export function Providers({ children }: { children: ReactNode }) {
         <UserLanguageSync />
         <ForceReloadListener />
         <ToastProvider>
-          <SessionManager />
-          <PresenceSync />
-          <FavoritesSync />
-          <CartSync />
-          <EventBanner />
-          <GlobalMessageListener />
-          <BanGate>
-            <MaintenanceGate>{children}</MaintenanceGate>
-          </BanGate>
+          <MascotProvider>
+            <SessionManager />
+            <PresenceSync />
+            <FavoritesSync />
+            <CartSync />
+            <EventBanner />
+            <GlobalMessageListener />
+            <MascotCelebration />
+            <BanGate>
+              <MaintenanceGate>{children}</MaintenanceGate>
+            </BanGate>
+          </MascotProvider>
         </ToastProvider>
       </AuthProvider>
     </ThemeProvider>

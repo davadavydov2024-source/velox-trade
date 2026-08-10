@@ -10,6 +10,7 @@ import { Order, OrderChatMessage, Dispute } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { MessageCircle, AlertTriangle, Ban } from "lucide-react";
 import { SalesChart } from "@/components/SalesChart";
+import { useMascot } from "@/lib/mascotContext";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ждёт подтверждения", color: "#ff9800" },
@@ -232,12 +233,31 @@ export default function SalesPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const { celebrate } = useMascot();
 
   useEffect(() => {
     if (!user) return;
     getOrdersForSeller(user.uid)
-      .then(setOrders)
+      .then((list) => {
+        setOrders(list);
+        // Продавец и покупатель — разные люди в разных вкладках, поэтому "живого" пуша в
+        // момент продажи нет технически. Вместо этого сравниваем список заказов с тем, что
+        // видели в прошлый раз (храним локально у продавца в браузере) — если появились новые
+        // заказы с прошлого визита на эту страницу, показываем маскота прямо сейчас.
+        try {
+          const key = `vt_seen_orders_${user.uid}`;
+          const seenRaw = localStorage.getItem(key);
+          if (seenRaw !== null) {
+            const seen = new Set<string>(JSON.parse(seenRaw));
+            if (list.some((o) => !seen.has(o.id))) celebrate("sale");
+          }
+          localStorage.setItem(key, JSON.stringify(list.map((o) => o.id)));
+        } catch {
+          // localStorage недоступен (приватный режим и т.п.) — просто не показываем маскота.
+        }
+      })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (loading) return <div className="card p-10 text-center text-white/40">Загрузка продаж...</div>;
