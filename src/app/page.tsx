@@ -192,8 +192,8 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid lg:grid-cols-[1fr_320px] gap-4">
         <PromoCarousel />
         <div className="space-y-4">
-          <QuickTopupCard />
           <AdSlotCard />
+          <QuickTopupCard />
         </div>
       </section>
 
