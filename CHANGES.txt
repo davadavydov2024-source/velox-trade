@@ -1,0 +1,22 @@
+Что внутри (10 файлов, только изменённые/новые — остальной проект не трогать):
+
+НОВЫЕ:
+  src/app/privacy/page.tsx        — страница политики конфиденциальности
+  src/app/terms/page.tsx          — страница пользовательского соглашения
+
+ИЗМЕНЁННЫЕ:
+  next.config.js                       — фикс 402 (unoptimized: true для картинок)
+  src/components/Footer.tsx            — ссылки на /privacy и /terms в футере
+  src/app/rules/page.tsx                — убрана жёсткая привязка к CactusPay
+  src/app/auth/register/page.tsx        — чекбокс согласия ссылается на /privacy и /terms
+  src/app/page.tsx                      — блок рекламы поднят над блоком пополнения
+  src/app/api/payments/cancel/route.ts  — принимает idToken и из тела запроса (для sendBeacon)
+  src/lib/payments.ts                   — добавлена cancelPaymentBeacon()
+  src/app/profile/topup/page.tsx        — автоотмена платежа при уходе со страницы оплаты
+
+Как применить:
+1. Распакуй архив прямо в корень своего проекта (туда же, где лежит package.json) —
+   на вопрос о замене файлов отвечай "да, заменить все".
+2. Оплата всё ещё через CactusPay — как договорились, переключение на новый
+   провайдер (СБП/крипта/CryptoBot/xRocket) сделаю отдельно, как только пришлёшь
+   название сервиса и их API-документацию.

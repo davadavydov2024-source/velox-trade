@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -15,12 +15,13 @@ import {
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createTopUpRequest, getUserTopUpRequests } from "@/lib/users";
-import { createCactusPayment, getUserPayments, watchPayment, cancelPayment, sweepExpiredPayments } from "@/lib/payments";
+import { createCactusPayment, getUserPayments, watchPayment, cancelPayment, cancelPaymentBeacon, sweepExpiredPayments } from "@/lib/payments";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { TopUpRequest, Payment, SiteScreen } from "@/types";
 import { useSearchParams } from "next/navigation";
 import { getSiteScreen } from "@/lib/siteScreens";
 import { SiteScreenView } from "@/components/SiteScreenView";
+import { auth as firebaseAuth } from "@/lib/firebase";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -65,6 +66,8 @@ function TopUpPageInner() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const pendingOrderIdRef = useRef<string | null>(null);
+  const idTokenRef = useRef<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -93,6 +96,7 @@ function TopUpPageInner() {
     const orderId = searchParams.get("order_id");
     if (!orderId) return;
     setPendingOrderId(orderId);
+    firebaseAuth.currentUser?.getIdToken().then((t) => { idTokenRef.current = t; }).catch(() => {});
     const unsub = watchPayment(orderId, (payment) => {
       if (payment?.status === "paid") {
         toast("success", `Баланс пополнен на ${payment.amount} ₽!`);
@@ -104,6 +108,44 @@ function TopUpPageInner() {
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  useEffect(() => {
+    pendingOrderIdRef.current = pendingOrderId;
+  }, [pendingOrderId]);
+
+  // Автоотмена, если пользователь ушёл со страницы оплаты, не завершив её.
+  // Срабатывает, когда пользователь уже вернулся к нам с ?order_id= (то есть реально
+  // побывал на странице оплаты), а не в момент самого перехода туда — тот переход
+  // трогать нельзя, иначе платёж отменится раньше, чем человек успеет заплатить.
+  useEffect(() => {
+    function activeCancel() {
+      const orderId = pendingOrderIdRef.current;
+      if (!orderId) return;
+      handleCancelPayment(orderId, { silent: true });
+    }
+    function beaconCancelOnUnload() {
+      const orderId = pendingOrderIdRef.current;
+      const idToken = idTokenRef.current;
+      if (!orderId || !idToken) return;
+      cancelPaymentBeacon(orderId, idToken);
+    }
+    function visibilityHandler() {
+      if (document.visibilityState === "visible") activeCancel();
+    }
+    // Вернулись на вкладку (свернули/открыли другую и вернулись, либо нажали "назад" со
+    // страницы оплаты) — сразу перепроверяем и отменяем, если платёж всё ещё висит.
+    document.addEventListener("visibilitychange", visibilityHandler);
+    window.addEventListener("pageshow", activeCancel);
+    // Закрывают вкладку/уходят на другой сайт — fetch может не успеть, поэтому используем
+    // sendBeacon, который браузер гарантированно отправляет даже во время выгрузки страницы.
+    window.addEventListener("pagehide", beaconCancelOnUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      window.removeEventListener("pageshow", activeCancel);
+      window.removeEventListener("pagehide", beaconCancelOnUnload);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function refreshPayments() {
     if (!user) return;
@@ -147,19 +189,22 @@ function TopUpPageInner() {
     }
   }
 
-  async function handleCancelPayment(orderId: string) {
-    setCancellingId(orderId);
+  async function handleCancelPayment(orderId: string, opts?: { silent?: boolean }) {
+    const silent = opts?.silent ?? false;
+    if (!silent) setCancellingId(orderId);
     try {
       await cancelPayment(orderId);
-      toast("success", "Платёж отменён");
+      if (!silent) toast("success", "Платёж отменён");
       if (pendingOrderId === orderId) setPendingOrderId(null);
       refreshPayments();
     } catch (err: any) {
-      toast("error", err?.message || "Не удалось отменить платёж");
+      // В тихом режиме (авто-отмена при уходе со страницы) не показываем ошибку — платёж мог
+      // уже оплатиться или отмениться раньше, это ожидаемо и не требует внимания пользователя.
+      if (!silent) toast("error", err?.message || "Не удалось отменить платёж");
       refreshPayments(); // на случай, если сервер уже зачислил баланс (оплата пришла раньше отмены)
       refreshProfile();
     } finally {
-      setCancellingId(null);
+      if (!silent) setCancellingId(null);
     }
   }
 

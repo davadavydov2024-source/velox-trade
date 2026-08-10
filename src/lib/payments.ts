@@ -72,6 +72,20 @@ export async function cancelAllPendingPayments(): Promise<{ total: number; cance
   return data;
 }
 
+/**
+ * Отменяет платёж через navigator.sendBeacon — используется при уходе со страницы оплаты
+ * (закрытие вкладки, переход на другую страницу сайта). В отличие от fetch, sendBeacon
+ * гарантированно доставляется браузером даже во время выгрузки страницы, поэтому это
+ * единственный надёжный способ отменить платёж именно в момент ухода, а не ждать sweep.
+ * Не даёт распарсить ответ (по спецификации beacon это fire-and-forget) — сервер сам
+ * перепроверяет статус у CactusPay перед отменой, так что оплаченный платёж не пострадает.
+ */
+export function cancelPaymentBeacon(orderId: string, idToken: string): boolean {
+  if (typeof navigator === "undefined" || !navigator.sendBeacon) return false;
+  const blob = new Blob([JSON.stringify({ orderId, idToken })], { type: "application/json" });
+  return navigator.sendBeacon("/api/payments/cancel", blob);
+}
+
 export async function getPayment(orderId: string): Promise<Payment | null> {
   const snap = await getDoc(doc(db, "payments", orderId));
   if (!snap.exists()) return null;

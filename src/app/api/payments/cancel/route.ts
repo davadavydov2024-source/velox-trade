@@ -7,8 +7,9 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json();
     const authHeader = req.headers.get("authorization");
-    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : typeof body?.idToken === "string" ? body.idToken : null;
     if (!idToken) {
       return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     }
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Сессия истекла. Войди заново." }, { status: 401 });
     }
 
-    const { orderId } = await req.json();
+    const { orderId } = body;
     if (typeof orderId !== "string" || !orderId) {
       return NextResponse.json({ error: "Не указан платёж" }, { status: 400 });
     }
