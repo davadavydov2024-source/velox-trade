@@ -7,7 +7,9 @@ import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createTicket, subscribeUserTickets, addTicketMessage } from "@/lib/tickets";
 import { sendSupportAutoReply } from "@/lib/emailjs";
-import { SupportTicket } from "@/types";
+import { SupportTicket, SiteScreen } from "@/types";
+import { getSiteScreen } from "@/lib/siteScreens";
+import { SiteScreenView } from "@/components/SiteScreenView";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -42,6 +44,11 @@ export function SupportPanel() {
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [closedScreen, setClosedScreen] = useState<SiteScreen | null>(null);
+
+  useEffect(() => {
+    getSiteScreen("support").then((s) => setClosedScreen(s?.enabled ? s : null));
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -103,6 +110,8 @@ export function SupportPanel() {
       setSubmitting(false);
     }
   }
+
+  if (closedScreen) return <SiteScreenView screen={closedScreen} />;
 
   return (
     <div>

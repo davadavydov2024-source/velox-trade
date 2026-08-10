@@ -14,6 +14,7 @@ import { PresenceSync } from "@/components/PresenceSync";
 import { FavoritesSync } from "@/components/FavoritesSync";
 import { GlobalMessageListener } from "@/components/GlobalMessageListener";
 import { CartSync } from "@/components/CartSync";
+import { MaintenanceGate } from "@/components/MaintenanceGate";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -29,7 +30,9 @@ export function Providers({ children }: { children: ReactNode }) {
           <CartSync />
           <EventBanner />
           <GlobalMessageListener />
-          <BanGate>{children}</BanGate>
+          <BanGate>
+            <MaintenanceGate>{children}</MaintenanceGate>
+          </BanGate>
         </ToastProvider>
       </AuthProvider>
     </ThemeProvider>

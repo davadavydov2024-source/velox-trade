@@ -17,8 +17,10 @@ import { useToast } from "@/lib/toastContext";
 import { createTopUpRequest, getUserTopUpRequests } from "@/lib/users";
 import { createCactusPayment, getUserPayments, watchPayment, cancelPayment, sweepExpiredPayments } from "@/lib/payments";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { TopUpRequest, Payment } from "@/types";
+import { TopUpRequest, Payment, SiteScreen } from "@/types";
 import { useSearchParams } from "next/navigation";
+import { getSiteScreen } from "@/lib/siteScreens";
+import { SiteScreenView } from "@/components/SiteScreenView";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -52,6 +54,11 @@ function TopUpPageInner() {
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [enabled, setEnabled] = useState(true);
   const [flagsLoaded, setFlagsLoaded] = useState(false);
+  const [closedScreen, setClosedScreen] = useState<SiteScreen | null>(null);
+
+  useEffect(() => {
+    getSiteScreen("topup").then((s) => setClosedScreen(s?.enabled ? s : null));
+  }, []);
 
   const [depositAmount, setDepositAmount] = useState("");
   const [payingNow, setPayingNow] = useState(false);
@@ -198,7 +205,9 @@ function TopUpPageInner() {
     <div className="space-y-6 max-w-xl">
       <h1 className="text-xl font-bold">Пополнение и вывод баланса</h1>
 
-      {!flagsLoaded ? (
+      {closedScreen ? (
+        <SiteScreenView screen={closedScreen} />
+      ) : !flagsLoaded ? (
         <div className="card p-10 text-center text-white/40">Загрузка...</div>
       ) : !enabled ? (
         <div className="card p-8 text-center">

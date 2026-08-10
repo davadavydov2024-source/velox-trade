@@ -258,6 +258,23 @@ export interface WebPushSubscription {
   createdAt: number;
 }
 
+/** Настраиваемый "закрывающий" экран — на весь сайт (тех.перерыв), для поддержки, для
+ * пополнения, или для 404. Админ задаёт картинку, заголовок, описание и до 10 кнопок. */
+export interface SiteScreenButton {
+  text: string;
+  link: string;
+}
+
+export interface SiteScreen {
+  id: "global" | "support" | "topup" | "notfound";
+  enabled: boolean;
+  image: string;
+  title: string;
+  description: string;
+  buttons: SiteScreenButton[];
+  updatedAt: number;
+}
+
 export interface TicketMessage {
   from: "user" | "admin";
   text: string;
