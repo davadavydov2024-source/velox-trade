@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Список UID админов — продублирован из firestore.rules (Storage Rules не видят Firestore).
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        "s4Cbs8BFRwd9CrPYNkQBQzbVlQG3",
+        "DAdWBqr7i8UWc1nT0NVVMuJ1DJQ2"
+      ];
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // Изображения товаров и игр — загружать может только админ (каталог им управляется).
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+    match /games/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+
+    // Баннеры и фото для рассылок — тоже только админ.
+    match /ads/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+    match /broadcasts/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+
+    // Аватары — любой залогиненный пользователь может загрузить файл (лимит на частоту смены
+    // проверяется в коде сайта, а не здесь — Storage Rules этого не умеют делать надёжно).
+    match /avatars/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && isImage() && isUnder5MB();
+    }
+
+    // Всё остальное — закрыто по умолчанию.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
