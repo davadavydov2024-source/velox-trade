@@ -1,0 +1,26 @@
+mutation SeedDatabase @transaction {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      username: "alice",
+      email: "alice@example.com",
+      locationPoint: "0,0"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      username: "bob",
+      email: "bob@example.com",
+      locationPoint: "1,1"
+    }
+  ])
+  post_insertMany(data: [
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      title: "Need Help Moving",
+      description: "Moving furniture to a new apartment.",
+      status: "open",
+      creator: { id: "550e8400-e29b-41d4-a716-446655440001" },
+      locationPoint: "0,0"
+    }
+  ])
+}

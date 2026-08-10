@@ -1,0 +1,39 @@
+mutation CreateUser($username: String!, $email: String!, $locationPoint: String!) @auth(level: PUBLIC) {
+  user_insert(data: {
+    username: $username,
+    email: $email,
+    locationPoint: $locationPoint
+  })
+}
+
+mutation CreatePost($title: String!, $description: String!, $locationPoint: String!, $status: String!) @auth(level: USER) {
+  post_insert(data: {
+    title: $title,
+    description: $description,
+    locationPoint: $locationPoint,
+    status: $status,
+    creatorId_expr: "auth.uid"
+  })
+}
+
+mutation CreateInteraction($postId: UUID!, $status: String!) @auth(level: USER) {
+  interaction_insert(data: {
+    postId: $postId,
+    status: $status,
+    helperId_expr: "auth.uid"
+  })
+}
+
+query ListMyPosts @auth(level: USER) {
+  posts(where: { creatorId: { eq_expr: "auth.uid" } }) {
+    title
+    description
+    status
+    interactions_on_post {
+      status
+      helper {
+        username
+      }
+    }
+  }
+}
