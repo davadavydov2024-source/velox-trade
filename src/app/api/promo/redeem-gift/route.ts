@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
+import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
@@ -45,6 +47,8 @@ export async function POST(req: NextRequest) {
 
     const userRef = db.collection("users").doc(uid);
     const productRef = promo.giftType === "product" && promo.giftProductId ? db.collection("products").doc(promo.giftProductId) : null;
+    let wonSellerId: string | null = null;
+    let wonProductName = "";
 
     const result = await db.runTransaction(async (tx) => {
       // Сначала все чтения, потом все записи (иначе Firestore ругается на смешение).
@@ -73,15 +77,30 @@ export async function POST(req: NextRequest) {
           sellerId: product.sellerId,
           items: [{ productId: promo.giftProductId, name: product.name, price: 0, quantity: 1 }],
           total: 0,
-          status: "confirmed",
+          status: "pending_confirmation",
           createdAt: Date.now(),
-          confirmedAt: Date.now(),
         });
-        return { giftType: "product", giftProductName: promo.giftProductName ?? product.name };
+        // Тот же путь, что и у обычной покупки: чат с продавцом, "Подтвердить получение",
+        // "Пожаловаться" — а не сразу "получено", ведь продавцу ещё нужно фактически выдать подарок.
+        tx.set(db.collection("orderChats").doc(orderRef.id), {
+          orderId: orderRef.id,
+          buyerId: uid,
+          sellerId: product.sellerId,
+          messages: [{ from: "system", text: "🎁 Промо-подарок активирован! Напиши продавцу, чтобы договориться о получении предмета.", createdAt: Date.now() }],
+          updatedAt: Date.now(),
+        });
+        wonSellerId = product.sellerId;
+        wonProductName = promo.giftProductName ?? product.name;
+        return { giftType: "product", giftProductName: wonProductName };
       }
 
       throw new Error("misconfigured");
     });
+
+    if (wonSellerId && wonSellerId !== "store") {
+      notifyTelegramServer(wonSellerId, `🎁 Ваш товар «${wonProductName}» отдан по промо-подарку`);
+      sendWebPush(wonSellerId, { title: "Товар отдан по промокоду", body: wonProductName, url: "/profile/sales" });
+    }
 
     return NextResponse.json({ ok: true, ...result });
   } catch (err: any) {

@@ -108,9 +108,17 @@ export async function POST(req: NextRequest) {
           sellerId: product.sellerId,
           items: [{ productId: chosen.productId, name: product.name, price: 0, quantity: 1 }],
           total: 0,
-          status: "confirmed",
+          status: "pending_confirmation",
           createdAt: Date.now(),
-          confirmedAt: Date.now(),
+        });
+        // Тот же путь, что и у обычной покупки: чат с продавцом, "Подтвердить получение",
+        // "Пожаловаться" — а не сразу "получено", ведь продавцу ещё нужно фактически выдать приз.
+        tx.set(db.collection("orderChats").doc(orderRef.id), {
+          orderId: orderRef.id,
+          buyerId: uid,
+          sellerId: product.sellerId,
+          messages: [{ from: "system", text: "🎡 Приз выигран на колесе фортуны! Напиши продавцу, чтобы договориться о получении предмета.", createdAt: Date.now() }],
+          updatedAt: Date.now(),
         });
         wonSellerId = product.sellerId;
         wonProductName = product.name;
