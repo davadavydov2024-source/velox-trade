@@ -41,6 +41,11 @@ export default function HomePage() {
 
   return (
     <div>
+      {/* Большой промо-баннер — теперь самое первое, что видно на странице */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 lg:pt-4">
+        <PromoCarousel />
+      </div>
+
       {/* Mobile hero — компактный, с реальными данными вместо статичного лого */}
       <section className="lg:hidden border-b border-border px-4 pt-4 pb-6 space-y-4">
         <div>
@@ -189,12 +194,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid lg:grid-cols-[1fr_320px] gap-4">
-        <PromoCarousel />
-        <div className="space-y-4">
-          <AdSlotCard />
-          <QuickTopupCard />
-        </div>
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid sm:grid-cols-2 gap-4">
+        <AdSlotCard />
+        <QuickTopupCard />
       </section>
 
       {featured.length > 0 && (
