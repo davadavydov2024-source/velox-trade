@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Edit3, Power, Pin } from "lucide-react";
+import { Plus, Trash2, Edit3, Power, Pin, Send, Loader2 } from "lucide-react";
 import { getAllNotifications, createNotification, updateNotification, deleteNotification } from "@/lib/notifications";
 import { AppNotification } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { useAuth } from "@/lib/authContext";
 
 const CATEGORIES: { value: AppNotification["category"]; label: string }[] = [
   { value: "general", label: "Общее" },
@@ -25,9 +26,14 @@ const EMPTY: Omit<AppNotification, "id" | "createdAt"> = {
 
 export default function AdminNotificationsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AppNotification | null>(null);
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
+  const [pushUrl, setPushUrl] = useState("");
+  const [pushSending, setPushSending] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
 
@@ -101,8 +107,89 @@ export default function AdminNotificationsPage() {
     setItems((list) => list.map((x) => (x.id === n.id ? { ...x, pinned: !x.pinned } : x)));
   }
 
+  async function handlePushBroadcast(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    if (!pushTitle.trim()) {
+      toast("warning", "Введи заголовок push-уведомления");
+      return;
+    }
+    setPushSending(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/push-broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast("error", data.error ?? "Не удалось отправить рассылку");
+        return;
+      }
+      if (data.total === 0) {
+        toast("warning", "Пока ни один пользователь не подписан на push-уведомления — рассылать некому.");
+      } else if (data.failed === 0) {
+        toast("success", `Push отправлен всем подписчикам (${data.sent} из ${data.total})`);
+      } else {
+        toast("warning", `Доставлено ${data.sent} из ${data.total}, ${data.failed} не прошли (устаревшие подписки удалены)`);
+      }
+      setPushTitle("");
+      setPushBody("");
+      setPushUrl("");
+    } catch {
+      toast("error", "Не удалось отправить рассылку");
+    } finally {
+      setPushSending(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
+      <div className="card p-5 space-y-3">
+        <div>
+          <p className="font-semibold flex items-center gap-2">
+            <Send size={16} className="text-accent" /> Push-рассылка всем пользователям
+          </p>
+          <p className="text-sm text-white/40">
+            Уходит как настоящее push-уведомление — на iPhone придёт, только если сайт добавлен на главный экран и
+            человек включил уведомления. Дойдёт только до тех, кто подписался (см. переключатель в Профиль → Безопасность).
+          </p>
+        </div>
+        <form onSubmit={handlePushBroadcast} className="grid sm:grid-cols-2 gap-3">
+          <input
+            autoComplete="off"
+            required
+            placeholder="Заголовок push-уведомления"
+            value={pushTitle}
+            onChange={(e) => setPushTitle(e.target.value)}
+            className="input-field py-2.5"
+          />
+          <input
+            autoComplete="off"
+            placeholder="Ссылка при нажатии (необязательно, напр. /catalog)"
+            value={pushUrl}
+            onChange={(e) => setPushUrl(e.target.value)}
+            className="input-field py-2.5"
+          />
+          <textarea
+            placeholder="Текст уведомления"
+            value={pushBody}
+            onChange={(e) => setPushBody(e.target.value)}
+            className="input-field py-2.5 sm:col-span-2"
+            rows={2}
+          />
+          <button
+            type="submit"
+            disabled={pushSending}
+            className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2 justify-center disabled:opacity-50 sm:col-span-2 sm:w-fit"
+          >
+            {pushSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {pushSending ? "Отправляем..." : "Отправить всем"}
+          </button>
+        </form>
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold">Уведомления</h1>

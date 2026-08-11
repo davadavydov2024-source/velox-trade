@@ -17,6 +17,8 @@ import { CartSync } from "@/components/CartSync";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
 import { MascotProvider } from "@/lib/mascotContext";
 import { MascotCelebration } from "@/components/MascotCelebration";
+import { IosInstallPrompt } from "@/components/IosInstallPrompt";
+import { EnableNotificationsPrompt } from "@/components/EnableNotificationsPrompt";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -34,6 +36,8 @@ export function Providers({ children }: { children: ReactNode }) {
             <EventBanner />
             <GlobalMessageListener />
             <MascotCelebration />
+            <IosInstallPrompt />
+            <EnableNotificationsPrompt />
             <BanGate>
               <MaintenanceGate>{children}</MaintenanceGate>
             </BanGate>

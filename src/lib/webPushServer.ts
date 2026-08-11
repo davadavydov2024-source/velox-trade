@@ -20,6 +20,42 @@ interface PushPayload {
 }
 
 /**
+ * Рассылка ВСЕМ подписанным пользователям сразу — для админских рассылок (см. /admin/notifications).
+ * В отличие от sendWebPush (один uid), тут не группируем по uid — просто идём по каждой
+ * сохранённой подписке. Мёртвые подписки (404/410) удаляются по ходу, как и в sendWebPush.
+ */
+export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ total: number; sent: number; failed: number }> {
+  if (!ensureConfigured()) return { total: 0, sent: 0, failed: 0 };
+  const db = adminDb();
+  const snap = await db.collection("pushSubscriptions").get();
+  if (snap.empty) return { total: 0, sent: 0, failed: 0 };
+
+  let sent = 0;
+  let failed = 0;
+  // Небольшими пачками, чтобы не упереться в лимиты push-сервисов при большой базе подписчиков.
+  const BATCH = 50;
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += BATCH) {
+    const batch = docs.slice(i, i + BATCH);
+    await Promise.all(
+      batch.map(async (doc) => {
+        const sub = doc.data();
+        try {
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, JSON.stringify(payload));
+          sent++;
+        } catch (err: any) {
+          if (err?.statusCode === 404 || err?.statusCode === 410) {
+            await doc.ref.delete().catch(() => {});
+          }
+          failed++;
+        }
+      })
+    );
+  }
+  return { total: docs.length, sent, failed };
+}
+
+/**
  * Шлёт push-уведомление во все браузеры пользователя (может быть несколько подписок —
  * разные устройства/браузеры). Мёртвые подписки (браузер отписался/данные устарели — код 404/410)
  * тихо удаляются, чтобы не копился мусор и не тратились попытки отправки впустую.
