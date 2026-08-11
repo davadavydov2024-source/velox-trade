@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
 import { useLanguage } from "@/lib/languageStore";
+import { AccountSwitcher } from "@/components/AccountSwitcher";
 
 export default function ProfileLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout } = useAuth();
@@ -55,6 +56,8 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
             ))}
           </div>
         </div>
+        <AccountSwitcher />
+        <div className="h-px bg-white/5 my-3" />
         {links.map((l) => {
           const Icon = l.icon;
           const active = pathname === l.href;

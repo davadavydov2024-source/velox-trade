@@ -16,6 +16,7 @@ import {
 import { auth, googleProvider } from "./firebase";
 import { ensureUserProfile, getUserProfile, syncEmailVerified } from "./users";
 import { UserProfile } from "@/types";
+import { getActiveSlotId, upsertSavedAccount } from "./accountSlots";
 
 /** Бан считается действующим, если banned=true и (until не задан/"forever", либо ещё не истёк). */
 export function isEffectivelyBanned(profile: UserProfile | null): boolean {
@@ -75,6 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           p.emailVerified = true;
         }
         setProfile(p);
+        // Держим список аккаунтов в переключателе актуальным — чем бы человек ни вошёл
+        // (обычным логином на "primary" или переключением на добавленный аккаунт).
+        upsertSavedAccount({
+          slotId: getActiveSlotId(),
+          uid: u.uid,
+          email: u.email ?? "",
+          displayName: u.displayName ?? u.email ?? "Игрок",
+          photoURL: u.photoURL ?? undefined,
+        });
       } else {
         setProfile(null);
       }
