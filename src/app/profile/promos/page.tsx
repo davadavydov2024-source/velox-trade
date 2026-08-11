@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Gift, Sparkles, Users, Copy } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
@@ -12,6 +13,7 @@ import { DEFAULT_FEATURE_FLAGS } from "@/types";
 export default function PromoGiftsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const [code, setCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [referralBonus, setReferralBonus] = useState(DEFAULT_FEATURE_FLAGS.referralBonusRub);
@@ -60,11 +62,14 @@ export default function PromoGiftsPage() {
       const promo = await redeemGiftCode(code, user.uid);
       if (promo.giftType === "balance") {
         toast("success", `Промо-подарок активирован! На баланс зачислено ${promo.giftBalance} ₽.`);
+        setCode("");
+        await refreshProfile();
       } else {
-        toast("success", `Промо-подарок активирован! Предмет «${promo.giftProductName}» уже в истории покупок.`);
+        toast("success", `Промо-подарок активирован! Открываю чат с продавцом «${promo.giftProductName}»...`);
+        await refreshProfile();
+        if (promo.orderId) router.push(`/chats?order=${promo.orderId}`);
+        else setCode("");
       }
-      setCode("");
-      await refreshProfile();
     } catch (err: any) {
       toast("error", err?.message ?? "Не удалось активировать промокод");
     } finally {

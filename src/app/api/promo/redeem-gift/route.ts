@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     const productRef = promo.giftType === "product" && promo.giftProductId ? db.collection("products").doc(promo.giftProductId) : null;
     let wonSellerId: string | null = null;
     let wonProductName = "";
+    let wonOrderId: string | null = null;
 
     const result = await db.runTransaction(async (tx) => {
       // Сначала все чтения, потом все записи (иначе Firestore ругается на смешение).
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
         });
         wonSellerId = product.sellerId;
         wonProductName = promo.giftProductName ?? product.name;
+        wonOrderId = orderRef.id;
         return { giftType: "product", giftProductName: wonProductName };
       }
 
@@ -102,7 +104,7 @@ export async function POST(req: NextRequest) {
       sendWebPush(wonSellerId, { title: "Товар отдан по промокоду", body: wonProductName, url: "/profile/sales" });
     }
 
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, ...result, orderId: wonOrderId });
   } catch (err: any) {
     const map: Record<string, string> = {
       "already-used": "Вы уже использовали этот промокод",

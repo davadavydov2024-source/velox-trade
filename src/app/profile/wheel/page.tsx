@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Disc3, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Disc3, Sparkles, MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getAllWheelPrizes } from "@/lib/wheelPrizes";
@@ -16,6 +17,7 @@ interface PrizeResult {
   name: string;
   image?: string;
   balanceRub?: number;
+  orderId?: string;
 }
 
 const SEGMENT_COLORS = ["#1c1c24", "#26263080"]; // чередующиеся оттенки для секторов
@@ -23,6 +25,7 @@ const SEGMENT_COLORS = ["#1c1c24", "#26263080"]; // чередующиеся о�
 export default function WheelPage() {
   const { user, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const [code, setCode] = useState("");
   const [prizes, setPrizes] = useState<WheelPrize[]>([]);
   const [loadingPrizes, setLoadingPrizes] = useState(true);
@@ -117,7 +120,7 @@ export default function WheelPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Не удалось прокрутить колесо");
 
-      const prize: PrizeResult = data.prize;
+      const prize: PrizeResult = { ...data.prize, orderId: data.orderId };
       let targetIndex = prizes.findIndex((p) => p.id === prize.id);
       if (targetIndex === -1) targetIndex = 0; // приз уже не в текущем списке (редкий случай) — крутим наугад
 
@@ -220,7 +223,19 @@ export default function WheelPage() {
                 <>
                   <p className="font-bold">{result.name}</p>
                   {result.type === "balance" && <p className="text-accent text-xs mt-0.5">Начислено на баланс!</p>}
-                  {result.type === "product" && <p className="text-accent text-xs mt-0.5">Товар уже в твоих заказах!</p>}
+                  {result.type === "product" && (
+                    <>
+                      <p className="text-accent text-xs mt-0.5 mb-2">Товар уже в твоих заказах!</p>
+                      {result.orderId && (
+                        <button
+                          onClick={() => router.push(`/chats?order=${result.orderId}`)}
+                          className="btn-primary px-4 py-2 text-xs inline-flex items-center gap-1.5"
+                        >
+                          <MessageCircle size={14} /> Написать продавцу
+                        </button>
+                      )}
+                    </>
+                  )}
                 </>
               )}
             </div>

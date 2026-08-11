@@ -1,9 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileTabBar } from "@/components/MobileTabBar";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Не запрещаем зум полностью (userScalable: false вредит доступности — люди со слабым
+  // зрением не смогут увеличить текст) — просто не даём растянуть страницу больше чем в 2 раза,
+  // чтобы при случайном пинче интерфейс не разъезжался.
+  maximumScale: 2,
+};
 
 export const metadata: Metadata = {
   title: "Velox Trade — Лучший магазин игровых предметов",

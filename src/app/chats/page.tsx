@@ -67,6 +67,15 @@ function ChatsInner() {
     if (params.get("tab") === "support") setView({ kind: "support" });
   }, [params]);
 
+  // Пришли сразу после покупки/выигрыша с конкретным ?order= — открываем этот чат, как только
+  // список чатов подгрузится (имя собеседника берём уже из готового списка, не запрашиваем отдельно).
+  useEffect(() => {
+    const orderId = params.get("order");
+    if (!orderId || loading) return;
+    const match = items.find((i) => i.orderId === orderId);
+    if (match) setView({ kind: "order", orderId, counterpartName: match.counterpartName });
+  }, [params, items, loading]);
+
   useEffect(() => {
     if (!user) {
       setLoading(false);

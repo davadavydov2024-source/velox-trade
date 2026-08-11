@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
 
     let wonSellerId: string | null = null;
     let wonProductName = "";
+    let wonOrderId: string | null = null;
 
     const result = await db.runTransaction(async (tx) => {
       // Firestore-транзакции требуют, чтобы ВСЕ чтения шли до ЛЮБЫХ записей — поэтому сначала
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
         });
         wonSellerId = product.sellerId;
         wonProductName = product.name;
+        wonOrderId = orderRef.id;
       }
 
       return { id: chosen.id, type: chosen.type, name: chosen.name, image: chosen.image, balanceRub: chosen.balanceRub };
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
       sendWebPush(wonSellerId, { title: "Товар выиграли на колесе", body: wonProductName, url: "/profile/sales" });
     }
 
-    return NextResponse.json({ ok: true, prize: result });
+    return NextResponse.json({ ok: true, prize: result, orderId: wonOrderId });
   } catch (err: any) {
     if (err?.message === "prize-depleted") {
       return NextResponse.json({ error: "Этот приз только что закончился — попробуй ещё раз" }, { status: 409 });

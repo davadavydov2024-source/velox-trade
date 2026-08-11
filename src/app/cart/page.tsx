@@ -75,9 +75,12 @@ export default function CartPage() {
 
       await refreshProfile();
       clear();
-      toast("success", "Заказ оформлен! Подтверди получение предмета в истории заказов, когда получишь его.");
+      toast("success", "Заказ оформлен! Чат с продавцом уже открыт — подтверди получение, когда получишь предмет.");
       celebrate("purchase");
-      router.push("/profile/orders");
+      // Один продавец в корзине — сразу открываем чат по заказу; если товары от разных
+      // продавцов (несколько заказов сразу), ведём в общий список чатов — там появятся все.
+      const orderIds: string[] = data.orderIds ?? [];
+      router.push(orderIds.length === 1 ? `/chats?order=${orderIds[0]}` : "/chats");
     } catch (e: any) {
       toast("error", e.message || "Не удалось оформить заказ. Попробуйте снова.");
     } finally {

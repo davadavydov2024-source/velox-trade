@@ -60,7 +60,7 @@ export async function validateDiscountCode(code: string, uid: string): Promise<P
  * Идёт через сервер (api/promo/redeem-gift), потому что обычный пользователь не может ни менять
  * свой баланс напрямую (запрещают правила Firestore), ни списывать остаток чужого товара.
  */
-export async function redeemGiftCode(code: string, uid: string): Promise<{ giftType: "balance" | "product"; giftBalance?: number; giftProductName?: string }> {
+export async function redeemGiftCode(code: string, uid: string): Promise<{ giftType: "balance" | "product"; giftBalance?: number; giftProductName?: string; orderId?: string }> {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("Нужно войти в аккаунт");
   const res = await fetch("/api/promo/redeem-gift", {
