@@ -59,6 +59,12 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
       })
     );
   }
+  if (failed > 0 && lastError) {
+    // Публичный ключ VAPID — всегда ровно 65 "сырых" байт (несжатая EC-точка), приватный — 32 байта.
+    // В base64url это ~87-88 символов у публичного и ~43 у приватного. Если они перепутаны местами
+    // (частая ошибка копипаста), длины будут не такими — это сразу видно без доступа к самим ключам.
+    lastError += ` | Длина ключей на сервере: публичный=${VAPID_PUBLIC?.length ?? 0} симв. (должно быть ~87), приватный=${VAPID_PRIVATE?.length ?? 0} симв. (должно быть ~43)`;
+  }
   return { total: docs.length, sent, failed, lastError };
 }
 
