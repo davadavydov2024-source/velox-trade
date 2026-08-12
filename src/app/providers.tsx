@@ -19,6 +19,7 @@ import { MascotProvider } from "@/lib/mascotContext";
 import { MascotCelebration } from "@/components/MascotCelebration";
 import { IosInstallPrompt } from "@/components/IosInstallPrompt";
 import { EnableNotificationsPrompt } from "@/components/EnableNotificationsPrompt";
+import { TwoFactorGate } from "@/components/TwoFactorGate";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -39,7 +40,9 @@ export function Providers({ children }: { children: ReactNode }) {
             <IosInstallPrompt />
             <EnableNotificationsPrompt />
             <BanGate>
-              <MaintenanceGate>{children}</MaintenanceGate>
+              <TwoFactorGate>
+                <MaintenanceGate>{children}</MaintenanceGate>
+              </TwoFactorGate>
             </BanGate>
           </MascotProvider>
         </ToastProvider>

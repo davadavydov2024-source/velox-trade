@@ -140,6 +140,7 @@ export interface UserProfile {
   claimedEventIds?: string[]; // id ивентов, за которые уже получен бонус (чтобы не выдавать повторно)
   lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
   lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 24 часа
+  twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
 }
 
 export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";
