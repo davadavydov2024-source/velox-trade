@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { cactusCreatePayment, CactusPayError } from "@/lib/cactuspay";
+import { rollyCreatePayment, RollyPayError } from "@/lib/rollypay";
 
 export const runtime = "nodejs";
 
 const MIN_AMOUNT = 100; // минимум у самого CactusPay
+type Gateway = "cactus" | "rolly";
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,11 +34,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Аккаунт заблокирован" }, { status: 403 });
     }
 
-    const { amount } = await req.json();
+    const { amount, gateway: gatewayRaw } = await req.json();
     const num = Number(amount);
     if (!num || num < MIN_AMOUNT) {
       return NextResponse.json({ error: `Минимальная сумма пополнения — ${MIN_AMOUNT} ₽` }, { status: 400 });
     }
+    const gateway: Gateway = gatewayRaw === "rolly" ? "rolly" : "cactus";
 
     // Простая защита от спама запросами: не чаще одного нового платежа в 10 секунд на пользователя.
     // Без orderBy: where + orderBy на разных полях потребовал бы составного индекса в Firestore.
@@ -50,13 +53,20 @@ export async function POST(req: NextRequest) {
 
     const orderId = `vt_${uid.slice(0, 8)}_${Date.now()}`;
     const origin = req.headers.get("origin") || req.nextUrl.origin;
+    const redirectUrl = `${origin}/profile/topup?order_id=${orderId}`;
+    const description = `Пополнение баланса Velox Trade — ${userData.displayName}`;
 
-    const { url } = await cactusCreatePayment({
-      amount: num,
-      orderId,
-      description: `Пополнение баланса Velox Trade — ${userData.displayName}`,
-      redirectUrl: `${origin}/profile/topup?order_id=${orderId}`,
-    });
+    let url: string;
+    let rollyPaymentId: string | undefined;
+
+    if (gateway === "rolly") {
+      const created = await rollyCreatePayment({ amount: num, orderId, description, redirectUrl });
+      url = created.payUrl;
+      rollyPaymentId = created.paymentId;
+    } else {
+      const created = await cactusCreatePayment({ amount: num, orderId, description, redirectUrl });
+      url = created.url;
+    }
 
     await db.collection("payments").doc(orderId).set({
       userId: uid,
@@ -64,13 +74,15 @@ export async function POST(req: NextRequest) {
       amount: num,
       status: "pending",
       paymentUrl: url,
+      gateway,
+      ...(rollyPaymentId ? { rollyPaymentId } : {}),
       createdAt: Date.now(),
     });
 
     return NextResponse.json({ url, orderId });
   } catch (err) {
-    if (err instanceof CactusPayError) {
-      console.error("CactusPay create error:", err.message);
+    if (err instanceof CactusPayError || err instanceof RollyPayError) {
+      console.error("Payment gateway create error:", err.message);
       return NextResponse.json({ error: err.message }, { status: 502 });
     }
     console.error("payments/create error:", err);

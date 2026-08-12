@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { cactusGetPayment, CactusPayError } from "@/lib/cactuspay";
+import { rollyGetPayment, RollyPayError } from "@/lib/rollypay";
 import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Платёж не найден" }, { status: 404 });
     }
 
-    const payment = snap.data() as { userId: string; status: string; amount: number };
+    const payment = snap.data() as { userId: string; status: string; amount: number; gateway?: "cactus" | "rolly" };
     if (payment.userId !== uid) {
       return NextResponse.json({ error: "Это не твой платёж" }, { status: 403 });
     }
@@ -43,19 +44,33 @@ export async function POST(req: NextRequest) {
     }
 
     // ВАЖНО: как и в вебхуке, не доверяем нашей же локальной пометке "pending" — перепроверяем
-    // реальный статус у самого CactusPay. Если оплата уже прошла (просто вебхук ещё не дошёл),
-    // отменять нельзя — вместо этого сразу зачисляем баланс, как это сделал бы вебхук.
+    // реальный статус у самой платёжной системы. Если оплата уже прошла (просто вебхук ещё не
+    // дошёл), отменять нельзя — вместо этого сразу зачисляем баланс, как это сделал бы вебхук.
     try {
-      const verified = await cactusGetPayment(orderId);
-      if (verified.status === "ACCEPT") {
-        await db.runTransaction(async (tx) => {
-          const freshSnap = await tx.get(paymentRef);
-          const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
-          if (fresh.status === "paid") return;
-          tx.update(paymentRef, { status: "paid", paidAt: Date.now(), cactusPaymentId: verified.id });
-          tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
-        });
-        return NextResponse.json({ error: "Оплата уже поступила — баланс зачислен, отмена не нужна" }, { status: 409 });
+      if (payment.gateway === "rolly") {
+        const verified = await rollyGetPayment(orderId);
+        if (verified.status === "paid") {
+          await db.runTransaction(async (tx) => {
+            const freshSnap = await tx.get(paymentRef);
+            const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
+            if (fresh.status === "paid") return;
+            tx.update(paymentRef, { status: "paid", paidAt: Date.now(), rollyPaymentId: verified.paymentId });
+            tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
+          });
+          return NextResponse.json({ error: "Оплата уже поступила — баланс зачислен, отмена не нужна" }, { status: 409 });
+        }
+      } else {
+        const verified = await cactusGetPayment(orderId);
+        if (verified.status === "ACCEPT") {
+          await db.runTransaction(async (tx) => {
+            const freshSnap = await tx.get(paymentRef);
+            const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
+            if (fresh.status === "paid") return;
+            tx.update(paymentRef, { status: "paid", paidAt: Date.now(), cactusPaymentId: verified.id });
+            tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
+          });
+          return NextResponse.json({ error: "Оплата уже поступила — баланс зачислен, отмена не нужна" }, { status: 409 });
+        }
       }
     } catch (err) {
       console.error(`payments/cancel: не удалось перепроверить платёж ${orderId} —`, err);
@@ -65,8 +80,8 @@ export async function POST(req: NextRequest) {
     await paymentRef.update({ status: "cancelled", cancelledAt: Date.now() });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (err instanceof CactusPayError) {
-      console.error("CactusPay verify error:", err.message);
+    if (err instanceof CactusPayError || err instanceof RollyPayError) {
+      console.error("Payment gateway verify error:", err.message);
       return NextResponse.json({ error: err.message }, { status: 502 });
     }
     console.error("payments/cancel error:", err);

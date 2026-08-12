@@ -24,15 +24,18 @@ export function AdSlotCard() {
 
   if (!ad) return null;
 
+  const hasImage = !!ad.image && isValidImageSrc(ad.image);
+
   return (
-    <div className="card p-4 sm:p-5 relative overflow-hidden">
-      {ad.image && isValidImageSrc(ad.image) && (
-        <>
-          <Image src={safeImageSrc(ad.image)} alt="" fill className="object-cover" sizes="320px" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d1017] via-[#0d1017]/85 to-[#0d1017]/40" />
-        </>
+    <div className="card p-0 overflow-hidden">
+      {hasImage && (
+        // Фиксированное соотношение сторон (прямоугольник 16:9) — без этого блок брал высоту
+        // от текста и почти квадратную/высокую картинку сжимало в узкую полоску с жёсткой обрезкой.
+        <div className="relative w-full aspect-[16/9] bg-surface">
+          <Image src={safeImageSrc(ad.image!)} alt="" fill className="object-cover" sizes="320px" />
+        </div>
       )}
-      <div className="relative">
+      <div className="p-4 sm:p-5">
         <div className="flex items-center gap-2 mb-3">
           <Megaphone size={16} className="text-accent" />
           <p className="text-[10px] uppercase tracking-wide text-white/40 font-semibold">Реклама</p>

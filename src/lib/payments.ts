@@ -4,8 +4,8 @@ import { Payment } from "@/types";
 
 const paymentsCol = collection(db, "payments");
 
-/** Создаёт платёж через CactusPay и возвращает ссылку на страницу оплаты. */
-export async function createCactusPayment(amount: number): Promise<{ url: string; orderId: string }> {
+/** Создаёт платёж через выбранный шлюз (CactusPay или RollyPay) и возвращает ссылку на страницу оплаты. */
+export async function createPayment(amount: number, gateway: "cactus" | "rolly" = "cactus"): Promise<{ url: string; orderId: string }> {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Нужно войти в аккаунт");
 
@@ -13,13 +13,18 @@ export async function createCactusPayment(amount: number): Promise<{ url: string
   const res = await fetch("/api/payments/create", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ amount }),
+    body: JSON.stringify({ amount, gateway }),
   });
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || "Не удалось создать платёж");
   }
   return { url: data.url, orderId: data.orderId };
+}
+
+/** @deprecated используй createPayment(amount, "cactus") — оставлено для обратной совместимости. */
+export async function createCactusPayment(amount: number): Promise<{ url: string; orderId: string }> {
+  return createPayment(amount, "cactus");
 }
 
 export async function getUserPayments(userId: string): Promise<Payment[]> {

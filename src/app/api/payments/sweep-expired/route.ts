@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { cactusGetPayment, PENDING_PAYMENT_TIMEOUT_MS } from "@/lib/cactuspay";
+import { rollyGetPayment, ROLLYPAY_PENDING_TIMEOUT_MS } from "@/lib/rollypay";
 import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
@@ -33,23 +34,41 @@ export async function POST(req: NextRequest) {
     let credited = 0;
 
     for (const docSnap of snap.docs) {
-      const data = docSnap.data() as { createdAt: number };
-      if (now - data.createdAt < PENDING_PAYMENT_TIMEOUT_MS) continue; // ещё не истёк срок ожидания
+      const data = docSnap.data() as { createdAt: number; gateway?: "cactus" | "rolly" };
+      const timeout = data.gateway === "rolly" ? ROLLYPAY_PENDING_TIMEOUT_MS : PENDING_PAYMENT_TIMEOUT_MS;
+      if (now - data.createdAt < timeout) continue; // ещё не истёк срок ожидания
 
       try {
-        const verified = await cactusGetPayment(docSnap.id);
-        if (verified.status === "ACCEPT") {
-          await db.runTransaction(async (tx) => {
-            const freshSnap = await tx.get(docSnap.ref);
-            const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
-            if (fresh.status === "paid") return;
-            tx.update(docSnap.ref, { status: "paid", paidAt: Date.now(), cactusPaymentId: verified.id });
-            tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
-          });
-          credited++;
+        if (data.gateway === "rolly") {
+          const verified = await rollyGetPayment(docSnap.id);
+          if (verified.status === "paid") {
+            await db.runTransaction(async (tx) => {
+              const freshSnap = await tx.get(docSnap.ref);
+              const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
+              if (fresh.status === "paid") return;
+              tx.update(docSnap.ref, { status: "paid", paidAt: Date.now(), rollyPaymentId: verified.paymentId });
+              tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
+            });
+            credited++;
+          } else {
+            await docSnap.ref.update({ status: "cancelled", cancelledAt: Date.now(), cancelReason: "expired" });
+            cancelled++;
+          }
         } else {
-          await docSnap.ref.update({ status: "cancelled", cancelledAt: Date.now(), cancelReason: "expired" });
-          cancelled++;
+          const verified = await cactusGetPayment(docSnap.id);
+          if (verified.status === "ACCEPT") {
+            await db.runTransaction(async (tx) => {
+              const freshSnap = await tx.get(docSnap.ref);
+              const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
+              if (fresh.status === "paid") return;
+              tx.update(docSnap.ref, { status: "paid", paidAt: Date.now(), cactusPaymentId: verified.id });
+              tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
+            });
+            credited++;
+          } else {
+            await docSnap.ref.update({ status: "cancelled", cancelledAt: Date.now(), cancelReason: "expired" });
+            cancelled++;
+          }
         }
       } catch (err) {
         console.error(`payments/sweep-expired: не удалось проверить платёж ${docSnap.id} —`, err);
