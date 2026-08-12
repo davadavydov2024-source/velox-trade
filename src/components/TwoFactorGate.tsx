@@ -4,8 +4,25 @@ import { ReactNode, useEffect, useState } from "react";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 
-function sessionKey(uid: string) {
-  return `vt_2fa_verified_${uid}`;
+const TRUST_DAYS = 30;
+
+function trustKey(uid: string) {
+  return `vt_2fa_trusted_${uid}`;
+}
+
+function isDeviceTrusted(uid: string): boolean {
+  const raw = localStorage.getItem(trustKey(uid));
+  if (!raw) return false;
+  const expiresAt = Number(raw);
+  if (!expiresAt || Date.now() > expiresAt) {
+    localStorage.removeItem(trustKey(uid));
+    return false;
+  }
+  return true;
+}
+
+function trustDevice(uid: string) {
+  localStorage.setItem(trustKey(uid), String(Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000));
 }
 
 export function TwoFactorGate({ children }: { children: ReactNode }) {
@@ -19,7 +36,7 @@ export function TwoFactorGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    setVerified(sessionStorage.getItem(sessionKey(user.uid)) === "1");
+    setVerified(isDeviceTrusted(user.uid));
   }, [user]);
 
   if (!user || !profile || !needsGate || verified) return <>{children}</>;
@@ -41,7 +58,7 @@ export function TwoFactorGate({ children }: { children: ReactNode }) {
         setError(data.error ?? "Неверный код");
         return;
       }
-      sessionStorage.setItem(sessionKey(user.uid), "1");
+      trustDevice(user.uid);
       setVerified(true);
     } catch {
       setError("Не удалось проверить код — проверь соединение");
@@ -56,7 +73,7 @@ export function TwoFactorGate({ children }: { children: ReactNode }) {
         <ShieldCheck className="mx-auto text-accent" size={40} />
         <h1 className="text-xl font-bold">Двухфакторная аутентификация</h1>
         <p className="text-white/50 text-sm">
-          Введи 6-значный код из приложения-аутентификатора (или один из резервных кодов).
+          Введи 6-значный код из приложения-аутентификатора (или один из резервных кодов). Это устройство запомнится на 30 дней.
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
