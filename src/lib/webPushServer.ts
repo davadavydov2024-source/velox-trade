@@ -24,14 +24,15 @@ interface PushPayload {
  * В отличие от sendWebPush (один uid), тут не группируем по uid — просто идём по каждой
  * сохранённой подписке. Мёртвые подписки (404/410) удаляются по ходу, как и в sendWebPush.
  */
-export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ total: number; sent: number; failed: number }> {
-  if (!ensureConfigured()) return { total: 0, sent: 0, failed: 0 };
+export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ total: number; sent: number; failed: number; lastError?: string }> {
+  if (!ensureConfigured()) return { total: 0, sent: 0, failed: 0, lastError: "VAPID-ключи не настроены на сервере" };
   const db = adminDb();
   const snap = await db.collection("pushSubscriptions").get();
   if (snap.empty) return { total: 0, sent: 0, failed: 0 };
 
   let sent = 0;
   let failed = 0;
+  let lastError: string | undefined;
   // Небольшими пачками, чтобы не упереться в лимиты push-сервисов при большой базе подписчиков.
   const BATCH = 50;
   const docs = snap.docs;
@@ -44,6 +45,12 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
           await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, JSON.stringify(payload));
           sent++;
         } catch (err: any) {
+          // Раньше эта ошибка нигде не логировалась и не долетала до админки — из-за этого
+          // было невозможно понять, реально ли подписка протухла (404/410) или дело в чём-то
+          // другом (например, рассинхронизации VAPID-ключей — тогда придёт 401/403, и подписка
+          // на самом деле рабочая, просто сервер подписывает её не тем ключом).
+          console.error("sendWebPushBroadcast error:", err?.statusCode, err?.body || err?.message);
+          lastError = `${err?.statusCode ?? "?"}: ${(err?.body || err?.message || "неизвестная ошибка").toString().slice(0, 200)}`;
           if (err?.statusCode === 404 || err?.statusCode === 410) {
             await doc.ref.delete().catch(() => {});
           }
@@ -52,7 +59,7 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
       })
     );
   }
-  return { total: docs.length, sent, failed };
+  return { total: docs.length, sent, failed, lastError };
 }
 
 /**

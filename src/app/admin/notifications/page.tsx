@@ -132,7 +132,7 @@ export default function AdminNotificationsPage() {
       } else if (data.failed === 0) {
         toast("success", `Push отправлен всем подписчикам (${data.sent} из ${data.total})`);
       } else {
-        toast("warning", `Доставлено ${data.sent} из ${data.total}, ${data.failed} не прошли (устаревшие подписки удалены)`);
+        toast("warning", `Доставлено ${data.sent} из ${data.total}. Причина сбоев: ${data.lastError ?? "неизвестна"}`);
       }
       setPushTitle("");
       setPushBody("");

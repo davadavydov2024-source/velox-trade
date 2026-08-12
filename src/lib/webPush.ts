@@ -39,6 +39,13 @@ export async function subscribeToPush(uid: string): Promise<void> {
   const reg = await navigator.serviceWorker.register("/sw.js");
   await navigator.serviceWorker.ready;
 
+  // Если в браузере уже есть подписка (даже если сервер её считает мёртвой — например, после
+  // рассылки, где не прошедшие push удаляются из базы) — subscribe() с тем же ключом тихо вернёт
+  // СТАРЫЙ объект вместо создания нового. Поэтому сначала явно отписываемся, чтобы гарантированно
+  // получить свежую подписку с новым endpoint.
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) await existing.unsubscribe().catch(() => {});
+
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,
