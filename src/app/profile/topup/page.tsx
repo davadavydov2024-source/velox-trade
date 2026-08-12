@@ -62,7 +62,6 @@ function TopUpPageInner() {
   }, []);
 
   const [depositAmount, setDepositAmount] = useState("");
-  const [gateway, setGateway] = useState<"cactus" | "rolly">("cactus");
   const [payingNow, setPayingNow] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
@@ -182,7 +181,7 @@ function TopUpPageInner() {
     }
     setPayingNow(true);
     try {
-      const { url } = await createPayment(num, gateway);
+      const { url } = await createPayment(num);
       window.location.href = url;
     } catch (err: any) {
       toast("error", err?.message || "Не удалось создать платёж");
@@ -291,49 +290,16 @@ function TopUpPageInner() {
 
           {tab === "deposit" ? (
             <>
-              <div className="card p-4 space-y-3">
-                <p className="text-xs text-white/40">Способ оплаты</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setGateway("cactus")}
-                    className={`px-3 py-2.5 rounded-btn text-sm font-medium transition-colors ${
-                      gateway === "cactus" ? "bg-accent text-black" : "bg-surface text-white/60"
-                    }`}
-                  >
-                    CactusPay
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGateway("rolly")}
-                    className={`px-3 py-2.5 rounded-btn text-sm font-medium transition-colors ${
-                      gateway === "rolly" ? "bg-accent text-black" : "bg-surface text-white/60"
-                    }`}
-                  >
+              <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5">
+                <p className="text-sm text-white/70 leading-relaxed">
+                  Оплата принимается через платёжную систему{" "}
+                  <a href="https://rollypay.io" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
                     RollyPay
-                  </button>
-                </div>
-                <p className="text-xs text-white/40 leading-relaxed">
-                  {gateway === "cactus" ? (
-                    <>
-                      Через платёжную систему{" "}
-                      <a href="https://lk.cactuspay.pro" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                        CactusPay
-                      </a>
-                      .
-                    </>
-                  ) : (
-                    <>
-                      Через платёжную систему{" "}
-                      <a href="https://rollypay.io" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                        RollyPay
-                      </a>{" "}
-                      (СБП, карты, крипта).
-                    </>
-                  )}{" "}
-                  Нажимая «Оплатить», вы соглашаетесь с тем, что за проведение платежа (сроки зачисления, работу
-                  способа оплаты, возможные технические сбои) отвечает сама платёжная система, а не Velox Trade.
-                  Баланс зачисляется автоматически после подтверждения оплаты.
+                  </a>{" "}
+                  (СБП, карты, крипта). Нажимая «Оплатить», вы соглашаетесь с тем, что за проведение платежа (в том
+                  числе за сроки зачисления, работу выбранного способа оплаты и возможные технические сбои) отвечает
+                  сама платёжная система rollypay.io, а не Velox Trade. Баланс зачисляется автоматически после
+                  подтверждения оплаты.
                 </p>
               </div>
 

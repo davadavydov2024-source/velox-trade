@@ -4,8 +4,8 @@ import { Payment } from "@/types";
 
 const paymentsCol = collection(db, "payments");
 
-/** Создаёт платёж через выбранный шлюз (CactusPay или RollyPay) и возвращает ссылку на страницу оплаты. */
-export async function createPayment(amount: number, gateway: "cactus" | "rolly" = "cactus"): Promise<{ url: string; orderId: string }> {
+/** Создаёт платёж через RollyPay и возвращает ссылку на страницу оплаты. */
+export async function createPayment(amount: number): Promise<{ url: string; orderId: string }> {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Нужно войти в аккаунт");
 
@@ -13,7 +13,7 @@ export async function createPayment(amount: number, gateway: "cactus" | "rolly" 
   const res = await fetch("/api/payments/create", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ amount, gateway }),
+    body: JSON.stringify({ amount }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -22,18 +22,13 @@ export async function createPayment(amount: number, gateway: "cactus" | "rolly" 
   return { url: data.url, orderId: data.orderId };
 }
 
-/** @deprecated используй createPayment(amount, "cactus") — оставлено для обратной совместимости. */
-export async function createCactusPayment(amount: number): Promise<{ url: string; orderId: string }> {
-  return createPayment(amount, "cactus");
-}
-
 export async function getUserPayments(userId: string): Promise<Payment[]> {
   const snap = await getDocs(query(paymentsCol, where("userId", "==", userId)));
   const payments = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Payment);
   return payments.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/** Отменяет платёж, который всё ещё "Ждём оплату" (сервер перепроверяет статус у CactusPay перед отменой). */
+/** Отменяет платёж, который всё ещё "Ждём оплату" (сервер перепроверяет статус у RollyPay перед отменой). */
 export async function cancelPayment(orderId: string): Promise<void> {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Нужно войти в аккаунт");
@@ -83,7 +78,7 @@ export async function cancelAllPendingPayments(): Promise<{ total: number; cance
  * гарантированно доставляется браузером даже во время выгрузки страницы, поэтому это
  * единственный надёжный способ отменить платёж именно в момент ухода, а не ждать sweep.
  * Не даёт распарсить ответ (по спецификации beacon это fire-and-forget) — сервер сам
- * перепроверяет статус у CactusPay перед отменой, так что оплаченный платёж не пострадает.
+ * перепроверяет статус у RollyPay перед отменой, так что оплаченный платёж не пострадает.
  */
 export function cancelPaymentBeacon(orderId: string, idToken: string): boolean {
   if (typeof navigator === "undefined" || !navigator.sendBeacon) return false;

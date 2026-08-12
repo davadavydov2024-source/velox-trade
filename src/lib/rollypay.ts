@@ -67,7 +67,7 @@ interface PaymentInfo {
 
 /**
  * Независимая проверка статуса платежа через сам RollyPay (не доверяем только вебхуку —
- * как и с CactusPay, это защита от поддельных/повторных колбэков).
+ * это защита от поддельных/повторных колбэков).
  */
 export async function rollyGetPayment(paymentId: string): Promise<PaymentInfo> {
   if (!ROLLYPAY_API_KEY) throw new RollyPayError("ROLLYPAY_API_KEY не задан на сервере");

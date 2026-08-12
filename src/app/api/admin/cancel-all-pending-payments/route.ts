@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { cactusGetPayment } from "@/lib/cactuspay";
+import { rollyGetPayment } from "@/lib/rollypay";
 import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ function isAdminUid(uid: string): boolean {
 /**
  * Разовое админское действие: отменяет ВСЕ платежи со статусом "pending" по всем пользователям,
  * прямо сейчас, независимо от их возраста. Перед отменой каждый платёж перепроверяется у самого
- * CactusPay — если окажется, что оплата всё-таки прошла, баланс зачисляется, а не отменяется.
+ * RollyPay — если окажется, что оплата всё-таки прошла, баланс зачисляется, а не отменяется.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -41,13 +41,13 @@ export async function POST(req: NextRequest) {
 
     for (const docSnap of snap.docs) {
       try {
-        const verified = await cactusGetPayment(docSnap.id);
-        if (verified.status === "ACCEPT") {
+        const verified = await rollyGetPayment(docSnap.id);
+        if (verified.status === "paid") {
           await db.runTransaction(async (tx) => {
             const freshSnap = await tx.get(docSnap.ref);
             const fresh = freshSnap.data() as { status: string; userId: string; amount: number };
             if (fresh.status === "paid") return;
-            tx.update(docSnap.ref, { status: "paid", paidAt: Date.now(), cactusPaymentId: verified.id });
+            tx.update(docSnap.ref, { status: "paid", paidAt: Date.now(), rollyPaymentId: verified.paymentId });
             tx.update(db.collection("users").doc(fresh.userId), { balance: FieldValue.increment(fresh.amount) });
           });
           credited++;

@@ -68,10 +68,10 @@ export default function AdminTopUpsPage() {
     <div className="space-y-8">
       <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5 flex items-center justify-between gap-4">
         <div>
-          <p className="font-medium">Автоплатежи CactusPay</p>
+          <p className="font-medium">Автоплатежи RollyPay</p>
           <p className="text-sm text-white/50 mt-1">
             Отменить прямо сейчас все платежи со статусом «Ждём оплату» у всех пользователей (например, чтобы
-            почистить старые зависшие заявки). Каждый платёж перед отменой перепроверяется у самого CactusPay —
+            почистить старые зависшие заявки). Каждый платёж перед отменой перепроверяется у самого RollyPay —
             если он на самом деле оплачен, баланс зачислится, а не отменится.
           </p>
         </div>

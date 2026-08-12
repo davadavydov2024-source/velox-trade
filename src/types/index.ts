@@ -358,13 +358,11 @@ export interface TopUpRequest {
 }
 
 export interface Payment {
-  id: string; // совпадает с order_id, который мы передаём платёжному шлюзу
+  id: string; // совпадает с order_id, который мы передаём в RollyPay
   userId: string;
   userNick: string;
   amount: number;
   status: "pending" | "paid" | "failed" | "cancelled";
-  gateway?: "cactus" | "rolly"; // отсутствует у старых записей — тогда это CactusPay
-  cactusPaymentId?: number;
   rollyPaymentId?: string;
   paymentUrl?: string;
   createdAt: number;
