@@ -1,6 +1,9 @@
 import webpush from "web-push";
 import crypto from "crypto";
 import { adminDb } from "./firebaseAdmin";
+import { PushCategories, DEFAULT_PUSH_CATEGORIES } from "@/types";
+
+export type PushCategory = keyof PushCategories;
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY?.trim();
@@ -101,6 +104,7 @@ interface PushPayload {
 
 /**
  * Рассылка ВСЕМ подписанным пользователям сразу — для админских рассылок (см. /admin/notifications).
+ * Считается категорией "news" — уважает отключённую пользователем категорию "Новости и объявления".
  * В отличие от sendWebPush (один uid), тут не группируем по uid — просто идём по каждой
  * сохранённой подписке. Мёртвые/несовместимые с текущими ключами подписки удаляются по ходу.
  */
@@ -114,6 +118,7 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   let lastError: string | undefined;
   // Небольшими пачками, чтобы не упереться в лимиты push-сервисов при большой базе подписчиков.
   const BATCH = 50;
@@ -122,7 +127,11 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
     const batch = docs.slice(i, i + BATCH);
     await Promise.all(
       batch.map(async (doc) => {
-        const sub = doc.data();
+        const sub = doc.data() as { uid?: string; endpoint: string; keys: any };
+        if (sub.uid && !(await isCategoryEnabled(sub.uid, "news"))) {
+          skipped++;
+          return;
+        }
         try {
           await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, JSON.stringify(payload));
           sent++;
@@ -137,21 +146,25 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
       })
     );
   }
-  return { total: docs.length, sent, failed, lastError };
+  return { total: docs.length - skipped, sent, failed, lastError };
 }
 
 /**
  * Шлёт push-уведомление во все браузеры пользователя (может быть несколько подписок —
  * разные устройства/браузеры). Мёртвые/несовместимые с текущими ключами подписки удаляются,
  * чтобы не копился мусор и не тратились попытки отправки впустую.
+ * Уважает настройки категорий уведомлений пользователя (/profile/security) — если категория
+ * выключена, push просто не отправляется, без ошибки.
  */
-export async function sendWebPush(uid: string, payload: PushPayload): Promise<void> {
+export async function sendWebPush(uid: string, payload: PushPayload, category: PushCategory = "messages"): Promise<void> {
   const config = ensureConfigured();
   if (!config.ok) {
     console.error("sendWebPush: пропущено —", config.error);
     return;
   }
   try {
+    if (!(await isCategoryEnabled(uid, category))) return;
+
     const db = adminDb();
     const snap = await db.collection("pushSubscriptions").where("uid", "==", uid).get();
     if (snap.empty) return;
@@ -174,5 +187,17 @@ export async function sendWebPush(uid: string, payload: PushPayload): Promise<vo
     );
   } catch (err) {
     console.error("sendWebPush outer error:", err);
+  }
+}
+
+/** Проверяет, включена ли у пользователя данная категория уведомлений (по умолчанию — да, у старых профилей поля нет). */
+async function isCategoryEnabled(uid: string, category: PushCategory): Promise<boolean> {
+  try {
+    const userSnap = await adminDb().collection("users").doc(uid).get();
+    const prefs = (userSnap.data()?.pushCategories as PushCategories | undefined) ?? DEFAULT_PUSH_CATEGORIES;
+    return prefs[category] !== false;
+  } catch (err) {
+    console.error("isCategoryEnabled error:", err);
+    return true; // при сбое чтения профиля лучше отправить, чем молча потерять уведомление
   }
 }

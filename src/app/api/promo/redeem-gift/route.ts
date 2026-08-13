@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 
     if (wonSellerId && wonSellerId !== "store") {
       notifyTelegramServer(wonSellerId, `🎁 Ваш товар «${wonProductName}» отдан по промо-подарку`);
-      sendWebPush(wonSellerId, { title: "Товар отдан по промокоду", body: wonProductName, url: "/profile/sales" });
+      sendWebPush(wonSellerId, { title: "Товар отдан по промокоду", body: wonProductName, url: "/profile/sales" }, "purchases");
     }
 
     return NextResponse.json({ ok: true, ...result, orderId: wonOrderId });

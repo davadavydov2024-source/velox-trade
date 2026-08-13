@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       if (sellerId === "store") continue; // товары самого магазина — уведомлять некого
       const list = items.map((it) => `«${it.name}» × ${it.quantity}`).join(", ");
       notifyTelegramServer(sellerId, `🛒 У вас купили: ${list}`);
-      sendWebPush(sellerId, { title: "У вас купили товар", body: list, url: "/profile/sales" });
+      sendWebPush(sellerId, { title: "У вас купили товар", body: list, url: "/profile/sales" }, "purchases");
     }
 
     // Публичный счётчик сделок для главной страницы — пишем только через Admin SDK,

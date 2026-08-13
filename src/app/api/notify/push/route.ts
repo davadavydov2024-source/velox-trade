@@ -10,9 +10,10 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
   try {
-    const { uid, title, body, url } = await req.json();
+    const { uid, title, body, url, category } = await req.json();
     if (!uid || !title) return NextResponse.json({ error: "uid и title обязательны" }, { status: 400 });
-    await sendWebPush(uid, { title, body: body ?? "", url });
+    const validCategory = category === "purchases" || category === "reminders" || category === "news" ? category : "messages";
+    await sendWebPush(uid, { title, body: body ?? "", url }, validCategory);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("notify/push error:", err);

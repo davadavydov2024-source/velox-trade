@@ -4,11 +4,11 @@
  * или запрос не прошёл, ничего страшного — это не критично для основного действия.
  * keepalive: true — чтобы запрос долетел, даже если вкладка закроется сразу после вызова.
  */
-export function notifyPush(uid: string, title: string, body: string, url?: string): void {
+export function notifyPush(uid: string, title: string, body: string, url?: string, category: "purchases" | "messages" | "reminders" | "news" = "messages"): void {
   fetch("/api/notify/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uid, title, body, url }),
+    body: JSON.stringify({ uid, title, body, url, category }),
     keepalive: true,
   }).catch(() => {});
 }

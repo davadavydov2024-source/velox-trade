@@ -115,6 +115,20 @@ export const BADGE_COLOR: Record<UserBadge, string> = {
   checkmark_grey: "#8a8d91",
 };
 
+export interface PushCategories {
+  purchases: boolean; // купили ваш товар, выиграли на колесе фортуны, отдали товар по промокоду
+  messages: boolean; // сообщения в чате заказа, ответы поддержки, сообщения от администратора
+  reminders: boolean; // буст товара закончился, забытая корзина
+  news: boolean; // рассылки и объявления от администрации сайта
+}
+
+export const DEFAULT_PUSH_CATEGORIES: PushCategories = {
+  purchases: true,
+  messages: true,
+  reminders: true,
+  news: true,
+};
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -141,6 +155,7 @@ export interface UserProfile {
   lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
   lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 24 часа
   twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
+  pushCategories?: PushCategories; // отсутствует у старых профилей — тогда считаем, что включено всё (DEFAULT_PUSH_CATEGORIES)
 }
 
 export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       if (boostUntil > now || boostUntil < now - 24 * HOUR || alreadyReminded) continue;
 
       await notifyTelegramServer(p.sellerId, `⏳ Буст товара «${p.name}» закончился — можно поднять снова в личном кабинете.`);
-      await sendWebPush(p.sellerId, { title: "Буст товара закончился", body: `«${p.name}» — поднимите снова`, url: "/profile/my-products" });
+      await sendWebPush(p.sellerId, { title: "Буст товара закончился", body: `«${p.name}» — поднимите снова`, url: "/profile/my-products" }, "reminders");
       await doc.ref.update({ boostReminderSentFor: boostUntil });
       boostReminders++;
     }
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
       const itemsList = (cart.items as { name: string }[]).map((i) => i.name).join(", ");
       await notifyTelegramServer(cart.uid, `🛒 В корзине ждут: ${itemsList}. Не забудьте оформить заказ!`);
-      await sendWebPush(cart.uid, { title: "Забыли о корзине?", body: itemsList, url: "/cart" });
+      await sendWebPush(cart.uid, { title: "Забыли о корзине?", body: itemsList, url: "/cart" }, "reminders");
       await doc.ref.update({ reminderSentAt: now });
       cartReminders++;
     }

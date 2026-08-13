@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
     // того, как транзакция реально прошла, и независимо от того, закрыл ли вкладку тот, кто крутил.
     if (wonSellerId && wonSellerId !== "store") {
       notifyTelegramServer(wonSellerId, `🎡 Ваш товар «${wonProductName}» выиграли на колесе фортуны`);
-      sendWebPush(wonSellerId, { title: "Товар выиграли на колесе", body: wonProductName, url: "/profile/sales" });
+      sendWebPush(wonSellerId, { title: "Товар выиграли на колесе", body: wonProductName, url: "/profile/sales" }, "purchases");
     }
 
     return NextResponse.json({ ok: true, prize: result, orderId: wonOrderId });
