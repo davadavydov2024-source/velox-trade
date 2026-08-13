@@ -134,7 +134,8 @@ export default function ProductPage() {
                 </div>
               ))}
               {seller?.username && (
-                <Link href={`/seller/${seller.username}`} className="text-xs text-accent hover:underline block text-center pt-1">
+                // prefetch={false}: та же ссылка на профиль продавца уже прогружается блоком выше.
+                <Link href={`/seller/${seller.username}`} prefetch={false} className="text-xs text-accent hover:underline block text-center pt-1">
                   Все отзывы →
                 </Link>
               )}

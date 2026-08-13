@@ -71,7 +71,9 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
       </Link>
 
-      <Link href={`/product/${product.id}`}>
+      {/* prefetch={false}: та же ссылка уже прогружается через блок с картинкой чуть выше —
+          повторный Link на тот же адрес удваивал бы предзагрузку без всякой пользы. */}
+      <Link href={`/product/${product.id}`} prefetch={false}>
         <h3 className="font-medium text-sm truncate hover:text-accent transition-colors">{product.name}</h3>
       </Link>
       <p className="text-xs text-white/40 mb-1">{RARITY_LABEL[product.rarity]}</p>
