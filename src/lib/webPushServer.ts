@@ -96,6 +96,28 @@ function isDeadSubscriptionStatus(statusCode?: number): boolean {
   return statusCode === 404 || statusCode === 410 || statusCode === 401 || statusCode === 403;
 }
 
+/**
+ * Формирует понятное сообщение об ошибке отправки одному подписчику. 401/403 (BadJwtToken и
+ * подобные) при том, что ensureConfigured() уже подтвердил корректность текущей пары VAPID-ключей,
+ * означают ОДНО: конкретная подписка в браузере была создана под старым публичным ключом (до его
+ * смены) и с текущим никогда не сработает — это нормально, а не поломка кода. Подписка при этом
+ * удаляется из базы, и пользователю нужно просто заново включить уведомления.
+ */
+function describeSendError(statusCode?: number, rawBody?: string): string {
+  if (statusCode === 401 || statusCode === 403) {
+    return (
+      `${statusCode}: подписка пользователя создана под старым VAPID-ключом (ключи меняли уже после того, ` +
+      `как он подписался) и была автоматически удалена как нерабочая. Попроси его открыть ` +
+      `«Профиль → Безопасность» и заново включить push-уведомления — переключатель, скорее всего, уже показывает ` +
+      `«выключено», потому что подписка удалена. После этого рассылка снова дойдёт до него.`
+    );
+  }
+  if (statusCode === 404 || statusCode === 410) {
+    return `${statusCode}: подписка устарела (пользователь закрыл уведомления в браузере или очистил данные сайта) и была удалена.`;
+  }
+  return `${statusCode ?? "?"}: ${(rawBody || "неизвестная ошибка").toString().slice(0, 200)}`;
+}
+
 interface PushPayload {
   title: string;
   body: string;
@@ -137,7 +159,7 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
           sent++;
         } catch (err: any) {
           console.error("sendWebPushBroadcast error:", err?.statusCode, err?.body || err?.message);
-          lastError = `${err?.statusCode ?? "?"}: ${(err?.body || err?.message || "неизвестная ошибка").toString().slice(0, 200)}`;
+          lastError = describeSendError(err?.statusCode, err?.body || err?.message);
           if (isDeadSubscriptionStatus(err?.statusCode)) {
             await doc.ref.delete().catch(() => {});
           }
@@ -178,7 +200,7 @@ export async function sendWebPush(uid: string, payload: PushPayload, category: P
             JSON.stringify(payload)
           );
         } catch (err: any) {
-          console.error("sendWebPush error:", err?.statusCode, err?.body);
+          console.error("sendWebPush error:", describeSendError(err?.statusCode, err?.body));
           if (isDeadSubscriptionStatus(err?.statusCode)) {
             await doc.ref.delete().catch(() => {});
           }
