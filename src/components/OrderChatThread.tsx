@@ -12,6 +12,7 @@ import { createDispute, getDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
 import { OrderChatMessage, Order, Dispute } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
+import { DeliveryPanel } from "@/components/DeliveryPanel";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ожидает подтверждения", color: "#ff9800" },
@@ -238,6 +239,8 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
           )}
         </>
       )}
+
+      {order && order.status === "pending_confirmation" && <DeliveryPanel orderId={orderId} isBuyer={isBuyer} isSeller={isSeller} />}
 
       <div className="space-y-2 max-h-[340px] overflow-y-auto mb-3">
         {messages.length === 0 ? (

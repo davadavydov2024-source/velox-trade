@@ -16,6 +16,48 @@ export interface Game {
   productCount?: number;
 }
 
+// ---- Боты-посредники для передачи предметов внутри игры (эскроу) ----
+// "Бот" тут — не телеграм-бот, а игровой аккаунт-посредник (как миддлмен в Standoff2/CS/Roblox):
+// продавец передаёт предмет НА этот аккаунт, админ вручную подтверждает получение и выдачу,
+// так как готового API для автоматической передачи предметов внутри игр обычно нет.
+export interface BotAccount {
+  id: string;
+  gameId: string; // slug игры, для которой используется этот аккаунт-посредник
+  nickname: string;
+  profileLink?: string;
+  active: boolean;
+  createdAt: number;
+}
+
+export type DeliveryStatus =
+  | "awaiting_nickname" // покупатель ещё не вписал свой игровой ник
+  | "awaiting_transfer" // ник вписан, ждём пока продавец передаст предмет боту-посреднику
+  | "received_by_bot" // админ подтвердил: бот получил предмет от продавца
+  | "delivered" // админ подтвердил: предмет выдан покупателю
+  | "expired"; // не успели уложиться в отведённое время (1 час)
+
+// Один Delivery на один Order (id документа = orderId) — и для обычных покупок, и для призов
+// колеса фортуны (оба пути создают Order, см. api/orders/checkout и api/wheel/spin).
+export interface Delivery {
+  id: string; // = orderId
+  orderId: string;
+  buyerId: string;
+  sellerId: string;
+  productId: string;
+  productName: string;
+  gameId: string;
+  buyerNickname?: string;
+  buyerNicknameSubmittedAt?: number;
+  botAccountId?: string;
+  botNickname?: string; // снимок на момент назначения — не меняется задним числом, если бот-аккаунт потом отредактируют
+  botProfileLink?: string;
+  status: DeliveryStatus;
+  createdAt: number;
+  expiresAt: number; // createdAt + 1 час
+  receivedAt?: number;
+  deliveredAt?: number;
+}
+
 export interface Product {
   id: string;
   gameId: string;

@@ -7,6 +7,8 @@ import { sendWebPush } from "@/lib/webPushServer";
 export const runtime = "nodejs";
 
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+// Как и в api/orders/checkout — держим отдельно от src/lib/deliveries.ts (клиентский модуль).
+const DELIVERY_TIMEOUT_MS = 60 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   try {
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
       tx.update(promoDoc.ref, { usedBy: FieldValue.arrayUnion(uid) });
 
       if (productRef && productSnap?.exists && (productSnap.data()?.stock ?? 0) > 0) {
-        const product = productSnap.data() as { sellerId: string; name: string; price: number };
+        const product = productSnap.data() as { sellerId: string; name: string; price: number; gameId: string };
         tx.update(productRef, { stock: FieldValue.increment(-1) });
         const orderRef = db.collection("orders").doc();
         tx.set(orderRef, {
@@ -120,6 +122,19 @@ export async function POST(req: NextRequest) {
           sellerId: product.sellerId,
           messages: [{ from: "system", text: "🎡 Приз выигран на колесе фортуны! Напиши продавцу, чтобы договориться о получении предмета.", createdAt: Date.now() }],
           updatedAt: Date.now(),
+        });
+        // Заявка на выдачу через бота-посредника — тот же механизм, что и для обычных покупок.
+        const deliveryCreatedAt = Date.now();
+        tx.set(db.collection("deliveries").doc(orderRef.id), {
+          orderId: orderRef.id,
+          buyerId: uid,
+          sellerId: product.sellerId,
+          productId: chosen.productId,
+          productName: product.name,
+          gameId: product.gameId,
+          status: "awaiting_nickname",
+          createdAt: deliveryCreatedAt,
+          expiresAt: deliveryCreatedAt + DELIVERY_TIMEOUT_MS,
         });
         wonSellerId = product.sellerId;
         wonProductName = product.name;

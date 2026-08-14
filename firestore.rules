@@ -330,6 +330,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- боты-посредники для выдачи товаров и заявки на выдачу (эскроу-механика) ---
+    // botAccounts: игровые аккаунты-посредники, читает/пишет только админ (обычным пользователям
+    // не нужно видеть список напрямую — конкретный назначенный бот приходит внутри самой Delivery).
+    match /botAccounts/{botId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    // deliveries: одна запись на заказ (id документа = orderId). Покупатель и продавец читают только
+    // свою — админ читает все. Все изменения статуса идут через серверные API-роуты (Admin SDK
+    // обходит правила), это правило — просто защита от прямой записи с клиента в обход бизнес-логики.
+    match /deliveries/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));
+      allow write: if isAdmin();
+    }
+
     // --- жалобы на сделки ---
     match /disputes/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));

@@ -6,6 +6,10 @@ import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
+// Держим в двух местах (тут и в src/lib/deliveries.ts) намеренно: тот файл — клиентский модуль
+// (тянет клиентский Firebase SDK), импортировать его в серверный роут небезопасно.
+const DELIVERY_TIMEOUT_MS = 60 * 60 * 1000; // 1 час на весь процесс выдачи через бота-посредника
+
 interface CartLineIn {
   productId: string;
   quantity: number;
@@ -49,6 +53,7 @@ export async function POST(req: NextRequest) {
       name: string;
       price: number;
       sellerId: string;
+      gameId: string;
       discountPercent?: number;
     }[];
 
@@ -86,12 +91,14 @@ export async function POST(req: NextRequest) {
     // Товары могут принадлежать разным продавцам — отдельный заказ на каждого, чтобы чат/подтверждение
     // были привязаны к конкретной сделке (как и раньше на клиенте).
     const bySeller = new Map<string, { productId: string; name: string; price: number; quantity: number }[]>();
+    const gameIdBySeller = new Map<string, string>(); // для карточки выдачи — берём игру первого товара в группе
     products.forEach((p, i) => {
       const unitPrice = +(p.discountPercent ? p.price * (1 - p.discountPercent / 100) : p.price).toFixed(2);
       const sellerId = p.sellerId || "store";
       const group = bySeller.get(sellerId) ?? [];
       group.push({ productId: p.id, name: p.name, price: unitPrice, quantity: lines[i].quantity });
       bySeller.set(sellerId, group);
+      if (!gameIdBySeller.has(sellerId)) gameIdBySeller.set(sellerId, p.gameId);
     });
     const discountRatio = subtotal > 0 ? finalTotal / subtotal : 1;
 
@@ -127,6 +134,21 @@ export async function POST(req: NextRequest) {
           createdAt: Date.now(),
         });
         ids.push(orderRef.id);
+
+        // Заявка на выдачу через бота-посредника (см. /admin/bot-accounts и /admin/deliveries).
+        // Один Delivery на весь заказ — сколько бы товаров одного продавца в нём ни было.
+        const deliveryCreatedAt = Date.now();
+        tx.set(db.collection("deliveries").doc(orderRef.id), {
+          orderId: orderRef.id,
+          buyerId: uid,
+          sellerId,
+          productId: items[0].productId,
+          productName: items.map((it) => it.name).join(", "),
+          gameId: gameIdBySeller.get(sellerId) ?? "",
+          status: "awaiting_nickname",
+          createdAt: deliveryCreatedAt,
+          expiresAt: deliveryCreatedAt + DELIVERY_TIMEOUT_MS,
+        });
       }
       return ids;
     });
