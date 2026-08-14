@@ -123,10 +123,12 @@ export async function POST(req: NextRequest) {
           messages: [{ from: "system", text: "🎡 Приз выигран на колесе фортуны! Напиши продавцу, чтобы договориться о получении предмета.", createdAt: Date.now() }],
           updatedAt: Date.now(),
         });
-        // Заявка на выдачу через бота-посредника — тот же механизм, что и для обычных покупок.
+        // Заявка на выдачу через бота-посредника — тот же механизм, что и для обычных покупок,
+        // но с часовым лимитом (source: "wheel") — это правило именно выигрышей колеса.
         const deliveryCreatedAt = Date.now();
         tx.set(db.collection("deliveries").doc(orderRef.id), {
           orderId: orderRef.id,
+          source: "wheel",
           buyerId: uid,
           sellerId: product.sellerId,
           productId: chosen.productId,

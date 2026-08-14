@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
 };
 
 function isEffectivelyExpired(d: Delivery): boolean {
-  return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && Date.now() > d.expiresAt;
+  return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !!d.expiresAt && Date.now() > d.expiresAt;
 }
 
 function Countdown({ expiresAt }: { expiresAt: number }) {
@@ -117,7 +117,12 @@ export default function AdminDeliveriesPage() {
               <div key={d.id} className={`card p-4 space-y-3 ${status === "delivered" || expired ? "opacity-60" : ""}`}>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <p className="font-medium text-sm">{d.productName}</p>
+                    <p className="font-medium text-sm flex items-center gap-1.5">
+                      {d.productName}
+                      {d.source === "wheel" && (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">🎡 колесо</span>
+                      )}
+                    </p>
                     <p className="text-xs text-white/40">Заказ #{d.orderId.slice(0, 8)} · игра: {d.gameId}</p>
                   </div>
                   <span
@@ -153,7 +158,7 @@ export default function AdminDeliveriesPage() {
                   </div>
                 </div>
 
-                {(d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !expired && (
+                {(d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !expired && d.expiresAt && (
                   <div className="flex items-center gap-1.5 text-xs">
                     <Clock size={12} className="text-white/30" />
                     <Countdown expiresAt={d.expiresAt} />

@@ -41,6 +41,7 @@ export type DeliveryStatus =
 export interface Delivery {
   id: string; // = orderId
   orderId: string;
+  source: "purchase" | "wheel"; // wheel — выигрыш на колесе фортуны, purchase — обычная покупка
   buyerId: string;
   sellerId: string;
   productId: string;
@@ -53,7 +54,9 @@ export interface Delivery {
   botProfileLink?: string;
   status: DeliveryStatus;
   createdAt: number;
-  expiresAt: number; // createdAt + 1 час
+  // Ограничение по времени (1 час) действует ТОЛЬКО для призов колеса фортуны — там это часть
+  // правил ивента. Обычные покупки не горят: expiresAt для них не задаётся (undefined = без срока).
+  expiresAt?: number;
   receivedAt?: number;
   receivedByAdminUid?: string;
   deliveredAt?: number;

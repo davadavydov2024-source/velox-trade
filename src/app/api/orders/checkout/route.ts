@@ -6,10 +6,6 @@ import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
-// Держим в двух местах (тут и в src/lib/deliveries.ts) намеренно: тот файл — клиентский модуль
-// (тянет клиентский Firebase SDK), импортировать его в серверный роут небезопасно.
-const DELIVERY_TIMEOUT_MS = 60 * 60 * 1000; // 1 час на весь процесс выдачи через бота-посредника
-
 interface CartLineIn {
   productId: string;
   quantity: number;
@@ -137,17 +133,18 @@ export async function POST(req: NextRequest) {
 
         // Заявка на выдачу через бота-посредника (см. /admin/bot-accounts и /admin/deliveries).
         // Один Delivery на весь заказ — сколько бы товаров одного продавца в нём ни было.
-        const deliveryCreatedAt = Date.now();
+        // Часовой лимит на выдачу — только для призов колеса фортуны (см. api/wheel/spin),
+        // обычная покупка не имеет срока: expiresAt не задаём вовсе.
         tx.set(db.collection("deliveries").doc(orderRef.id), {
           orderId: orderRef.id,
+          source: "purchase",
           buyerId: uid,
           sellerId,
           productId: items[0].productId,
           productName: items.map((it) => it.name).join(", "),
           gameId: gameIdBySeller.get(sellerId) ?? "",
           status: "awaiting_nickname",
-          createdAt: deliveryCreatedAt,
-          expiresAt: deliveryCreatedAt + DELIVERY_TIMEOUT_MS,
+          createdAt: Date.now(),
         });
       }
       return ids;

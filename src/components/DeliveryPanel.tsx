@@ -8,7 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 function isEffectivelyExpired(d: Delivery): boolean {
-  return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && Date.now() > d.expiresAt;
+  return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !!d.expiresAt && Date.now() > d.expiresAt;
 }
 
 function Countdown({ expiresAt }: { expiresAt: number }) {
@@ -64,7 +64,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
         <p className="text-sm font-semibold flex items-center gap-1.5">
           <Bot size={15} className="text-accent" /> Получение товара
         </p>
-        {!expired && delivery.status !== "delivered" && <Countdown expiresAt={delivery.expiresAt} />}
+        {!expired && delivery.status !== "delivered" && delivery.expiresAt && <Countdown expiresAt={delivery.expiresAt} />}
       </div>
 
       {expired ? (
@@ -76,7 +76,9 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
           <>
             <p className="text-xs text-white/50">
               Укажи свой игровой ник — после этого мы покажем аккаунт бота-посредника, через который пройдёт передача предмета.
-              Выдача активна 1 час, ник можно указать только один раз.
+              {delivery.expiresAt
+                ? " Выдача приза с колеса фортуны активна 1 час, ник можно указать только один раз."
+                : " Ник можно указать только один раз."}
             </p>
             <form onSubmit={handleSubmit} className="space-y-2">
               <div className="flex gap-2">

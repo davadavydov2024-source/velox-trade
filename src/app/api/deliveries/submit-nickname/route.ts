@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
+import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
+
+function getAdminUids(): string[] {
+  return (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,9 +35,9 @@ export async function POST(req: NextRequest) {
       const deliverySnap = await tx.get(deliveryRef);
       if (!deliverySnap.exists) throw new Error("not-found");
 
-      const delivery = deliverySnap.data() as { buyerId: string; status: string; gameId: string; expiresAt: number };
+      const delivery = deliverySnap.data() as { buyerId: string; status: string; gameId: string; expiresAt?: number; sellerId: string; productName: string };
       if (delivery.buyerId !== uid) throw new Error("forbidden");
-      if (Date.now() > delivery.expiresAt) throw new Error("expired");
+      if (delivery.expiresAt && Date.now() > delivery.expiresAt) throw new Error("expired");
       if (delivery.status !== "awaiting_nickname") throw new Error("already-submitted");
 
       // Ищем свободного активного бота-посредника для этой игры. Читаем ДО записи — это тоже
@@ -54,10 +60,36 @@ export async function POST(req: NextRequest) {
         status: "awaiting_transfer",
       });
 
-      return { botNickname: bot.nickname };
+      // Системное сообщение в чат заказа — и продавец, и покупатель сразу видят, что происходит,
+      // не заходя в отдельный раздел выдачи. tx.set + merge (а не tx.update!) — у обычных покупок
+      // (не выигрышей колеса) документ orderChats создаётся лениво при первом реальном сообщении,
+      // и на этот момент его может ещё не существовать; update() на несуществующий документ уронил
+      // бы всю транзакцию. orderId/buyerId/sellerId дублируем на случай, если создаём документ впервые.
+      tx.set(
+        db.collection("orderChats").doc(orderId),
+        {
+          orderId,
+          buyerId: delivery.buyerId,
+          sellerId: delivery.sellerId,
+          messages: FieldValue.arrayUnion({
+            from: "system",
+            text: `📦 Покупатель указал игровой ник: ${trimmedNickname}. Продавцу нужно передать предмет боту-посреднику: ${bot.nickname}.`,
+            createdAt: Date.now(),
+          }),
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+
+      return { botNickname: bot.nickname, gameId: delivery.gameId, sellerId: delivery.sellerId, productName: delivery.productName };
     });
 
-    return NextResponse.json({ ok: true, ...result });
+    // Не критично для основного результата — фоново, не блокируя ответ покупателю.
+    getAdminUids().forEach((adminUid) =>
+      sendWebPush(adminUid, { title: "Заявка готова к передаче", body: `${result.productName} — ник: ${trimmedNickname}`, url: "/admin/deliveries" }, "purchases")
+    );
+
+    return NextResponse.json({ ok: true, botNickname: result.botNickname });
   } catch (err: any) {
     if (err?.message === "not-found") return NextResponse.json({ error: "Заявка на выдачу не найдена" }, { status: 404 });
     if (err?.message === "forbidden") return NextResponse.json({ error: "Это не твой заказ" }, { status: 403 });
