@@ -5,6 +5,7 @@ import { Bot, Clock, User, CheckCircle2, ExternalLink } from "lucide-react";
 import { subscribeDelivery, submitDeliveryNickname } from "@/lib/deliveries";
 import { Delivery } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 function isEffectivelyExpired(d: Delivery): boolean {
   return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && Date.now() > d.expiresAt;
@@ -77,18 +78,21 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
               Укажи свой игровой ник — после этого мы покажем аккаунт бота-посредника, через который пройдёт передача предмета.
               Выдача активна 1 час, ник можно указать только один раз.
             </p>
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <input
-                autoComplete="off"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="Твой игровой ник"
-                maxLength={40}
-                className="input-field py-2 text-sm flex-1"
-              />
-              <button disabled={busy || !nickname.trim()} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
-                Готово
-              </button>
+            <form onSubmit={handleSubmit} className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  autoComplete="off"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Твой игровой ник"
+                  maxLength={40}
+                  className="input-field py-2 text-sm flex-1"
+                />
+                <button disabled={busy || !nickname.trim()} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+                  Готово
+                </button>
+              </div>
+              <RobloxUserPreview username={nickname} />
             </form>
           </>
         ) : (
@@ -97,9 +101,12 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
       ) : delivery.status === "awaiting_transfer" ? (
         <div className="space-y-2 text-sm">
           {isSeller && delivery.buyerNickname && (
-            <p className="flex items-center gap-1.5 text-white/70">
-              <User size={13} className="text-white/40" /> Ник покупателя: <span className="font-medium">{delivery.buyerNickname}</span>
-            </p>
+            <>
+              <p className="flex items-center gap-1.5 text-white/70">
+                <User size={13} className="text-white/40" /> Ник покупателя: <span className="font-medium">{delivery.buyerNickname}</span>
+              </p>
+              <RobloxUserPreview username={delivery.buyerNickname} />
+            </>
           )}
           <p className="flex items-center gap-1.5 text-white/70">
             <Bot size={13} className="text-white/40" /> Бот-посредник: <span className="font-medium">{delivery.botNickname}</span>

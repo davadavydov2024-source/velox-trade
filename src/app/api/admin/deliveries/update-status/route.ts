@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
       }
 
       const timestampField = status === "received_by_bot" ? "receivedAt" : "deliveredAt";
-      tx.update(deliveryRef, { status, [timestampField]: Date.now() });
+      const adminField = status === "received_by_bot" ? "receivedByAdminUid" : "deliveredByAdminUid";
+      tx.update(deliveryRef, { status, [timestampField]: Date.now(), [adminField]: decoded.uid });
     });
 
     return NextResponse.json({ ok: true });

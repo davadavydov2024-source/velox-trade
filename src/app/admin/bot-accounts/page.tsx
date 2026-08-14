@@ -6,6 +6,7 @@ import { getBotAccounts, createBotAccount, updateBotAccount, deleteBotAccount } 
 import { getGames } from "@/lib/products";
 import { BotAccount, Game } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 const EMPTY_FORM = { gameId: "", nickname: "", profileLink: "" };
 
@@ -103,6 +104,7 @@ export default function AdminBotAccountsPage() {
             placeholder="Ник аккаунта-посредника в игре"
             className="input-field py-2.5 text-sm w-full"
           />
+          <RobloxUserPreview username={form.nickname} />
           <input
             autoComplete="off"
             value={form.profileLink}

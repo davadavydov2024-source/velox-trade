@@ -5,6 +5,7 @@ import { PackageCheck, User, Bot, Clock, ExternalLink } from "lucide-react";
 import { getAllDeliveries, adminUpdateDeliveryStatus, DELIVERY_TIMEOUT_MS } from "@/lib/deliveries";
 import { Delivery, DeliveryStatus } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
   awaiting_nickname: { text: "Ждём ник покупателя", color: "#9aa3b2" },
@@ -53,6 +54,12 @@ export default function AdminDeliveriesPage() {
   }
 
   async function advance(d: Delivery, next: "received_by_bot" | "delivered") {
+    const confirmText =
+      next === "received_by_bot"
+        ? `Подтвердить: бот-посредник (${d.botNickname}) получил «${d.productName}» от продавца по заказу для покупателя ${d.buyerNickname}?`
+        : `Подтвердить: покупатель ${d.buyerNickname} получил «${d.productName}» у бота-посредника (${d.botNickname})?`;
+    if (!confirm(confirmText)) return;
+
     setBusyId(d.id);
     try {
       await adminUpdateDeliveryStatus(d.orderId, next);
@@ -124,9 +131,10 @@ export default function AdminDeliveriesPage() {
                 <div className="grid sm:grid-cols-2 gap-3 text-xs">
                   <div className="flex items-start gap-2">
                     <User size={13} className="text-white/30 mt-0.5 shrink-0" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-white/30">Покупатель</p>
                       <p className="text-white/70">{d.buyerNickname || "ещё не указан"}</p>
+                      {d.buyerNickname && <div className="mt-1"><RobloxUserPreview username={d.buyerNickname} /></div>}
                     </div>
                   </div>
                   <div className="flex items-start gap-2">

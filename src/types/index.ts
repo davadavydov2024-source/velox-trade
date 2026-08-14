@@ -55,7 +55,9 @@ export interface Delivery {
   createdAt: number;
   expiresAt: number; // createdAt + 1 час
   receivedAt?: number;
+  receivedByAdminUid?: string;
   deliveredAt?: number;
+  deliveredByAdminUid?: string;
 }
 
 export interface Product {
