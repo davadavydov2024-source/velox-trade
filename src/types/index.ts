@@ -199,8 +199,10 @@ export interface UserProfile {
   referralCode?: string;
   referredBy?: string; // uid того, кто пригласил (заполняется один раз, при регистрации по ссылке)
   claimedEventIds?: string[]; // id ивентов, за которые уже получен бонус (чтобы не выдавать повторно)
+  unlockedAchievements?: string[]; // id достижений, за которые уже начислена награда (см. /profile/achievements)
   lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
   lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 24 часа
+  wheelSpinsCount?: number; // сколько раз всего крутили колесо — для страницы достижений
   twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
   pushCategories?: PushCategories; // отсутствует у старых профилей — тогда считаем, что включено всё (DEFAULT_PUSH_CATEGORIES)
 }
@@ -443,6 +445,7 @@ export interface SellRequest {
   gameName: string;
   imageUrl: string;
   price: number; // цена, которую хочет получить продавец (то, что он ввёл в форме)
+  discountPercent?: number; // необязательная скидка от самого продавца — переносится на товар при одобрении
   commissionPercent: number; // комиссия платформы на момент подачи заявки (снимок текущей настройки, чтобы не менялась задним числом)
   description: string;
   stock: number; // количество предметов на продажу

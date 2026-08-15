@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         throw new Error("cooldown");
       }
 
-      const userUpdates: Record<string, unknown> = { lastWheelSpinAt: Date.now() };
+      const userUpdates: Record<string, unknown> = { lastWheelSpinAt: Date.now(), wheelSpinsCount: FieldValue.increment(1) };
       if (chosen.type === "balance" && chosen.balanceRub) {
         userUpdates.balance = FieldValue.increment(chosen.balanceRub);
       }

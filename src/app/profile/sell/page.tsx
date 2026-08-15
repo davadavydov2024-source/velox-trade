@@ -27,6 +27,7 @@ export default function SellPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [itemName, setItemName] = useState("");
   const [price, setPrice] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
   const [stock, setStock] = useState("1");
   const [rarity, setRarity] = useState<Rarity>("common");
   const [description, setDescription] = useState("");
@@ -44,8 +45,12 @@ export default function SellPage() {
   }, []);
 
   const priceNum = Number(price) || 0;
-  const commission = Math.round(priceNum * (commissionPercent / 100));
-  const payout = priceNum - commission;
+  const discountNum = Math.min(90, Math.max(0, Number(discountPercent) || 0));
+  const discountedPrice = discountNum > 0 ? +(priceNum * (1 - discountNum / 100)).toFixed(2) : priceNum;
+  // Комиссия и выплата считаются от цены, которую реально платит покупатель (то есть уже со
+  // скидкой) — иначе при скидке продавец получал бы больше денег, чем покупатель заплатил.
+  const commission = Math.round(discountedPrice * (commissionPercent / 100));
+  const payout = discountedPrice - commission;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,6 +90,7 @@ export default function SellPage() {
         gameName: selectedGame.name,
         imageUrl,
         price: priceNum,
+        ...(discountNum > 0 ? { discountPercent: discountNum } : {}),
         commissionPercent,
         description: description.trim(),
         stock: stockNum,
@@ -103,6 +109,7 @@ export default function SellPage() {
       setImageUrl("");
       setItemName("");
       setPrice("");
+      setDiscountPercent("");
       setStock("1");
       setRarity("common");
       setDescription("");
@@ -230,9 +237,32 @@ export default function SellPage() {
             placeholder={`Желаемая цена, ₽ (минимум ${minSellPrice} ₽)`}
             className="input-field py-2.5"
           />
+        </div>
+
+        <div>
+          <input
+            autoComplete="off"
+            type="number"
+            min={0}
+            max={90}
+            value={discountPercent}
+            onChange={(e) => setDiscountPercent(e.target.value)}
+            placeholder="Скидка на товар, % (необязательно, до 90%)"
+            className="input-field py-2.5"
+          />
           {priceNum > 0 && (
             <p className="text-xs text-white/40 mt-2">
-              Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
+              {discountNum > 0 ? (
+                <>
+                  Цена для покупателя: <span className="line-through">{priceNum} ₽</span>{" "}
+                  <span className="text-accent font-medium">{discountedPrice} ₽</span> (скидка {discountNum}%). Комиссия платформы{" "}
+                  {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
+                </>
+              ) : (
+                <>
+                  Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
+                </>
+              )}
             </p>
           )}
         </div>

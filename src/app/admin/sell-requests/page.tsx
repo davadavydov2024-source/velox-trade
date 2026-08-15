@@ -65,8 +65,9 @@ export default function AdminSellRequestsPage() {
         ) : (
           <div className="space-y-2">
             {pending.map((r) => {
-              const commission = Math.round(r.price * ((r.commissionPercent ?? 0) / 100));
-              const payout = r.price - commission;
+              const effectivePrice = r.discountPercent ? +(r.price * (1 - r.discountPercent / 100)).toFixed(2) : r.price;
+              const commission = Math.round(effectivePrice * ((r.commissionPercent ?? 0) / 100));
+              const payout = effectivePrice - commission;
               return (
                 <div key={r.id} className="card p-4 flex gap-4">
                   {isValidImageSrc(r.imageUrl) && (
@@ -82,7 +83,18 @@ export default function AdminSellRequestsPage() {
                       <p className="text-xs text-white/30 shrink-0">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>
                     </div>
                     <p className="text-sm text-white/60 mb-1">От: {r.userNick}</p>
-                    {r.commissionPercent != null ? (
+                    {r.discountPercent ? (
+                      <p className="text-sm text-white/60 mb-1">
+                        Цена: <span className="line-through text-white/30">{r.price} ₽</span>{" "}
+                        <span className="text-accent font-medium">{effectivePrice} ₽</span> (скидка {r.discountPercent}% от продавца)
+                        {r.commissionPercent != null && (
+                          <>
+                            {" "}
+                            · Комиссия {r.commissionPercent}%: −{commission} ₽ · К выплате продавцу: <span className="text-accent font-medium">{payout} ₽</span>
+                          </>
+                        )}
+                      </p>
+                    ) : r.commissionPercent != null ? (
                       <p className="text-sm text-white/60 mb-1">
                         Цена: {r.price} ₽ · Комиссия {r.commissionPercent}%: −{commission} ₽ · К выплате продавцу:{" "}
                         <span className="text-accent font-medium">{payout} ₽</span>
@@ -127,14 +139,23 @@ export default function AdminSellRequestsPage() {
               </thead>
               <tbody>
                 {resolved.map((r) => {
-                  const commission = Math.round(r.price * ((r.commissionPercent ?? 0) / 100));
-                  const payout = r.price - commission;
+                  const effectivePrice = r.discountPercent ? +(r.price * (1 - r.discountPercent / 100)).toFixed(2) : r.price;
+                  const commission = Math.round(effectivePrice * ((r.commissionPercent ?? 0) / 100));
+                  const payout = effectivePrice - commission;
                   return (
                     <tr key={r.id} className="border-b border-border/50">
                       <td className="p-3">{r.itemName}</td>
                       <td className="p-3 text-white/50">{gameLabel(r)}</td>
                       <td className="p-3">{r.userNick}</td>
-                      <td className="p-3">{r.price} ₽</td>
+                      <td className="p-3">
+                        {r.discountPercent ? (
+                          <span>
+                            <span className="line-through text-white/30">{r.price} ₽</span> <span className="text-accent">{effectivePrice} ₽</span>
+                          </span>
+                        ) : (
+                          `${r.price} ₽`
+                        )}
+                      </td>
                       <td className="p-3">{r.commissionPercent != null ? `${payout} ₽` : "—"}</td>
                       <td className="p-3">
                         <span className={r.status === "approved" ? "text-green-400" : "text-red-400"}>
