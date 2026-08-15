@@ -3,6 +3,7 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
+import { maskNickname } from "@/lib/maskNickname";
 
 export const runtime = "nodejs";
 
@@ -50,8 +51,10 @@ export async function POST(req: NextRequest) {
       price: number;
       sellerId: string;
       gameId: string;
+      image?: string;
       discountPercent?: number;
     }[];
+    const imageByProductId = new Map(products.map((p) => [p.id, p.image]));
 
     const subtotal = products.reduce((sum, p, i) => {
       const unitPrice = p.discountPercent ? p.price * (1 - p.discountPercent / 100) : p.price;
@@ -144,6 +147,17 @@ export async function POST(req: NextRequest) {
           productName: items.map((it) => it.name).join(", "),
           gameId: gameIdBySeller.get(sellerId) ?? "",
           status: "awaiting_nickname",
+          createdAt: Date.now(),
+        });
+
+        // Публичная лента "живых покупок" на главной — ник замаскирован, продавец не раскрывается.
+        const buyerNick: string = userSnap.data()?.displayName ?? "Покупатель";
+        tx.set(db.collection("publicActivity").doc(), {
+          buyerNickMasked: maskNickname(buyerNick),
+          productName: items[0].name,
+          image: imageByProductId.get(items[0].productId) ?? null,
+          price: items.reduce((s, it) => s + it.price * it.quantity, 0),
+          type: "purchase",
           createdAt: Date.now(),
         });
       }

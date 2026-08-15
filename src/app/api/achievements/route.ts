@@ -25,6 +25,10 @@ export async function GET(req: NextRequest) {
       ratingCount?: number;
       wheelSpinsCount?: number;
       unlockedAchievements?: string[];
+      twoFactorEnabled?: boolean;
+      photoURL?: string | null;
+      bio?: string;
+      claimedEventIds?: string[];
     };
 
     // count() — агрегирующий запрос, не читает сами документы (дёшево даже при большом числе заказов).
@@ -42,19 +46,20 @@ export async function GET(req: NextRequest) {
       accountAgeDays: Math.floor((Date.now() - (user.createdAt ?? Date.now())) / 86_400_000),
       emailVerified: user.emailVerified ? 1 : 0,
       ratingCount: user.ratingCount ?? 0,
+      twoFactorEnabled: user.twoFactorEnabled ? 1 : 0,
+      profileComplete: user.photoURL && user.bio?.trim() ? 1 : 0,
+      eventsParticipated: user.claimedEventIds?.length ?? 0,
     };
 
     const alreadyUnlocked = new Set(user.unlockedAchievements ?? []);
     const newlyUnlocked: string[] = [];
-    let rewardTotal = 0;
 
+    // Достижения престижные, без денег — просто фиксируем факт разблокировки (для значка
+    // в профиле и чтобы не показывать один и тот же "новый" тост повторно при каждом визите).
     const results = ACHIEVEMENTS.map((def) => {
       const value = stats[def.statKey];
       const unlocked = value >= def.threshold;
-      if (unlocked && !alreadyUnlocked.has(def.id)) {
-        newlyUnlocked.push(def.id);
-        rewardTotal += def.rewardRub ?? 0;
-      }
+      if (unlocked && !alreadyUnlocked.has(def.id)) newlyUnlocked.push(def.id);
       return {
         id: def.id,
         progress: Math.min(value, def.threshold),
@@ -65,12 +70,10 @@ export async function GET(req: NextRequest) {
     });
 
     if (newlyUnlocked.length > 0) {
-      const update: Record<string, unknown> = { unlockedAchievements: FieldValue.arrayUnion(...newlyUnlocked) };
-      if (rewardTotal > 0) update.balance = FieldValue.increment(rewardTotal);
-      await userRef.update(update);
+      await userRef.update({ unlockedAchievements: FieldValue.arrayUnion(...newlyUnlocked) });
     }
 
-    return NextResponse.json({ results, rewardTotal });
+    return NextResponse.json({ results });
   } catch (err) {
     console.error("achievements GET error:", err);
     return NextResponse.json({ error: "Не удалось загрузить достижения" }, { status: 500 });

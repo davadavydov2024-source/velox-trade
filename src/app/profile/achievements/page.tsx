@@ -16,6 +16,8 @@ import {
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { ACHIEVEMENTS, CATEGORY_LABEL, AchievementCategory } from "@/lib/achievements";
+import { RARITY_COLOR } from "@/lib/rarityColors";
+import { RARITY_LABEL } from "@/types";
 
 const CATEGORY_ICON: Record<AchievementCategory, LucideIcon> = {
   purchases: ShoppingBag,
@@ -35,7 +37,7 @@ interface AchievementResult {
 }
 
 export default function AchievementsPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [results, setResults] = useState<Record<string, AchievementResult> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,8 +58,7 @@ export default function AchievementsPage() {
         const justUnlocked = (data.results as AchievementResult[]).filter((r) => r.justUnlocked);
         if (justUnlocked.length > 0) {
           const names = justUnlocked.map((r) => ACHIEVEMENTS.find((a) => a.id === r.id)?.title).filter(Boolean);
-          toast("success", `Новое достижение: ${names.join(", ")}!${data.rewardTotal > 0 ? ` +${data.rewardTotal} ₽ на баланс` : ""}`);
-          refreshProfile();
+          toast("success", `🏆 Новое достижение: ${names.join(", ")}!`);
         }
       } catch {
         toast("error", "Не удалось загрузить достижения");
@@ -106,28 +107,36 @@ export default function AchievementsPage() {
                   return (
                     <div
                       key={def.id}
-                      className={`card p-4 space-y-2 transition-opacity ${unlocked ? "border border-accent/30" : "opacity-60"}`}
+                      className="card p-4 space-y-2 transition-all duration-200 hover:-translate-y-0.5"
+                      style={{
+                        borderTop: `2px solid ${unlocked ? RARITY_COLOR[def.rarity] : "rgba(255,255,255,0.08)"}`,
+                        opacity: unlocked ? 1 : 0.55,
+                        boxShadow: unlocked ? `0 0 0 1px ${RARITY_COLOR[def.rarity]}33` : undefined,
+                      }}
                     >
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-9 h-9 rounded-btn flex items-center justify-center shrink-0 ${
-                            unlocked ? "bg-accent/15 text-accent" : "bg-white/5 text-white/30"
-                          }`}
+                          className="w-9 h-9 rounded-btn flex items-center justify-center shrink-0"
+                          style={{
+                            background: unlocked ? `${RARITY_COLOR[def.rarity]}22` : "rgba(255,255,255,0.05)",
+                            color: unlocked ? RARITY_COLOR[def.rarity] : "rgba(255,255,255,0.3)",
+                          }}
                         >
                           {unlocked ? <ShieldCheck size={16} /> : <Lock size={14} />}
                         </span>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{hidden ? "???" : def.title}</p>
-                          {def.rewardRub && (
-                            <p className="text-[11px] text-accent/80">
-                              {unlocked ? "Получено" : "Награда"}: +{def.rewardRub} ₽
-                            </p>
-                          )}
+                          <p className="text-[10px] font-semibold" style={{ color: unlocked ? RARITY_COLOR[def.rarity] : "rgba(255,255,255,0.25)" }}>
+                            {RARITY_LABEL[def.rarity]}
+                          </p>
                         </div>
                       </div>
                       <p className="text-xs text-white/40">{hidden ? "Секретное достижение — открой, чтобы узнать условие." : def.description}</p>
                       <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                        <div className="h-full bg-accent transition-all" style={{ width: `${hidden ? 0 : pct}%` }} />
+                        <div
+                          className="h-full transition-all"
+                          style={{ width: `${hidden ? 0 : pct}%`, background: unlocked ? RARITY_COLOR[def.rarity] : "var(--accent, #6C5CE7)" }}
+                        />
                       </div>
                       {!hidden && (
                         <p className="text-[11px] text-white/30 text-right">

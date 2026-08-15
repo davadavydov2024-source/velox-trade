@@ -3,6 +3,7 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
+import { maskNickname } from "@/lib/maskNickname";
 
 export const runtime = "nodejs";
 
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
       tx.update(promoDoc.ref, { usedBy: FieldValue.arrayUnion(uid) });
 
       if (productRef && productSnap?.exists && (productSnap.data()?.stock ?? 0) > 0) {
-        const product = productSnap.data() as { sellerId: string; name: string; price: number; gameId: string };
+        const product = productSnap.data() as { sellerId: string; name: string; price: number; gameId: string; image?: string };
         tx.update(productRef, { stock: FieldValue.increment(-1) });
         const orderRef = db.collection("orders").doc();
         tx.set(orderRef, {
@@ -141,6 +142,17 @@ export async function POST(req: NextRequest) {
         wonSellerId = product.sellerId;
         wonProductName = product.name;
         wonOrderId = orderRef.id;
+
+        // Публичная лента "живых покупок" — призы колеса тоже туда попадают, с пометкой type:"wheel".
+        const winnerNick: string = freshUserSnap.data()?.displayName ?? "Игрок";
+        tx.set(db.collection("publicActivity").doc(), {
+          buyerNickMasked: maskNickname(winnerNick),
+          productName: product.name,
+          image: product.image ?? null,
+          price: product.price,
+          type: "wheel",
+          createdAt: Date.now(),
+        });
       }
 
       return { id: chosen.id, type: chosen.type, name: chosen.name, image: chosen.image, balanceRub: chosen.balanceRub };

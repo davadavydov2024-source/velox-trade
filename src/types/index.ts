@@ -506,3 +506,14 @@ export interface NewsPost {
   buttons: NewsButton[];
   createdAt: number;
 }
+
+// ---- Публичная лента "живых покупок" на главной странице ----
+export interface PublicActivityItem {
+  id: string;
+  buyerNickMasked: string; // "FrostDragon" -> "Fr***gon", см. src/lib/maskNickname.ts
+  productName: string;
+  image?: string | null;
+  price: number;
+  type: "purchase" | "wheel";
+  createdAt: number;
+}

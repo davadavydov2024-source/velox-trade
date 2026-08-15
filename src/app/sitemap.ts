@@ -15,7 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const [games, products] = await Promise.all([getGames(), getProducts()]);
+    const [games, products] = await Promise.all([getGames(), getProducts({ excludeWheelLocked: true })]);
 
     const gamePages: MetadataRoute.Sitemap = games.map((g) => ({
       url: `${BASE_URL}/catalog?game=${g.slug}`,

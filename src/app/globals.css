@@ -184,3 +184,98 @@ body {
     transform: translate(var(--drift, 0px), -160px) scale(1) rotate(180deg);
   }
 }
+
+/* ===== Колесо Фортуны: лампочки по кругу, блики, указатель, конфетти ===== */
+@keyframes wheel-bulb-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    box-shadow: 0 0 4px 1px currentColor;
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 9px 3px currentColor;
+  }
+}
+.wheel-bulb {
+  animation: wheel-bulb-twinkle 1.6s ease-in-out infinite;
+}
+.wheel-bulb.spinning {
+  animation-duration: 0.35s;
+}
+
+@keyframes wheel-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.04);
+  }
+}
+.wheel-ambient-glow {
+  animation: wheel-glow-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes wheel-pointer-bounce {
+  0%,
+  100% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  25% {
+    transform: translateX(-50%) rotate(-8deg);
+  }
+  75% {
+    transform: translateX(-50%) rotate(8deg);
+  }
+}
+.wheel-pointer-spinning {
+  animation: wheel-pointer-bounce 0.25s ease-in-out infinite;
+}
+
+@keyframes wheel-confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--cx, 0px), 160px) rotate(var(--cr, 360deg));
+  }
+}
+.wheel-confetti-piece {
+  animation: wheel-confetti-fall 1.5s ease-in forwards;
+}
+
+/* ===== Лента живых покупок на главной ===== */
+@keyframes activity-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.activity-marquee-track {
+  animation: activity-marquee 32s linear infinite;
+}
+.activity-marquee-track:hover {
+  animation-play-state: paused;
+}
+@keyframes activity-card-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.activity-card-enter {
+  animation: activity-card-enter 0.35s ease-out;
+}
+
+

@@ -10,6 +10,7 @@ import { getProductById } from "@/lib/products";
 import { RARITY_COLOR } from "@/lib/rarityColors";
 import { WheelPrize } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
+import { WheelConfetti } from "@/components/WheelConfetti";
 
 interface PrizeResult {
   id: string;
@@ -20,7 +21,9 @@ interface PrizeResult {
   orderId?: string;
 }
 
-const SEGMENT_COLORS = ["#1c1c24", "#26263080"]; // чередующиеся оттенки для секторов
+const NON_PRODUCT_COLOR: Record<"balance" | "nothing", string> = { balance: "#4ade80", nothing: "#5b6272" };
+const WHEEL_SIZE = 300;
+const BULB_COUNT = 20;
 
 export default function WheelPage() {
   const { user, refreshProfile } = useAuth();
@@ -81,17 +84,38 @@ export default function WheelPage() {
   }, [prizes, segmentAngle]);
 
   const wheelBackground = useMemo(() => {
-    if (prizes.length === 0) return SEGMENT_COLORS[0];
-    const stops = prizes
-      .map((_, i) => {
-        const from = i * segmentAngle;
-        const to = (i + 1) * segmentAngle;
-        const color = SEGMENT_COLORS[i % 2];
-        return `${color} ${from}deg ${to}deg`;
-      })
-      .join(", ");
-    return `conic-gradient(${stops})`;
-  }, [prizes, segmentAngle]);
+    if (prizes.length === 0) return "#14141c";
+
+    function mixWithDark(hex: string, amount: number): string {
+      const dark = { r: 20, g: 20, b: 28 };
+      const c = hex.replace("#", "");
+      const r = parseInt(c.substring(0, 2), 16);
+      const g = parseInt(c.substring(2, 4), 16);
+      const b = parseInt(c.substring(4, 6), 16);
+      const mr = Math.round(r * amount + dark.r * (1 - amount));
+      const mg = Math.round(g * amount + dark.g * (1 - amount));
+      const mb = Math.round(b * amount + dark.b * (1 - amount));
+      return `rgb(${mr}, ${mg}, ${mb})`;
+    }
+
+    // Цвет сектора берём из редкости приза (легендарки — оранжевые, эпики — фиолетовые и т.д.) —
+    // чётные/нечётные сектора чуть темнее/светлее, чтобы соседние сектора одной редкости отличались.
+    function colorFor(p: WheelPrize, i: number): string {
+      const base = p.type === "product" ? RARITY_COLOR[prizeRarity[p.id] ?? "common"] ?? RARITY_COLOR.common : NON_PRODUCT_COLOR[p.type];
+      return mixWithDark(base, i % 2 === 0 ? 0.55 : 0.38);
+    }
+
+    // Тонкая светлая полоска между секторами — визуально разделяет их, как спицы у настоящего колеса.
+    const lineWidth = Math.min(1.6, segmentAngle * 0.12);
+    const stops: string[] = [];
+    prizes.forEach((p, i) => {
+      const from = i * segmentAngle;
+      const to = (i + 1) * segmentAngle;
+      stops.push(`${colorFor(p, i)} ${from + lineWidth / 2}deg ${to - lineWidth / 2}deg`);
+      stops.push(`rgba(255,255,255,0.45) ${to - lineWidth / 2}deg ${to + lineWidth / 2}deg`);
+    });
+    return `conic-gradient(${stops.join(", ")})`;
+  }, [prizes, segmentAngle, prizeRarity]);
 
   async function handleSpin(e: React.FormEvent) {
     e.preventDefault();
@@ -156,26 +180,63 @@ export default function WheelPage() {
       </div>
 
       <div className="flex flex-col items-center">
-        <div className="relative" style={{ width: 280, height: 280 }}>
-          {/* Указатель */}
+        <div className="relative" style={{ width: WHEEL_SIZE + 44, height: WHEEL_SIZE + 44 }}>
+          {/* Мягкое дышащее свечение позади колеса */}
           <div
-            className="absolute z-10"
+            className="wheel-ambient-glow absolute rounded-full pointer-events-none"
             style={{
-              top: -6,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: 0,
-              height: 0,
-              borderLeft: "12px solid transparent",
-              borderRight: "12px solid transparent",
-              borderTop: "18px solid var(--accent, #6C5CE7)",
+              inset: 0,
+              background: "radial-gradient(circle, var(--accent, #6C5CE7)55 0%, transparent 70%)",
+              filter: "blur(18px)",
             }}
           />
+
+          {/* Кольцо лампочек по кругу, как у настоящего карнавального колеса */}
+          {Array.from({ length: BULB_COUNT }).map((_, i) => {
+            const angle = (i / BULB_COUNT) * 360;
+            const rad = (angle * Math.PI) / 180;
+            const r = (WHEEL_SIZE + 34) / 2;
+            const bulbColor = i % 2 === 0 ? "#ffd76b" : "#ff8fb1";
+            return (
+              <span
+                key={i}
+                className={`wheel-bulb absolute w-2 h-2 rounded-full ${spinning ? "spinning" : ""}`}
+                style={{
+                  left: `calc(50% + ${r * Math.sin(rad)}px - 4px)`,
+                  top: `calc(50% - ${r * Math.cos(rad)}px - 4px)`,
+                  background: bulbColor,
+                  color: bulbColor,
+                  animationDelay: `${(i % 5) * 0.15}s`,
+                }}
+              />
+            );
+          })}
+
+          {/* Указатель */}
           <div
-            className="rounded-full border-4 border-accent/40 relative overflow-hidden"
+            className={`absolute z-20 origin-top ${spinning ? "wheel-pointer-spinning" : ""}`}
+            style={{ top: 2, left: "50%", transform: "translateX(-50%)" }}
+          >
+            <div
+              style={{
+                width: 0,
+                height: 0,
+                borderLeft: "13px solid transparent",
+                borderRight: "13px solid transparent",
+                borderTop: "20px solid var(--accent, #6C5CE7)",
+                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+              }}
+            />
+            <div className="w-3.5 h-3.5 rounded-full bg-accent mx-auto -mt-1 shadow-[0_0_10px_var(--accent,#6C5CE7)]" />
+          </div>
+
+          <div
+            className="absolute rounded-full border-[3px] border-accent/50 overflow-hidden shadow-[0_0_40px_-8px_var(--accent,#6C5CE7)]"
             style={{
-              width: 280,
-              height: 280,
+              width: WHEEL_SIZE,
+              height: WHEEL_SIZE,
+              left: 22,
+              top: 22,
               background: wheelBackground,
               transform: `rotate(${rotation}deg)`,
               transition: spinning ? "transform 4.2s cubic-bezier(0.17, 0.67, 0.12, 0.99)" : "none",
@@ -188,34 +249,47 @@ export default function WheelPage() {
                 Колесо ещё не настроено
               </div>
             ) : (
-              prizes.map((p, i) => (
-                <div
-                  key={p.id}
-                  className="absolute w-11 h-11 -ml-[22px] -mt-[22px] rounded-full overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center"
-                  style={{ left: `${segmentPositions[i].left}%`, top: `${segmentPositions[i].top}%` }}
-                >
-                  {p.type === "product" && p.image ? (
-                    <img src={safeImageSrc(p.image)} alt={p.name} className="w-full h-full object-cover" />
-                  ) : p.type === "balance" ? (
-                    <span className="text-base">💰</span>
-                  ) : (
-                    <span className="text-base">🚫</span>
-                  )}
-                </div>
-              ))
+              prizes.map((p, i) => {
+                const ringColor = p.type === "product" ? RARITY_COLOR[prizeRarity[p.id] ?? "common"] ?? RARITY_COLOR.common : NON_PRODUCT_COLOR[p.type];
+                return (
+                  <div
+                    key={p.id}
+                    className="absolute w-12 h-12 -ml-6 -mt-6 rounded-full overflow-hidden bg-black/50 flex items-center justify-center shadow-lg"
+                    style={{ left: `${segmentPositions[i].left}%`, top: `${segmentPositions[i].top}%`, border: `2px solid ${ringColor}` }}
+                  >
+                    {p.type === "product" && p.image ? (
+                      <img src={safeImageSrc(p.image)} alt={p.name} className="w-full h-full object-cover" />
+                    ) : p.type === "balance" ? (
+                      <span className="text-lg">💰</span>
+                    ) : (
+                      <span className="text-lg">🚫</span>
+                    )}
+                  </div>
+                );
+              })
             )}
+            {/* Стеклянный блик поверх колеса — глубина и объём */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: "radial-gradient(ellipse 70% 45% at 30% 20%, rgba(255,255,255,0.16), transparent 60%)" }}
+            />
           </div>
+
           {/* Центр колеса */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-accent flex items-center justify-center z-10">
-            <Disc3 size={18} className="text-black" />
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center z-10 shadow-[0_0_18px_var(--accent,#6C5CE7)]"
+            style={{ background: "radial-gradient(circle at 35% 30%, #a99bff, var(--accent, #6C5CE7) 70%)" }}
+          >
+            <Disc3 size={20} className="text-black drop-shadow" />
           </div>
         </div>
 
-        <div className="mt-4 min-h-[70px] text-center">
+        <div className="mt-5 min-h-[70px] text-center relative">
+          {result && <WheelConfetti key={result.id + (result.orderId ?? "") + Date.now()} />}
           {spinning ? (
             <p className="text-sm text-white/40 animate-pulse">Крутим...</p>
           ) : result ? (
-            <div className="animate-in fade-in">
+            <div className="animate-in fade-in relative z-10">
               <Sparkles size={22} className="text-accent mx-auto mb-1" />
               {result.type === "nothing" ? (
                 <p className="font-medium text-white/60">{result.name}</p>
@@ -264,8 +338,12 @@ export default function WheelPage() {
             {prizes.map((p) => {
               const color = p.type === "product" ? prizeRarity[p.id] ? RARITY_COLOR[prizeRarity[p.id]] : "#3a3f4c" : p.type === "balance" ? "#4caf50" : "#5b6272";
               return (
-                <div key={p.id} className="flex-none w-20 rounded-btn bg-white/5 p-2 text-center" style={{ borderTop: `2px solid ${color}` }}>
-                  <div className="w-full h-12 rounded-md bg-black/30 mb-1.5 flex items-center justify-center overflow-hidden">
+                <div
+                  key={p.id}
+                  className="flex-none w-20 rounded-btn bg-white/5 p-2 text-center transition-transform duration-200 hover:-translate-y-1"
+                  style={{ borderTop: `2px solid ${color}`, boxShadow: `0 0 0 1px ${color}22` }}
+                >
+                  <div className="w-full h-12 rounded-md bg-black/30 mb-1.5 flex items-center justify-center overflow-hidden" style={{ boxShadow: `inset 0 0 12px ${color}33` }}>
                     {p.type === "product" && p.image ? (
                       <img src={safeImageSrc(p.image)} alt={p.name} className="w-full h-full object-cover" />
                     ) : p.type === "balance" ? (

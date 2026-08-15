@@ -14,6 +14,7 @@ import { QuickTopupCard } from "@/components/QuickTopupCard";
 import { AdSlotCard } from "@/components/AdSlotCard";
 import { SiteRatingWidget } from "@/components/SiteRatingWidget";
 import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
+import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 
 const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
 
@@ -28,7 +29,7 @@ export default function HomePage() {
       .then(setGames)
       .catch((err) => { console.error("Ошибка загрузки игр:", err); setGames([]); })
       .finally(() => setLoaded(true));
-    getProducts()
+    getProducts({ excludeWheelLocked: true })
       .then((products) => {
         const now = Date.now();
         setFeatured(products.filter((p) => p.boostTier === "home" && (p.boostUntil ?? 0) > now).slice(0, 6));
@@ -44,6 +45,11 @@ export default function HomePage() {
       {/* Большой промо-баннер — теперь самое первое, что видно на странице */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 lg:pt-4">
         <PromoCarousel />
+      </div>
+
+      {/* Живая лента покупок — социальное доказательство сразу под баннером */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+        <LiveActivityFeed />
       </div>
 
       {/* Mobile hero — компактный, с реальными данными вместо статичного лого */}
