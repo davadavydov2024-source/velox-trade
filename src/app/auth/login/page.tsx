@@ -3,11 +3,12 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, Send, MessageCircle } from "lucide-react";
+import { Mail, Lock, Send, MessageCircle, QrCode } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
+import { QrDeviceLogin } from "@/components/QrDeviceLogin";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -28,7 +29,10 @@ function LoginInner() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<"password" | "telegram">("password");
+  // ?redirect= используется, когда сюда попали со страницы подтверждения входа с другого
+  // устройства (/auth/link) — после логина нужно вернуться именно туда, а не в /profile.
+  const redirectTo = searchParams.get("redirect") || "/profile";
+  const [mode, setMode] = useState<"password" | "telegram" | "qr">("password");
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
 
   useEffect(() => {
@@ -62,7 +66,7 @@ function LoginInner() {
     try {
       await login(email, password);
       toast("success", "Вы успешно вошли в аккаунт");
-      router.push("/profile");
+      router.push(redirectTo);
     } catch (err: any) {
       toast("error", translateAuthError(err?.code));
     } finally {
@@ -74,7 +78,7 @@ function LoginInner() {
     try {
       await loginWithGoogle();
       toast("success", "Вы успешно вошли через Google");
-      router.push("/profile");
+      router.push(redirectTo);
     } catch (err: any) {
       if (err?.code === "auth/popup-closed-by-user") return;
       if (err?.code === "auth/unauthorized-domain") {
@@ -137,7 +141,7 @@ function LoginInner() {
       }
       await loginWithCustomToken(data.token);
       toast("success", "Вы успешно вошли по коду из Telegram");
-      router.push("/profile");
+      router.push(redirectTo);
     } catch {
       toast("error", "Не удалось войти. Попробуй ещё раз.");
     } finally {
@@ -151,28 +155,38 @@ function LoginInner() {
         <h1 className="text-2xl font-bold mb-1">Вход в аккаунт</h1>
         <p className="text-white/40 text-sm mb-6">Рады видеть тебя снова в Velox Trade</p>
 
-        {flags.telegramLoginEnabled && (
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => setMode("password")}
-              className={`flex-1 py-2 rounded-btn text-sm font-medium transition-colors ${
-                mode === "password" ? "bg-accent text-black" : "bg-surface text-white/60"
-              }`}
-            >
-              Пароль
-            </button>
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setMode("password")}
+            className={`flex-1 py-2 rounded-btn text-sm font-medium transition-colors ${
+              mode === "password" ? "bg-accent text-black" : "bg-surface text-white/60"
+            }`}
+          >
+            Пароль
+          </button>
+          <button
+            onClick={() => setMode("qr")}
+            className={`flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              mode === "qr" ? "bg-accent text-black" : "bg-surface text-white/60"
+            }`}
+          >
+            <QrCode size={14} /> По QR
+          </button>
+          {flags.telegramLoginEnabled && (
             <button
               onClick={() => setMode("telegram")}
               className={`flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
                 mode === "telegram" ? "bg-accent text-black" : "bg-surface text-white/60"
               }`}
             >
-              <MessageCircle size={14} /> Код в Telegram
+              <MessageCircle size={14} /> Telegram
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
-        {mode === "password" ? (
+        {mode === "qr" ? (
+          <QrDeviceLogin onSuccess={() => router.push(redirectTo)} />
+        ) : mode === "password" ? (
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
