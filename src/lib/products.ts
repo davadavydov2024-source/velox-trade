@@ -15,6 +15,7 @@ import {
 import { db } from "./firebase";
 import { auth } from "./firebase";
 import { Game, Product } from "@/types";
+import { getActiveWheelProductIds } from "./wheelPrizes";
 
 const gamesCol = collection(db, "games");
 const productsCol = collection(db, "products");
@@ -37,6 +38,11 @@ export async function getProducts(opts?: {
   rarity?: string;
   isNew?: boolean;
   sort?: "price_asc" | "price_desc" | "newest";
+  /** По умолчанию false — товары, "запертые" под колесо фортуны (см. getActiveWheelProductIds),
+   * не исключаются. Ставь true на всех покупательских страницах (каталог, главная, товар,
+   * профиль продавца), чтобы такие товары нельзя было купить в обход колеса. В админке и на
+   * странице самого колеса оставляй false — там их обязательно нужно видеть. */
+  excludeWheelLocked?: boolean;
 }): Promise<Product[]> {
   const clauses = [];
   if (opts?.gameId) clauses.push(where("gameId", "==", opts.gameId));
@@ -49,13 +55,29 @@ export async function getProducts(opts?: {
   // создание нескольких индексов вручную в консоли Firebase. Товаров в каталоге не миллионы,
   // так что сортировка в JS обходится дёшево и работает сразу без лишней настройки.
   const snap = await getDocs(query(productsCol, ...clauses));
-  const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product);
+  let products = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product);
+
+  if (opts?.excludeWheelLocked) {
+    const lockedIds = await getActiveWheelProductIds();
+    if (lockedIds.size > 0) products = products.filter((p) => !lockedIds.has(p.id));
+  }
 
   if (opts?.sort === "price_asc") products.sort((a, b) => a.price - b.price);
   else if (opts?.sort === "price_desc") products.sort((a, b) => b.price - a.price);
   else products.sort((a, b) => b.createdAt - a.createdAt);
 
   return products;
+}
+
+/**
+ * Как getProductById, но возвращает null и для товаров, "запертых" под колесо фортуны — чтобы их
+ * нельзя было открыть/купить напрямую по ссылке в обход колеса. Используй на покупательской
+ * странице товара; для чата заказа и других служебных мест оставляй обычный getProductById.
+ */
+export async function getPurchasableProductById(id: string): Promise<Product | null> {
+  const [product, lockedIds] = await Promise.all([getProductById(id), getActiveWheelProductIds()]);
+  if (!product || lockedIds.has(product.id)) return null;
+  return product;
 }
 
 export async function getProductById(id: string): Promise<Product | null> {

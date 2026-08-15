@@ -28,7 +28,7 @@ export default function SellerProfilePage() {
         setLoading(false);
         return;
       }
-      const [p, r, prod] = await Promise.all([getPublicProfileCached(uid), getSellerReviews(uid), getProducts({ sellerId: uid })]);
+      const [p, r, prod] = await Promise.all([getPublicProfileCached(uid), getSellerReviews(uid), getProducts({ sellerId: uid, excludeWheelLocked: true })]);
       setProfile(p);
       setReviews(r);
       setProducts(prod);

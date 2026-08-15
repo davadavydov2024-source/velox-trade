@@ -24,7 +24,7 @@ function CatalogInner() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
-    getProducts({ sort })
+    getProducts({ sort, excludeWheelLocked: true })
       .then((p) => setProducts(p))
       .catch((err) => { console.error("Ошибка загрузки товаров:", err); setProducts([]); })
       .finally(() => setLoaded(true));

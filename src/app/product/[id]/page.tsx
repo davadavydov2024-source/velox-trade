@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck } from "lucide-react";
-import { getProductById, getProducts, getGameBySlug } from "@/lib/products";
+import { getProducts, getGameBySlug, getPurchasableProductById } from "@/lib/products";
 import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
@@ -37,7 +37,10 @@ export default function ProductPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    getProductById(id)
+    // getPurchasableProductById (не обычный getProductById!) — если товар сейчас "заперт" под
+    // колесо фортуны, страница должна вести себя как "товар не найден", а не давать купить его
+    // напрямую по прямой ссылке в обход колеса.
+    getPurchasableProductById(id)
       .then((p) => {
         if (p) {
           setProduct(p);
@@ -49,7 +52,7 @@ export default function ProductPage() {
 
   useEffect(() => {
     if (!product) return;
-    getProducts({ gameId: product.gameId })
+    getProducts({ gameId: product.gameId, excludeWheelLocked: true })
       .then((list) => setRelated(list.filter((p) => p.id !== product.id).slice(0, 4)))
       .catch((err) => { console.error("Ошибка загрузки похожих товаров:", err); setRelated([]); });
     getPublicProfileCached(product.sellerId).then(setSeller);

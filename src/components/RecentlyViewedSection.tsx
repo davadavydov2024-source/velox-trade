@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getRecentlyViewedIds } from "@/lib/recentlyViewed";
-import { getProductById } from "@/lib/products";
+import { getPurchasableProductById } from "@/lib/products";
 import { Product } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
 
@@ -12,7 +12,9 @@ export function RecentlyViewedSection({ excludeId, title = "Вы недавно 
   useEffect(() => {
     const ids = getRecentlyViewedIds(excludeId).slice(0, 6);
     if (ids.length === 0) return;
-    Promise.all(ids.map((id) => getProductById(id).catch(() => null))).then((list) =>
+    // getPurchasableProductById, а не обычный: товар, который с тех пор "заперли" под колесо
+    // фортуны, просто исчезает отсюда — как будто снова недоступен для покупки.
+    Promise.all(ids.map((id) => getPurchasableProductById(id).catch(() => null))).then((list) =>
       setProducts(list.filter((p): p is Product => p !== null))
     );
   }, [excludeId]);
