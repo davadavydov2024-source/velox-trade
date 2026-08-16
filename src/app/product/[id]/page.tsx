@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight } from "lucide-react";
 import { getProducts, getGameBySlug, getPurchasableProductById } from "@/lib/products";
 import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
+import { useAuth } from "@/lib/authContext";
 import { ProductCard } from "@/components/ProductCard";
 import { Lightbox } from "@/components/Lightbox";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { TradeOfferModal } from "@/components/TradeOfferModal";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
@@ -35,6 +37,8 @@ export default function ProductPage() {
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
 
   useEffect(() => {
     // getPurchasableProductById (не обычный getProductById!) — если товар сейчас "заперт" под
@@ -207,9 +211,20 @@ export default function ProductPage() {
               productId={product.id}
               className="btn-secondary px-4 py-3 flex items-center gap-2"
             />
+            {user && product.sellerId !== "store" && product.sellerId !== user.uid && (
+              <button
+                onClick={() => setTradeModalOpen(true)}
+                className="btn-secondary px-4 py-3 flex items-center gap-2"
+                title="Предложить обмен своим товаром"
+              >
+                <ArrowLeftRight size={18} /> Обмен
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {tradeModalOpen && product && <TradeOfferModal targetProduct={product} onClose={() => setTradeModalOpen(false)} />}
 
       {related.length > 0 && (
         <section className="mt-16">

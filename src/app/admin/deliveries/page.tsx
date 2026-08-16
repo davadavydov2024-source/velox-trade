@@ -122,6 +122,9 @@ export default function AdminDeliveriesPage() {
                       {d.source === "wheel" && (
                         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">🎡 колесо</span>
                       )}
+                      {d.source === "trade" && (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300">🔄 обмен</span>
+                      )}
                     </p>
                     <p className="text-xs text-white/40">Заказ #{d.orderId.slice(0, 8)} · игра: {d.gameId}</p>
                   </div>

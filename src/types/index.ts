@@ -41,7 +41,8 @@ export type DeliveryStatus =
 export interface Delivery {
   id: string; // = orderId
   orderId: string;
-  source: "purchase" | "wheel"; // wheel — выигрыш на колесе фортуны, purchase — обычная покупка
+  source: "purchase" | "wheel" | "trade"; // wheel — приз колеса, trade — прямой обмен между игроками
+  tradeId?: string; // только для source === "trade" — обе стороны обмена ссылаются на один TradeOffer
   buyerId: string;
   sellerId: string;
   productId: string;
@@ -201,7 +202,7 @@ export interface UserProfile {
   claimedEventIds?: string[]; // id ивентов, за которые уже получен бонус (чтобы не выдавать повторно)
   unlockedAchievements?: string[]; // id достижений, за которые уже начислена награда (см. /profile/achievements)
   lastActiveAt?: number; // обновляется периодически, пока открыт сайт — для статуса "в сети"
-  lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 24 часа
+  lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 7 часов
   wheelSpinsCount?: number; // сколько раз всего крутили колесо — для страницы достижений
   twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
   pushCategories?: PushCategories; // отсутствует у старых профилей — тогда считаем, что включено всё (DEFAULT_PUSH_CATEGORIES)
@@ -244,6 +245,32 @@ export interface OrderChat {
   sellerId: string;
   messages: OrderChatMessage[];
   updatedAt: number;
+}
+
+export type TradeOfferStatus = "pending" | "accepted" | "rejected" | "cancelled";
+
+// Прямой обмен предметами между двумя игроками (не покупка за деньги, хотя можно доплатить
+// сверху). При принятии создаются ДВЕ записи Delivery (см. выше) — по одной на каждое
+// направление передачи предмета, обе идут через тех же ботов-посредников, что и обычные покупки.
+export interface TradeOffer {
+  id: string;
+  fromUserId: string; // тот, кто предложил обмен
+  fromUserNick: string;
+  toUserId: string; // владелец запрошенного предмета
+  toUserNick: string;
+  offeredProductId: string;
+  offeredProductName: string;
+  offeredProductImage?: string;
+  offeredGameId: string;
+  requestedProductId: string;
+  requestedProductName: string;
+  requestedProductImage?: string;
+  requestedGameId: string;
+  extraBalanceFromProposer?: number; // предложивший обмен доплачивает сверху своего предмета
+  message?: string;
+  status: TradeOfferStatus;
+  createdAt: number;
+  respondedAt?: number;
 }
 
 export interface Review {

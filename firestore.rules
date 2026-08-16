@@ -368,6 +368,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- прямой обмен предметами между игроками ---
+    // Создание заявки и все переходы статуса (принять/отклонить, списание баланса, создание
+    // Delivery на каждую сторону) идут ТОЛЬКО через серверные API-роуты (Admin SDK) — там же
+    // проверяется реальное владение предложенным товаром, наличие на складе и что товар не
+    // заперт под колесо фортуны. Прямая запись с клиента запрещена полностью.
+    match /tradeOffers/{tradeId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
+      allow write: if isAdmin();
+    }
+    match /tradeChats/{tradeId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
+      allow create: if isAdmin() || (isSignedIn() && (request.auth.uid == request.resource.data.fromUserId || request.auth.uid == request.resource.data.toUserId));
+      allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId));
+      allow delete: if isAdmin();
+    }
+
     // --- жалобы на сделки ---
     match /disputes/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));

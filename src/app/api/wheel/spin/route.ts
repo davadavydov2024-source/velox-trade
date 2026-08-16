@@ -7,7 +7,7 @@ import { maskNickname } from "@/lib/maskNickname";
 
 export const runtime = "nodejs";
 
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 7 * 60 * 60 * 1000;
 // Как и в api/orders/checkout — держим отдельно от src/lib/deliveries.ts (клиентский модуль).
 const DELIVERY_TIMEOUT_MS = 60 * 60 * 1000;
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const lastSpin: number = userSnap.data()?.lastWheelSpinAt ?? 0;
     if (Date.now() - lastSpin < COOLDOWN_MS) {
       const hoursLeft = Math.ceil((COOLDOWN_MS - (Date.now() - lastSpin)) / (60 * 60 * 1000));
-      return NextResponse.json({ error: `Колесо уже крутили сегодня. Попробуй через ${hoursLeft} ч.` }, { status: 400 });
+      return NextResponse.json({ error: `Колесо уже крутили недавно. Попробуй через ${hoursLeft} ч.` }, { status: 400 });
     }
 
     const prizesSnap = await db.collection("wheelPrizes").where("remaining", ">", 0).get();
