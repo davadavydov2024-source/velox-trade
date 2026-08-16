@@ -24,9 +24,22 @@ interface PrizeResult {
 const NON_PRODUCT_COLOR: Record<"balance" | "nothing", string> = { balance: "#4ade80", nothing: "#5b6272" };
 const WHEEL_SIZE = 300;
 const BULB_COUNT = 20;
+// Держим в синхроне с COOLDOWN_MS на сервере (src/app/api/wheel/spin/route.ts) — используется
+// только для отображения таймера на клиенте, реальная проверка всегда идёт на сервере.
+const WHEEL_COOLDOWN_MS = 7 * 60 * 60 * 1000;
+
+function formatCooldown(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}ч ${m}м`;
+  if (m > 0) return `${m}м ${s}с`;
+  return `${s}с`;
+}
 
 export default function WheelPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -36,7 +49,21 @@ export default function WheelPage() {
   const [result, setResult] = useState<PrizeResult | null>(null);
   const [rotation, setRotation] = useState(0);
   const [prizeRarity, setPrizeRarity] = useState<Record<string, string>>({});
+  const [now, setNow] = useState(() => Date.now());
   const spinTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Тикает раз в секунду, только пока реально идёт отсчёт кулдауна — используется для видимого
+  // таймера "следующая попытка через". Раньше такого таймера не было вовсе: пользователь узнавал
+  // о кулдауне только из текста ошибки после нажатия "Крутить".
+  useEffect(() => {
+    const cooldownEndsAt = (profile?.lastWheelSpinAt ?? 0) + WHEEL_COOLDOWN_MS;
+    if (cooldownEndsAt <= Date.now()) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [profile?.lastWheelSpinAt]);
+
+  const cooldownMsLeft = Math.max(0, (profile?.lastWheelSpinAt ?? 0) + WHEEL_COOLDOWN_MS - now);
+  const onCooldown = cooldownMsLeft > 0;
 
   useEffect(() => {
     loadPrizes();
@@ -121,6 +148,10 @@ export default function WheelPage() {
     e.preventDefault();
     if (!user) {
       toast("warning", "Войди в аккаунт, чтобы крутить колесо");
+      return;
+    }
+    if (onCooldown) {
+      toast("warning", `Ещё рано — следующая попытка через ${formatCooldown(cooldownMsLeft)}`);
       return;
     }
     if (!code.trim()) {
@@ -323,13 +354,18 @@ export default function WheelPage() {
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="Промокод колеса"
-          disabled={spinning}
-          className="input-field py-2.5 text-sm flex-1 uppercase"
+          disabled={spinning || onCooldown}
+          className="input-field py-2.5 text-sm flex-1 uppercase disabled:opacity-50"
         />
-        <button disabled={spinning || !code.trim()} className="btn-primary px-5 py-2.5 text-sm disabled:opacity-50">
+        <button disabled={spinning || onCooldown || !code.trim()} className="btn-primary px-5 py-2.5 text-sm disabled:opacity-50">
           {spinning ? "..." : "Крутить"}
         </button>
       </form>
+      {onCooldown && (
+        <p className="text-center text-xs text-white/40 -mt-3">
+          Следующая попытка через <span className="text-accent font-medium">{formatCooldown(cooldownMsLeft)}</span>
+        </p>
+      )}
 
       {prizes.length > 0 && (
         <div>

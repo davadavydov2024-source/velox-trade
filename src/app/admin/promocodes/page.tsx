@@ -132,7 +132,7 @@ export default function AdminPromoCodesPage() {
 
   function describe(code: PromoCode): string {
     if (code.type === "discount") return `Скидка ${code.discountPercent ?? 0}% в корзине`;
-    if (code.type === "wheel") return "🎡 Запускает Колесо Фортуны (раз в 24 часа на человека)";
+    if (code.type === "wheel") return "🎡 Запускает Колесо Фортуны (раз в 7 часов на человека)";
     if (code.giftType === "balance") return `Подарок: +${code.giftBalance ?? 0} ₽ на баланс`;
     if (code.giftType === "product") return `Подарок: предмет «${code.giftProductName ?? "?"}»`;
     return "—";
@@ -188,9 +188,11 @@ export default function AdminPromoCodesPage() {
 
           {form.type === "wheel" && (
             <p className="text-xs text-white/40">
-              Этот код запускает вращение Колеса Фортуны. Каждый пользователь может использовать его раз в 24 часа —
+              Этот код запускает вращение Колеса Фортуны. Каждый пользователь может использовать его раз в 7 часов —
               коду не нужны отдельные настройки суммы/скидки, приз выбирается случайно из списка на странице{" "}
-              <a href="/admin/wheel" className="text-accent hover:underline">«Колесо Фортуны»</a>.
+              <a href="/admin/wheel" className="text-accent hover:underline">«Колесо Фортуны»</a>. «Лимит активаций»
+              ниже — это сколько РАЗНЫХ людей смогут в принципе начать пользоваться этим кодом (тот, кто уже
+              активировал, продолжает крутить им и дальше, ограничение только на новых людей).
             </p>
           )}
 
