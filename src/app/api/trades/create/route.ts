@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
+import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
@@ -72,9 +74,10 @@ export async function POST(req: NextRequest) {
     }
 
     const tradeRef = db.collection("tradeOffers").doc();
+    const fromNick = userSnap.data()?.displayName ?? "Игрок";
     await tradeRef.set({
       fromUserId: uid,
-      fromUserNick: userSnap.data()?.displayName ?? "Игрок",
+      fromUserNick: fromNick,
       toUserId: requested.sellerId,
       toUserNick: (await db.collection("users").doc(requested.sellerId).get()).data()?.displayName ?? "Игрок",
       offeredProductId,
@@ -90,6 +93,18 @@ export async function POST(req: NextRequest) {
       status: "pending",
       createdAt: Date.now(),
     });
+
+    // Раньше владелец товара никак не узнавал о новом предложении обмена, пока сам не заходил
+    // на /profile/trades — теперь долетает в Telegram и push, как и остальные события сайта.
+    notifyTelegramServer(
+      requested.sellerId,
+      `🔄 ${fromNick} предлагает обмен: «${offered.name}» на твой «${requested.name}»${extra > 0 ? ` + доплата ${extra} ₽` : ""}. Посмотреть — в разделе «Обмены».`
+    );
+    sendWebPush(
+      requested.sellerId,
+      { title: "Новое предложение обмена", body: `${fromNick}: «${offered.name}» на «${requested.name}»`, url: "/profile/trades" },
+      "purchases"
+    );
 
     return NextResponse.json({ ok: true, tradeId: tradeRef.id });
   } catch (err) {

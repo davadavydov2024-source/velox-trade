@@ -28,11 +28,17 @@ export async function POST(req: NextRequest) {
     if (action === "reject" || action === "cancel") {
       const snap = await tradeRef.get();
       if (!snap.exists) return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
-      const trade = snap.data() as { status: string; toUserId: string; fromUserId: string };
+      const trade = snap.data() as { status: string; toUserId: string; fromUserId: string; toUserNick: string; offeredProductName: string; requestedProductName: string };
       if (trade.status !== "pending") return NextResponse.json({ error: "Заявка уже обработана" }, { status: 400 });
       const allowedUid = action === "reject" ? trade.toUserId : trade.fromUserId;
       if (uid !== allowedUid) return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
       await tradeRef.update({ status: action === "reject" ? "rejected" : "cancelled", respondedAt: Date.now() });
+
+      if (action === "reject") {
+        notifyTelegramServer(trade.fromUserId, `❌ ${trade.toUserNick} отклонил(а) твоё предложение обмена: «${trade.offeredProductName}» на «${trade.requestedProductName}».`);
+        sendWebPush(trade.fromUserId, { title: "Обмен отклонён", body: `${trade.toUserNick} отклонил(а) предложение`, url: "/profile/trades" }, "purchases");
+      }
+
       return NextResponse.json({ ok: true });
     }
 

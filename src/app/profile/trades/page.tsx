@@ -9,6 +9,7 @@ import { useToast } from "@/lib/toastContext";
 import { getIncomingTrades, getOutgoingTrades, respondToTrade } from "@/lib/trades";
 import { TradeOffer, TradeOfferStatus } from "@/types";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
+import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
 const STATUS_LABEL: Record<TradeOfferStatus, { text: string; color: string }> = {
   pending: { text: "Ожидает ответа", color: "#ff9800" },
@@ -72,6 +73,8 @@ export default function TradesPage() {
         </h1>
         <p className="text-sm text-white/40">Прямой обмен товарами с другими игроками — без денег или с доплатой сверху.</p>
       </div>
+
+      <NotifyConnectBanner context="новые предложения обмена" storageKey="notifyBannerDismissed_trades" />
 
       <div className="flex items-start gap-2 text-xs text-yellow-400/80 bg-yellow-500/5 border border-yellow-500/20 rounded-btn p-3">
         <ShieldAlert size={14} className="shrink-0 mt-0.5" />

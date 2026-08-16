@@ -12,6 +12,7 @@ import { safeImageSrc } from "@/lib/safeImage";
 import { SupportPanel } from "@/components/SupportPanel";
 import { NewsPanel } from "@/components/NewsPanel";
 import { OrderChatThread } from "@/components/OrderChatThread";
+import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
 type ChatView = { kind: "support" } | { kind: "news" } | { kind: "order"; orderId: string; counterpartName: string };
 
@@ -135,6 +136,7 @@ function ChatsInner() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       <h1 className="text-2xl font-bold mb-6">Чаты</h1>
+      <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
       <div className="grid md:grid-cols-[320px_1fr] gap-5">
         <div className={`card p-2 md:max-h-[70vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
           <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
