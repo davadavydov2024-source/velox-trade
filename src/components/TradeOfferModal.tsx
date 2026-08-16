@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { X, ArrowLeftRight, ShieldAlert } from "lucide-react";
 import { getProducts } from "@/lib/products";
-import { createTradeOffer } from "@/lib/trades";
+import { createTradeOffer, TRADE_DISCLAIMER } from "@/lib/trades";
 import { Product } from "@/types";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { useAuth } from "@/lib/authContext";
@@ -132,8 +132,7 @@ export function TradeOfferModal({ targetProduct, onClose }: { targetProduct: Pro
 
             <div className="flex items-start gap-2 text-xs text-yellow-400/80 bg-yellow-500/5 border border-yellow-500/20 rounded-btn p-2.5">
               <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-              Обмен идёт только через ботов-посредников сайта — никогда не передавай свой предмет первым напрямую другому
-              игроку в обход этой системы. За сделки, совершённые в обход платформы, сайт ответственности не несёт.
+              {TRADE_DISCLAIMER}
             </div>
 
             <button

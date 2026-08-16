@@ -6,7 +6,7 @@ import Image from "next/image";
 import { ArrowLeftRight, Check, X, Ban, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { getIncomingTrades, getOutgoingTrades, respondToTrade } from "@/lib/trades";
+import { getIncomingTrades, getOutgoingTrades, respondToTrade, TRADE_DISCLAIMER } from "@/lib/trades";
 import { TradeOffer, TradeOfferStatus } from "@/types";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
@@ -78,8 +78,7 @@ export default function TradesPage() {
 
       <div className="flex items-start gap-2 text-xs text-yellow-400/80 bg-yellow-500/5 border border-yellow-500/20 rounded-btn p-3">
         <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-        Никогда не передавай свой предмет первым напрямую другому игроку — только через ботов-посредников сайта. Сайт не
-        несёт ответственности за сделки, совершённые в обход этой системы.
+        {TRADE_DISCLAIMER}
       </div>
 
       {loading ? (

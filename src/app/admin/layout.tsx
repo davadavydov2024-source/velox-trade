@@ -27,6 +27,7 @@ import {
   PowerOff,
   Bot,
   PackageCheck,
+  ArrowLeftRight,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
@@ -46,6 +47,7 @@ const NAV = [
   { href: "/admin/wheel", label: "Колесо Фортуны", icon: Disc3 },
   { href: "/admin/bot-accounts", label: "Боты-посредники", icon: Bot },
   { href: "/admin/deliveries", label: "Выдача товаров", icon: PackageCheck },
+  { href: "/admin/trades", label: "Обмены", icon: ArrowLeftRight },
   { href: "/admin/ads", label: "Реклама и рассылки", icon: Megaphone },
   { href: "/admin/notifications", label: "Уведомления", icon: Bell },
   { href: "/admin/site-reviews", label: "Отзывы о сайте", icon: Star },

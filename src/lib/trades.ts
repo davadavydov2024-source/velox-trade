@@ -19,6 +19,9 @@ export interface TradeChat {
   updatedAt: number;
 }
 
+export const TRADE_DISCLAIMER =
+  "Обмен происходит напрямую между тобой и другим игроком — Velox Trade не является стороной сделки. Соблюдение правил (передавать предмет ТОЛЬКО через бота-посредника, никогда не отдавать первым напрямую) полностью на ответственности участников; если кто-то нарушит это и потеряет предмет вне системы ботов, площадка за это не отвечает. Если что-то пошло не так — сразу напиши в поддержку: администратор может подключиться к переписке по сделке и разобраться.";
+
 export async function createTradeOffer(params: {
   offeredProductId: string;
   requestedProductId: string;
@@ -63,6 +66,12 @@ export async function getOutgoingTrades(uid: string): Promise<TradeOffer[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TradeOffer).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Для админки: все сделки на сайте — используется, когда нужно найти конкретный обмен по обращению в поддержку. */
+export async function getAllTrades(): Promise<TradeOffer[]> {
+  const snap = await getDocs(query(tradesCol, orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TradeOffer);
+}
+
 export async function getTradeById(id: string): Promise<TradeOffer | null> {
   const snap = await getDoc(doc(tradesCol, id));
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as TradeOffer) : null;
@@ -86,9 +95,16 @@ export async function sendTradeChatMessage(tradeId: string, fromUserId: string, 
   }
 
   const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
-  const otherUid = from === "fromUser" ? toUserId : fromUserId;
   if (from === "fromUser" || from === "toUser") {
+    const otherUid = from === "fromUser" ? toUserId : fromUserId;
     notifyTelegram(otherUid, `💬 Новое сообщение по обмену:\n${preview}`);
     notifyPush(otherUid, "Новое сообщение по обмену", preview, "/profile/trades");
+  } else if (from === "admin") {
+    // Администратор подключился к переписке (обычно после обращения в поддержку) — уведомляем
+    // ОБОИХ участников обмена, а не только одну сторону.
+    [fromUserId, toUserId].forEach((uid) => {
+      notifyTelegram(uid, `👮 Администратор подключился к вашему обмену:\n${preview}`);
+      notifyPush(uid, "Администратор написал в чате обмена", preview, "/profile/trades");
+    });
   }
 }
