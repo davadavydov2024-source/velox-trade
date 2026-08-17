@@ -38,15 +38,19 @@ export async function submitDeliveryNickname(orderId: string, nickname: string):
   if (!res.ok) throw new Error(data.error || "Не удалось сохранить ник");
 }
 
-/** Только для админа: продвигает статус выдачи после ручной проверки в самой игре. */
-export async function adminUpdateDeliveryStatus(orderId: string, status: Extract<DeliveryStatus, "received_by_bot" | "delivered">): Promise<void> {
+/** Только для админа: продвигает статус выдачи после ручной проверки в самой игре, либо отменяет её. */
+export async function adminUpdateDeliveryStatus(
+  orderId: string,
+  status: Extract<DeliveryStatus, "received_by_bot" | "delivered" | "cancelled">,
+  cancelReason?: string
+): Promise<void> {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Нужно войти в аккаунт");
   const idToken = await currentUser.getIdToken();
   const res = await fetch("/api/admin/deliveries/update-status", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ orderId, status }),
+    body: JSON.stringify({ orderId, status, cancelReason }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Не удалось обновить статус");

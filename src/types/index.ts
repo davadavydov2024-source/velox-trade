@@ -34,6 +34,7 @@ export type DeliveryStatus =
   | "awaiting_transfer" // ник вписан, ждём пока продавец передаст предмет боту-посреднику
   | "received_by_bot" // админ подтвердил: бот получил предмет от продавца
   | "delivered" // админ подтвердил: предмет выдан покупателю
+  | "cancelled" // админ отменил выдачу вручную (спор, ошибка, невозможность передачи и т.п.)
   | "expired"; // не успели уложиться в отведённое время (1 час)
 
 // Один Delivery на один Order (id документа = orderId) — и для обычных покупок, и для призов
@@ -62,6 +63,9 @@ export interface Delivery {
   receivedByAdminUid?: string;
   deliveredAt?: number;
   deliveredByAdminUid?: string;
+  cancelledAt?: number;
+  cancelledByAdminUid?: string;
+  cancelReason?: string;
 }
 
 export interface Product {
@@ -411,7 +415,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   telegramRegisterEnabled: false,
   vkLoginEnabled: true,
   balanceTopupEnabled: true,
-  minTopupAmountRub: 100,
+  minTopupAmountRub: 50,
   minProductPriceRub: 1,
   referralEnabled: true,
   referralBonusRub: 50,

@@ -315,7 +315,7 @@ function TopUpPageInner() {
               <div className="card p-5">
                 <form onSubmit={handlePay} className="space-y-4">
                   <div>
-                    <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽ (минимум 100)</label>
+                    <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽ (минимум {minTopup})</label>
                     <input
             autoComplete="off"
                       type="number"

@@ -4,7 +4,10 @@ import { rollyCreatePayment, RollyPayError } from "@/lib/rollypay";
 
 export const runtime = "nodejs";
 
-const MIN_AMOUNT = 100;
+// Абсолютный пол на случай, если в settings/features вообще нет minTopupAmountRub —
+// сам "настраиваемый" минимум читается из Firestore ниже, чтобы никогда не разъезжаться
+// с тем, что видит пользователь на клиенте (тот же флаг, см. src/lib/featureFlags.ts).
+const FALLBACK_MIN_AMOUNT = 50;
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +26,10 @@ export async function POST(req: NextRequest) {
     }
 
     const db = adminDb();
-    const userSnap = await db.collection("users").doc(uid).get();
+    const [userSnap, featuresSnap] = await Promise.all([
+      db.collection("users").doc(uid).get(),
+      db.collection("settings").doc("features").get(),
+    ]);
     if (!userSnap.exists) {
       return NextResponse.json({ error: "Профиль не найден" }, { status: 404 });
     }
@@ -32,10 +38,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Аккаунт заблокирован" }, { status: 403 });
     }
 
+    const minAmount = (featuresSnap.data()?.minTopupAmountRub as number | undefined) ?? FALLBACK_MIN_AMOUNT;
+
     const { amount } = await req.json();
     const num = Number(amount);
-    if (!num || num < MIN_AMOUNT) {
-      return NextResponse.json({ error: `Минимальная сумма пополнения — ${MIN_AMOUNT} ₽` }, { status: 400 });
+    if (!num || num < minAmount) {
+      return NextResponse.json({ error: `Минимальная сумма пополнения — ${minAmount} ₽` }, { status: 400 });
     }
 
     // Простая защита от спама запросами: не чаще одного нового платежа в 10 секунд на пользователя.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Clock, User, CheckCircle2, ExternalLink } from "lucide-react";
+import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { subscribeDelivery, submitDeliveryNickname } from "@/lib/deliveries";
 import { Delivery } from "@/types";
 import { useToast } from "@/lib/toastContext";
@@ -64,7 +64,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
         <p className="text-sm font-semibold flex items-center gap-1.5">
           <Bot size={15} className="text-accent" /> Получение товара
         </p>
-        {!expired && delivery.status !== "delivered" && delivery.expiresAt && <Countdown expiresAt={delivery.expiresAt} />}
+        {!expired && delivery.status !== "delivered" && delivery.status !== "cancelled" && delivery.expiresAt && <Countdown expiresAt={delivery.expiresAt} />}
       </div>
 
       {expired ? (
@@ -146,6 +146,14 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
           ) : (
             <p className="text-xs text-white/50">Ждём, пока администратор выдаст предмет покупателю у бота.</p>
           )}
+        </div>
+      ) : delivery.status === "cancelled" ? (
+        <div className="text-sm">
+          <p className="text-red-400 font-medium mb-1 flex items-center gap-1.5">
+            <XCircle size={15} /> Выдача отменена администрацией
+          </p>
+          {delivery.cancelReason && <p className="text-xs text-white/50">Причина: «{delivery.cancelReason}»</p>}
+          <p className="text-xs text-white/40 mt-1">Если считаешь, что это ошибка — напиши в поддержку.</p>
         </div>
       ) : (
         <p className="text-sm text-green-400 flex items-center gap-1.5">

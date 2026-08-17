@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PackageCheck, User, Bot, Clock, ExternalLink } from "lucide-react";
+import { PackageCheck, User, Bot, Clock, ExternalLink, XCircle } from "lucide-react";
 import { getAllDeliveries, adminUpdateDeliveryStatus, DELIVERY_TIMEOUT_MS } from "@/lib/deliveries";
 import { Delivery, DeliveryStatus } from "@/types";
 import { useToast } from "@/lib/toastContext";
@@ -12,8 +12,11 @@ const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
   awaiting_transfer: { text: "Ждём передачу боту", color: "#ff9800" },
   received_by_bot: { text: "Готово к выдаче", color: "#4a6cf7" },
   delivered: { text: "Выдано", color: "#4caf50" },
+  cancelled: { text: "Отменено", color: "#f44336" },
   expired: { text: "Истекло", color: "#f44336" },
 };
+
+const CANCELLABLE_STATUSES: DeliveryStatus[] = ["awaiting_nickname", "awaiting_transfer", "received_by_bot"];
 
 function isEffectivelyExpired(d: Delivery): boolean {
   return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !!d.expiresAt && Date.now() > d.expiresAt;
@@ -72,7 +75,26 @@ export default function AdminDeliveriesPage() {
     }
   }
 
-  const shown = deliveries.filter((d) => filter === "all" || (d.status !== "delivered" && !isEffectivelyExpired(d)));
+  async function cancelDelivery(d: Delivery) {
+    const reason = window.prompt(
+      `Отменить выдачу «${d.productName}» для ${d.buyerNickname ?? "покупателя"}?\n\nПричина (необязательно, увидят обе стороны в чате):`,
+      ""
+    );
+    if (reason === null) return; // нажал "Отмена" в самом prompt — ничего не делаем
+
+    setBusyId(d.id);
+    try {
+      await adminUpdateDeliveryStatus(d.orderId, "cancelled", reason.trim() || undefined);
+      toast("success", "Выдача отменена");
+      await refresh();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось отменить выдачу");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const shown = deliveries.filter((d) => filter === "all" || (d.status !== "delivered" && d.status !== "cancelled" && !isEffectivelyExpired(d)));
 
   return (
     <div className="space-y-6">
@@ -114,7 +136,7 @@ export default function AdminDeliveriesPage() {
             const expired = isEffectivelyExpired(d);
             const status: DeliveryStatus = expired ? "expired" : d.status;
             return (
-              <div key={d.id} className={`card p-4 space-y-3 ${status === "delivered" || expired ? "opacity-60" : ""}`}>
+              <div key={d.id} className={`card p-4 space-y-3 ${status === "delivered" || status === "cancelled" || expired ? "opacity-60" : ""}`}>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <p className="font-medium text-sm flex items-center gap-1.5">
@@ -168,8 +190,8 @@ export default function AdminDeliveriesPage() {
                   </div>
                 )}
 
-                {!expired && (
-                  <div className="flex gap-2">
+                {!expired && status !== "cancelled" && (
+                  <div className="flex gap-2 flex-wrap">
                     {d.status === "awaiting_transfer" && (
                       <button
                         onClick={() => advance(d, "received_by_bot")}
@@ -188,7 +210,22 @@ export default function AdminDeliveriesPage() {
                         📦 Выдано покупателю
                       </button>
                     )}
+                    {CANCELLABLE_STATUSES.includes(d.status) && (
+                      <button
+                        onClick={() => cancelDelivery(d)}
+                        disabled={busyId === d.id}
+                        className="px-4 py-2 text-xs rounded-btn bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <XCircle size={13} /> Отменить выдачу
+                      </button>
+                    )}
                   </div>
+                )}
+
+                {d.status === "cancelled" && (
+                  <p className="text-xs text-white/30">
+                    Отменено администрацией{d.cancelReason ? `: «${d.cancelReason}»` : ""}
+                  </p>
                 )}
               </div>
             );
