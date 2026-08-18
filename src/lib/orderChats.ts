@@ -9,9 +9,16 @@ function chatRef(orderId: string) {
 }
 
 export async function getOrderChat(orderId: string): Promise<OrderChat | null> {
-  const snap = await getDoc(chatRef(orderId));
-  if (!snap.exists()) return null;
-  return snap.data() as OrderChat;
+  try {
+    const snap = await getDoc(chatRef(orderId));
+    return snap.exists() ? (snap.data() as OrderChat) : null;
+  } catch {
+    // Чат создаётся лениво при первом сообщении — до этого документа физически нет, и без
+    // соответствующего условия в правилах Firestore это раньше падало с permission-denied
+    // (см. фикс в firestore.rules). Ловим здесь тоже — работает сразу, не дожидаясь передеплоя
+    // правил, и на всякий случай прикрывает любые другие похожие ситуации.
+    return null;
+  }
 }
 
 /** Живая подписка на один чат по заказу — сообщения появляются сами, без перезагрузки страницы. */

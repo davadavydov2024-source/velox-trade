@@ -288,7 +288,14 @@ service cloud.firestore {
 
     // --- чат по заказу между покупателем и продавцом, админ видит и может писать в любой ---
     match /orderChats/{orderId} {
-      allow read: if isAdmin() ||
+      // resource == null: чат заказа создаётся ЛЕНИВО, только при первом реальном сообщении
+      // (см. sendOrderChatMessage). Пока сообщений ещё не было, документа физически не существует —
+      // без этого условия Firestore падает с "permission-denied" при попытке ЧИТАТЬ ДО первого
+      // сообщения (обращение к resource.data на несуществующем документе), из-за чего кнопка
+      // "Чат" у продавца/покупателя выглядела нерабочей на свежих заказах. Отдавать "документа
+      // нет" не раскрывает никаких данных, поэтому разрешать это безопасно для любого — сам факт
+      // существования пустого чата ничего не говорит о содержимом заказа.
+      allow read: if isAdmin() || resource == null ||
         (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId)) ||
         (isHelper() && get(/databases/$(database)/documents/deliveries/$(orderId)).data.source == "wheel");
       allow create: if isAdmin() ||
@@ -396,7 +403,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /tradeChats/{tradeId} {
-      allow read: if isAdmin() || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
+      // resource == null — та же причина, что и в orderChats выше: чат обмена тоже создаётся
+      // лениво при первом сообщении, без этого условия чтение до первого сообщения падало бы
+      // с permission-denied.
+      allow read: if isAdmin() || resource == null || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
       allow create: if isAdmin() || (isSignedIn() && (request.auth.uid == request.resource.data.fromUserId || request.auth.uid == request.resource.data.toUserId));
       allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId));
       allow delete: if isAdmin();
