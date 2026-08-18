@@ -1,13 +1,30 @@
 {
-  "name": "Velox Trade",
+  "name": "Velox Trade — Магазин игровых предметов",
   "short_name": "Velox Trade",
-  "description": "Маркетплейс игровых предметов для Roblox",
+  "description": "Маркетплейс игровых предметов для Roblox: Grow a Garden, Adopt Me, Blox Fruits, MM2, Blade Ball и другие.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d1017",
-  "theme_color": "#0d1017",
+  "background_color": "#0b0b12",
+  "theme_color": "#0b0b12",
+  "lang": "ru",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
