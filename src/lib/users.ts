@@ -107,6 +107,11 @@ export async function setUserBadges(uid: string, badges: UserBadge[]) {
   return updateDoc(doc(db, "users", uid), { badges });
 }
 
+/** Назначает/снимает роль персонала (менеджер поддержки или помощник по выдаче) — без доступа к админке. */
+export async function setStaffRole(uid: string, role: "manager" | "helper" | null) {
+  return updateDoc(doc(db, "users", uid), { staffRole: role });
+}
+
 export async function setUserBan(uid: string, banned: boolean, reason?: string, until?: number | "forever" | null) {
   await updateDoc(doc(db, "users", uid), {
     banned,

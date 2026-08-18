@@ -27,8 +27,17 @@ export async function POST(req: NextRequest) {
     if (!idToken) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
 
     const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
-    if (!decoded || !isAdminUid(decoded.uid)) {
-      return NextResponse.json({ error: "Доступ только для администраторов" }, { status: 403 });
+    if (!decoded) return NextResponse.json({ error: "Сессия истекла" }, { status: 401 });
+
+    const db = adminDb();
+    const isAdmin = isAdminUid(decoded.uid);
+    let isHelper = false;
+    if (!isAdmin) {
+      const actorSnap = await db.collection("users").doc(decoded.uid).get();
+      isHelper = actorSnap.data()?.staffRole === "helper";
+    }
+    if (!isAdmin && !isHelper) {
+      return NextResponse.json({ error: "Доступ только для администраторов и помощников по выдаче" }, { status: 403 });
     }
 
     const { orderId, status, cancelReason } = await req.json();
@@ -38,8 +47,12 @@ export async function POST(req: NextRequest) {
     if (status !== "received_by_bot" && status !== "delivered" && status !== "cancelled") {
       return NextResponse.json({ error: "Недопустимый статус" }, { status: 400 });
     }
+    // Помощник может только продвигать статус выдачи призов колеса — отмена (более
+    // "тяжёлое" и окончательное действие) остаётся только у полноценных админов.
+    if (isHelper && status === "cancelled") {
+      return NextResponse.json({ error: "Отмену выдачи может сделать только администратор" }, { status: 403 });
+    }
 
-    const db = adminDb();
     const deliveryRef = db.collection("deliveries").doc(orderId);
 
     const info = await db.runTransaction(async (tx) => {
@@ -47,12 +60,19 @@ export async function POST(req: NextRequest) {
       if (!snap.exists) throw new Error("not-found");
       const delivery = snap.data() as {
         status: string;
+        source?: string;
         expiresAt: number;
         buyerId: string;
         sellerId: string;
         productName: string;
         botNickname?: string;
       };
+
+      // Помощник видит и трогает только заявки-призы колеса фортуны — та же граница,
+      // что и в firestore.rules для чтения (см. match /deliveries).
+      if (isHelper && delivery.source !== "wheel") {
+        throw new Error("forbidden-scope");
+      }
 
       if (status === "cancelled") {
         if (!CANCELLABLE_STATUSES.has(delivery.status)) {
@@ -118,6 +138,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     if (err?.message === "not-found") return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
+    if (err?.message === "forbidden-scope") {
+      return NextResponse.json({ error: "Эта заявка не относится к призам колеса — доступно только администратору" }, { status: 403 });
+    }
     if (typeof err?.message === "string" && err.message.startsWith("wrong-order:")) {
       return NextResponse.json({ error: `Нельзя изменить статус из текущего состояния «${err.message.split(":")[1]}»` }, { status: 400 });
     }

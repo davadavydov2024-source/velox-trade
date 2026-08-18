@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import { Delivery, DeliveryStatus } from "@/types";
 
@@ -22,6 +22,14 @@ export function subscribeDelivery(orderId: string, cb: (d: Delivery | null) => v
 export async function getAllDeliveries(): Promise<Delivery[]> {
   const snap = await getDocs(query(col, orderBy("createdAt", "desc")));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Delivery);
+}
+
+/** Для помощника: ТОЛЬКО заявки-призы колеса фортуны (source == "wheel") — правила Firestore
+ * пускают его читать именно такую выборку, поэтому фильтр обязателен уже в самом запросе
+ * (без where по source запрос был бы отклонён правилами — им нужно видеть условие в запросе). */
+export async function getWheelDeliveries(): Promise<Delivery[]> {
+  const snap = await getDocs(query(col, where("source", "==", "wheel")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Delivery).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** Покупатель один раз вписывает свой игровой ник — дальше сервер сам назначает бота-посредника и запускает выдачу. */

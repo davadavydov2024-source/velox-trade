@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
     let wonSellerId: string | null = null;
     let wonProductName = "";
     let wonOrderId: string | null = null;
+    let wonWinnerNick = "";
 
     const result = await db.runTransaction(async (tx) => {
       // Firestore-транзакции требуют, чтобы ВСЕ чтения шли до ЛЮБЫХ записей — поэтому сначала
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
 
         // Публичная лента "живых покупок" — призы колеса тоже туда попадают, с пометкой type:"wheel".
         const winnerNick: string = freshUserSnap.data()?.displayName ?? "Игрок";
+        wonWinnerNick = winnerNick;
         tx.set(db.collection("publicActivity").doc(), {
           buyerNickMasked: maskNickname(winnerNick),
           productName: product.name,
@@ -193,6 +195,21 @@ export async function POST(req: NextRequest) {
     if (wonSellerId && wonSellerId !== "store") {
       notifyTelegramServer(wonSellerId, `🎡 Ваш товар «${wonProductName}» выиграли на колесе фортуны`);
       sendWebPush(wonSellerId, { title: "Товар выиграли на колесе", body: wonProductName, url: "/profile/sales" }, "purchases");
+    }
+
+    // Уведомляем ВСЕХ помощников по выдаче — им нужно как можно быстрее заметить новый приз
+    // и помочь с передачей через бота-посредника (см. /staff/deliveries).
+    if (wonOrderId) {
+      db.collection("users")
+        .where("staffRole", "==", "helper")
+        .get()
+        .then((helpersSnap) => {
+          helpersSnap.docs.forEach((helperDoc) => {
+            notifyTelegramServer(helperDoc.id, `🎉 ${wonWinnerNick} выиграл(а) «${wonProductName}» на колесе фортуны! Нужна помощь с выдачей.`);
+            sendWebPush(helperDoc.id, { title: "Новый приз колеса — нужна выдача", body: `${wonWinnerNick}: «${wonProductName}»`, url: "/staff/deliveries" }, "purchases");
+          });
+        })
+        .catch((err) => console.error("wheel/spin: не удалось уведомить помощников —", err));
     }
 
     return NextResponse.json({ ok: true, prize: result, orderId: wonOrderId });

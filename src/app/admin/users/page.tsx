@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff } from "lucide-react";
-import { getAllUsers, setUserBalance, setUserBan, setUserBadges } from "@/lib/users";
+import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
@@ -68,6 +68,17 @@ export default function AdminUsersPage() {
     await setUserBan(u.uid, banned, reason, banned ? "forever" : null);
     setUsers((list) => list.map((x) => (x.uid === u.uid ? { ...x, banned, banReason: reason } : x)));
     toast(banned ? "warning" : "success", banned ? "Пользователь заблокирован" : "Пользователь разблокирован");
+  }
+
+  async function handleStaffRoleChange(u: UserProfile, role: "manager" | "helper" | "") {
+    const value = role === "" ? null : role;
+    try {
+      await setStaffRole(u.uid, value);
+      setUsers((list) => list.map((x) => (x.uid === u.uid ? { ...x, staffRole: value } : x)));
+      toast("success", value ? `Роль назначена: ${value === "manager" ? "менеджер" : "помощник"}` : "Роль снята");
+    } catch {
+      toast("error", "Не удалось изменить роль");
+    }
   }
 
   async function handleKick(u: UserProfile) {
@@ -144,6 +155,7 @@ export default function AdminUsersPage() {
               <th className="p-3">Email</th>
               <th className="p-3">Баланс</th>
               <th className="p-3">Метки</th>
+              <th className="p-3">Роль персонала</th>
               <th className="p-3">Регистрация</th>
               <th className="p-3">Статус</th>
               <th className="p-3">Действия</th>
@@ -152,13 +164,13 @@ export default function AdminUsersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-white/40">
+                <td colSpan={8} className="p-6 text-center text-white/40">
                   Загрузка...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-white/40">
+                <td colSpan={8} className="p-6 text-center text-white/40">
                   Пользователи не найдены
                 </td>
               </tr>
@@ -196,6 +208,18 @@ export default function AdminUsersPage() {
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td className="p-3">
+                    <select
+                      value={u.staffRole ?? ""}
+                      onChange={(e) => handleStaffRoleChange(u, e.target.value as "manager" | "helper" | "")}
+                      className="input-field py-1.5 text-xs"
+                      title="Доступа к админке эта роль не даёт — только к своему разделу"
+                    >
+                      <option value="">— нет —</option>
+                      <option value="manager">Менеджер (поддержка)</option>
+                      <option value="helper">Помощник (выдача призов)</option>
+                    </select>
                   </td>
                   <td className="p-3 text-white/40">{new Date(u.createdAt).toLocaleDateString("ru-RU")}</td>
                   <td className="p-3">
