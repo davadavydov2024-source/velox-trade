@@ -354,7 +354,17 @@ export default function AdminAdsPage() {
                 className="input-field py-2.5"
               />
               <div>
-                <ImageUploadField value={form.image} onChange={(url) => setForm({ ...form, image: url })} folder="ads" label="Изображение (необязательно)" size={64} />
+                <ImageUploadField
+                  value={form.image}
+                  onChange={(url) => setForm({ ...form, image: url })}
+                  folder="ads"
+                  label="Изображение (необязательно)"
+                  size={64}
+                  aspect={16 / 9}
+                />
+                <p className="text-[11px] text-white/30 mt-1">
+                  Рамка обрезки — прямоугольная (16:9), как реклама реально показывается на сайте.
+                </p>
               </div>
               <textarea
                 placeholder="Описание"
