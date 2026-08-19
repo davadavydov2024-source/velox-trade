@@ -397,9 +397,9 @@ export interface SupportTicket {
 export interface FeatureFlags {
   registrationEnabled: boolean;
   googleLoginEnabled: boolean;
+  appleLoginEnabled: boolean;
   telegramLoginEnabled: boolean;
   telegramRegisterEnabled: boolean;
-  vkLoginEnabled: boolean;
   balanceTopupEnabled: boolean;
   minTopupAmountRub: number; // минимальная сумма пополнения баланса
   minProductPriceRub: number; // минимальная цена при создании товара (в админке и в заявках на продажу)
@@ -416,9 +416,9 @@ export interface FeatureFlags {
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   registrationEnabled: true,
   googleLoginEnabled: true,
-  telegramLoginEnabled: false,
+  appleLoginEnabled: true,
+  telegramLoginEnabled: true,
   telegramRegisterEnabled: false,
-  vkLoginEnabled: true,
   balanceTopupEnabled: true,
   minTopupAmountRub: 50,
   minProductPriceRub: 1,

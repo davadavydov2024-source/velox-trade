@@ -10,9 +10,9 @@ import { useToast } from "@/lib/toastContext";
 const ROWS: { key: keyof Omit<FeatureFlags, "updatedAt">; label: string; hint: string }[] = [
   { key: "registrationEnabled", label: "Регистрация новых аккаунтов", hint: "Выключи, если хочешь временно закрыть приём новых пользователей" },
   { key: "googleLoginEnabled", label: "Вход через Google", hint: "Кнопка «Войти через Google» на странице входа" },
+  { key: "appleLoginEnabled", label: "Вход через Apple", hint: "Кнопка «Войти через Apple» на странице входа (нужна настройка Apple в Firebase Console → Authentication → Sign-in method)" },
   { key: "telegramLoginEnabled", label: "Вход по коду в Telegram", hint: "Вкладка «Код в Telegram» на странице входа" },
   { key: "telegramRegisterEnabled", label: "Регистрация через Telegram", hint: "Вкладка «через Telegram» на странице регистрации" },
-  { key: "vkLoginEnabled", label: "Вход через VK", hint: "Кнопка «Войти через VK» на странице входа (нужен NEXT_PUBLIC_VK_CLIENT_ID в .env)" },
   { key: "balanceTopupEnabled", label: "Пополнение баланса", hint: "Форма заявки на пополнение/вывод в личном кабинете" },
   { key: "referralEnabled", label: "Реферальная система", hint: "Ссылка «Пригласи друга» в профиле и начисление бонуса за регистрацию по ней" },
 ];
