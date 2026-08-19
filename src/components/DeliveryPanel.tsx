@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle } from "lucide-react";
-import { subscribeDelivery, submitDeliveryNickname } from "@/lib/deliveries";
+import { subscribeDelivery, submitDeliveryNickname, chooseDeliveryMethod } from "@/lib/deliveries";
 import { Delivery } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { RobloxUserPreview } from "@/components/RobloxUserPreview";
@@ -40,9 +40,24 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
 
   // undefined — идёт первая загрузка, ничего не показываем, чтобы не мигало.
   // null — записи о выдаче нет вовсе (например, старый заказ до появления этой фичи) — тоже не показываем.
+  // method === "seller" и статус уже "delivered" — продавец выбрал выдачу без бота, площадка
+  // в дальнейшем не участвует: показывать тут нечего, дальше работает обычная кнопка
+  // "Подтвердить получение" в OrderChatThread.
   if (delivery === undefined || delivery === null) return null;
+  if (delivery.method === "seller") return null;
 
   const expired = isEffectivelyExpired(delivery);
+
+  async function handleChooseMethod(method: "seller" | "bot") {
+    setBusy(true);
+    try {
+      await chooseDeliveryMethod(orderId, method);
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось сохранить способ выдачи");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +86,34 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
         <p className="text-sm text-red-400">
           Время на получение истекло. Напиши в поддержку — админ разберётся и поможет получить предмет.
         </p>
+      ) : delivery.status === "awaiting_method" ? (
+        isSeller ? (
+          <>
+            <p className="text-xs text-white/50">Как отдашь предмет покупателю?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleChooseMethod("seller")}
+                disabled={busy}
+                className="btn-secondary flex-1 py-2 text-sm disabled:opacity-50"
+              >
+                Сам
+              </button>
+              <button
+                onClick={() => handleChooseMethod("bot")}
+                disabled={busy}
+                className="btn-primary flex-1 py-2 text-sm disabled:opacity-50"
+              >
+                Через бота
+              </button>
+            </div>
+            <p className="text-[11px] text-white/30">
+              «Сам» — сделка идёт напрямую между вами, площадка не участвует. «Через бота» — предмет сначала передаётся
+              боту-посреднику, выдачу подтверждает администратор.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-white/50">Ждём, пока продавец выберет способ выдачи товара.</p>
+        )
       ) : delivery.status === "awaiting_nickname" ? (
         isBuyer ? (
           <>

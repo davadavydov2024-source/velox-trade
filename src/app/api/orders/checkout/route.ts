@@ -134,8 +134,10 @@ export async function POST(req: NextRequest) {
         });
         ids.push(orderRef.id);
 
-        // Заявка на выдачу через бота-посредника (см. /admin/bot-accounts и /admin/deliveries).
-        // Один Delivery на весь заказ — сколько бы товаров одного продавца в нём ни было.
+        // Заявка на выдачу (см. /admin/deliveries). Один Delivery на весь заказ — сколько бы
+        // товаров одного продавца в нём ни было. Продавец сам решает для каждого заказа, выдаёт
+        // ли он предмет напрямую или через бота-посредника — поэтому стартуем с awaiting_method
+        // и ждём его выбора (см. api/deliveries/choose-method), прежде чем что-либо про бота.
         // Часовой лимит на выдачу — только для призов колеса фортуны (см. api/wheel/spin),
         // обычная покупка не имеет срока: expiresAt не задаём вовсе.
         tx.set(db.collection("deliveries").doc(orderRef.id), {
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest) {
           productId: items[0].productId,
           productName: items.map((it) => it.name).join(", "),
           gameId: gameIdBySeller.get(sellerId) ?? "",
-          status: "awaiting_nickname",
+          status: "awaiting_method",
           createdAt: Date.now(),
         });
 

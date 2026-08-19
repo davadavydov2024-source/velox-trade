@@ -29,8 +29,11 @@ export interface BotAccount {
   createdAt: number;
 }
 
+export type DeliveryMethod = "seller" | "bot";
+
 export type DeliveryStatus =
-  | "awaiting_nickname" // покупатель ещё не вписал свой игровой ник
+  | "awaiting_method" // продавец ещё не выбрал способ выдачи (сам / через бота)
+  | "awaiting_nickname" // способ "через бота" выбран, покупатель ещё не вписал свой игровой ник
   | "awaiting_transfer" // ник вписан, ждём пока продавец передаст предмет боту-посреднику
   | "received_by_bot" // админ подтвердил: бот получил предмет от продавца
   | "delivered" // админ подтвердил: предмет выдан покупателю
@@ -49,6 +52,10 @@ export interface Delivery {
   productId: string;
   productName: string;
   gameId: string;
+  // Продавец выбирает способ выдачи заново для каждого заказа (не хранится в товаре).
+  // Пока не выбран — method отсутствует, а status === "awaiting_method".
+  method?: DeliveryMethod;
+  methodChosenAt?: number;
   buyerNickname?: string;
   buyerNicknameSubmittedAt?: number;
   botAccountId?: string;

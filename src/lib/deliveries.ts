@@ -32,6 +32,20 @@ export async function getWheelDeliveries(): Promise<Delivery[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Delivery).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Продавец выбирает способ выдачи для конкретного заказа: "seller" — сам, "bot" — через бота-посредника. */
+export async function chooseDeliveryMethod(orderId: string, method: "seller" | "bot"): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/deliveries/choose-method", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ orderId, method }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось сохранить способ выдачи");
+}
+
 /** Покупатель один раз вписывает свой игровой ник — дальше сервер сам назначает бота-посредника и запускает выдачу. */
 export async function submitDeliveryNickname(orderId: string, nickname: string): Promise<void> {
   const currentUser = auth.currentUser;
