@@ -11,7 +11,6 @@ import { isAdminUid } from "@/lib/users";
 import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
-  awaiting_method: { text: "Ждём выбор продавца", color: "#9aa3b2" }, // сюда не попадает (только для source: "purchase"), но нужно для полноты типа
   awaiting_nickname: { text: "Ждём ник победителя", color: "#9aa3b2" },
   awaiting_transfer: { text: "Ждём передачу боту", color: "#ff9800" },
   received_by_bot: { text: "Готово к выдаче", color: "#4a6cf7" },

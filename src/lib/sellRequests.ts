@@ -50,6 +50,7 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
     price: request.price,
     rarity: request.rarity ?? "common",
     stock: request.stock ?? 1,
+    deliveryMethod: request.deliveryMethod ?? "seller",
     ...(request.discountPercent ? { discountPercent: request.discountPercent } : {}),
   });
   await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });

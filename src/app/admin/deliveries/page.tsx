@@ -8,7 +8,6 @@ import { useToast } from "@/lib/toastContext";
 import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
-  awaiting_method: { text: "Ждём выбор продавца", color: "#9aa3b2" },
   awaiting_nickname: { text: "Ждём ник покупателя", color: "#9aa3b2" },
   awaiting_transfer: { text: "Ждём передачу боту", color: "#ff9800" },
   received_by_bot: { text: "Готово к выдаче", color: "#4a6cf7" },
@@ -17,7 +16,7 @@ const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
   expired: { text: "Истекло", color: "#f44336" },
 };
 
-const CANCELLABLE_STATUSES: DeliveryStatus[] = ["awaiting_method", "awaiting_nickname", "awaiting_transfer", "received_by_bot"];
+const CANCELLABLE_STATUSES: DeliveryStatus[] = ["awaiting_nickname", "awaiting_transfer", "received_by_bot"];
 
 function isEffectivelyExpired(d: Delivery): boolean {
   return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !!d.expiresAt && Date.now() > d.expiresAt;
@@ -106,9 +105,9 @@ export default function AdminDeliveriesPage() {
         <p className="text-sm text-white/40 max-w-2xl">
           Очередь выдач через бота-посредника (эскроу). Проверяй фактическую передачу предмета в самой игре и
           продвигай статус вручную — сначала «бот получил от продавца», потом «выдано покупателю».
-          Список ботов настраивается в разделе «Боты-посредники». Заявки, где продавец выбрал выдачу «сам»
-          без бота, попадают сюда автоматически со статусом «Выдано» — площадка в них не участвует, это
-          просто техническая запись, действий от админа не требует.
+          Список ботов настраивается в разделе «Боты-посредники». Заявки, где продавец выставил товар со
+          способом выдачи «сам» (задаётся в карточке товара), попадают сюда сразу со статусом «Выдано» —
+          площадка в них не участвует, это просто техническая запись, действий от админа не требует.
         </p>
       </div>
 

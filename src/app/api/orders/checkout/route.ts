@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       gameId: string;
       image?: string;
       discountPercent?: number;
+      deliveryMethod?: "seller" | "bot"; // старые товары до этой фичи — трактуем как "seller"
     }[];
     const imageByProductId = new Map(products.map((p) => [p.id, p.image]));
 
@@ -91,6 +92,11 @@ export async function POST(req: NextRequest) {
     // были привязаны к конкретной сделке (как и раньше на клиенте).
     const bySeller = new Map<string, { productId: string; name: string; price: number; quantity: number }[]>();
     const gameIdBySeller = new Map<string, string>(); // для карточки выдачи — берём игру первого товара в группе
+    // Способ выдачи задаётся один раз продавцом при создании товара (Product.deliveryMethod), а не
+    // на каждый заказ. Если в одном заказе у продавца смешались товары с разными способами —
+    // перестраховываемся в сторону защиты сделки: достаточно одного "bot" в группе, чтобы вся
+    // заявка на выдачу пошла через бота-посредника.
+    const deliveryMethodBySeller = new Map<string, "seller" | "bot">();
     products.forEach((p, i) => {
       const unitPrice = +(p.discountPercent ? p.price * (1 - p.discountPercent / 100) : p.price).toFixed(2);
       const sellerId = p.sellerId || "store";
@@ -98,6 +104,9 @@ export async function POST(req: NextRequest) {
       group.push({ productId: p.id, name: p.name, price: unitPrice, quantity: lines[i].quantity });
       bySeller.set(sellerId, group);
       if (!gameIdBySeller.has(sellerId)) gameIdBySeller.set(sellerId, p.gameId);
+      const method = p.deliveryMethod === "bot" ? "bot" : "seller";
+      const current = deliveryMethodBySeller.get(sellerId);
+      if (current !== "bot") deliveryMethodBySeller.set(sellerId, method);
     });
     const discountRatio = subtotal > 0 ? finalTotal / subtotal : 1;
 
@@ -135,11 +144,13 @@ export async function POST(req: NextRequest) {
         ids.push(orderRef.id);
 
         // Заявка на выдачу (см. /admin/deliveries). Один Delivery на весь заказ — сколько бы
-        // товаров одного продавца в нём ни было. Продавец сам решает для каждого заказа, выдаёт
-        // ли он предмет напрямую или через бота-посредника — поэтому стартуем с awaiting_method
-        // и ждём его выбора (см. api/deliveries/choose-method), прежде чем что-либо про бота.
+        // товаров одного продавца в нём ни было. Способ выдачи уже известен из товара
+        // (Product.deliveryMethod) — ничего выбирать заново не нужно. "bot" сразу стартует с
+        // awaiting_nickname (ждём ник покупателя), "seller" сразу закрывается как delivered —
+        // площадка в сделке не участвует, дальше работает обычная кнопка "Подтвердить получение".
         // Часовой лимит на выдачу — только для призов колеса фортуны (см. api/wheel/spin),
         // обычная покупка не имеет срока: expiresAt не задаём вовсе.
+        const method = deliveryMethodBySeller.get(sellerId) ?? "seller";
         tx.set(db.collection("deliveries").doc(orderRef.id), {
           orderId: orderRef.id,
           source: "purchase",
@@ -148,7 +159,8 @@ export async function POST(req: NextRequest) {
           productId: items[0].productId,
           productName: items.map((it) => it.name).join(", "),
           gameId: gameIdBySeller.get(sellerId) ?? "",
-          status: "awaiting_method",
+          method,
+          status: method === "bot" ? "awaiting_nickname" : "delivered",
           createdAt: Date.now(),
         });
 

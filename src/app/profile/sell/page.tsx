@@ -8,7 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { createSellRequest } from "@/lib/sellRequests";
 import { getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { Game, DEFAULT_FEATURE_FLAGS, Rarity, RARITY_LABEL } from "@/types";
+import { Game, DEFAULT_FEATURE_FLAGS, Rarity, RARITY_LABEL, DeliveryMethod } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
 
@@ -30,6 +30,7 @@ export default function SellPage() {
   const [discountPercent, setDiscountPercent] = useState("");
   const [stock, setStock] = useState("1");
   const [rarity, setRarity] = useState<Rarity>("common");
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("seller");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -95,6 +96,7 @@ export default function SellPage() {
         description: description.trim(),
         stock: stockNum,
         rarity,
+        deliveryMethod,
       });
 
       // Уведомление админу в Telegram не должно блокировать создание заявки, если бот недоступен.
@@ -112,6 +114,7 @@ export default function SellPage() {
       setDiscountPercent("");
       setStock("1");
       setRarity("common");
+      setDeliveryMethod("seller");
       setDescription("");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
@@ -225,6 +228,35 @@ export default function SellPage() {
           rows={3}
           className="input-field py-2.5"
         />
+
+        <div>
+          <p className="text-sm font-medium mb-2">Как будешь выдавать товар покупателю?</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDeliveryMethod("seller")}
+              className={`flex-1 py-2.5 rounded-btn text-sm border transition-all ${
+                deliveryMethod === "seller" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+              }`}
+            >
+              Сам
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeliveryMethod("bot")}
+              className={`flex-1 py-2.5 rounded-btn text-sm border transition-all ${
+                deliveryMethod === "bot" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+              }`}
+            >
+              Через бота
+            </button>
+          </div>
+          <p className="text-xs text-white/30 mt-2">
+            «Сам» — договариваешься с покупателем напрямую, площадка в сделке не участвует. «Через бота» — предмет
+            сначала передаётся боту-посреднику площадки, покупатель забирает его у бота, оба шага подтверждает
+            администратор. Этот способ будет действовать для всех заказов этого товара.
+          </p>
+        </div>
 
         <div>
           <input

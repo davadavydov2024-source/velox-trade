@@ -32,8 +32,7 @@ export interface BotAccount {
 export type DeliveryMethod = "seller" | "bot";
 
 export type DeliveryStatus =
-  | "awaiting_method" // продавец ещё не выбрал способ выдачи (сам / через бота)
-  | "awaiting_nickname" // способ "через бота" выбран, покупатель ещё не вписал свой игровой ник
+  | "awaiting_nickname" // способ "через бота" — покупатель ещё не вписал свой игровой ник
   | "awaiting_transfer" // ник вписан, ждём пока продавец передаст предмет боту-посреднику
   | "received_by_bot" // админ подтвердил: бот получил предмет от продавца
   | "delivered" // админ подтвердил: предмет выдан покупателю
@@ -52,10 +51,11 @@ export interface Delivery {
   productId: string;
   productName: string;
   gameId: string;
-  // Продавец выбирает способ выдачи заново для каждого заказа (не хранится в товаре).
-  // Пока не выбран — method отсутствует, а status === "awaiting_method".
-  method?: DeliveryMethod;
-  methodChosenAt?: number;
+  // Способ выдачи копируется из Product.deliveryMethod в момент создания заказа (см.
+  // api/orders/checkout) — выбирается один раз продавцом при создании товара, а не заново
+  // на каждый заказ. "seller" — заявка сразу закрывается статусом delivered, площадка не
+  // участвует. "bot" — запускается обычный флоу ника/бота/подтверждений админом ниже.
+  method: DeliveryMethod;
   buyerNickname?: string;
   buyerNicknameSubmittedAt?: number;
   botAccountId?: string;
@@ -90,6 +90,10 @@ export interface Product {
   boostTier?: "game" | "home"; // продвижение продавцом за баланс — "home" старше "game"
   boostUntil?: number; // до какого момента (Date.now()) продвижение активно
   editCount?: number; // сколько раз продавец уже редактировал этот товар (лимит — 3)
+  // Способ выдачи задаётся один раз при создании товара и действует на все его заказы:
+  // "seller" — продавец отдаёт предмет сам, площадка в сделке не участвует;
+  // "bot" — выдача идёт через бота-посредника (см. Delivery/DeliveryPanel).
+  deliveryMethod: DeliveryMethod;
   createdAt: number;
 }
 
@@ -491,6 +495,9 @@ export interface SellRequest {
   description: string;
   stock: number; // количество предметов на продажу
   rarity: Rarity;
+  // Способ выдачи выбирается продавцом один раз здесь, при создании товара, и действует на
+  // все его будущие заказы (см. Product.deliveryMethod и Delivery.method).
+  deliveryMethod: DeliveryMethod;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }
