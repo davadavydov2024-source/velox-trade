@@ -397,7 +397,6 @@ export interface SupportTicket {
 export interface FeatureFlags {
   registrationEnabled: boolean;
   googleLoginEnabled: boolean;
-  appleLoginEnabled: boolean;
   telegramLoginEnabled: boolean;
   telegramRegisterEnabled: boolean;
   balanceTopupEnabled: boolean;
@@ -416,7 +415,6 @@ export interface FeatureFlags {
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   registrationEnabled: true,
   googleLoginEnabled: true,
-  appleLoginEnabled: true,
   telegramLoginEnabled: true,
   telegramRegisterEnabled: false,
   balanceTopupEnabled: true,
