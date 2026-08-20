@@ -1,6 +1,7 @@
 // Service worker для Velox Trade.
-// Работает в паре с src/lib/webPush.ts (подписка) и src/lib/webPushServer.ts (отправка).
-// Формат payload, который шлёт webPushServer.ts: { title, body, url }
+// Push-уведомления теперь идут через отдельный public/firebase-messaging-sw.js (Firebase Cloud
+// Messaging) — см. src/lib/webPush.ts. Этот файл отвечает только за офлайн-кэширование и клик
+// по уведомлению (на случай, если оба service worker'а активны одновременно).
 
 const CACHE_NAME = 'velox-trade-cache-v1';
 
@@ -15,29 +16,6 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
-});
-
-// Ловим push-событие от сервера (web-push / VAPID) и показываем уведомление
-self.addEventListener('push', (event) => {
-  let data = { title: 'Velox Trade', body: 'У вас новое уведомление', url: '/' };
-
-  if (event.data) {
-    try {
-      data = { ...data, ...event.data.json() };
-    } catch (e) {
-      data.body = event.data.text();
-    }
-  }
-
-  const options = {
-    body: data.body,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
-    data: { url: data.url || '/' },
-    vibrate: [100, 50, 100],
-  };
-
-  event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 // Клик по уведомлению — открываем нужную страницу (или фокусируем уже открытую вкладку)
