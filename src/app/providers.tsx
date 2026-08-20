@@ -18,6 +18,8 @@ import { MaintenanceGate } from "@/components/MaintenanceGate";
 import { MascotProvider } from "@/lib/mascotContext";
 import { MascotCelebration } from "@/components/MascotCelebration";
 import { IosInstallPrompt } from "@/components/IosInstallPrompt";
+import { AndroidInstallPrompt } from "@/components/AndroidInstallPrompt";
+import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { EnableNotificationsPrompt } from "@/components/EnableNotificationsPrompt";
 import { TwoFactorGate } from "@/components/TwoFactorGate";
 
@@ -25,6 +27,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider>
       <UserThemeSync />
+      <ServiceWorkerRegistrar />
       <AuthProvider>
         <UserLanguageSync />
         <ForceReloadListener />
@@ -38,6 +41,7 @@ export function Providers({ children }: { children: ReactNode }) {
             <GlobalMessageListener />
             <MascotCelebration />
             <IosInstallPrompt />
+            <AndroidInstallPrompt />
             <EnableNotificationsPrompt />
             <BanGate>
               <TwoFactorGate>
