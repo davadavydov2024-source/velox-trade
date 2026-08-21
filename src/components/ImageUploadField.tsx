@@ -13,10 +13,10 @@ interface ImageUploadFieldProps {
   onChange: (url: string) => void;
   folder: string;
   label?: string;
-  shape?: "square" | "round";
+  shape?: "square" | "round" | "wide";
   size?: number;
   disabled?: boolean;
-  aspect?: number; // соотношение сторон при обрезке — по умолчанию квадрат
+  aspect?: number; // соотношение сторон при обрезке — по умолчанию квадрат (для "wide" стоит передать 3, 16/9 и т.п.)
 }
 
 export function ImageUploadField({
@@ -63,6 +63,7 @@ export function ImageUploadField({
 
   const radius = shape === "round" ? "rounded-full" : "rounded-xl";
   const inputId = `upload-${folder}-${label ?? "field"}`.replace(/\s+/g, "-");
+  const isWide = shape === "wide";
 
   return (
     <div>
@@ -78,9 +79,14 @@ export function ImageUploadField({
         />
       )}
       {label && <label className="text-xs text-white/40 mb-1.5 block">{label}</label>}
-      <div className="flex items-center gap-3">
-        <div className={`relative bg-black/30 shrink-0 overflow-hidden ${radius}`} style={{ width: size, height: size }}>
-          {isValidImageSrc(value) && <Image src={safeImageSrc(value)} alt="" fill className="object-cover" sizes={`${size}px`} />}
+      <div className={isWide ? "space-y-2" : "flex items-center gap-3"}>
+        <div
+          className={`relative bg-black/30 overflow-hidden ${isWide ? "rounded-xl w-full" : `shrink-0 ${radius}`}`}
+          style={isWide ? { aspectRatio: aspect || 3 } : { width: size, height: size }}
+        >
+          {isValidImageSrc(value) && (
+            <Image src={safeImageSrc(value)} alt="" fill className="object-cover" sizes={isWide ? "100vw" : `${size}px`} />
+          )}
           {uploading && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
               <Loader2 size={20} className="animate-spin text-accent" />

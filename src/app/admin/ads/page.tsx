@@ -79,6 +79,10 @@ export default function AdminAdsPage() {
 
   async function handleSaveAd(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.image) {
+      toast("error", "Без изображения реклама не появится в карусели на главной — загрузи баннер.");
+      return;
+    }
     try {
       if (editing) {
         await updateAd(editing.id, form);
@@ -353,18 +357,16 @@ export default function AdminAdsPage() {
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 className="input-field py-2.5"
               />
-              <div>
+              <div className="sm:col-span-2">
                 <ImageUploadField
                   value={form.image}
                   onChange={(url) => setForm({ ...form, image: url })}
                   folder="ads"
-                  label="Изображение (необязательно)"
-                  size={64}
-                  aspect={16 / 9}
+                  label="Изображение баннера (обязательно для показа в карусели на главной, широкоформатное — 3:1)"
+                  shape="wide"
+                  aspect={3}
+                  size={96}
                 />
-                <p className="text-[11px] text-white/30 mt-1">
-                  Рамка обрезки — прямоугольная (16:9), как реклама реально показывается на сайте.
-                </p>
               </div>
               <textarea
                 placeholder="Описание"
