@@ -3,6 +3,7 @@ import { db } from "./firebase";
 import { Review } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram } from "./telegramNotify";
+import { notifyPush } from "./webPushNotify";
 
 const reviewsCol = collection(db, "reviews");
 
@@ -33,6 +34,7 @@ export async function createReview(data: Omit<Review, "id" | "createdAt">) {
     `${stars} ${data.buyerName} оставил(а) отзыв${data.text ? `: «${data.text}»` : "."}`
   );
   notifyTelegram(data.sellerId, `${stars} Новый отзыв от покупателя${data.text ? `: «${data.text}»` : ""}`);
+  notifyPush(data.sellerId, "Новый отзыв", `${stars} ${data.text || "Покупатель оставил отзыв"}`, "/profile", "messages");
 }
 
 export async function getSellerReviews(sellerId: string): Promise<Review[]> {

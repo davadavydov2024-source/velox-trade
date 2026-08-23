@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, orderBy } f
 import { db } from "./firebase";
 import { Dispute } from "@/types";
 import { notifyTelegram } from "./telegramNotify";
+import { notifyPush } from "./webPushNotify";
 import { sendOrderChatMessage } from "./orderChats";
 
 const disputesCol = collection(db, "disputes");
@@ -15,12 +16,12 @@ export async function createDispute(data: Omit<Dispute, "id" | "status" | "creat
   await sendOrderChatMessage(data.orderId, data.buyerId, data.sellerId, "system", `⚠️ ${filerLabel} открыл(а) спор — причина: ${data.reason}`);
 
   const otherParty = data.filedBy === "buyer" ? data.sellerId : data.buyerId;
-  notifyTelegram(
-    otherParty,
+  const disputeText =
     data.filedBy === "buyer"
       ? `⚠️ Покупатель открыл спор по заказу — причина: ${data.reason}`
-      : `⚠️ Продавец открыл спор на вас по заказу — причина: ${data.reason}`
-  );
+      : `⚠️ Продавец открыл спор на вас по заказу — причина: ${data.reason}`;
+  notifyTelegram(otherParty, disputeText);
+  notifyPush(otherParty, "Открыт спор по заказу", data.reason, `/profile/orders`, "messages");
 
   // Уведомляем админов в Telegram, если у них привязан бот — молча игнорируем ошибку,
   // жалоба всё равно появится в /admin/disputes даже если уведомление не дошло.

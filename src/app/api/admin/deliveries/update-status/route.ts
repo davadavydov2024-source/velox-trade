@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       notifyTelegramServer(info.buyerId, `❌ Выдача товара «${info.productName}» отменена администрацией. Подробности — в чате заказа или в поддержке.`);
       notifyTelegramServer(info.sellerId, `❌ Выдача товара «${info.productName}» отменена администрацией.`);
       sendWebPush(info.buyerId, { title: "Выдача отменена", body: info.productName, url: "/chats" }, "purchases");
+      sendWebPush(info.sellerId, { title: "Выдача отменена", body: info.productName, url: "/chats" }, "purchases");
     } else if (info.status === "received_by_bot") {
       notifyTelegramServer(info.buyerId, `✅ Бот получил твой предмет «${info.productName}» — заходи в игру и забирай его у бота-посредника.`);
       sendWebPush(info.buyerId, { title: "Можно забирать товар", body: `«${info.productName}» ждёт тебя у бота-посредника`, url: "/chats" }, "purchases");
@@ -133,6 +134,7 @@ export async function POST(req: NextRequest) {
       notifyTelegramServer(info.buyerId, `📦 Товар «${info.productName}» выдан. Спасибо за покупку!`);
       notifyTelegramServer(info.sellerId, `📦 Товар «${info.productName}» выдан покупателю. Сделка завершена.`);
       sendWebPush(info.buyerId, { title: "Товар выдан", body: info.productName, url: "/chats" }, "purchases");
+      sendWebPush(info.sellerId, { title: "Товар выдан покупателю", body: `${info.productName} — сделка завершена`, url: "/chats" }, "purchases");
     }
 
     return NextResponse.json({ ok: true });

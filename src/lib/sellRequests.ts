@@ -3,6 +3,7 @@ import { db } from "./firebase";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
+import { notifyPush } from "./webPushNotify";
 
 const sellRequestsCol = collection(db, "sellRequests");
 
@@ -26,6 +27,7 @@ export async function setSellRequestStatus(request: SellRequest, status: "approv
   await updateDoc(doc(db, "sellRequests", request.id), { status });
   if (status === "rejected") {
     notifyTelegram(request.userId, `❌ Заявка на продажу «${request.itemName}» отклонена.`);
+    notifyPush(request.userId, "Заявка отклонена", `«${request.itemName}» — заявка на продажу отклонена.`, "/profile/sell", "messages");
   }
 }
 
@@ -55,5 +57,6 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
   });
   await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });
   notifyTelegram(request.userId, `✅ Заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге!`);
+  notifyPush(request.userId, "Заявка одобрена", `«${request.itemName}» — товар уже в каталоге.`, `/product/${productRef.id}`, "messages");
   return productRef.id;
 }
