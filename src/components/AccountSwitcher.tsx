@@ -33,10 +33,25 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
     setBusy("email");
     try {
       await addAccountByEmail(email.trim(), password);
+      // Небольшая пауза перед window.location.href: раньше редирект стартовал в ту же
+      // микрозадачу, что и toast(...) — тост физически не успевал отрисоваться ни на один
+      // кадр до того, как браузер начинал перезагрузку страницы, и выглядело так, будто
+      // ничего не произошло (хотя аккаунт на самом деле уже добавился).
       toast("success", "Аккаунт добавлен, переключаемся...");
-      window.location.href = "/profile";
+      setTimeout(() => {
+        window.location.href = "/profile";
+      }, 500);
     } catch (err: any) {
-      setError(err?.message?.includes("invalid-credential") || err?.code === "auth/invalid-credential" ? "Неверный email или пароль" : err?.message || "Не удалось войти");
+      const code = err?.code;
+      const message =
+        code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"
+          ? "Неверный email или пароль"
+          : code === "auth/too-many-requests"
+            ? "Слишком много попыток входа — подожди немного и попробуй снова"
+            : code === "auth/user-disabled"
+              ? "Этот аккаунт заблокирован"
+              : err?.message || "Не удалось войти";
+      setError(message);
       setBusy(null);
     }
   }
@@ -47,9 +62,11 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
     try {
       await addAccountByGoogle();
       toast("success", "Аккаунт добавлен, переключаемся...");
-      window.location.href = "/profile";
+      setTimeout(() => {
+        window.location.href = "/profile";
+      }, 500);
     } catch (err: any) {
-      setError(err?.message || "Не удалось войти через Google");
+      if (err?.message) setError(err.message); // пустое сообщение — юзер сам закрыл попап, молчим
       setBusy(null);
     }
   }
