@@ -49,7 +49,15 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
     const batch = docs.slice(i, i + BATCH);
     await Promise.all(
       batch.map(async (doc) => {
-        const sub = doc.data() as { uid?: string; token: string };
+        const sub = doc.data() as { uid?: string; token?: string };
+        // Записи из VAPID-эпохи (до миграции на FCM) хранили endpoint/keys, а не token — такой
+        // документ читается без ошибки (TS-приведение не проверяет рантайм), но send() с
+        // token: undefined валит messaging/invalid-payload. Чистим их сразу, как только встретили.
+        if (!sub.token) {
+          await doc.ref.delete().catch(() => {});
+          skipped++;
+          return;
+        }
         if (sub.uid && !(await isCategoryEnabled(sub.uid, "news"))) {
           skipped++;
           return;
@@ -89,7 +97,11 @@ export async function sendWebPush(uid: string, payload: PushPayload, category: P
 
     await Promise.all(
       snap.docs.map(async (doc) => {
-        const sub = doc.data() as { token: string };
+        const sub = doc.data() as { token?: string };
+        if (!sub.token) {
+          await doc.ref.delete().catch(() => {});
+          return;
+        }
         try {
           await adminMessaging().send({
             token: sub.token,

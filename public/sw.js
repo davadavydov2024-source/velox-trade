@@ -38,14 +38,29 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Базовое кэширование для офлайн-режима (не мешает push, просто улучшает PWA-оценку)
+// Базовое кэширование для офлайн-режима (не мешает push, просто улучшает PWA-оценку).
+// network-first: сначала пробуем сеть, в кэш падаем только если сеть недоступна.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Кэшируем только собственные ответы (same-origin, статус 200) — cross-origin opaque-ответы
+  // (сторонние картинки/шрифты без CORS) Cache.put() иногда не может сохранить и бросает
+  // NetworkError, а нам их офлайн-версия всё равно не нужна.
+  const isSameOrigin = new URL(event.request.url).origin === self.location.origin;
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        if (isSameOrigin && response.ok) {
+          const responseClone = response.clone();
+          caches
+            .open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, responseClone))
+            .catch(() => {
+              // Запрос мог прерваться (вкладка закрылась, навигация ушла дальше) уже после того,
+              // как fetch() успел отдать ответ — сам put() в такой момент падает с NetworkError.
+              // Ничего не теряем: просто эта версия страницы не попадёт в офлайн-кэш.
+            });
+        }
         return response;
       })
       .catch(() => caches.match(event.request))
