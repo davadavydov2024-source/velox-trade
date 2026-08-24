@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight, Bot, Handshake } from "lucide-react";
 import { getProducts, getGameBySlug, getPurchasableProductById } from "@/lib/products";
 import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
@@ -23,6 +23,7 @@ import { getPriceHistory, PricePoint } from "@/lib/priceHistory";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 import { RARITY_COLOR } from "@/lib/rarityColors";
+import { formatLastSeen } from "@/lib/formatLastSeen";
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -111,7 +112,8 @@ export default function ProductPage() {
                   ))}
                 </div>
                 <p className="text-xs text-white/40">
-                  @{seller.username} · {seller.isOnline ? <span className="text-green-400">в сети</span> : "не в сети"}
+                  @{seller.username} ·{" "}
+                  {seller.isOnline ? <span className="text-green-400">в сети</span> : formatLastSeen(seller.lastActiveAt)}
                 </p>
               </div>
               {seller.ratingCount ? (
@@ -161,6 +163,12 @@ export default function ProductPage() {
             style={{ background: `${RARITY_COLOR[product.rarity]}22`, color: RARITY_COLOR[product.rarity] }}
           >
             {RARITY_LABEL[product.rarity]}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-white/40 mt-2">
+            {product.deliveryMethod === "bot" ? <Bot size={13} /> : <Handshake size={13} />}
+            {product.deliveryMethod === "bot"
+              ? "Выдача через бота-посредника — площадка контролирует передачу"
+              : "Выдача продавцом напрямую"}
           </span>
           <h1 className="text-3xl font-bold mt-3 mb-2">{product.name}</h1>
           <p className="text-white/50 mb-6">{product.description}</p>

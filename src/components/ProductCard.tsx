@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Star } from "lucide-react";
+import { ShoppingCart, Star, Bot, Handshake } from "lucide-react";
 import { Product, RARITY_LABEL } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
@@ -76,7 +76,14 @@ export function ProductCard({ product }: { product: Product }) {
       <Link href={`/product/${product.id}`} prefetch={false}>
         <h3 className="font-medium text-sm truncate hover:text-accent transition-colors">{product.name}</h3>
       </Link>
-      <p className="text-xs text-white/40 mb-1">{RARITY_LABEL[product.rarity]}</p>
+      <p className="text-xs text-white/40 mb-1 flex items-center gap-1">
+        {RARITY_LABEL[product.rarity]}
+        <span className="text-white/20">·</span>
+        <span className="flex items-center gap-0.5">
+          {product.deliveryMethod === "bot" ? <Bot size={11} /> : <Handshake size={11} />}
+          {product.deliveryMethod === "bot" ? "Через бота" : "Самовывоз"}
+        </span>
+      </p>
       {seller?.username && (
         <Link
           href={`/seller/${seller.username}`}

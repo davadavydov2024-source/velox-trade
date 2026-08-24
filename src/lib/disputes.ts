@@ -48,5 +48,17 @@ export async function getDispute(orderId: string): Promise<Dispute | null> {
 }
 
 export async function resolveDispute(orderId: string, approve: boolean) {
+  const disputeSnap = await getDoc(doc(db, "disputes", orderId));
   await updateDoc(doc(db, "disputes", orderId), { status: approve ? "approved" : "rejected", resolvedAt: Date.now() });
+
+  if (!disputeSnap.exists()) return;
+  const dispute = disputeSnap.data() as Dispute;
+  const text = approve
+    ? `✅ Спор по заказу решён в пользу покупателя администрацией.`
+    : `❌ Спор по заказу отклонён администрацией — заказ считается выполненным.`;
+  await sendOrderChatMessage(orderId, dispute.buyerId, dispute.sellerId, "system", text);
+  notifyTelegram(dispute.buyerId, text);
+  notifyTelegram(dispute.sellerId, text);
+  notifyPush(dispute.buyerId, "Спор решён", text, "/profile/orders", "messages");
+  notifyPush(dispute.sellerId, "Спор решён", text, "/profile/orders", "messages");
 }
