@@ -39,6 +39,11 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < lines.length; i++) {
       const snap = productSnaps[i];
       if (!snap.exists) return NextResponse.json({ error: "Один из товаров больше не существует" }, { status: 400 });
+      // Аукционные товары продаются только через торги (см. api/auctions/*) — обычный чекаут
+      // обходил бы аукцион и позволял купить лот по цене продавца, минуя ставки.
+      if (snap.data()?.auctionEnabled) {
+        return NextResponse.json({ error: `«${snap.data()?.name}» продаётся через аукцион — сделай ставку на странице товара` }, { status: 400 });
+      }
       const stock = snap.data()?.stock ?? 0;
       if (stock < lines[i].quantity) {
         return NextResponse.json({ error: `«${snap.data()?.name}» — в наличии всего ${stock} шт.` }, { status: 400 });

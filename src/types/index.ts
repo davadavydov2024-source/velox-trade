@@ -94,7 +94,35 @@ export interface Product {
   // "seller" — продавец отдаёт предмет сам, площадка в сделке не участвует;
   // "bot" — выдача идёт через бота-посредника (см. Delivery/DeliveryPanel).
   deliveryMethod: DeliveryMethod;
+  // Аукцион — необязательная надстройка над обычным товаром. Когда включён, карточка вместо
+  // кнопки "Купить" показывает текущую ставку и поле для новой. Ставки — отдельная коллекция
+  // auctionBids (см. AuctionBid), а не массив внутри товара, чтобы частые ставки не бились в
+  // один и тот же документ и не разрастали его без предела.
+  auctionEnabled?: boolean;
+  auctionStatus?: "active" | "ended"; // продавец завершает вручную — фиксированной даты окончания нет
+  auctionStartPrice?: number; // стартовая цена — снимок на момент создания, дальше не меняется
+  auctionCurrentPrice?: number; // = auctionStartPrice, пока нет ставок; дальше = сумма последней ставки
+  auctionMinStep?: number; // минимальный шаг повышения следующей ставки
+  auctionHighestBidderId?: string | null;
+  auctionHighestBidderName?: string | null;
+  auctionBidCount?: number;
+  auctionEndedAt?: number;
   createdAt: number;
+}
+
+export interface AuctionBid {
+  id: string;
+  productId: string;
+  sellerId: string;
+  bidderId: string;
+  bidderName: string;
+  amount: number;
+  // "held" — сумма заблокирована на балансе, ставка актуальна (либо ждёт исхода, либо победила).
+  // "refunded" — перебита более высокой ставкой или аукцион отменён, деньги возвращены.
+  // "won" — аукцион завершён продавцом, это была наивысшая ставка — по ней создаётся Order.
+  status: "held" | "refunded" | "won";
+  createdAt: number;
+  refundedAt?: number;
 }
 
 export interface ProductEditRequest {
@@ -498,6 +526,12 @@ export interface SellRequest {
   // Способ выдачи выбирается продавцом один раз здесь, при создании товара, и действует на
   // все его будущие заказы (см. Product.deliveryMethod и Delivery.method).
   deliveryMethod: DeliveryMethod;
+  // Аукцион — необязательная альтернатива фиксированной цене (см. Product.auction*). Когда
+  // включён, price выше остаётся как "цена продавца" для справки/статистики, но покупателя эта
+  // цена не касается — реальная цена определяется торгами вокруг auctionStartPrice.
+  auctionEnabled?: boolean;
+  auctionStartPrice?: number;
+  auctionMinStep?: number;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/authContext";
 import { getOrdersForSeller, cancelOrderBySeller } from "@/lib/users";
 import { getOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
@@ -24,6 +25,7 @@ function SaleCard({ order }: { order: Order }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(order.status);
   const [buyerName, setBuyerName] = useState("Покупатель");
+  const [buyerUsername, setBuyerUsername] = useState<string | null>(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<OrderChatMessage[]>([]);
@@ -39,7 +41,10 @@ function SaleCard({ order }: { order: Order }) {
 
   useEffect(() => {
     getPublicProfileCached(order.userId).then((p) => {
-      if (p) setBuyerName(p.displayName);
+      if (p) {
+        setBuyerName(p.displayName);
+        setBuyerUsername(p.username);
+      }
     });
   }, [order.userId]);
 
@@ -110,7 +115,14 @@ function SaleCard({ order }: { order: Order }) {
     <div className="card p-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm text-white/40">
-          Заказ #{order.id.slice(0, 8)} · Покупатель: {buyerName}
+          Заказ #{order.id.slice(0, 8)} · Покупатель:{" "}
+          {buyerUsername ? (
+            <Link href={`/seller/${buyerUsername}`} className="hover:text-accent transition-colors">
+              {buyerName}
+            </Link>
+          ) : (
+            buyerName
+          )}
         </p>
         <span className="text-xs font-semibold px-2 py-1 rounded-md" style={{ background: `${STATUS_LABEL[status].color}22`, color: STATUS_LABEL[status].color }}>
           {STATUS_LABEL[status].text}

@@ -54,6 +54,16 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
     stock: request.stock ?? 1,
     deliveryMethod: request.deliveryMethod ?? "seller",
     ...(request.discountPercent ? { discountPercent: request.discountPercent } : {}),
+    ...(request.auctionEnabled
+      ? {
+          auctionEnabled: true,
+          auctionStatus: "active" as const,
+          auctionStartPrice: request.auctionStartPrice ?? request.price,
+          auctionCurrentPrice: request.auctionStartPrice ?? request.price,
+          auctionMinStep: request.auctionMinStep ?? 10,
+          auctionBidCount: 0,
+        }
+      : {}),
   });
   await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });
   notifyTelegram(request.userId, `✅ Заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге!`);

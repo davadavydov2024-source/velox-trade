@@ -24,6 +24,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 
 import { RARITY_COLOR } from "@/lib/rarityColors";
 import { formatLastSeen } from "@/lib/formatLastSeen";
+import { AuctionPanel } from "@/components/AuctionPanel";
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -173,62 +174,70 @@ export default function ProductPage() {
           <h1 className="text-3xl font-bold mt-3 mb-2">{product.name}</h1>
           <p className="text-white/50 mb-6">{product.description}</p>
 
-          <div className="flex items-baseline gap-3 mb-6">
-            {!!product.discountPercent && <span className="text-white/40 line-through">{product.price} ₽</span>}
-            <span className="text-3xl font-extrabold text-accent">{finalPrice} ₽</span>
-          </div>
+          {product.auctionEnabled ? (
+            <div className="mb-6">
+              <AuctionPanel initialProduct={product} />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-3 mb-6">
+                {!!product.discountPercent && <span className="text-white/40 line-through">{product.price} ₽</span>}
+                <span className="text-3xl font-extrabold text-accent">{finalPrice} ₽</span>
+              </div>
 
-          <div className="flex items-center gap-2 mb-6">
-            <button
-              className="btn-secondary p-2.5"
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
-              aria-label="Уменьшить количество"
-            >
-              <Minus size={16} />
-            </button>
-            <span className="w-12 text-center font-medium">{qty}</span>
-            <button
-              className="btn-secondary p-2.5"
-              onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
-              aria-label="Увеличить количество"
-            >
-              <Plus size={16} />
-            </button>
-            <span className="text-sm text-white/40 ml-2">Наличие: {product.stock} шт.</span>
-          </div>
+              <div className="flex items-center gap-2 mb-6">
+                <button
+                  className="btn-secondary p-2.5"
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  aria-label="Уменьшить количество"
+                >
+                  <Minus size={16} />
+                </button>
+                <span className="w-12 text-center font-medium">{qty}</span>
+                <button
+                  className="btn-secondary p-2.5"
+                  onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
+                  aria-label="Увеличить количество"
+                >
+                  <Plus size={16} />
+                </button>
+                <span className="text-sm text-white/40 ml-2">Наличие: {product.stock} шт.</span>
+              </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/cart"
-              onClick={() => add(product, qty)}
-              className="btn-primary px-6 py-3 flex items-center gap-2"
-            >
-              <Zap size={18} /> Купить сейчас
-            </Link>
-            <button
-              onClick={() => {
-                add(product, qty);
-                toast("success", `${product.name} ×${qty} добавлен в корзину`);
-              }}
-              className="btn-secondary px-6 py-3 flex items-center gap-2"
-              disabled={product.stock <= 0}
-            >
-              <ShoppingCart size={18} /> В корзину
-            </button>
-            <FavoriteButton
-              productId={product.id}
-              className="btn-secondary px-4 py-3 flex items-center gap-2"
-            />
-            {user && product.sellerId !== "store" && product.sellerId !== user.uid && (
-              <button
-                onClick={() => setTradeModalOpen(true)}
-                className="btn-secondary px-4 py-3 flex items-center gap-2"
-                title="Предложить обмен своим товаром"
-              >
-                <ArrowLeftRight size={18} /> Обмен
-              </button>
-            )}
-          </div>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/cart"
+                  onClick={() => add(product, qty)}
+                  className="btn-primary px-6 py-3 flex items-center gap-2"
+                >
+                  <Zap size={18} /> Купить сейчас
+                </Link>
+                <button
+                  onClick={() => {
+                    add(product, qty);
+                    toast("success", `${product.name} ×${qty} добавлен в корзину`);
+                  }}
+                  className="btn-secondary px-6 py-3 flex items-center gap-2"
+                  disabled={product.stock <= 0}
+                >
+                  <ShoppingCart size={18} /> В корзину
+                </button>
+                <FavoriteButton
+                  productId={product.id}
+                  className="btn-secondary px-4 py-3 flex items-center gap-2"
+                />
+                {user && product.sellerId !== "store" && product.sellerId !== user.uid && (
+                  <button
+                    onClick={() => setTradeModalOpen(true)}
+                    className="btn-secondary px-4 py-3 flex items-center gap-2"
+                    title="Предложить обмен своим товаром"
+                  >
+                    <ArrowLeftRight size={18} /> Обмен
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

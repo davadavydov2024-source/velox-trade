@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
-import { Rocket, Zap, Star, Pencil, Trash2 } from "lucide-react";
+import { Rocket, Zap, Star, Pencil, Trash2, Gavel } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getProducts, boostProduct, deleteProduct } from "@/lib/products";
@@ -116,6 +117,17 @@ function ProductBoostCard({
           <p className="text-xs text-white/40">
             {rarityLabel(language, product.rarity)} · {product.price} ₽ · {tf(language, "my_products_stock", { n: product.stock })}
           </p>
+          {product.auctionEnabled && (
+            <Link
+              href={`/product/${product.id}`}
+              className="text-xs text-accent mt-1 flex items-center gap-1 w-fit hover:underline"
+            >
+              <Gavel size={12} />
+              {product.auctionStatus === "active"
+                ? `Аукцион идёт · ${product.auctionCurrentPrice ?? product.auctionStartPrice} ₽ · ${product.auctionBidCount ?? 0} ставок`
+                : "Аукцион завершён"}
+            </Link>
+          )}
           {isActive && (
             <p className="text-xs text-accent mt-1 flex items-center gap-1">
               {product.boostTier === "home" ? <Star size={12} /> : <Rocket size={12} />}

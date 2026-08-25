@@ -11,9 +11,11 @@ import { getProductById } from "@/lib/products";
 import { createDispute, getDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
 import { subscribeDelivery } from "@/lib/deliveries";
+import { getPublicProfileCached } from "@/lib/sellerCache";
 import { OrderChatMessage, Order, Dispute, Delivery } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
+import Link from "next/link";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ожидает подтверждения", color: "#ff9800" },
@@ -57,6 +59,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [dispute, setDispute] = useState<Dispute | null>(null);
+  const [counterpartUsername, setCounterpartUsername] = useState<string | null>(null);
 
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
@@ -92,6 +95,15 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
   useEffect(() => {
     if (order?.status === "disputed") getDispute(order.id).then(setDispute).catch(() => {});
   }, [order?.status, order?.id]);
+
+  useEffect(() => {
+    if (!user || !order) return;
+    const counterpartId = order.userId === user.uid ? order.sellerId : order.userId;
+    if (counterpartId === "store") return;
+    getPublicProfileCached(counterpartId)
+      .then((p) => setCounterpartUsername(p?.username ?? null))
+      .catch(() => setCounterpartUsername(null));
+  }, [user, order]);
 
   const isBuyer = !!(user && order && order.userId === user.uid);
   const isSeller = !!(user && order && order.sellerId === user.uid);
@@ -193,7 +205,13 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
   return (
     <div>
       <div className="mb-3">
-        <p className="font-bold">{counterpartName}</p>
+        {counterpartUsername ? (
+          <Link href={`/seller/${counterpartUsername}`} className="font-bold hover:text-accent transition-colors">
+            {counterpartName}
+          </Link>
+        ) : (
+          <p className="font-bold">{counterpartName}</p>
+        )}
         <p className="text-xs text-white/40">Заказ #{orderId.slice(0, 8)}</p>
       </div>
 

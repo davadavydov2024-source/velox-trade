@@ -31,6 +31,8 @@ export default function SellPage() {
   const [stock, setStock] = useState("1");
   const [rarity, setRarity] = useState<Rarity>("common");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("seller");
+  const [auctionEnabled, setAuctionEnabled] = useState(false);
+  const [auctionMinStep, setAuctionMinStep] = useState("10");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -80,6 +82,14 @@ export default function SellPage() {
       toast("warning", "Укажи количество предметов — минимум 1");
       return;
     }
+    if (auctionEnabled && stockNum !== 1) {
+      toast("warning", "Аукцион можно провести только для одного конкретного предмета — укажи количество 1");
+      return;
+    }
+    if (auctionEnabled && (Number(auctionMinStep) || 0) < 1) {
+      toast("warning", "Укажи минимальный шаг ставки — хотя бы 1 ₽");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -91,12 +101,15 @@ export default function SellPage() {
         gameName: selectedGame.name,
         imageUrl,
         price: priceNum,
-        ...(discountNum > 0 ? { discountPercent: discountNum } : {}),
+        ...(discountNum > 0 && !auctionEnabled ? { discountPercent: discountNum } : {}),
         commissionPercent,
         description: description.trim(),
         stock: stockNum,
         rarity,
         deliveryMethod,
+        ...(auctionEnabled
+          ? { auctionEnabled: true, auctionStartPrice: priceNum, auctionMinStep: Number(auctionMinStep) || 10 }
+          : {}),
       });
 
       // Уведомление админу в Telegram не должно блокировать создание заявки, если бот недоступен.
@@ -115,6 +128,8 @@ export default function SellPage() {
       setStock("1");
       setRarity("common");
       setDeliveryMethod("seller");
+      setAuctionEnabled(false);
+      setAuctionMinStep("10");
       setDescription("");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
@@ -203,9 +218,10 @@ export default function SellPage() {
               type="number"
               min={1}
               value={stock}
+              disabled={auctionEnabled}
               onChange={(e) => setStock(e.target.value)}
               placeholder="Кол-во предметов"
-              className="input-field py-2.5"
+              className="input-field py-2.5 disabled:opacity-50"
             />
           </div>
           <div>
@@ -259,6 +275,39 @@ export default function SellPage() {
         </div>
 
         <div>
+          <p className="text-sm font-medium mb-2">Формат продажи</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAuctionEnabled(false)}
+              className={`flex-1 py-2.5 rounded-btn text-sm border transition-all ${
+                !auctionEnabled ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+              }`}
+            >
+              Обычная продажа
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuctionEnabled(true);
+                setStock("1");
+                setDiscountPercent("");
+              }}
+              className={`flex-1 py-2.5 rounded-btn text-sm border transition-all ${
+                auctionEnabled ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+              }`}
+            >
+              🔨 Аукцион
+            </button>
+          </div>
+          <p className="text-xs text-white/30 mt-2">
+            {auctionEnabled
+              ? "Покупатели соревнуются ставками начиная со стартовой цены. Ты сам завершаешь торги в любой момент — заказ оформится на того, кто предложил больше всех."
+              : "Фиксированная цена — товар покупают сразу, без торгов."}
+          </p>
+        </div>
+
+        <div>
           <input
             autoComplete="off"
             required
@@ -266,38 +315,57 @@ export default function SellPage() {
             min={minSellPrice}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder={`Желаемая цена, ₽ (минимум ${minSellPrice} ₽)`}
+            placeholder={auctionEnabled ? `Стартовая цена аукциона, ₽ (минимум ${minSellPrice} ₽)` : `Желаемая цена, ₽ (минимум ${minSellPrice} ₽)`}
             className="input-field py-2.5"
           />
         </div>
 
-        <div>
-          <input
-            autoComplete="off"
-            type="number"
-            min={0}
-            max={90}
-            value={discountPercent}
-            onChange={(e) => setDiscountPercent(e.target.value)}
-            placeholder="Скидка на товар, % (необязательно, до 90%)"
-            className="input-field py-2.5"
-          />
-          {priceNum > 0 && (
+        {auctionEnabled ? (
+          <div>
+            <input
+              autoComplete="off"
+              required
+              type="number"
+              min={1}
+              value={auctionMinStep}
+              onChange={(e) => setAuctionMinStep(e.target.value)}
+              placeholder="Минимальный шаг ставки, ₽"
+              className="input-field py-2.5"
+            />
             <p className="text-xs text-white/40 mt-2">
-              {discountNum > 0 ? (
-                <>
-                  Цена для покупателя: <span className="line-through">{priceNum} ₽</span>{" "}
-                  <span className="text-accent font-medium">{discountedPrice} ₽</span> (скидка {discountNum}%). Комиссия платформы{" "}
-                  {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
-                </>
-              ) : (
-                <>
-                  Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
-                </>
-              )}
+              Каждая следующая ставка должна быть выше предыдущей минимум на эту сумму. Комиссия платформы{" "}
+              {commissionPercent}% удержится с финальной цены, когда аукцион завершится.
             </p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div>
+            <input
+              autoComplete="off"
+              type="number"
+              min={0}
+              max={90}
+              value={discountPercent}
+              onChange={(e) => setDiscountPercent(e.target.value)}
+              placeholder="Скидка на товар, % (необязательно, до 90%)"
+              className="input-field py-2.5"
+            />
+            {priceNum > 0 && (
+              <p className="text-xs text-white/40 mt-2">
+                {discountNum > 0 ? (
+                  <>
+                    Цена для покупателя: <span className="line-through">{priceNum} ₽</span>{" "}
+                    <span className="text-accent font-medium">{discountedPrice} ₽</span> (скидка {discountNum}%). Комиссия платформы{" "}
+                    {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
+                  </>
+                ) : (
+                  <>
+                    Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈ <span className="text-accent font-medium">{payout} ₽</span>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
 
         <button disabled={submitting} className="btn-primary w-full py-3 disabled:opacity-50">
           {submitting ? "Отправляем..." : "Отправить заявку"}
