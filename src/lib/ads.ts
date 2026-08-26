@@ -1,5 +1,6 @@
 import {
   collection,
+import { stripUndefined } from "./stripUndefined";
   doc,
   getDocs,
   query,
@@ -22,7 +23,7 @@ export async function getAds(activeOnly = false): Promise<Ad[]> {
 }
 
 export async function createAd(data: Omit<Ad, "id" | "createdAt">) {
-  return addDoc(adsCol, { ...data, createdAt: Date.now() });
+  return addDoc(adsCol, { ...stripUndefined(data), createdAt: Date.now() });
 }
 
 export async function updateAd(id: string, data: Partial<Ad>) {

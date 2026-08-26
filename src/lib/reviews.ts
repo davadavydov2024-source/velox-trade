@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
+import { stripUndefined } from "./stripUndefined";
 import { Review } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram } from "./telegramNotify";
@@ -17,7 +18,7 @@ export async function createReview(data: Omit<Review, "id" | "createdAt">) {
     throw new Error("review-already-submitted");
   }
 
-  await addDoc(reviewsCol, { ...data, createdAt: Date.now() });
+  await addDoc(reviewsCol, { ...stripUndefined(data), createdAt: Date.now() });
   await updateDoc(orderRef, { reviewSubmitted: true });
   await updateDoc(doc(db, "users", data.sellerId), {
     ratingSum: increment(data.rating),

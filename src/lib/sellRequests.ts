@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, doc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
+import { stripUndefined } from "./stripUndefined";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
@@ -8,7 +9,7 @@ import { notifyPush } from "./webPushNotify";
 const sellRequestsCol = collection(db, "sellRequests");
 
 export async function createSellRequest(data: Omit<SellRequest, "id" | "createdAt" | "status">) {
-  const ref = await addDoc(sellRequestsCol, { ...data, status: "pending", createdAt: Date.now() });
+  const ref = await addDoc(sellRequestsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
   notifyAdminTelegram(`🏷️ Новая заявка на продажу: «${data.itemName}» от ${data.userNick} — ${data.price} ₽`);
   return ref;
 }

@@ -1,5 +1,6 @@
 import { collection, doc, getDocs, addDoc, deleteDoc, orderBy, query } from "firebase/firestore";
 import { db } from "./firebase";
+import { stripUndefined } from "./stripUndefined";
 import { NewsPost } from "@/types";
 
 const newsCol = collection(db, "newsPosts");
@@ -10,7 +11,7 @@ export async function getNewsPosts(): Promise<NewsPost[]> {
 }
 
 export async function createNewsPost(data: Omit<NewsPost, "id" | "createdAt">) {
-  return addDoc(newsCol, { ...data, createdAt: Date.now() });
+  return addDoc(newsCol, { ...stripUndefined(data), createdAt: Date.now() });
 }
 
 export async function deleteNewsPost(id: string) {

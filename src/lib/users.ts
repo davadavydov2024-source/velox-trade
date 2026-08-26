@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import { getAppCheckHeader } from "./appCheckFetch";
+import { stripUndefined } from "./stripUndefined";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
@@ -265,7 +266,10 @@ export async function updateProfileInfo(
 // ---- Top-up requests (ручное пополнение — заявка обрабатывается администратором вручную) ----
 
 export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
-  const ref = await addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
+  // Firestore не принимает undefined как значение поля (addDoc падает с "Unsupported field
+  // value: undefined") — comment/method необязательны и приходят как undefined, если человек их
+  // не заполнил, поэтому явно выкидываем такие ключи перед записью.
+  const ref = await addDoc(topUpsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
   const kind = data.type === "deposit" ? "пополнение" : "вывод";
   notifyAdminTelegram(`💰 Новая заявка на ${kind}: ${data.userNick} — ${data.amount} ₽`);
   return ref;
