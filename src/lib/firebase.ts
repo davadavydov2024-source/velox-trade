@@ -43,6 +43,46 @@ export { activeApp }; // нужен для firebase/messaging (см. lib/webPush
 // (см. src/lib/storage.ts), чтобы не требовать платный тариф Blaze.
 export const googleProvider = new GoogleAuthProvider();
 
+/**
+ * App Check (reCAPTCHA v3) — невидимая защита от ботов, без чекбокса и картинок. Инициализируем
+ * лениво и только в браузере: App Check требует synchronous window при импорте модуля, а этот
+ * файл может исполняться и на сервере (некоторые lib/* импортируют firebase.ts для типов).
+ * isTokenAutoRefreshEnabled: true — токен обновляется в фоне сам, без нашего участия, как и
+ * ID-токен авторизации.
+ * Debug-токен для локальной разработки: Firebase сам печатает случайный UUID в консоль браузера
+ * при первом запуске на localhost — его нужно один раз добавить в Firebase Console → App Check →
+ * вкладка "Debug tokens", иначе запросы с localhost будут отклоняться как неверифицированные.
+ */
+let appCheckInitialized = false;
+let appCheckInstance: any = null;
+let appCheckReady: Promise<any> | null = null;
+
+export function ensureAppCheck() {
+  if (typeof window === "undefined" || appCheckInitialized) return;
+  appCheckInitialized = true;
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  if (!siteKey) {
+    console.warn("NEXT_PUBLIC_RECAPTCHA_SITE_KEY не задан — App Check не активирован.");
+    return;
+  }
+  appCheckReady = import("firebase/app-check").then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+    appCheckInstance = initializeAppCheck(firebaseApp, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+    return appCheckInstance;
+  });
+}
+
+/** Дожидается инициализации App Check (если она уже запущена через ensureAppCheck()) и отдаёт
+ * instance — используется в lib/appCheckFetch.ts перед самым первым запросом после захода на
+ * сайт, чтобы не словить ложный отказ сервера из-за гонки между инициализацией и первым fetch. */
+export async function getAppCheckInstance() {
+  if (appCheckInstance) return appCheckInstance;
+  if (appCheckReady) return appCheckReady;
+  return null;
+}
+
 // Analytics работает только в браузере и только если поддерживается окружением
 export async function getAnalyticsSafe() {
   if (typeof window === "undefined") return null;

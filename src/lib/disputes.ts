@@ -61,4 +61,14 @@ export async function resolveDispute(orderId: string, approve: boolean) {
   notifyTelegram(dispute.sellerId, text);
   notifyPush(dispute.buyerId, "Спор решён", text, "/profile/orders", "messages");
   notifyPush(dispute.sellerId, "Спор решён", text, "/profile/orders", "messages");
+
+  // На случай если спор всё же открыли уже после confirmOrderReceipt (обычный UI это не даёт
+  // сделать, но подстраховка не помешает) — если деньги ещё висят в 48-часовом холде и спор решён
+  // в пользу покупателя, отменяем выплату продавцу, а не просто оставляем её тикать до release.
+  if (approve) {
+    const payoutSnap = await getDoc(doc(db, "pendingPayouts", orderId));
+    if (payoutSnap.exists() && payoutSnap.data().status === "holding") {
+      await updateDoc(doc(db, "pendingPayouts", orderId), { status: "cancelled", cancelledAt: Date.now() });
+    }
+  }
 }

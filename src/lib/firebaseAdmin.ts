@@ -2,6 +2,7 @@ import { getApps, initializeApp, cert, App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getAppCheck } from "firebase-admin/app-check";
 
 // ВАЖНО: этот файл использует секретные переменные окружения БЕЗ префикса NEXT_PUBLIC_ —
 // значит они видны только на сервере (в API-роутах), никогда не попадают в клиентский бандл.
@@ -37,4 +38,22 @@ export function adminDb() {
 
 export function adminMessaging() {
   return getMessaging(getAdminApp());
+}
+
+/**
+ * Проверяет App Check-токен, который клиент прикладывает в заголовке X-Firebase-AppCheck (см.
+ * lib/appCheckFetch.ts). Возвращает true/false, никогда не бросает — если App Check недоступен
+ * или переменная не задана (например, локальная разработка без reCAPTCHA-ключа), пропускаем
+ * проверку, чтобы не блокировать разработку намертво; в проде переменная обязана быть задана.
+ */
+export async function verifyAppCheck(req: Request): Promise<boolean> {
+  if (process.env.APP_CHECK_ENFORCEMENT !== "true") return true;
+  const token = req.headers.get("x-firebase-appcheck");
+  if (!token) return false;
+  try {
+    await getAppCheck(getAdminApp()).verifyToken(token);
+    return true;
+  } catch {
+    return false;
+  }
 }

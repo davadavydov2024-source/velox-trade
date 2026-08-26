@@ -13,6 +13,7 @@ import {
   addAccountByEmail,
   addAccountByGoogle,
   MAX_ACCOUNTS,
+  goToProfileHard,
 } from "@/lib/multiAccount";
 import { useToast } from "@/lib/toastContext";
 
@@ -39,7 +40,7 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
       // ничего не произошло (хотя аккаунт на самом деле уже добавился).
       toast("success", "Аккаунт добавлен, переключаемся...");
       setTimeout(() => {
-        window.location.href = "/profile";
+        goToProfileHard();
       }, 500);
     } catch (err: any) {
       const code = err?.code;
@@ -63,7 +64,7 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
       await addAccountByGoogle();
       toast("success", "Аккаунт добавлен, переключаемся...");
       setTimeout(() => {
-        window.location.href = "/profile";
+        goToProfileHard();
       }, 500);
     } catch (err: any) {
       if (err?.message) setError(err.message); // пустое сообщение — юзер сам закрыл попап, молчим

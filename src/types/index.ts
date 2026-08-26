@@ -494,6 +494,23 @@ export interface TopUpRequest {
   createdAt: number;
 }
 
+// Деньги продавца за проданный товар не попадают на balance сразу после подтверждения получения
+// покупателем — 48 часов они "летят" в этом холде (см. api/orders/confirm и api/cron/release-payouts),
+// и только потом зачисляются на баланс. Это стандартный эскроу-период — время, в течение которого
+// покупатель может открыть спор, если товар оказался не тем/не пришёл; после начисления на баланс
+// продавец уже может тратить или выводить эти деньги, отзывать их через спор сложнее.
+export interface PendingPayout {
+  id: string; // = orderId
+  orderId: string;
+  sellerId: string;
+  amount: number;
+  status: "holding" | "released" | "cancelled"; // cancelled — если по заказу открыли и выиграли спор до истечения холда
+  createdAt: number;
+  releaseAt: number; // createdAt + 48ч — когда cron может зачислить деньги
+  releasedAt?: number;
+  cancelledAt?: number;
+}
+
 export interface Payment {
   id: string; // совпадает с order_id, который мы передаём в RollyPay
   userId: string;

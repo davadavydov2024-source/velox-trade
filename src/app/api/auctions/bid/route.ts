@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb, verifyAppCheck } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
@@ -12,6 +12,8 @@ export const runtime = "nodejs";
 // когда он уже мог передумать или потратить баланс на что-то другое.
 export async function POST(req: NextRequest) {
   try {
+    if (!(await verifyAppCheck(req))) return NextResponse.json({ error: "Проверка безопасности не пройдена" }, { status: 403 });
+
     const authHeader = req.headers.get("authorization");
     const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!idToken) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });

@@ -7,6 +7,7 @@ import {
   signInWithCustomToken,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  getAdditionalUserInfo,
   signOut as fbSignOut,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -15,6 +16,7 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 import { ensureUserProfile, getUserProfile, syncEmailVerified } from "./users";
+import { getAppCheckHeader } from "./appCheckFetch";
 import { UserProfile } from "@/types";
 import { getActiveSlotId, upsertSavedAccount } from "./accountSlots";
 
@@ -39,6 +41,20 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** Не критично для флоу входа — не ждём и не роняем регистрацию/вход, если это не удалось. */
+function logRegistrationIp(user: User) {
+  user
+    .getIdToken()
+    .then(async (idToken) => {
+      const appCheckHeader = await getAppCheckHeader();
+      return fetch("/api/auth/log-registration", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, ...appCheckHeader },
+      });
+    })
+    .catch(() => {});
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -106,10 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await updateProfile(cred.user, { displayName: name });
     await sendEmailVerification(cred.user);
     await ensureUserProfile(cred.user.uid, email, name, undefined, language);
+    logRegistrationIp(cred.user);
   }
 
   async function loginWithGoogle() {
-    await signInWithPopup(auth, googleProvider);
+    const cred = await signInWithPopup(auth, googleProvider);
+    if (getAdditionalUserInfo(cred)?.isNewUser) logRegistrationIp(cred.user);
   }
 
   async function logout() {

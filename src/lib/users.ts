@@ -12,6 +12,7 @@ import {
   increment,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
+import { getAppCheckHeader } from "./appCheckFetch";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
@@ -96,6 +97,22 @@ export async function getAllUsers(): Promise<UserProfile[]> {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile);
 }
 
+/** Деньги за проданные товары, которые ещё висят в 48-часовом холде и пока не зачислены на
+ * баланс — см. api/orders/confirm-receipt и api/cron/release-payouts. */
+export async function getPendingPayouts(sellerId: string): Promise<{ orderId: string; amount: number; releaseAt: number }[]> {
+  const snap = await getDocs(query(collection(db, "pendingPayouts"), where("sellerId", "==", sellerId), where("status", "==", "holding")));
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return { orderId: data.orderId, amount: data.amount, releaseAt: data.releaseAt };
+  });
+}
+
+/** Все записи о регистрациях с их IP — для /admin/registrations. См. api/auth/log-registration. */
+export async function getRegistrationLog(): Promise<{ uid: string; ip: string; userAgent: string; createdAt: number }[]> {
+  const snap = await getDocs(query(collection(db, "registrationLog"), orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => d.data() as { uid: string; ip: string; userAgent: string; createdAt: number });
+}
+
 export async function setUserBalance(uid: string, newBalance: number) {
   return updateDoc(doc(db, "users", uid), { balance: newBalance });
 }
@@ -164,18 +181,25 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   return { id: snap.id, ...snap.data() } as Order;
 }
 
-/** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв. */
+/** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв.
+ * Деньги продавцу не зачисляются сразу — уходят в 48-часовой холд (см. api/orders/confirm-receipt
+ * и api/cron/release-payouts), поэтому сама операция теперь на сервере, а не updateDoc с клиента. */
 export async function confirmOrderReceipt(order: Order, buyerName: string) {
-  await updateDoc(doc(db, "orders", order.id), { status: "confirmed", confirmedAt: Date.now() });
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Нужно войти в аккаунт");
+  const appCheckHeader = await getAppCheckHeader();
+  const res = await fetch("/api/orders/confirm-receipt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}`, ...appCheckHeader },
+    body: JSON.stringify({ orderId: order.id }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось подтвердить получение");
+
   await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.`);
-  notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.total} ₽.`);
-  notifyPush(order.sellerId, "Получение подтверждено", `Покупатель подтвердил получение заказа на ${order.total} ₽.`, "/profile/orders", "purchases");
   // Проверка достижений (например бейдж "buyer" за первую покупку) — не критично для основного
   // действия, поэтому не ждём и не роняем подтверждение заказа, если это не сработает.
-  auth.currentUser
-    ?.getIdToken()
-    .then((idToken) => fetch("/api/users/check-achievements", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }))
-    .catch(() => {});
+  fetch("/api/users/check-achievements", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }).catch(() => {});
 }
 
 /** Продавец отменяет ещё не подтверждённый заказ — деньги возвращаются покупателю, товар возвращается на склад. */

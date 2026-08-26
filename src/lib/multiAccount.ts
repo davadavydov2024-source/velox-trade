@@ -16,6 +16,25 @@ import {
 export { getSavedAccounts, getActiveSlotId, PRIMARY_SLOT } from "./accountSlots";
 export type { SavedAccount } from "./accountSlots";
 
+/**
+ * Всегда даёт РЕАЛЬНУЮ перезагрузку страницы, а не просто смену URL. Раньше везде ниже стояло
+ * window.location.href = "/profile" — но переключатель аккаунтов рендерится именно на /profile
+ * (см. profile/layout.tsx), и если человек уже там (самый частый случай — дефолтная страница
+ * после входа), браузер получает команду перейти на ТОТ ЖЕ САМЫЙ адрес, на котором уже стоит,
+ * и в большинстве браузеров это тихо ничего не делает — ни перехода, ни перезагрузки. А
+ * firebase.ts выбирает нужный Firebase App только ОДИН РАЗ при загрузке страницы (см.
+ * resolveActiveApp() в firebase.ts) — без реальной перезагрузки сайт продолжает работать со
+ * старым аккаунтом, хотя activeSlotId в localStorage уже сменился. Отсюда и баг "аккаунт
+ * добавляется/помечается активным, но переключиться на него не получается".
+ */
+export function goToProfileHard() {
+  if (window.location.pathname === "/profile" && !window.location.search) {
+    window.location.reload();
+  } else {
+    window.location.href = "/profile";
+  }
+}
+
 function randomSlotId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -128,7 +147,7 @@ export async function addAccountByGoogle(): Promise<SavedAccount> {
 export function switchAccount(slotId: string) {
   if (slotId === getActiveSlotId()) return;
   setActiveSlotId(slotId);
-  window.location.href = "/profile";
+  goToProfileHard();
 }
 
 export async function removeAccount(slotId: string) {
@@ -151,5 +170,5 @@ export async function removeAccount(slotId: string) {
   const remaining = getSavedAccounts();
   const next = remaining[0]?.slotId ?? PRIMARY_SLOT;
   setActiveSlotId(next);
-  window.location.href = "/profile";
+  goToProfileHard();
 }
