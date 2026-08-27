@@ -1,6 +1,5 @@
-import {
+﻿import {
   collection,
-import { stripUndefined } from "./stripUndefined";
   doc,
   getDocs,
   query,
@@ -10,6 +9,7 @@ import { stripUndefined } from "./stripUndefined";
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { stripUndefined } from "./stripUndefined";
 import { Ad } from "@/types";
 
 const adsCol = collection(db, "ads");
