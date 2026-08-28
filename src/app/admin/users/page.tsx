@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff } from "lucide-react";
-import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole } from "@/lib/users";
+import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole, getRegistrationLog } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
@@ -27,6 +27,7 @@ const ALL_BADGES: UserBadge[] = [
 export default function AdminUsersPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [ipByUid, setIpByUid] = useState<Map<string, string>>(new Map());
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingBadges, setEditingBadges] = useState<UserProfile | null>(null);
@@ -38,7 +39,17 @@ export default function AdminUsersPage() {
     getAllUsers()
       .then(setUsers)
       .finally(() => setLoading(false));
+    // IP регистрации подгружаем отдельным, некритичным запросом — если он не сработает, таблица
+    // юзеров всё равно отобразится, просто без колонки IP (см. lib/users.ts → getRegistrationLog,
+    // та же коллекция, что питает /admin/registrations).
+    getRegistrationLog()
+      .then((log) => setIpByUid(new Map(log.map((e) => [e.uid, e.ip]))))
+      .catch(() => {});
   }, []);
+
+  function copyIp(ip: string) {
+    navigator.clipboard.writeText(ip).then(() => toast("success", "IP скопирован"));
+  }
 
   const filtered = users.filter(
     (u) =>
@@ -153,6 +164,7 @@ export default function AdminUsersPage() {
             <tr className="text-left text-white/40 border-b border-border">
               <th className="p-3">Пользователь</th>
               <th className="p-3">Email</th>
+              <th className="p-3">IP регистрации</th>
               <th className="p-3">Баланс</th>
               <th className="p-3">Метки</th>
               <th className="p-3">Роль персонала</th>
@@ -195,6 +207,19 @@ export default function AdminUsersPage() {
                     </span>
                   </td>
                   <td className="p-3 text-white/50">{u.email}</td>
+                  <td className="p-3">
+                    {ipByUid.get(u.uid) ? (
+                      <button
+                        onClick={() => copyIp(ipByUid.get(u.uid)!)}
+                        className="font-mono text-xs bg-surface px-2 py-1 rounded-md text-white/60 hover:text-white/90"
+                        title="Скопировать IP"
+                      >
+                        {ipByUid.get(u.uid)}
+                      </button>
+                    ) : (
+                      <span className="text-white/20 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="p-3">{u.balance.toFixed(2)} ₽</td>
                   <td className="p-3">
                     <div className="flex gap-1 flex-wrap max-w-[220px]">

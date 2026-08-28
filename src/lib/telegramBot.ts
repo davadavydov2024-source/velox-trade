@@ -78,3 +78,14 @@ export async function answerPreCheckoutQuery(preCheckoutQueryId: string, ok: boo
 export function generateSixDigitCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
+
+/** Проверяет, состоит ли пользователь в канале/группе — используется для условия "подпишись,
+ * чтобы участвовать в конкурсе" (см. api/telegram/webhook → обработка конкурсов). channelId может
+ * быть публичным username вида "@channel" или числовым chat_id. */
+export async function checkChannelMembership(channelId: string, userId: number): Promise<boolean> {
+  const result = await tgCall<{ status: string }>("getChatMember", { chat_id: channelId, user_id: userId });
+  if (!result) return false;
+  // "left" и "kicked" — не подписан/забанен; всё остальное (member, administrator, creator,
+  // restricted) считаем действующим подписчиком.
+  return result.status !== "left" && result.status !== "kicked";
+}

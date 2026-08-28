@@ -39,6 +39,22 @@ import {
 } from "@/lib/telegramAdminPanel";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
+import {
+  contestMenuButtons,
+  CONTEST_MENU_TEXT,
+  startContestWizard,
+  handleContestWinnersStep,
+  handleContestPhotoStep,
+  handleContestTextStep,
+  handleContestButtonTextStep,
+  handleContestColorChoice,
+  handleContestChannelStep,
+  handleContestEndModeChoice,
+  handleContestEndValueStep,
+  handleContestJoin,
+  sendActiveContestsList,
+  finishContest,
+} from "@/lib/telegramContests";
 
 export const runtime = "nodejs";
 
@@ -158,6 +174,16 @@ export async function POST(req: NextRequest) {
       const firstName: string = callback.from?.first_name ?? "друг";
       const username: string | null = callback.from?.username ?? null;
 
+      // Участие в конкурсе — единственный callback с содержательным всплывающим текстом (успех/
+      // ошибка подписки/уже участвует), поэтому отвечаем на него отдельно и сразу выходим — Telegram
+      // не позволяет ответить на один и тот же callback дважды (answerCallbackQuery ниже безусловный).
+      if (data.startsWith("contest_join_")) {
+        const contestId = data.slice("contest_join_".length);
+        const replyText = await handleContestJoin(contestId, chatId, firstName, username);
+        await answerCallbackQuery(callback.id, replyText);
+        return NextResponse.json({ ok: true });
+      }
+
       await answerCallbackQuery(callback.id);
 
       if (data === "menu_back") {
@@ -207,6 +233,20 @@ export async function POST(req: NextRequest) {
           await sendTelegramMessage(chatId, PROMO_CREATE_INSTRUCTIONS);
         } else if (data === "admin_promo_list") {
           await sendActivePromoCodes(chatId);
+        } else if (data === "admin_contest_menu") {
+          await editTelegramMessage(chatId, messageId, CONTEST_MENU_TEXT, contestMenuButtons());
+        } else if (data === "contest_new") {
+          await startContestWizard(chatId);
+        } else if (data === "contest_active_list") {
+          await sendActiveContestsList(chatId);
+        } else if (data.startsWith("contest_color_")) {
+          await handleContestColorChoice(chatId, messageId, data.slice("contest_color_".length));
+        } else if (data === "contest_end_time") {
+          await handleContestEndModeChoice(chatId, messageId, "time");
+        } else if (data === "contest_end_participants") {
+          await handleContestEndModeChoice(chatId, messageId, "participants");
+        } else if (data.startsWith("contest_force_finish_")) {
+          await finishContest(data.slice("contest_force_finish_".length));
         } else if (data.startsWith("sell_approve_")) {
           await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length));
         } else if (data.startsWith("sell_reject_")) {
@@ -238,6 +278,19 @@ export async function POST(req: NextRequest) {
         await sendTelegramMessage(ADMIN_CHAT_ID, `💫 Донат от ${firstName} (${userTag}): ${totalAmount} ⭐`);
       }
       return NextResponse.json({ ok: true });
+    }
+
+    // Фото для поста конкурса (см. lib/telegramContests.ts → handleContestPhotoStep) — приходит
+    // без message.text, поэтому обрабатывается отдельной веткой ДО общей проверки на текст ниже,
+    // иначе такое сообщение молча терялось бы.
+    if (message.photo && isAdminChat(chatId)) {
+      const mode = await getBotState(chatId);
+      if (mode === "admin_contest_photo") {
+        // Telegram присылает несколько размеров одного фото — берём последний (самый большой).
+        const largest = message.photo[message.photo.length - 1];
+        await handleContestPhotoStep(chatId, largest.file_id, false);
+        return NextResponse.json({ ok: true });
+      }
     }
 
     const text: string | undefined = message?.text;
@@ -293,6 +346,26 @@ export async function POST(req: NextRequest) {
       const reply = await createPromoCodeFromText(text);
       await sendTelegramMessage(chatId, reply);
       await setBotState(chatId, null);
+    } else if (mode === "admin_contest_winners" && isAdminChat(chatId)) {
+      await handleContestWinnersStep(chatId, text);
+    } else if (mode === "admin_contest_photo" && isAdminChat(chatId)) {
+      // Сюда попадаем только если это НЕ фото (см. отдельную ветку message.photo выше) — то есть
+      // ожидаем текстовое "пропустить", любой другой текст просим прислать фото или пропустить явно.
+      if (text.trim().toLowerCase().includes("пропустить")) {
+        await handleContestPhotoStep(chatId, null, true);
+      } else {
+        await sendTelegramMessage(chatId, "Пришли фото или напиши «пропустить».");
+      }
+    } else if (mode === "admin_contest_text" && isAdminChat(chatId)) {
+      await handleContestTextStep(chatId, text);
+    } else if (mode === "admin_contest_button_text" && isAdminChat(chatId)) {
+      await handleContestButtonTextStep(chatId, text);
+    } else if (mode === "admin_contest_channel" && isAdminChat(chatId)) {
+      await handleContestChannelStep(chatId, text);
+    } else if (mode === "admin_contest_end_condition" && isAdminChat(chatId)) {
+      // Этот же mode стоит и сразу после выбора "по времени/по участникам" кнопками (см.
+      // handleContestEndModeChoice) — на этом шаге ждём уже число, а не повторный выбор режима.
+      await handleContestEndValueStep(chatId, text);
     } else if (mode === "awaiting_donate_amount") {
       const amount = Number(text.trim());
       if (!Number.isInteger(amount) || amount < DONATE_MIN || amount > DONATE_MAX) {

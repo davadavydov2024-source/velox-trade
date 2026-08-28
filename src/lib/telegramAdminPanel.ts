@@ -36,6 +36,7 @@ export function adminMenuButtons(): InlineButton[][] {
     [{ text: "🏷️ Заявки на продажу", callback_data: "admin_sell_requests" }],
     [{ text: "💰 Заявки на пополнение/вывод", callback_data: "admin_topups" }],
     [{ text: "🎁 Промокоды", callback_data: "admin_promo_menu" }],
+    [{ text: "🎉 Конкурсы", callback_data: "admin_contest_menu" }],
   ];
 }
 

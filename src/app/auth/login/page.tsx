@@ -9,6 +9,7 @@ import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { QrDeviceLogin } from "@/components/QrDeviceLogin";
+import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -33,6 +34,7 @@ function LoginInner() {
   // устройства (/auth/link) — после логина нужно вернуться именно туда, а не в /profile.
   const redirectTo = searchParams.get("redirect") || "/profile";
   const [mode, setMode] = useState<"password" | "telegram" | "qr">("password");
+  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("widget");
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
 
   useEffect(() => {
@@ -224,50 +226,82 @@ function LoginInner() {
           </>
         ) : (
           <div className="space-y-4">
-            <p className="text-xs text-white/40">
-              Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
-              вошёл).
-            </p>
-            {!codeSent ? (
-              <form onSubmit={handleRequestCode} className="space-y-4">
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
-                  <input
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={tgEmail}
-                    onChange={(e) => setTgEmail(e.target.value)}
-                    placeholder="Email аккаунта"
-                    className="input-field pl-10"
-                  />
-                </div>
-                <button disabled={tgSending} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                  <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
-                </button>
-              </form>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTelegramSubMode("widget")}
+                className={`flex-1 py-2 rounded-btn text-xs border transition-all ${
+                  telegramSubMode === "widget" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+                }`}
+              >
+                Через Telegram
+              </button>
+              <button
+                type="button"
+                onClick={() => setTelegramSubMode("bot")}
+                className={`flex-1 py-2 rounded-btn text-xs border transition-all ${
+                  telegramSubMode === "bot" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+                }`}
+              >
+                Через бота (код)
+              </button>
+            </div>
+
+            {telegramSubMode === "widget" ? (
+              <div className="space-y-3">
+                <p className="text-xs text-white/40">
+                  Один тап в Telegram — без email и кодов. Если аккаунта ещё нет, он создастся автоматически.
+                </p>
+                <TelegramLoginWidget />
+              </div>
             ) : (
-              <form onSubmit={handleVerifyCode} className="space-y-4">
-                <input
-                  required
-                  autoComplete="one-time-code"
-                  value={tgCode}
-                  onChange={(e) => setTgCode(e.target.value)}
-                  placeholder="Код из Telegram (6 цифр)"
-                  maxLength={6}
-                  className="input-field text-center tracking-[0.3em] font-mono text-lg"
-                />
-                <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
-                  {tgVerifying ? "Проверяем..." : "Войти"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCodeSent(false)}
-                  className="text-xs text-white/40 hover:text-white/70 w-full text-center"
-                >
-                  Ввести другой email
-                </button>
-              </form>
+              <>
+                <p className="text-xs text-white/40">
+                  Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
+                  вошёл).
+                </p>
+                {!codeSent ? (
+                  <form onSubmit={handleRequestCode} className="space-y-4">
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
+                      <input
+                        type="email"
+                        required
+                        autoComplete="email"
+                        value={tgEmail}
+                        onChange={(e) => setTgEmail(e.target.value)}
+                        placeholder="Email аккаунта"
+                        className="input-field pl-10"
+                      />
+                    </div>
+                    <button disabled={tgSending} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
+                      <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyCode} className="space-y-4">
+                    <input
+                      required
+                      autoComplete="one-time-code"
+                      value={tgCode}
+                      onChange={(e) => setTgCode(e.target.value)}
+                      placeholder="Код из Telegram (6 цифр)"
+                      maxLength={6}
+                      className="input-field text-center tracking-[0.3em] font-mono text-lg"
+                    />
+                    <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
+                      {tgVerifying ? "Проверяем..." : "Войти"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCodeSent(false)}
+                      className="text-xs text-white/40 hover:text-white/70 w-full text-center"
+                    >
+                      Ввести другой email
+                    </button>
+                  </form>
+                )}
+              </>
             )}
           </div>
         )}

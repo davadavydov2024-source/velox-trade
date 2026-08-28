@@ -376,6 +376,35 @@ export interface Ad {
   createdAt: number;
 }
 
+// --- конкурсы в Telegram-боте (создаются и разыгрываются полностью внутри бота, без сайта) ---
+export interface TelegramContest {
+  id: string;
+  createdByAdminChatId: number;
+  winnersCount: number;
+  photoUrl?: string;
+  text: string;
+  buttonText: string;
+  buttonColor: string; // влияет только на текст под кнопкой в сообщении — Telegram не красит inline-кнопки
+  channelId: string; // "@channel" или числовой chat_id — обязательная подписка для участия
+  endMode: "time" | "participants";
+  endValue: number; // endMode === "time" — минуты до конца от момента публикации; endMode === "participants" — нужное число участников
+  status: "active" | "finished" | "cancelled";
+  messageId?: number; // id опубликованного поста в канале — нужен чтобы отредактировать его при завершении
+  createdAt: number;
+  endsAt?: number; // только для endMode === "time" — createdAt + endValue минут
+  finishedAt?: number;
+  winnerChatIds?: number[];
+}
+
+export interface TelegramContestEntry {
+  id: string; // = `${contestId}_${chatId}`
+  contestId: string;
+  chatId: number;
+  telegramUsername: string | null;
+  firstName: string;
+  joinedAt: number;
+}
+
 export interface AppNotification {
   id: string;
   title: string;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
+import { finishExpiredContests } from "@/lib/telegramContests";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -90,6 +91,15 @@ export async function GET(req: NextRequest) {
     }
   } catch (err) {
     console.error("cron auction reminder error:", err);
+  }
+
+  // Подстраховка на случай, если ни один участник не нажал кнопку "Участвовать" после истечения
+  // срока конкурса (тогда ленивая проверка в handleContestJoin не сработала бы) — раз в сутки
+  // (единственная периодичность, доступная на Hobby-тарифе Vercel) добираем все просроченные.
+  try {
+    await finishExpiredContests();
+  } catch (err) {
+    console.error("cron finishExpiredContests error:", err);
   }
 
   return NextResponse.json({ ok: true, boostReminders, cartReminders, auctionReminders });
