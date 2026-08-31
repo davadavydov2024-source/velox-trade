@@ -49,8 +49,10 @@ export async function POST(req: NextRequest) {
         : await sendTelegramMessage(chatId, text, buttons);
       if (ok) sent++;
       else failed++;
-      // небольшая пауза, чтобы не упереться в лимит запросов Telegram Bot API
-      await new Promise((r) => setTimeout(r, 60));
+      // Telegram официально ограничивает поток широковещательных сообщений — с запасом держим
+      // паузу побольше, чтобы не словить массовые 429 (сами по себе они теперь тоже
+      // обрабатываются одной повторной попыткой в tgCall, но лучше в них не упираться вовсе).
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     return NextResponse.json({ ok: true, total: linksSnap.size, sent, failed });

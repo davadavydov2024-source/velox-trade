@@ -14,6 +14,7 @@ import { useLanguage, useLanguageStore } from "@/lib/languageStore";
 import { LANGUAGES } from "@/lib/i18n";
 import { useMascot } from "@/lib/mascotContext";
 import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
+import { Captcha } from "@/components/Captcha";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -44,7 +45,8 @@ function RegisterInner() {
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
   const [flagsLoaded, setFlagsLoaded] = useState(false);
   const [mode, setMode] = useState<"password" | "telegram">("password");
-  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("widget");
+  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("bot");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   useEffect(() => {
     getFeatureFlags().then((f) => {
@@ -80,6 +82,10 @@ function RegisterInner() {
     e.preventDefault();
     if (password.length < 6) {
       toast("warning", "Пароль должен быть не короче 6 символов");
+      return;
+    }
+    if (!captchaToken) {
+      toast("warning", "Пройди проверку ниже — реши пример");
       return;
     }
     setLoading(true);
@@ -260,7 +266,8 @@ function RegisterInner() {
                 .
               </span>
             </label>
-            <button disabled={loading || !agreed} className="btn-primary w-full py-3 disabled:opacity-50">
+            <Captcha onVerified={setCaptchaToken} />
+            <button disabled={loading || !agreed || !captchaToken} className="btn-primary w-full py-3 disabled:opacity-50">
               {loading ? t("auth_submit_creating") : t("auth_submit_register")}
             </button>
           </form>

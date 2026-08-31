@@ -7,7 +7,10 @@ export interface InlineButton {
 }
 
 async function tgCall<T = unknown>(method: string, body: Record<string, unknown>): Promise<T | null> {
-  if (!BOT_TOKEN) return null;
+  if (!BOT_TOKEN) {
+    console.error(`tgCall(${method}): TELEGRAM_BOT_TOKEN не задан на сервере`);
+    return null;
+  }
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
       method: "POST",
@@ -15,9 +18,23 @@ async function tgCall<T = unknown>(method: string, body: Record<string, unknown>
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!data.ok) return null;
+    if (!data.ok) {
+      // Раньше эта ошибка проглатывалась молча — из-за этого было невозможно понять, почему
+      // рассылка/бот "просто не работает" (частые причины: бот заблокирован конкретным
+      // пользователем — error_code 403, неверный chat_id, HTML-разметка с незакрытым тегом и т.п.)
+      console.error(`tgCall(${method}) Telegram API error:`, data.error_code, data.description);
+      // 429 — Telegram сам просит подождать retry_after секунд перед следующим запросом (обычно
+      // при частой рассылке многим пользователям подряд). Одна повторная попытка после паузы
+      // спасает большинство сообщений от "теряется молча из-за rate limit".
+      if (data.error_code === 429 && data.parameters?.retry_after) {
+        await new Promise((r) => setTimeout(r, (data.parameters.retry_after + 1) * 1000));
+        return tgCall<T>(method, body);
+      }
+      return null;
+    }
     return data.result as T;
-  } catch {
+  } catch (err) {
+    console.error(`tgCall(${method}) network error:`, err);
     return null;
   }
 }

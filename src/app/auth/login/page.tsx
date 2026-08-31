@@ -34,7 +34,7 @@ function LoginInner() {
   // устройства (/auth/link) — после логина нужно вернуться именно туда, а не в /profile.
   const redirectTo = searchParams.get("redirect") || "/profile";
   const [mode, setMode] = useState<"password" | "telegram" | "qr">("password");
-  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("widget");
+  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("bot");
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
 
   useEffect(() => {
