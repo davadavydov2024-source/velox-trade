@@ -12,7 +12,6 @@ import { validateDiscountCode, markPromoCodeUsed } from "@/lib/promoCodes";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useRouter } from "next/navigation";
 import { useMascot } from "@/lib/mascotContext";
-import { getAppCheckHeader } from "@/lib/appCheckFetch";
 
 export default function CartPage() {
   const { lines, remove, setQuantity, clear, total } = useCart();
@@ -63,10 +62,9 @@ export default function CartPage() {
     setPlacing(true);
     try {
       const idToken = await user.getIdToken();
-      const appCheckHeader = await getAppCheckHeader();
       const res = await fetch("/api/orders/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}`, ...appCheckHeader },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
           promoCode: appliedPromoId ? promo : undefined,

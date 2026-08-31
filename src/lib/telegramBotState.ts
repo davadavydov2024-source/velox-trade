@@ -1,4 +1,5 @@
 import { adminDb } from "./firebaseAdmin";
+import { stripUndefined } from "./stripUndefined";
 
 export type BotMode =
   | "awaiting_topup"
@@ -46,10 +47,11 @@ export async function getContestDraft(chatId: number): Promise<ContestDraft> {
 
 export async function updateContestDraft(chatId: number, patch: Partial<ContestDraft>) {
   const current = await getContestDraft(chatId);
-  await adminDb()
-    .collection("telegramBotState")
-    .doc(String(chatId))
-    .set({ contestDraft: { ...current, ...patch }, updatedAt: Date.now() }, { merge: true });
+  // Firestore не принимает undefined как значение поля (та же проблема, что чинили в lib/users.ts
+  // и других местах — см. stripUndefined) — patch может прийти с photoUrl: undefined на шаге
+  // "пропустить фото", и без этой очистки set() падал бы прямо посреди мастера создания конкурса.
+  const merged = stripUndefined({ ...current, ...patch });
+  await adminDb().collection("telegramBotState").doc(String(chatId)).set({ contestDraft: merged, updatedAt: Date.now() }, { merge: true });
 }
 
 export async function clearContestDraft(chatId: number) {

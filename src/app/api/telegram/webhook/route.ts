@@ -53,7 +53,6 @@ import {
   handleContestEndValueStep,
   handleContestJoin,
   sendActiveContestsList,
-  finishContest,
 } from "@/lib/telegramContests";
 
 export const runtime = "nodejs";
@@ -245,8 +244,6 @@ export async function POST(req: NextRequest) {
           await handleContestEndModeChoice(chatId, messageId, "time");
         } else if (data === "contest_end_participants") {
           await handleContestEndModeChoice(chatId, messageId, "participants");
-        } else if (data.startsWith("contest_force_finish_")) {
-          await finishContest(data.slice("contest_force_finish_".length));
         } else if (data.startsWith("sell_approve_")) {
           await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length));
         } else if (data.startsWith("sell_reject_")) {

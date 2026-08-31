@@ -1,6 +1,8 @@
 import { adminDb } from "./firebaseAdmin";
 import { sendTelegramMessage, sendTelegramPhoto, editTelegramMessage, checkChannelMembership, InlineButton } from "./telegramBot";
 import { setBotState, getContestDraft, updateContestDraft, clearContestDraft } from "./telegramBotState";
+import { stripUndefined } from "./stripUndefined";
+import { findUidByChatId } from "./telegramUserInfo";
 import { TelegramContest, TelegramContestEntry } from "@/types";
 
 const COLOR_CHOICES: { label: string; value: string }[] = [
@@ -156,7 +158,7 @@ async function publishContest(adminChatId: number) {
     ...(endsAt ? { endsAt } : {}),
   };
 
-  await contestRef.set(contest);
+  await contestRef.set(stripUndefined(contest));
 
   const postText = `🎉 ${draft.text}\n\n🏆 Победителей: ${draft.winnersCount}\n📢 Условие: подписка на канал`;
   const buttons: InlineButton[][] = [[{ text: draft.buttonText, callback_data: `contest_join_${contestRef.id}` }]];
@@ -193,7 +195,10 @@ async function sendPhotoToChannelAndGetId(channelId: string, photoUrl: string, c
 // ===================== Участие =====================
 
 /** Нажатие кнопки "Участвовать" под постом в канале. Возвращает текст для всплывающего
- * уведомления Telegram (передаётся в answerCallbackQuery на уровне webhook). */
+ * уведомления Telegram (передаётся в answerCallbackQuery на уровне webhook).
+ * Итоги теперь подводятся только вручную админом через сайт (/admin/contests) — здесь никакого
+ * автозавершения нет, ни по времени, ни по числу участников, чтобы не завершить конкурс раньше,
+ * чем админ реально готов это сделать. */
 export async function handleContestJoin(contestId: string, chatId: number, firstName: string, telegramUsername: string | null): Promise<string> {
   const db = adminDb();
   const contestSnap = await db.collection("telegramContests").doc(contestId).get();
@@ -201,14 +206,12 @@ export async function handleContestJoin(contestId: string, chatId: number, first
   const contest = contestSnap.data() as TelegramContest;
   if (contest.status !== "active") return "Конкурс уже завершён.";
 
-  // На Hobby-тарифе Vercel cron гарантированно запускается только раз в сутки — конкурсы с
-  // коротким сроком (типично 1-24 часа) не дождались бы автозавершения вовремя, поэтому здесь,
-  // при каждой попытке участия, дополнительно проверяем именно этот конкурс "лениво": если время
-  // уже вышло — сначала завершаем его и сообщаем, что конкурс закрыт, вместо того чтобы принять
-  // ещё одну ставку в уже фактически закончившийся розыгрыш.
-  if (contest.endMode === "time" && contest.endsAt && Date.now() >= contest.endsAt) {
-    await finishContest(contestId);
-    return "Конкурс уже завершился, итоги опубликованы в канале.";
+  // Участие требует привязанный к сайту аккаунт — иначе не по кому будет узнать победителя на
+  // сайте и что-либо выдать/начислить ему. Ссылка та же, что бот уже использует для команд
+  // /balance и /orders (см. lib/telegramUserInfo.ts → findUidByChatId).
+  const uid = await findUidByChatId(chatId);
+  if (!uid) {
+    return "Сначала подключи Telegram к своему аккаунту на сайте: Профиль → Безопасность → «Подключить Telegram», потом жми участвовать снова.";
   }
 
   const isMember = await checkChannelMembership(contest.channelId, chatId);
@@ -218,19 +221,10 @@ export async function handleContestJoin(contestId: string, chatId: number, first
   const existing = await entryRef.get();
   if (existing.exists) return "Ты уже участвуешь в этом конкурсе! 🎉";
 
-  const entry: Omit<TelegramContestEntry, "id"> = { contestId, chatId, telegramUsername, firstName, joinedAt: Date.now() };
+  const entry: Omit<TelegramContestEntry, "id"> = { contestId, chatId, uid, telegramUsername, firstName, joinedAt: Date.now() };
   await entryRef.set(entry);
 
-  // Условие "по количеству участников" — проверяем сразу после каждого нового участника, а не
-  // ждём отдельного cron-тика, чтобы конкурс завершился максимально оперативно по факту набора.
-  if (contest.endMode === "participants") {
-    const countSnap = await db.collection("telegramContestEntries").where("contestId", "==", contestId).count().get();
-    if (countSnap.data().count >= contest.endValue) {
-      await finishContest(contestId);
-    }
-  }
-
-  return "Ты участвуешь! Результаты объявим в канале. Удачи! 🍀";
+  return "Ты участвуешь! Итоги подведёт администратор. Удачи! 🍀";
 }
 
 // ===================== Подведение итогов =====================
@@ -280,21 +274,6 @@ export async function finishContest(contestId: string) {
   }
 }
 
-/** Находит все конкурсы с истёкшим по времени сроком и завершает их — дёргается из cron. */
-export async function finishExpiredContests() {
-  const db = adminDb();
-  const now = Date.now();
-  const snap = await db
-    .collection("telegramContests")
-    .where("status", "==", "active")
-    .where("endMode", "==", "time")
-    .where("endsAt", "<=", now)
-    .get();
-  for (const doc of snap.docs) {
-    await finishContest(doc.id);
-  }
-}
-
 export async function sendActiveContestsList(chatId: number) {
   const snap = await adminDb().collection("telegramContests").where("status", "==", "active").get();
   if (snap.empty) {
@@ -304,11 +283,9 @@ export async function sendActiveContestsList(chatId: number) {
   for (const doc of snap.docs) {
     const c = doc.data() as TelegramContest;
     const entriesSnap = await adminDb().collection("telegramContestEntries").where("contestId", "==", doc.id).count().get();
-    const condition = c.endMode === "time" ? `до ${new Date(c.endsAt ?? 0).toLocaleString("ru")}` : `до ${c.endValue} участников`;
     await sendTelegramMessage(
       chatId,
-      `🎉 ${c.text.slice(0, 80)}\nКанал: ${c.channelId}\nУчастников: ${entriesSnap.data().count}\nУсловие: ${condition}`,
-      [[{ text: "🏁 Завершить сейчас", callback_data: `contest_force_finish_${doc.id}` }]]
+      `🎉 ${c.text.slice(0, 80)}\nКанал: ${c.channelId}\nУчастников: ${entriesSnap.data().count}\n\nПодвести итоги можно на сайте: /admin/contests`
     );
   }
 }

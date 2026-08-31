@@ -12,7 +12,6 @@ import {
   increment,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
-import { getAppCheckHeader } from "./appCheckFetch";
 import { stripUndefined } from "./stripUndefined";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
@@ -188,10 +187,9 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 export async function confirmOrderReceipt(order: Order, buyerName: string) {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("Нужно войти в аккаунт");
-  const appCheckHeader = await getAppCheckHeader();
   const res = await fetch("/api/orders/confirm-receipt", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}`, ...appCheckHeader },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
     body: JSON.stringify({ orderId: order.id }),
   });
   const data = await res.json();

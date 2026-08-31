@@ -400,6 +400,7 @@ export interface TelegramContestEntry {
   id: string; // = `${contestId}_${chatId}`
   contestId: string;
   chatId: number;
+  uid: string; // привязка к аккаунту сайта — обязательна для участия (см. handleContestJoin)
   telegramUsername: string | null;
   firstName: string;
   joinedAt: number;

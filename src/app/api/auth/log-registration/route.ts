@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb, verifyAppCheck } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { getClientIp } from "@/lib/getClientIp";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
@@ -20,11 +20,11 @@ const SUSPICIOUS_THRESHOLD = 3;
  * саму регистрацию делает Firebase Auth SDK напрямую с клиента (это стандартный путь и его не
  * стоит оборачивать сервером), а этот роут только фиксирует IP регистрации отдельной записью в
  * коллекции registrationLog, чтобы админ мог видеть все IP и обнаруживать паттерны абьюза.
+ * Капча (см. Captcha.tsx) проверяется на форме регистрации ДО этого момента — здесь её проверять
+ * уже поздно и незачем, аккаунт к этому вызову уже реально создан в Firebase Auth.
  */
 export async function POST(req: NextRequest) {
   try {
-    if (!(await verifyAppCheck(req))) return NextResponse.json({ error: "Проверка безопасности не пройдена" }, { status: 403 });
-
     const authHeader = req.headers.get("authorization");
     const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!idToken) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });

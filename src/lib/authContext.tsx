@@ -16,7 +16,6 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 import { ensureUserProfile, getUserProfile, syncEmailVerified } from "./users";
-import { getAppCheckHeader } from "./appCheckFetch";
 import { UserProfile } from "@/types";
 import { getActiveSlotId, upsertSavedAccount } from "./accountSlots";
 
@@ -42,17 +41,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** Не критично для флоу входа — не ждём и не роняем регистрацию/вход, если это не удалось. */
+/** Не критично для флоу входа — не ждём и не роняем регистрацию/вход, если это не удалось.
+ * Капча (см. Captcha.tsx) проверяется РАНЬШЕ, на самой форме регистрации, до вызова register() —
+ * здесь только логируем IP уже состоявшейся регистрации, отдельного токена капчи тут не нужно. */
 function logRegistrationIp(user: User) {
   user
     .getIdToken()
-    .then(async (idToken) => {
-      const appCheckHeader = await getAppCheckHeader();
-      return fetch("/api/auth/log-registration", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${idToken}`, ...appCheckHeader },
-      });
-    })
+    .then((idToken) => fetch("/api/auth/log-registration", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }))
     .catch(() => {});
 }
 

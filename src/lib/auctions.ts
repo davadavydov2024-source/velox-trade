@@ -1,6 +1,5 @@
 import { doc, onSnapshot, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "./firebase";
-import { getAppCheckHeader } from "./appCheckFetch";
 import { Product, AuctionBid } from "@/types";
 
 /** Живая подписка на сам товар — чтобы текущая ставка/лидер обновлялись на экране без перезагрузки. */
@@ -20,10 +19,9 @@ async function authedFetch(url: string, body: unknown) {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Нужно войти в аккаунт");
   const idToken = await currentUser.getIdToken();
-  const appCheckHeader = await getAppCheckHeader();
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}`, ...appCheckHeader },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
     body: JSON.stringify(body),
   });
   const data = await res.json();
