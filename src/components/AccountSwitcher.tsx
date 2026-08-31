@@ -162,9 +162,9 @@ export function AccountSwitcher() {
           >
             <button
               type="button"
-              onClick={() => !isActive && switchAccount(acc.slotId)}
-              disabled={isActive}
-              className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:cursor-default"
+              onClick={() => switchAccount(acc.slotId)}
+              className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+              title={isActive ? "Обновить сессию этого аккаунта" : "Переключиться на этот аккаунт"}
             >
               <div className="relative w-7 h-7 rounded-full overflow-hidden bg-accent/20 flex-none flex items-center justify-center text-xs font-semibold text-accent">
                 {acc.photoURL ? <Image src={acc.photoURL} alt="" fill className="object-cover" sizes="28px" /> : initialsOf(acc.displayName)}
