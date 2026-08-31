@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff } from "lucide-react";
+import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff, Download } from "lucide-react";
 import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole, getRegistrationLog } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
+import { downloadCsv } from "@/lib/csvExport";
 
 const ALL_BADGES: UserBadge[] = [
   "user",
@@ -144,17 +145,38 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold">Пользователи</h1>
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
-          <input
-            autoComplete="off"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по нику или email"
-            className="input-field pl-9 py-2 text-sm"
-          />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              downloadCsv(
+                `users-${new Date().toISOString().slice(0, 10)}.csv`,
+                filtered.map((u) => ({
+                  uid: u.uid,
+                  displayName: u.displayName,
+                  email: u.email,
+                  balance: u.balance,
+                  ip: ipByUid.get(u.uid) ?? "",
+                  banned: u.banned ? "да" : "нет",
+                  createdAt: new Date(u.createdAt).toLocaleString("ru"),
+                }))
+              )
+            }
+            className="btn-secondary px-3 py-2 text-xs flex items-center gap-1.5"
+          >
+            <Download size={13} /> Экспорт CSV
+          </button>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
+            <input
+              autoComplete="off"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск по нику или email"
+              className="input-field pl-9 py-2 text-sm"
+            />
+          </div>
         </div>
       </div>
 

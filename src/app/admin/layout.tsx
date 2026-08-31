@@ -29,6 +29,9 @@ import {
   PackageCheck,
   ArrowLeftRight,
   Shield,
+  GitCommit,
+  Bug,
+  Download,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
@@ -37,6 +40,9 @@ const NAV = [
   { href: "/admin", label: "Дашборд", icon: LayoutDashboard },
   { href: "/admin/users", label: "Пользователи", icon: Users },
   { href: "/admin/registrations", label: "IP регистраций", icon: Shield },
+  { href: "/admin/contests", label: "Конкурсы", icon: Gift },
+  { href: "/admin/errors", label: "Ошибки на сайте", icon: Bug },
+  { href: "/admin/version", label: "Версия деплоя", icon: GitCommit },
   { href: "/admin/products", label: "Товары", icon: Package },
   { href: "/admin/product-edits", label: "Правки товаров", icon: Pencil },
   { href: "/admin/games", label: "Игры", icon: Gamepad2 },

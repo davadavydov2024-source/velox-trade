@@ -4,7 +4,6 @@ import { ReactNode, useEffect } from "react";
 import { AuthProvider } from "@/lib/authContext";
 import { ToastProvider } from "@/lib/toastContext";
 import { ThemeProvider } from "@/lib/themeContext";
-import { ensureAppCheck } from "@/lib/firebase";
 import { UserThemeSync } from "@/components/UserThemeSync";
 import { UserLanguageSync } from "@/components/UserLanguageSync";
 import { BanGate } from "@/components/BanGate";
@@ -23,10 +22,11 @@ import { AndroidInstallPrompt } from "@/components/AndroidInstallPrompt";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { EnableNotificationsPrompt } from "@/components/EnableNotificationsPrompt";
 import { TwoFactorGate } from "@/components/TwoFactorGate";
+import { initErrorLogging } from "@/lib/errorLogging";
 
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
-    ensureAppCheck();
+    initErrorLogging();
   }, []);
 
   return (

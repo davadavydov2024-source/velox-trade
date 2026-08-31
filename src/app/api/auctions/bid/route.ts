@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb, verifyAppCheck } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
+import { getClientIp } from "@/lib/getClientIp";
 
 export const runtime = "nodejs";
 
@@ -12,8 +13,6 @@ export const runtime = "nodejs";
 // когда он уже мог передумать или потратить баланс на что-то другое.
 export async function POST(req: NextRequest) {
   try {
-    if (!(await verifyAppCheck(req))) return NextResponse.json({ error: "Проверка безопасности не пройдена" }, { status: 403 });
-
     const authHeader = req.headers.get("authorization");
     const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!idToken) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
@@ -31,6 +30,25 @@ export async function POST(req: NextRequest) {
     const db = adminDb();
     const productRef = db.collection("products").doc(productId);
     const bidderRef = db.collection("users").doc(uid);
+
+    // Простая защита от самонакрутки: если этот покупатель регистрировался с того же IP, что и
+    // продавец товара — не даём делать ставку. Не идеально (можно обойти через VPN/другую сеть),
+    // но отсекает самый частый случай "накрутил себе аукцион вторым аккаунтом с того же дивана".
+    const productForIpCheck = await productRef.get();
+    if (productForIpCheck.exists) {
+      const sellerId = productForIpCheck.data()?.sellerId as string;
+      if (sellerId && sellerId !== uid) {
+        const [bidderLog, sellerLog] = await Promise.all([
+          db.collection("registrationLog").doc(uid).get(),
+          db.collection("registrationLog").doc(sellerId).get(),
+        ]);
+        const bidderIp = bidderLog.data()?.ip;
+        const sellerIp = sellerLog.data()?.ip;
+        if (bidderIp && sellerIp && bidderIp === sellerIp) {
+          return NextResponse.json({ error: "Нельзя делать ставки на товар продавца, который регистрировался с того же IP" }, { status: 403 });
+        }
+      }
+    }
 
     const result = await db.runTransaction(async (tx) => {
       const [productSnap, bidderSnap] = await Promise.all([tx.get(productRef), tx.get(bidderRef)]);
