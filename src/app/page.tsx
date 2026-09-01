@@ -15,6 +15,7 @@ import { AdSlotCard } from "@/components/AdSlotCard";
 import { SiteRatingWidget } from "@/components/SiteRatingWidget";
 import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
+import { DailyBonusBanner } from "@/components/DailyBonusBanner";
 
 const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
 
@@ -42,6 +43,9 @@ export default function HomePage() {
 
   return (
     <div>
+      {/* Ежедневный бонус — первое, что видит залогиненный пользователь, если ещё не забрал сегодня */}
+      <DailyBonusBanner />
+
       {/* Большой промо-баннер — теперь самое первое, что видно на странице */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 lg:pt-4">
         <PromoCarousel />
