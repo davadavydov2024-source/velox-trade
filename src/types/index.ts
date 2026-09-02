@@ -254,20 +254,6 @@ export interface UserProfile {
   wheelSpinsCount?: number; // сколько раз всего крутили колесо — для страницы достижений
   twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
   pushCategories?: PushCategories; // отсутствует у старых профилей — тогда считаем, что включено всё (DEFAULT_PUSH_CATEGORIES)
-  // Ежедневный бонус за вход — стрик считается непрерывным, только если заходить каждый день
-  // подряд (не пропуская сутки); при пропуске сбрасывается на 1, а не на 0, потому что сам факт
-  // сегодняшнего входа уже начинает новую серию.
-  dailyStreak?: number;
-  lastDailyClaimAt?: number; // дата последнего забранного бонуса (используется, чтобы не давать дважды за один день)
-}
-
-/** Награда за N-й день подряд — растёт нелинейно, чтобы стимулировать не прерывать серию:
- * 1 день — 5₽, а 7-й подряд — уже 50₽. После 7 цикл начинается заново с шага 7 (не сбрасывается
- * до 5₽), чтобы длинные стрики не обесценивались. */
-export function dailyBonusAmount(streak: number): number {
-  const table = [5, 8, 12, 18, 25, 35, 50];
-  const day = ((streak - 1) % 7) + 1;
-  return table[day - 1];
 }
 
 export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";
@@ -391,6 +377,8 @@ export interface Ad {
 }
 
 // --- конкурсы в Telegram-боте (создаются и разыгрываются полностью внутри бота, без сайта) ---
+// Итоги подводятся только вручную через сайт (/admin/contests) — никакого автозавершения по
+// времени или числу участников, поэтому endMode/endValue тут больше нет.
 export interface TelegramContest {
   id: string;
   createdByAdminChatId: number;
@@ -400,12 +388,9 @@ export interface TelegramContest {
   buttonText: string;
   buttonColor: string; // влияет только на текст под кнопкой в сообщении — Telegram не красит inline-кнопки
   channelId: string; // "@channel" или числовой chat_id — обязательная подписка для участия
-  endMode: "time" | "participants";
-  endValue: number; // endMode === "time" — минуты до конца от момента публикации; endMode === "participants" — нужное число участников
   status: "active" | "finished" | "cancelled";
   messageId?: number; // id опубликованного поста в канале — нужен чтобы отредактировать его при завершении
   createdAt: number;
-  endsAt?: number; // только для endMode === "time" — createdAt + endValue минут
   finishedAt?: number;
   winnerChatIds?: number[];
 }

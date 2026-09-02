@@ -13,7 +13,6 @@ export type BotMode =
   | "admin_contest_button_text"
   | "admin_contest_channel"
   | "admin_contest_color"
-  | "admin_contest_end_condition"
   | null;
 
 export async function getBotState(chatId: number): Promise<BotMode> {
@@ -36,8 +35,6 @@ export interface ContestDraft {
   buttonText?: string;
   buttonColor?: string;
   channelId?: string; // "@channel" или числовой chat_id — условие подписки
-  endMode?: "time" | "participants";
-  endValue?: number; // endMode === "time": минуты от старта; endMode === "participants": нужное число участников
 }
 
 export async function getContestDraft(chatId: number): Promise<ContestDraft> {

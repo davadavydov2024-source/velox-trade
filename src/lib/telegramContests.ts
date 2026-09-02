@@ -97,32 +97,8 @@ export async function handleContestChannelStep(chatId: number, text: string): Pr
   }
   const channelId = trimmed.startsWith("@") || trimmed.startsWith("-") ? trimmed : `@${trimmed}`;
   await updateContestDraft(chatId, { channelId });
-  await setBotState(chatId, "admin_contest_end_condition");
-  await sendTelegramMessage(chatId, "Как определить итоги конкурса?", [
-    [{ text: "⏱ По времени", callback_data: "contest_end_time" }],
-    [{ text: "👥 По количеству участников", callback_data: "contest_end_participants" }],
-  ]);
-  return true;
-}
-
-export async function handleContestEndModeChoice(chatId: number, messageId: number, mode: "time" | "participants") {
-  await updateContestDraft(chatId, { endMode: mode });
-  await setBotState(chatId, "admin_contest_end_condition");
-  const prompt =
-    mode === "time"
-      ? "Через сколько минут подвести итоги? Введи число (например, 1440 — это сутки)."
-      : "При каком количестве участников подвести итоги? Введи число.";
-  await editTelegramMessage(chatId, messageId, prompt);
-}
-
-/** Финальный шаг мастера — принимает endValue и сразу публикует конкурс, раз это последний шаг. */
-export async function handleContestEndValueStep(chatId: number, text: string): Promise<boolean> {
-  const n = Number(text.trim());
-  if (!Number.isInteger(n) || n < 1) {
-    await sendTelegramMessage(chatId, "Введи целое положительное число.");
-    return true;
-  }
-  await updateContestDraft(chatId, { endValue: n });
+  // Итоги подводятся только вручную через сайт (/admin/contests) — после канала мастеру больше
+  // нечего спрашивать, публикуем сразу.
   await publishContest(chatId);
   return true;
 }
@@ -131,7 +107,7 @@ export async function handleContestEndValueStep(chatId: number, text: string): P
 
 async function publishContest(adminChatId: number) {
   const draft = await getContestDraft(adminChatId);
-  if (!draft.winnersCount || !draft.text || !draft.buttonText || !draft.channelId || !draft.endMode || !draft.endValue) {
+  if (!draft.winnersCount || !draft.text || !draft.buttonText || !draft.channelId) {
     await sendTelegramMessage(adminChatId, "Что-то в мастере пошло не так — начни заново командой «Конкурсы».");
     await clearContestDraft(adminChatId);
     await setBotState(adminChatId, null);
@@ -141,7 +117,6 @@ async function publishContest(adminChatId: number) {
   const db = adminDb();
   const contestRef = db.collection("telegramContests").doc();
   const now = Date.now();
-  const endsAt = draft.endMode === "time" ? now + draft.endValue * 60 * 1000 : undefined;
 
   const contest: Omit<TelegramContest, "id"> = {
     createdByAdminChatId: adminChatId,
@@ -151,11 +126,8 @@ async function publishContest(adminChatId: number) {
     buttonText: draft.buttonText,
     buttonColor: draft.buttonColor ?? "default",
     channelId: draft.channelId,
-    endMode: draft.endMode,
-    endValue: draft.endValue,
     status: "active",
     createdAt: now,
-    ...(endsAt ? { endsAt } : {}),
   };
 
   await contestRef.set(stripUndefined(contest));

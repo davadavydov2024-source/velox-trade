@@ -49,8 +49,6 @@ import {
   handleContestButtonTextStep,
   handleContestColorChoice,
   handleContestChannelStep,
-  handleContestEndModeChoice,
-  handleContestEndValueStep,
   handleContestJoin,
   sendActiveContestsList,
 } from "@/lib/telegramContests";
@@ -240,10 +238,6 @@ export async function POST(req: NextRequest) {
           await sendActiveContestsList(chatId);
         } else if (data.startsWith("contest_color_")) {
           await handleContestColorChoice(chatId, messageId, data.slice("contest_color_".length));
-        } else if (data === "contest_end_time") {
-          await handleContestEndModeChoice(chatId, messageId, "time");
-        } else if (data === "contest_end_participants") {
-          await handleContestEndModeChoice(chatId, messageId, "participants");
         } else if (data.startsWith("sell_approve_")) {
           await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length));
         } else if (data.startsWith("sell_reject_")) {
@@ -359,10 +353,6 @@ export async function POST(req: NextRequest) {
       await handleContestButtonTextStep(chatId, text);
     } else if (mode === "admin_contest_channel" && isAdminChat(chatId)) {
       await handleContestChannelStep(chatId, text);
-    } else if (mode === "admin_contest_end_condition" && isAdminChat(chatId)) {
-      // Этот же mode стоит и сразу после выбора "по времени/по участникам" кнопками (см.
-      // handleContestEndModeChoice) — на этом шаге ждём уже число, а не повторный выбор режима.
-      await handleContestEndValueStep(chatId, text);
     } else if (mode === "awaiting_donate_amount") {
       const amount = Number(text.trim());
       if (!Number.isInteger(amount) || amount < DONATE_MIN || amount > DONATE_MAX) {
