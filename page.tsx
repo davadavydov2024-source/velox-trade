@@ -1,290 +1,261 @@
 "use client";
 
+import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/authContext";
-import { getOrdersForUser, confirmOrderReceipt } from "@/lib/users";
-import { getOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
-import { createDispute, getDispute } from "@/lib/disputes";
-import { createReview } from "@/lib/reviews";
-import { Order, OrderChatMessage, Dispute } from "@/types";
-import { useToast } from "@/lib/toastContext";
-import { MessageCircle, CheckCircle2, AlertTriangle, Star, Send } from "lucide-react";
+import { ArrowRight, Sparkles, Flame } from "lucide-react";
+import { getGames, getProducts } from "@/lib/products";
+import { getPublicStats } from "@/lib/stats";
+import { Game, Product } from "@/types";
+import { safeImageSrc } from "@/lib/safeImage";
+import { ProductCard } from "@/components/ProductCard";
+import { PromoCarousel } from "@/components/PromoCarousel";
+import { QuickTopupCard } from "@/components/QuickTopupCard";
+import { AdSlotCard } from "@/components/AdSlotCard";
+import { SiteRatingWidget } from "@/components/SiteRatingWidget";
+import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
+import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 
-const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
-  pending_confirmation: { text: "Ждёт подтверждения", color: "#ff9800" },
-  confirmed: { text: "Подтверждён", color: "#4caf50" },
-  disputed: { text: "Спор", color: "#f44336" },
-  cancelled: { text: "Отменён", color: "#9aa3b2" },
-};
+const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
 
-function OrderCard({ order, buyerName }: { order: Order; buyerName: string }) {
-  const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState(order.status);
-
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<OrderChatMessage[]>([]);
-  const [chatText, setChatText] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-
-  const [disputeOpen, setDisputeOpen] = useState(false);
-  const [disputeReason, setDisputeReason] = useState("");
-  const [dispute, setDispute] = useState<Dispute | null>(null);
-
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5>(5);
-  const [reviewText, setReviewText] = useState("");
-  const [reviewDone, setReviewDone] = useState(!!order.reviewSubmitted);
+export default function HomePage() {
+  const [games, setGames] = useState<Game[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [featured, setFeatured] = useState<Product[]>([]);
+  const [dealsCount, setDealsCount] = useState(0);
 
   useEffect(() => {
-    if (status === "disputed") {
-      getDispute(order.id).then(setDispute).catch(() => {});
-    }
-  }, [status, order.id]);
-
-  async function toggleChat() {
-    if (!chatOpen) {
-      setChatLoading(true);
-      try {
-        const chat = await getOrderChat(order.id);
-        setMessages(chat?.messages ?? []);
-      } finally {
-        setChatLoading(false);
-      }
-    }
-    setChatOpen((v) => !v);
-  }
-
-  async function handleSendChat(e: React.FormEvent) {
-    e.preventDefault();
-    if (!chatText.trim()) return;
-    const text = chatText.trim();
-    setChatText("");
-    setMessages((m) => [...m, { from: "buyer", text, createdAt: Date.now() }]);
-    try {
-      await sendOrderChatMessage(order.id, order.userId, order.sellerId, "buyer", text);
-    } catch {
-      toast("error", "Не удалось отправить сообщение");
-    }
-  }
-
-  async function handleConfirm() {
-    setBusy(true);
-    try {
-      await confirmOrderReceipt(order, buyerName);
-      setStatus("confirmed");
-      toast("success", "Получение подтверждено! Теперь можно оставить отзыв продавцу.");
-    } catch (err: any) {
-      toast("error", err?.code === "permission-denied" ? "Нет прав на это действие" : "Не удалось подтвердить");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleDispute(e: React.FormEvent) {
-    e.preventDefault();
-    if (!disputeReason.trim()) return;
-    setBusy(true);
-    try {
-      await createDispute({ orderId: order.id, buyerId: order.userId, buyerName, sellerId: order.sellerId, reason: disputeReason.trim(), filedBy: "buyer" });
-      setStatus("disputed");
-      setDisputeOpen(false);
-      toast("success", "Жалоба отправлена администратору");
-    } catch {
-      toast("error", "Не удалось отправить жалобу");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleReview(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await createReview({
-        orderId: order.id,
-        productId: order.items[0]?.productId ?? "",
-        productName: order.items[0]?.name ?? "Товар",
-        sellerId: order.sellerId,
-        buyerId: order.userId,
-        buyerName,
-        rating,
-        text: reviewText.trim(),
-      });
-      setReviewDone(true);
-      setReviewOpen(false);
-      toast("success", "Спасибо за отзыв!");
-    } catch (err: any) {
-      if (err?.message === "review-already-submitted") toast("warning", "Отзыв уже оставлен");
-      else if (err?.message === "order-not-confirmed") toast("error", "Заказ ещё не подтверждён");
-      else toast("error", "Не удалось отправить отзыв");
-    } finally {
-      setBusy(false);
-    }
-  }
+    getGames()
+      .then(setGames)
+      .catch((err) => { console.error("Ошибка загрузки игр:", err); setGames([]); })
+      .finally(() => setLoaded(true));
+    getProducts({ excludeWheelLocked: true })
+      .then((products) => {
+        const now = Date.now();
+        setFeatured(products.filter((p) => p.boostTier === "home" && (p.boostUntil ?? 0) > now).slice(0, 6));
+      })
+      .catch(() => setFeatured([]));
+    getPublicStats()
+      .then((s) => setDealsCount(s.dealsCount))
+      .catch(() => setDealsCount(0));
+  }, []);
 
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-sm text-white/40">Заказ #{order.id.slice(0, 8)}</p>
-        <span
-          className="text-xs font-semibold px-2 py-1 rounded-md"
-          style={{ background: `${STATUS_LABEL[status].color}22`, color: STATUS_LABEL[status].color }}
-        >
-          {STATUS_LABEL[status].text}
-        </span>
+    <div>
+      {/* Большой промо-баннер — теперь самое первое, что видно на странице */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 lg:pt-4">
+        <PromoCarousel />
       </div>
 
-      <div className="space-y-1 text-sm text-white/70">
-        {order.items.map((item, i) => (
-          <div key={i} className="flex justify-between">
-            <span>
-              {item.name} ×{item.quantity}
+      {/* Живая лента покупок — социальное доказательство сразу под баннером */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+        <LiveActivityFeed />
+      </div>
+
+      {/* Mobile hero — компактный, с реальными данными вместо статичного лого */}
+      <section className="lg:hidden border-b border-border px-4 pt-4 pb-6 space-y-4">
+        <div>
+          <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-3">
+            <Sparkles size={13} /> №1 маркетплейс игровых предметов
+          </span>
+          {dealsCount > 0 && (
+            <span className="flex items-center gap-1.5 text-[11px] text-white/40 mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
             </span>
-            <span>{(item.price * item.quantity).toFixed(2)} ₽</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between font-bold mt-2 pt-2 border-t border-border">
-        <span>Итого</span>
-        <span className="text-accent">{order.total.toFixed(2)} ₽</span>
-      </div>
-
-      {status === "disputed" && dispute && (
-        <div className="mt-3 p-3 rounded-btn bg-red-500/5 border border-red-500/20 text-sm">
-          <p className="text-red-400 font-medium mb-1">Жалоба: {dispute.reason}</p>
-          <p className="text-white/40 text-xs">
-            Статус:{" "}
-            {dispute.status === "open" ? "рассматривается администратором" : dispute.status === "approved" ? "одобрена" : "отклонена"}
-          </p>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2 mt-3">
-        <button onClick={toggleChat} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-          <MessageCircle size={14} /> Чат с продавцом
-        </button>
-      </div>
-
-      {chatOpen && (
-        <div className="mt-3 border-t border-border pt-3">
-          {chatLoading ? (
-            <p className="text-xs text-white/30">Загрузка чата...</p>
-          ) : (
-            <>
-              <div className="space-y-2 max-h-56 overflow-y-auto mb-2">
-                {messages.length === 0 ? (
-                  <p className="text-xs text-white/30">Сообщений пока нет. Напиши продавцу, если есть вопросы по заказу.</p>
-                ) : (
-                  messages.map((m, i) =>
-                    m.from === "system" ? (
-                      <p key={i} className="text-xs text-center text-white/40 italic py-1">{m.text}</p>
-                    ) : (
-                      <div key={i} className={`text-sm max-w-[80%] px-3 py-2 rounded-btn ${m.from === "buyer" ? "bg-accent/15 ml-auto text-right" : "bg-surface"}`}>
-                        <p className="text-[10px] text-white/30 mb-0.5">{m.from === "buyer" ? "Ты" : m.from === "admin" ? "Админ" : "Продавец"}</p>
-                        {m.text}
-                      </div>
-                    )
-                  )
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-2">
-                {status === "pending_confirmation" && (
-                  <>
-                    <button onClick={handleConfirm} disabled={busy} className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5 disabled:opacity-50">
-                      <CheckCircle2 size={14} /> Подтвердить получение
-                    </button>
-                    <button onClick={() => setDisputeOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-                      <AlertTriangle size={14} /> Пожаловаться
-                    </button>
-                  </>
-                )}
-                {status === "confirmed" && !reviewDone && (
-                  <button onClick={() => setReviewOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-                    <Star size={14} /> Оставить отзыв
-                  </button>
-                )}
-              </div>
-
-              {disputeOpen && (
-                <form onSubmit={handleDispute} className="space-y-2 mb-2">
-                  <textarea
-                    value={disputeReason}
-                    onChange={(e) => setDisputeReason(e.target.value)}
-                    placeholder="Опиши проблему — что пошло не так с этим заказом"
-                    rows={2}
-                    className="input-field py-2 text-sm"
-                  />
-                  <button disabled={busy} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
-                    Отправить жалобу
-                  </button>
-                </form>
-              )}
-
-              {reviewOpen && (
-                <form onSubmit={handleReview} className="space-y-2 mb-2">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button key={n} type="button" onClick={() => setRating(n as 1 | 2 | 3 | 4 | 5)}>
-                        <Star size={20} className={n <= rating ? "text-accent fill-accent" : "text-white/20"} />
-                      </button>
-                    ))}
-                  </div>
-                  <textarea
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Как всё прошло?"
-                    rows={2}
-                    className="input-field py-2 text-sm"
-                  />
-                  <button disabled={busy} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
-                    Отправить отзыв
-                  </button>
-                </form>
-              )}
-
-              <form onSubmit={handleSendChat} className="flex gap-2">
-                <input
-            autoComplete="off"
-                  value={chatText}
-                  onChange={(e) => setChatText(e.target.value)}
-                  placeholder="Написать сообщение..."
-                  className="input-field py-2 text-sm flex-1"
-                />
-                <button className="btn-primary px-3 py-2">
-                  <Send size={14} />
-                </button>
-              </form>
-            </>
           )}
+          <h1 className="text-2xl font-extrabold leading-tight mb-1.5 tracking-tight">Лучший магазин игровых предметов</h1>
+          <p className="text-white/50 text-sm">Roblox-предметы быстро, безопасно и по честным ценам</p>
         </div>
+
+        <Link
+          href="/profile/wheel"
+          className="block rounded-2xl p-4 relative overflow-hidden"
+          style={{ background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))" }}
+        >
+          <p className="text-black/60 text-[11px] font-semibold mb-1">Колесо фортуны</p>
+          <p className="text-black font-bold text-base">Крути и выигрывай предметы</p>
+        </Link>
+
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-sm font-semibold text-white/70">Игры</p>
+            <Link href="/games" className="text-accent text-xs">
+              Все игры →
+            </Link>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
+            {(loaded ? games.slice(0, 8) : Array.from({ length: 5 })).map((game, i) =>
+              loaded && game ? (
+                <Link key={(game as Game).id} href={`/catalog?game=${(game as Game).slug}`} className="flex-none flex flex-col items-center gap-1.5 w-14">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/30 ring-1 ring-white/5">
+                    <Image src={safeImageSrc((game as Game).image)} alt={(game as Game).name} fill className="object-cover" sizes="48px" />
+                  </div>
+                  <span className="text-[10px] text-center text-white/60 leading-tight truncate w-full">{(game as Game).name}</span>
+                </Link>
+              ) : (
+                <div key={i} className="flex-none w-12 h-12 rounded-xl bg-white/5 animate-pulse" />
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2.5">
+          <Link href="/catalog" className="btn-primary flex-1 py-3 text-sm text-center">
+            Начать покупки
+          </Link>
+          <Link href="/profile/sell" className="btn-secondary flex-1 py-3 text-sm text-center">
+            Продать предмет
+          </Link>
+        </div>
+      </section>
+
+      {/* Hero (десктоп) */}
+      <section className="hidden lg:block relative overflow-hidden border-b border-border">
+        <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 md:pt-24 pb-10 md:pb-12 grid md:grid-cols-2 gap-12 items-center relative">
+          <div>
+            {dealsCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-white/50 bg-white/5 px-3 py-1.5 rounded-full mb-4">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-5 ml-2">
+              <Sparkles size={14} /> №1 маркетплейс игровых предметов
+            </span>
+            <h1 className="text-4xl md:text-6xl font-extrabold leading-[1.1] mb-5 tracking-tight">
+              Лучший магазин
+              <br />
+              <span className="bg-gradient-to-r from-accent to-accent-light bg-clip-text text-transparent">
+                игровых предметов
+              </span>
+            </h1>
+            <p className="text-white/50 mb-8 max-w-md text-lg">
+              Покупай и продавай предметы из Roblox быстро, безопасно и по честным ценам — Grow a Garden, Adopt Me,
+              Blox Fruits и десятки других игр.
+            </p>
+            <div className="flex flex-wrap gap-3 mb-10">
+              <Link href="/catalog" className="btn-primary px-6 py-3.5 flex items-center gap-2 shadow-glow">
+                Начать покупки <ArrowRight size={18} />
+              </Link>
+              <Link href="/profile/sell" className="btn-secondary px-6 py-3.5">
+                Продать предмет
+              </Link>
+            </div>
+            <div className="flex gap-8">
+              {[
+                { label: "Безопасные сделки", value: "100%" },
+                { label: "Поддержка", value: "24/7" },
+                { label: "Доставка предметов", value: "~5 мин" },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <p className="text-xl font-bold text-accent">{stat.value}</p>
+                  <p className="text-xs text-white/40">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative pt-2">
+            {!loaded ? (
+              <div className="grid grid-cols-3 gap-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className={`rounded-2xl bg-white/5 animate-pulse h-32 ${i === 0 ? "col-span-2" : ""}`} />
+                ))}
+              </div>
+            ) : games.length === 0 ? (
+              <div className="relative w-56 h-56 md:w-72 md:h-72 mx-auto">
+                <Image src="/icons/logo-nobg.png" alt="Velox Trade" fill className="object-contain" sizes="288px" priority />
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                {games.slice(0, 5).map((game, i) => (
+                  <Link
+                    key={game.id}
+                    href={`/catalog?game=${game.slug}`}
+                    className={`relative card p-2.5 hover:-translate-y-1 transition-transform duration-300 ${i === 0 ? "col-span-2 row-span-1 -rotate-1 border-accent/60" : ""}`}
+                  >
+                    <div
+                      className="relative w-full rounded-xl overflow-hidden bg-black/30"
+                      style={{ height: i === 0 ? 96 : 76, borderLeft: `3px solid ${ACCENTS[i % ACCENTS.length]}` }}
+                    >
+                      <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="180px" />
+                      {i === 0 && (
+                        <span className="absolute top-1.5 left-1.5 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
+                          <Flame size={11} /> Хайп
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs font-medium mt-2 truncate">{game.name}</p>
+                  </Link>
+                ))}
+                <Link
+                  href="/games"
+                  className="card p-2.5 flex items-center justify-center text-accent text-xs font-medium bg-accent/5 border-accent/20 hover:bg-accent/10 transition-colors"
+                >
+                  Все игры →
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid sm:grid-cols-2 gap-4">
+        <AdSlotCard />
+        <QuickTopupCard />
+      </section>
+
+      {featured.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">⭐ Рекомендуем</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {featured.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
       )}
-    </div>
-  );
-}
 
-export default function OrdersPage() {
-  const { user, profile } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+      {/* Popular games */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold">Популярные игры</h2>
+          <Link href="/games" className="text-accent text-sm hover:underline">
+            Все игры →
+          </Link>
+        </div>
+        {!loaded ? (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card aspect-square animate-pulse bg-white/5" />
+            ))}
+          </div>
+        ) : games.length === 0 ? (
+          <div className="card p-10 text-center text-white/40">
+            Игры появятся здесь, как только администратор добавит их в админ-панели.
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+            {games.map((game) => (
+              <Link
+                key={game.id}
+                href={`/catalog?game=${game.slug}`}
+                className="card p-4 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300"
+              >
+                <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
+                  <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="56px" />
+                </div>
+                <span className="text-xs text-center text-white/70 leading-tight">{game.name}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
 
-  useEffect(() => {
-    if (!user) return;
-    getOrdersForUser(user.uid)
-      .then(setOrders)
-      .finally(() => setLoading(false));
-  }, [user]);
-
-  if (loading) return <div className="card p-10 text-center text-white/40">Загрузка истории...</div>;
-  if (orders.length === 0) return <div className="card p-10 text-center text-white/40">У вас пока нет заказов.</div>;
-
-  return (
-    <div className="space-y-3">
-      <h1 className="text-xl font-bold mb-2">История покупок</h1>
-      {orders.map((order) => (
-        <OrderCard key={order.id} order={order} buyerName={profile?.displayName ?? "Покупатель"} />
-      ))}
+      <RecentlyViewedSection />
+      <SiteRatingWidget />
     </div>
   );
 }
