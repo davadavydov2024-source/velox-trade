@@ -157,8 +157,6 @@ export async function POST(req: NextRequest) {
         });
         // Заявка на выдачу через бота-посредника — тот же механизм, что и для обычных покупок,
         // но с часовым лимитом (source: "wheel") — это правило именно выигрышей колеса.
-        // Способ выдачи всегда "bot": предмет разыгран колесом, продавца тут просить о выборе
-        // способа некому/незачем — эскроу обязателен.
         const deliveryCreatedAt = Date.now();
         tx.set(db.collection("deliveries").doc(orderRef.id), {
           orderId: orderRef.id,
@@ -168,7 +166,6 @@ export async function POST(req: NextRequest) {
           productId: chosen.productId,
           productName: product.name,
           gameId: product.gameId,
-          method: "bot",
           status: "awaiting_nickname",
           createdAt: deliveryCreatedAt,
           expiresAt: deliveryCreatedAt + DELIVERY_TIMEOUT_MS,

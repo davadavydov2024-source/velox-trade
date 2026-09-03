@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
-import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
@@ -42,15 +41,7 @@ export async function POST(req: NextRequest) {
       ? `💸 Цена на «${productName}» из избранного снизилась: ${oldPrice} → ${newPrice} ₽`
       : `📦 «${productName}» из избранного снова в наличии`;
 
-    const title = priceDropped ? "Цена снизилась" : "Снова в наличии";
-    const body = priceDropped ? `«${productName}»: ${oldPrice} → ${newPrice} ₽` : `«${productName}» — снова доступен`;
-
-    await Promise.all(
-      uids.map((uid) => {
-        notifyTelegramServer(uid, text);
-        return sendWebPush(uid, { title, body, url: `/product/${productId}` }, "reminders");
-      })
-    );
+    await Promise.all(uids.map((uid) => notifyTelegramServer(uid, text)));
 
     return NextResponse.json({ notified: uids.length });
   } catch (err) {

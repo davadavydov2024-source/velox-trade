@@ -37,8 +37,6 @@ const activeApp = resolveActiveApp();
 
 export const auth = getAuth(activeApp);
 export const db = getFirestore(activeApp);
-export { activeApp }; // нужен для firebase/messaging (см. lib/webPush.ts) — messaging тоже должен
-// смотреть на правильный (возможно неосновной) аккаунт при мультиаккаунте, как auth/db выше.
 // Firebase Storage больше не используется — загрузка файлов переведена на Vercel Blob
 // (см. src/lib/storage.ts), чтобы не требовать платный тариф Blaze.
 export const googleProvider = new GoogleAuthProvider();

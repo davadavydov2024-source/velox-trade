@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { auth } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { Game, Product } from "@/types";
 import { getActiveWheelProductIds } from "./wheelPrizes";
 
@@ -89,7 +88,7 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 export async function createProduct(data: Omit<Product, "id" | "createdAt">) {
-  const ref = await addDoc(productsCol, { ...stripUndefined(data), createdAt: Date.now() });
+  const ref = await addDoc(productsCol, { ...data, createdAt: Date.now() });
   // Уведомляем всех, у кого привязан Telegram, о новом товаре — не критично для основного
   // действия, поэтому не ждём и игнорируем ошибки (например, если это не админ, а обычный
   // клиент без прав — сервер сам вернёт 403 и просто ничего не разошлёт).

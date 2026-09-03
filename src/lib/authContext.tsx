@@ -7,7 +7,6 @@ import {
   signInWithCustomToken,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  getAdditionalUserInfo,
   signOut as fbSignOut,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -40,16 +39,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-/** Не критично для флоу входа — не ждём и не роняем регистрацию/вход, если это не удалось.
- * Капча (см. Captcha.tsx) проверяется РАНЬШЕ, на самой форме регистрации, до вызова register() —
- * здесь только логируем IP уже состоявшейся регистрации, отдельного токена капчи тут не нужно. */
-function logRegistrationIp(user: User) {
-  user
-    .getIdToken()
-    .then((idToken) => fetch("/api/auth/log-registration", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }))
-    .catch(() => {});
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -117,12 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await updateProfile(cred.user, { displayName: name });
     await sendEmailVerification(cred.user);
     await ensureUserProfile(cred.user.uid, email, name, undefined, language);
-    logRegistrationIp(cred.user);
   }
 
   async function loginWithGoogle() {
-    const cred = await signInWithPopup(auth, googleProvider);
-    if (getAdditionalUserInfo(cred)?.isNewUser) logRegistrationIp(cred.user);
+    await signInWithPopup(auth, googleProvider);
   }
 
   async function logout() {

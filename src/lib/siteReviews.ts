@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, query, orderBy, doc, deleteDoc, where } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { SiteReview } from "@/types";
 
 const siteReviewsCol = collection(db, "siteReviews");
@@ -16,7 +15,7 @@ export async function hasUserReviewedSite(userId: string): Promise<boolean> {
 }
 
 export async function createSiteReview(data: Omit<SiteReview, "id" | "createdAt">) {
-  return addDoc(siteReviewsCol, { ...stripUndefined(data), createdAt: Date.now() });
+  return addDoc(siteReviewsCol, { ...data, createdAt: Date.now() });
 }
 
 export async function deleteSiteReview(id: string) {

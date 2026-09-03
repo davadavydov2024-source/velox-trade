@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { AppNotification } from "@/types";
 
 const notificationsCol = collection(db, "notifications");
@@ -19,7 +18,7 @@ export async function getActiveNotifications(): Promise<AppNotification[]> {
 }
 
 export async function createNotification(data: Omit<AppNotification, "id" | "createdAt">) {
-  return addDoc(notificationsCol, { ...stripUndefined(data), createdAt: Date.now() });
+  return addDoc(notificationsCol, { ...data, createdAt: Date.now() });
 }
 
 export async function updateNotification(id: string, data: Partial<Omit<AppNotification, "id" | "createdAt">>) {

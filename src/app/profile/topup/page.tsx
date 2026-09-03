@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { createTopUpRequest, getUserTopUpRequests, getPendingPayouts } from "@/lib/users";
+import { createTopUpRequest, getUserTopUpRequests } from "@/lib/users";
 import { createPayment, getUserPayments, watchPayment, cancelPayment, cancelPaymentBeacon, sweepExpiredPayments } from "@/lib/payments";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { TopUpRequest, Payment, SiteScreen } from "@/types";
@@ -26,7 +26,6 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 const QUICK_AMOUNTS = [100, 300, 500, 1000, 2000, 5000];
-const MIN_WITHDRAW_AMOUNT = 800;
 
 const METHOD_OPTIONS: { value: TopUpRequest["method"]; label: string; icon: typeof QrCode }[] = [
   { value: "qr", label: "QR-код", icon: QrCode },
@@ -78,7 +77,6 @@ function TopUpPageInner() {
   const [requests, setRequests] = useState<TopUpRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [minTopup, setMinTopup] = useState(100);
-  const [pendingPayouts, setPendingPayouts] = useState<{ orderId: string; amount: number; releaseAt: number }[]>([]);
 
   useEffect(() => {
     getFeatureFlags().then((f) => {
@@ -92,7 +90,6 @@ function TopUpPageInner() {
     if (!user) return;
     refreshPayments();
     refreshRequests();
-    getPendingPayouts(user.uid).then(setPendingPayouts).catch(() => {});
   }, [user]);
 
   useEffect(() => {
@@ -221,10 +218,6 @@ function TopUpPageInner() {
     }
     if (num > profile.balance) {
       toast("error", "Сумма вывода больше доступного баланса");
-      return;
-    }
-    if (num < MIN_WITHDRAW_AMOUNT) {
-      toast("warning", `Минимальная сумма вывода — ${MIN_WITHDRAW_AMOUNT} ₽`);
       return;
     }
     setSubmittingWithdraw(true);
@@ -397,7 +390,6 @@ function TopUpPageInner() {
                   Вывод обрабатывается <strong>вручную администратором</strong> — после отправки жди, пока статус
                   изменится на «Одобрена». Администратор свяжется с тобой для уточнения реквизитов.
                 </p>
-                <p className="text-xs text-white/40 mt-2">Минимальная сумма вывода — {MIN_WITHDRAW_AMOUNT} ₽.</p>
                 <a
                   href={`https://t.me/${TELEGRAM_BOT}`}
                   target="_blank"
@@ -408,41 +400,17 @@ function TopUpPageInner() {
                 </a>
               </div>
 
-              {pendingPayouts.length > 0 && (
-                <div className="card p-5 border border-accent/20 bg-accent/5">
-                  <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
-                    <Clock size={14} className="text-accent" />
-                    Деньги в холде: {pendingPayouts.reduce((sum, p) => sum + p.amount, 0)} ₽
-                  </p>
-                  <p className="text-xs text-white/40 mb-3">
-                    После подтверждения получения покупателем деньги за продажу поступают на баланс не сразу, а через
-                    48 часов — это стандартная защита от спорных ситуаций. До зачисления их нельзя ни потратить, ни
-                    вывести.
-                  </p>
-                  <div className="space-y-1.5">
-                    {pendingPayouts.map((p) => (
-                      <div key={p.orderId} className="flex items-center justify-between text-xs">
-                        <span className="text-white/50">Заказ #{p.orderId.slice(0, 8)}</span>
-                        <span className="text-white/70">
-                          {p.amount} ₽ · поступит {new Date(p.releaseAt).toLocaleString("ru-RU")}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="card p-5">
                 <form onSubmit={handleWithdraw} className="space-y-4">
                   <div>
-                    <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽ (минимум {MIN_WITHDRAW_AMOUNT} ₽)</label>
+                    <label className="text-xs text-white/40 mb-1.5 block">Сумма, ₽</label>
                     <input
             autoComplete="off"
                       type="number"
-                      min={MIN_WITHDRAW_AMOUNT}
+                      min={1}
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
-                      placeholder={`Например, ${MIN_WITHDRAW_AMOUNT}`}
+                      placeholder="Например, 500"
                       className="input-field py-2.5"
                       required
                     />

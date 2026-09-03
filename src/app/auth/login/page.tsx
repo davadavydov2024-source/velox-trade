@@ -9,7 +9,6 @@ import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { QrDeviceLogin } from "@/components/QrDeviceLogin";
-import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -26,7 +25,7 @@ function translateAuthError(code?: string) {
 }
 
 function LoginInner() {
-  const { login, loginWithGoogle, loginWithCustomToken } = useAuth();
+  const { login, loginWithGoogle, loginWithApple, loginWithCustomToken } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,7 +33,6 @@ function LoginInner() {
   // устройства (/auth/link) — после логина нужно вернуться именно туда, а не в /profile.
   const redirectTo = searchParams.get("redirect") || "/profile";
   const [mode, setMode] = useState<"password" | "telegram" | "qr">("password");
-  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("bot");
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
 
   useEffect(() => {
@@ -83,6 +81,27 @@ function LoginInner() {
         toast("error", "Браузер заблокировал всплывающее окно входа. Разреши всплывающие окна для этого сайта.");
       } else {
         toast("error", "Не удалось войти через Google. Попробуй ещё раз.");
+      }
+    }
+  }
+
+  async function handleApple() {
+    try {
+      await loginWithApple();
+      toast("success", "Вы успешно вошли через Apple");
+      router.push(redirectTo);
+    } catch (err: any) {
+      if (err?.code === "auth/popup-closed-by-user") return;
+      if (err?.code === "auth/unauthorized-domain") {
+        toast("error", "Этот домен не добавлен в Firebase Authentication → Settings → Authorized domains.");
+      } else if (err?.code === "auth/popup-blocked") {
+        toast("error", "Браузер заблокировал всплывающее окно входа. Разреши всплывающие окна для этого сайта.");
+      } else if (err?.code === "auth/operation-not-allowed") {
+        toast("error", "Вход через Apple не настроен в Firebase — нужно включить провайдер Apple в Firebase Console.");
+      } else if (err?.code === "auth/account-exists-with-different-credential") {
+        toast("error", "Аккаунт с такой почтой уже зарегистрирован другим способом входа. Попробуй войти иначе.");
+      } else {
+        toast("error", "Не удалось войти через Apple. Попробуй ещё раз.");
       }
     }
   }
@@ -208,7 +227,7 @@ function LoginInner() {
               </button>
             </form>
 
-            {flags.googleLoginEnabled && (
+            {(flags.googleLoginEnabled || flags.appleLoginEnabled) && (
               <>
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px bg-border" />
@@ -217,91 +236,69 @@ function LoginInner() {
                 </div>
 
                 <div className="space-y-2">
-                  <button onClick={handleGoogle} className="btn-secondary w-full py-3">
-                    Войти через Google
-                  </button>
+                  {flags.googleLoginEnabled && (
+                    <button onClick={handleGoogle} className="btn-secondary w-full py-3">
+                      Войти через Google
+                    </button>
+                  )}
+                  {flags.appleLoginEnabled && (
+                    <button onClick={handleApple} className="btn-secondary w-full py-3 flex items-center justify-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true">
+                        <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+                      </svg>
+                      Войти через Apple
+                    </button>
+                  )}
                 </div>
               </>
             )}
           </>
         ) : (
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTelegramSubMode("widget")}
-                className={`flex-1 py-2 rounded-btn text-xs border transition-all ${
-                  telegramSubMode === "widget" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
-                }`}
-              >
-                Через Telegram
-              </button>
-              <button
-                type="button"
-                onClick={() => setTelegramSubMode("bot")}
-                className={`flex-1 py-2 rounded-btn text-xs border transition-all ${
-                  telegramSubMode === "bot" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
-                }`}
-              >
-                Через бота (код)
-              </button>
-            </div>
-
-            {telegramSubMode === "widget" ? (
-              <div className="space-y-3">
-                <p className="text-xs text-white/40">
-                  Один тап в Telegram — без email и кодов. Если аккаунта ещё нет, он создастся автоматически.
-                </p>
-                <TelegramLoginWidget />
-              </div>
+            <p className="text-xs text-white/40">
+              Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
+              вошёл).
+            </p>
+            {!codeSent ? (
+              <form onSubmit={handleRequestCode} className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={tgEmail}
+                    onChange={(e) => setTgEmail(e.target.value)}
+                    placeholder="Email аккаунта"
+                    className="input-field pl-10"
+                  />
+                </div>
+                <button disabled={tgSending} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
+                  <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
+                </button>
+              </form>
             ) : (
-              <>
-                <p className="text-xs text-white/40">
-                  Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
-                  вошёл).
-                </p>
-                {!codeSent ? (
-                  <form onSubmit={handleRequestCode} className="space-y-4">
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
-                      <input
-                        type="email"
-                        required
-                        autoComplete="email"
-                        value={tgEmail}
-                        onChange={(e) => setTgEmail(e.target.value)}
-                        placeholder="Email аккаунта"
-                        className="input-field pl-10"
-                      />
-                    </div>
-                    <button disabled={tgSending} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                      <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifyCode} className="space-y-4">
-                    <input
-                      required
-                      autoComplete="one-time-code"
-                      value={tgCode}
-                      onChange={(e) => setTgCode(e.target.value)}
-                      placeholder="Код из Telegram (6 цифр)"
-                      maxLength={6}
-                      className="input-field text-center tracking-[0.3em] font-mono text-lg"
-                    />
-                    <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
-                      {tgVerifying ? "Проверяем..." : "Войти"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCodeSent(false)}
-                      className="text-xs text-white/40 hover:text-white/70 w-full text-center"
-                    >
-                      Ввести другой email
-                    </button>
-                  </form>
-                )}
-              </>
+              <form onSubmit={handleVerifyCode} className="space-y-4">
+                <input
+                  required
+                  autoComplete="one-time-code"
+                  value={tgCode}
+                  onChange={(e) => setTgCode(e.target.value)}
+                  placeholder="Код из Telegram (6 цифр)"
+                  maxLength={6}
+                  className="input-field text-center tracking-[0.3em] font-mono text-lg"
+                />
+                <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
+                  {tgVerifying ? "Проверяем..." : "Войти"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCodeSent(false)}
+                  className="text-xs text-white/40 hover:text-white/70 w-full text-center"
+                >
+                  Ввести другой email
+                </button>
+              </form>
             )}
           </div>
         )}

@@ -40,11 +40,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
 
   // undefined — идёт первая загрузка, ничего не показываем, чтобы не мигало.
   // null — записи о выдаче нет вовсе (например, старый заказ до появления этой фичи) — тоже не показываем.
-  // method === "seller" и статус уже "delivered" — продавец выбрал выдачу без бота, площадка
-  // в дальнейшем не участвует: показывать тут нечего, дальше работает обычная кнопка
-  // "Подтвердить получение" в OrderChatThread.
   if (delivery === undefined || delivery === null) return null;
-  if (delivery.method === "seller") return null;
 
   const expired = isEffectivelyExpired(delivery);
 

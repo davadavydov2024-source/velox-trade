@@ -12,11 +12,9 @@ import {
   increment,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
-import { notifyPush } from "./webPushNotify";
 
 const usersCol = collection(db, "users");
 const ordersCol = collection(db, "orders");
@@ -97,22 +95,6 @@ export async function getAllUsers(): Promise<UserProfile[]> {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile);
 }
 
-/** Деньги за проданные товары, которые ещё висят в 48-часовом холде и пока не зачислены на
- * баланс — см. api/orders/confirm-receipt и api/cron/release-payouts. */
-export async function getPendingPayouts(sellerId: string): Promise<{ orderId: string; amount: number; releaseAt: number }[]> {
-  const snap = await getDocs(query(collection(db, "pendingPayouts"), where("sellerId", "==", sellerId), where("status", "==", "holding")));
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return { orderId: data.orderId, amount: data.amount, releaseAt: data.releaseAt };
-  });
-}
-
-/** Все записи о регистрациях с их IP — для /admin/registrations. См. api/auth/log-registration. */
-export async function getRegistrationLog(): Promise<{ uid: string; ip: string; userAgent: string; createdAt: number }[]> {
-  const snap = await getDocs(query(collection(db, "registrationLog"), orderBy("createdAt", "desc")));
-  return snap.docs.map((d) => d.data() as { uid: string; ip: string; userAgent: string; createdAt: number });
-}
-
 export async function setUserBalance(uid: string, newBalance: number) {
   return updateDoc(doc(db, "users", uid), { balance: newBalance });
 }
@@ -138,10 +120,8 @@ export async function setUserBan(uid: string, banned: boolean, reason?: string, 
   });
   if (banned) {
     notifyTelegram(uid, `🚫 Ваш аккаунт заблокирован.${reason ? `\nПричина: ${reason}` : ""}`);
-    notifyPush(uid, "Аккаунт заблокирован", reason || "Обратитесь в поддержку для уточнения причины.", "/profile", "messages");
   } else {
     notifyTelegram(uid, "✅ Блокировка аккаунта снята.");
-    notifyPush(uid, "Блокировка снята", "Ваш аккаунт снова активен.", "/profile", "messages");
   }
 }
 
@@ -151,7 +131,6 @@ export async function createOrder(order: Omit<Order, "id" | "createdAt">) {
   const ref = await addDoc(ordersCol, { ...order, createdAt: Date.now() });
   const itemsText = order.items.map((i) => `${i.name} × ${i.quantity}`).join(", ");
   notifyTelegram(order.userId, `✅ Покупка оформлена: ${itemsText}\nСумма: ${order.total} ₽`);
-  notifyPush(order.userId, "Покупка оформлена", `${itemsText} — ${order.total} ₽`, "/profile/orders", "purchases");
   return ref;
 }
 
@@ -181,24 +160,17 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   return { id: snap.id, ...snap.data() } as Order;
 }
 
-/** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв.
- * Деньги продавцу не зачисляются сразу — уходят в 48-часовой холд (см. api/orders/confirm-receipt
- * и api/cron/release-payouts), поэтому сама операция теперь на сервере, а не updateDoc с клиента. */
+/** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв. */
 export async function confirmOrderReceipt(order: Order, buyerName: string) {
-  const idToken = await auth.currentUser?.getIdToken();
-  if (!idToken) throw new Error("Нужно войти в аккаунт");
-  const res = await fetch("/api/orders/confirm-receipt", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ orderId: order.id }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Не удалось подтвердить получение");
-
+  await updateDoc(doc(db, "orders", order.id), { status: "confirmed", confirmedAt: Date.now() });
   await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.`);
+  notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.total} ₽.`);
   // Проверка достижений (например бейдж "buyer" за первую покупку) — не критично для основного
   // действия, поэтому не ждём и не роняем подтверждение заказа, если это не сработает.
-  fetch("/api/users/check-achievements", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }).catch(() => {});
+  auth.currentUser
+    ?.getIdToken()
+    .then((idToken) => fetch("/api/users/check-achievements", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }))
+    .catch(() => {});
 }
 
 /** Продавец отменяет ещё не подтверждённый заказ — деньги возвращаются покупателю, товар возвращается на склад. */
@@ -264,10 +236,7 @@ export async function updateProfileInfo(
 // ---- Top-up requests (ручное пополнение — заявка обрабатывается администратором вручную) ----
 
 export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
-  // Firestore не принимает undefined как значение поля (addDoc падает с "Unsupported field
-  // value: undefined") — comment/method необязательны и приходят как undefined, если человек их
-  // не заполнил, поэтому явно выкидываем такие ключи перед записью.
-  const ref = await addDoc(topUpsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
+  const ref = await addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
   const kind = data.type === "deposit" ? "пополнение" : "вывод";
   notifyAdminTelegram(`💰 Новая заявка на ${kind}: ${data.userNick} — ${data.amount} ₽`);
   return ref;

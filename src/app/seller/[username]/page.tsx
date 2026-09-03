@@ -11,7 +11,6 @@ import { getProducts } from "@/lib/products";
 import { Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
 import { safeImageSrc } from "@/lib/safeImage";
-import { formatLastSeen } from "@/lib/formatLastSeen";
 
 export default function SellerProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -65,8 +64,7 @@ export default function SellerProfilePage() {
             ))}
           </div>
           <p className="text-white/40 text-sm mb-2">
-            @{profile.username} ·{" "}
-            {profile.isOnline ? <span className="text-green-400">в сети</span> : formatLastSeen(profile.lastActiveAt)}
+            @{profile.username} · {profile.isOnline ? <span className="text-green-400">в сети</span> : "не в сети"}
           </p>
           {profile.bio && <p className="text-white/60 text-sm mb-2">{profile.bio}</p>}
           <div className="flex items-center gap-3 flex-wrap">

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Plus, Trash2, Edit3 } from "lucide-react";
 import { getProducts, createProduct, updateProduct, deleteProduct } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { Product, Rarity, RARITY_LABEL, DeliveryMethod } from "@/types";
+import { Product, Rarity, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
@@ -21,7 +21,6 @@ const EMPTY: Omit<Product, "id" | "createdAt"> = {
   price: 0,
   rarity: "common",
   stock: 0,
-  deliveryMethod: "seller",
 };
 
 export default function AdminProductsPage() {
@@ -193,14 +192,6 @@ export default function AdminProductsPage() {
                 {RARITY_LABEL[r]}
               </option>
             ))}
-          </select>
-          <select
-            value={form.deliveryMethod}
-            onChange={(e) => setForm({ ...form, deliveryMethod: e.target.value as DeliveryMethod })}
-            className="input-field py-2.5"
-          >
-            <option value="seller">Выдача: сам продавец</option>
-            <option value="bot">Выдача: через бота-посредника</option>
           </select>
           <label className="flex items-center gap-2 text-sm text-white/70">
             <input

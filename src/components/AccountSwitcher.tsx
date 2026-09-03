@@ -13,7 +13,6 @@ import {
   addAccountByEmail,
   addAccountByGoogle,
   MAX_ACCOUNTS,
-  goToProfileHard,
 } from "@/lib/multiAccount";
 import { useToast } from "@/lib/toastContext";
 
@@ -34,25 +33,10 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
     setBusy("email");
     try {
       await addAccountByEmail(email.trim(), password);
-      // Небольшая пауза перед window.location.href: раньше редирект стартовал в ту же
-      // микрозадачу, что и toast(...) — тост физически не успевал отрисоваться ни на один
-      // кадр до того, как браузер начинал перезагрузку страницы, и выглядело так, будто
-      // ничего не произошло (хотя аккаунт на самом деле уже добавился).
       toast("success", "Аккаунт добавлен, переключаемся...");
-      setTimeout(() => {
-        goToProfileHard();
-      }, 500);
+      window.location.href = "/profile";
     } catch (err: any) {
-      const code = err?.code;
-      const message =
-        code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"
-          ? "Неверный email или пароль"
-          : code === "auth/too-many-requests"
-            ? "Слишком много попыток входа — подожди немного и попробуй снова"
-            : code === "auth/user-disabled"
-              ? "Этот аккаунт заблокирован"
-              : err?.message || "Не удалось войти";
-      setError(message);
+      setError(err?.message?.includes("invalid-credential") || err?.code === "auth/invalid-credential" ? "Неверный email или пароль" : err?.message || "Не удалось войти");
       setBusy(null);
     }
   }
@@ -63,11 +47,9 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
     try {
       await addAccountByGoogle();
       toast("success", "Аккаунт добавлен, переключаемся...");
-      setTimeout(() => {
-        goToProfileHard();
-      }, 500);
+      window.location.href = "/profile";
     } catch (err: any) {
-      if (err?.message) setError(err.message); // пустое сообщение — юзер сам закрыл попап, молчим
+      setError(err?.message || "Не удалось войти через Google");
       setBusy(null);
     }
   }
@@ -162,9 +144,9 @@ export function AccountSwitcher() {
           >
             <button
               type="button"
-              onClick={() => switchAccount(acc.slotId)}
-              className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
-              title={isActive ? "Обновить сессию этого аккаунта" : "Переключиться на этот аккаунт"}
+              onClick={() => !isActive && switchAccount(acc.slotId)}
+              disabled={isActive}
+              className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:cursor-default"
             >
               <div className="relative w-7 h-7 rounded-full overflow-hidden bg-accent/20 flex-none flex items-center justify-center text-xs font-semibold text-accent">
                 {acc.photoURL ? <Image src={acc.photoURL} alt="" fill className="object-cover" sizes="28px" /> : initialsOf(acc.displayName)}

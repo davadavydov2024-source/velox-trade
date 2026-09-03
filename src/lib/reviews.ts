@@ -1,10 +1,8 @@
 import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { Review } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram } from "./telegramNotify";
-import { notifyPush } from "./webPushNotify";
 
 const reviewsCol = collection(db, "reviews");
 
@@ -18,7 +16,7 @@ export async function createReview(data: Omit<Review, "id" | "createdAt">) {
     throw new Error("review-already-submitted");
   }
 
-  await addDoc(reviewsCol, { ...stripUndefined(data), createdAt: Date.now() });
+  await addDoc(reviewsCol, { ...data, createdAt: Date.now() });
   await updateDoc(orderRef, { reviewSubmitted: true });
   await updateDoc(doc(db, "users", data.sellerId), {
     ratingSum: increment(data.rating),
@@ -35,7 +33,6 @@ export async function createReview(data: Omit<Review, "id" | "createdAt">) {
     `${stars} ${data.buyerName} оставил(а) отзыв${data.text ? `: «${data.text}»` : "."}`
   );
   notifyTelegram(data.sellerId, `${stars} Новый отзыв от покупателя${data.text ? `: «${data.text}»` : ""}`);
-  notifyPush(data.sellerId, "Новый отзыв", `${stars} ${data.text || "Покупатель оставил отзыв"}`, "/profile", "messages");
 }
 
 export async function getSellerReviews(sellerId: string): Promise<Review[]> {

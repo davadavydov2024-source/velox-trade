@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { SiteEvent } from "@/types";
 
 const eventsCol = collection(db, "events");
@@ -17,7 +16,7 @@ export async function getActiveEvent(): Promise<SiteEvent | null> {
 }
 
 export async function createEvent(data: Omit<SiteEvent, "id" | "createdAt">) {
-  return addDoc(eventsCol, { ...stripUndefined(data), createdAt: Date.now() });
+  return addDoc(eventsCol, { ...data, createdAt: Date.now() });
 }
 
 export async function updateEvent(id: string, data: Partial<Omit<SiteEvent, "id" | "createdAt">>) {

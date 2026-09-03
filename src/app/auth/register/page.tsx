@@ -13,8 +13,6 @@ import { createTelegramRegisterRequest } from "@/lib/telegramRegister";
 import { useLanguage, useLanguageStore } from "@/lib/languageStore";
 import { LANGUAGES } from "@/lib/i18n";
 import { useMascot } from "@/lib/mascotContext";
-import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
-import { Captcha } from "@/components/Captcha";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -45,8 +43,6 @@ function RegisterInner() {
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
   const [flagsLoaded, setFlagsLoaded] = useState(false);
   const [mode, setMode] = useState<"password" | "telegram">("password");
-  const [telegramSubMode, setTelegramSubMode] = useState<"widget" | "bot">("bot");
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   useEffect(() => {
     getFeatureFlags().then((f) => {
@@ -82,10 +78,6 @@ function RegisterInner() {
     e.preventDefault();
     if (password.length < 6) {
       toast("warning", "Пароль должен быть не короче 6 символов");
-      return;
-    }
-    if (!captchaToken) {
-      toast("warning", "Пройди проверку ниже — реши пример");
       return;
     }
     setLoading(true);
@@ -266,53 +258,11 @@ function RegisterInner() {
                 .
               </span>
             </label>
-            <Captcha onVerified={setCaptchaToken} />
-            <button disabled={loading || !agreed || !captchaToken} className="btn-primary w-full py-3 disabled:opacity-50">
+            <button disabled={loading || !agreed} className="btn-primary w-full py-3 disabled:opacity-50">
               {loading ? t("auth_submit_creating") : t("auth_submit_register")}
             </button>
           </form>
-        ) : telegramSubMode === "widget" ? (
-          <div className="space-y-3">
-            <div className="flex gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => setTelegramSubMode("widget")}
-                className="flex-1 py-2 rounded-btn text-xs border border-accent bg-accent/10 text-white"
-              >
-                Через Telegram
-              </button>
-              <button
-                type="button"
-                onClick={() => setTelegramSubMode("bot")}
-                className="flex-1 py-2 rounded-btn text-xs border border-transparent bg-surface text-white/50"
-              >
-                Через бота
-              </button>
-            </div>
-            <p className="text-xs text-white/40">
-              Один тап в Telegram — без email и кодов, аккаунт создастся автоматически.
-            </p>
-            <TelegramLoginWidget />
-          </div>
-        ) : (
-          <>
-            <div className="flex gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => setTelegramSubMode("widget")}
-                className="flex-1 py-2 rounded-btn text-xs border border-transparent bg-surface text-white/50"
-              >
-                Через Telegram
-              </button>
-              <button
-                type="button"
-                onClick={() => setTelegramSubMode("bot")}
-                className="flex-1 py-2 rounded-btn text-xs border border-accent bg-accent/10 text-white"
-              >
-                Через бота
-              </button>
-            </div>
-            {tgConfirmed ? (
+        ) : tgConfirmed ? (
           <div className="text-center py-4 space-y-4">
             <CheckCircle2 className="mx-auto text-green-400" size={36} />
             <p className="text-sm text-white/70">
@@ -370,8 +320,6 @@ function RegisterInner() {
             </button>
             <p className="text-xs text-white/30 text-center">Без пароля — вход будет по коду из Telegram.</p>
           </form>
-            )}
-          </>
         )}
 
         <p className="text-center text-sm text-white/40 mt-6">

@@ -104,14 +104,7 @@ export default function AdminSellRequestsPage() {
                     )}
                     {r.description && <p className="text-sm text-white/40 mb-1">{r.description}</p>}
                     <p className="text-xs text-white/40 mb-3">
-                      Кол-во: {r.stock ?? 1} шт. · Редкость: {RARITY_LABEL[r.rarity] ?? "Обычный"} · Выдача:{" "}
-                      {r.deliveryMethod === "bot" ? "через бота-посредника" : "сам продавец"}
-                      {r.auctionEnabled && (
-                        <>
-                          {" "}
-                          · 🔨 Аукцион: старт {r.auctionStartPrice ?? r.price} ₽, шаг {r.auctionMinStep ?? 10} ₽
-                        </>
-                      )}
+                      Кол-во: {r.stock ?? 1} шт. · Редкость: {RARITY_LABEL[r.rarity] ?? "Обычный"}
                     </p>
                     <div className="flex gap-2">
                       <button onClick={() => handleStatus(r, "approved")} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">

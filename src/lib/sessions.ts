@@ -2,7 +2,6 @@ import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where } fro
 import { db, auth } from "./firebase";
 import { UserSession } from "@/types";
 import { notifyTelegram } from "./telegramNotify";
-import { notifyPush } from "./webPushNotify";
 
 const DEVICE_ID_KEY = "vt_device_id";
 
@@ -75,7 +74,6 @@ export async function registerSession(uid: string): Promise<void> {
       uid,
       `🔔 Выполнен вход с нового устройства: ${deviceLabel}\n\nЕсли это были не вы — зайди в «Профиль → Безопасность» и заверши эту сессию.`
     );
-    notifyPush(uid, "Вход с нового устройства", deviceLabel, "/profile/security", "messages");
   } else {
     await updateDoc(ref, { lastActiveAt: now, deviceLabel });
   }

@@ -10,12 +10,9 @@ import { getOrderById, confirmOrderReceipt, cancelOrderBySeller } from "@/lib/us
 import { getProductById } from "@/lib/products";
 import { createDispute, getDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
-import { subscribeDelivery } from "@/lib/deliveries";
-import { getPublicProfileCached } from "@/lib/sellerCache";
-import { OrderChatMessage, Order, Dispute, Delivery } from "@/types";
+import { OrderChatMessage, Order, Dispute } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
-import Link from "next/link";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ожидает подтверждения", color: "#ff9800" },
@@ -52,14 +49,12 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
-  const [delivery, setDelivery] = useState<Delivery | null | undefined>(undefined);
   const [itemImage, setItemImage] = useState<string | null>(null);
   const [messages, setMessages] = useState<OrderChatMessage[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [dispute, setDispute] = useState<Dispute | null>(null);
-  const [counterpartUsername, setCounterpartUsername] = useState<string | null>(null);
 
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
@@ -83,27 +78,12 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
 
     // Живая подписка — новые сообщения появляются сами, без перезагрузки страницы.
     const unsub = subscribeOrderChat(orderId, (chat) => setMessages(chat?.messages ?? []));
-    // И на саму заявку выдачи — чтобы знать, можно ли показывать "Подтвердить получение"
-    // (при способе "через бота" это разрешено только после того, как бот реально выдал предмет).
-    const unsubDelivery = subscribeDelivery(orderId, setDelivery);
-    return () => {
-      unsub();
-      unsubDelivery();
-    };
+    return unsub;
   }, [orderId]);
 
   useEffect(() => {
     if (order?.status === "disputed") getDispute(order.id).then(setDispute).catch(() => {});
   }, [order?.status, order?.id]);
-
-  useEffect(() => {
-    if (!user || !order) return;
-    const counterpartId = order.userId === user.uid ? order.sellerId : order.userId;
-    if (counterpartId === "store") return;
-    getPublicProfileCached(counterpartId)
-      .then((p) => setCounterpartUsername(p?.username ?? null))
-      .catch(() => setCounterpartUsername(null));
-  }, [user, order]);
 
   const isBuyer = !!(user && order && order.userId === user.uid);
   const isSeller = !!(user && order && order.sellerId === user.uid);
@@ -205,13 +185,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
   return (
     <div>
       <div className="mb-3">
-        {counterpartUsername ? (
-          <Link href={`/seller/${counterpartUsername}`} className="font-bold hover:text-accent transition-colors">
-            {counterpartName}
-          </Link>
-        ) : (
-          <p className="font-bold">{counterpartName}</p>
-        )}
+        <p className="font-bold">{counterpartName}</p>
         <p className="text-xs text-white/40">Заказ #{orderId.slice(0, 8)}</p>
       </div>
 
@@ -312,15 +286,9 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
         <div className="flex flex-wrap gap-2 mb-3">
           {isBuyer && order.status === "pending_confirmation" && (
             <>
-              {/* Способ "сам" (или заявка ещё не существует — старые заказы до этой фичи) — кнопка
-                  доступна сразу, как раньше. Способ "через бота" — сначала нужно пройти весь флоу
-                  DeliveryPanel (ник → передача боту → админ подтверждает receive/deliver), кнопка
-                  подтверждения появляется только когда админ отметит delivery.status === "delivered". */}
-              {(delivery?.method !== "bot" || delivery?.status === "delivered") && (
-                <button onClick={handleConfirm} disabled={busy} className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5 disabled:opacity-50">
-                  <CheckCircle2 size={14} /> Подтвердить получение
-                </button>
-              )}
+              <button onClick={handleConfirm} disabled={busy} className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5 disabled:opacity-50">
+                <CheckCircle2 size={14} /> Подтвердить получение
+              </button>
               <button onClick={() => setDisputeOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
                 <AlertTriangle size={14} /> Открыть спор
               </button>

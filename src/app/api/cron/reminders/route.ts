@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
   const now = Date.now();
   let boostReminders = 0;
   let cartReminders = 0;
-  let auctionReminders = 0;
 
   // --- Буст закончился в последние 24 часа и продавцу ещё не напоминали ---
   try {
@@ -67,30 +66,5 @@ export async function GET(req: NextRequest) {
     console.error("cron cart reminder error:", err);
   }
 
-  // --- Аукцион со ставками идёт больше 24 часов без завершения — деньги лидера всё это время
-  // держатся заблокированными (held), поэтому продавцу настойчиво напоминаем не откладывать.
-  // Автоматически НЕ завершаем — момент окончания торгов сознательно оставлен на усмотрение
-  // продавца (см. api/auctions/end), тут только напоминание раз в 24 часа, пока он не завершит.
-  try {
-    const auctionsSnap = await db.collection("products").where("auctionStatus", "==", "active").get();
-    for (const doc of auctionsSnap.docs) {
-      const p = doc.data();
-      if (!p.auctionEnabled || !p.auctionBidCount) continue;
-      const createdAt = p.createdAt as number;
-      const lastReminderAt = (p.auctionReminderSentAt as number | undefined) ?? createdAt;
-      if (now - lastReminderAt < 24 * HOUR) continue;
-
-      await notifyTelegramServer(
-        p.sellerId,
-        `🔨 Аукцион «${p.name}» идёт уже больше суток (${p.auctionBidCount} ставок, текущая ${p.auctionCurrentPrice} ₽). Деньги лидера заблокированы, пока ты не завершишь торги — не забудь про это в личном кабинете.`
-      );
-      await sendWebPush(p.sellerId, { title: "Аукцион ждёт завершения", body: `«${p.name}» — ${p.auctionCurrentPrice} ₽, ${p.auctionBidCount} ставок`, url: `/product/${doc.id}` }, "reminders");
-      await doc.ref.update({ auctionReminderSentAt: now });
-      auctionReminders++;
-    }
-  } catch (err) {
-    console.error("cron auction reminder error:", err);
-  }
-
-  return NextResponse.json({ ok: true, boostReminders, cartReminders, auctionReminders });
+  return NextResponse.json({ ok: true, boostReminders, cartReminders });
 }

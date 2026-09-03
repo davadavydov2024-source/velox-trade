@@ -1,4 +1,4 @@
-﻿import {
+import {
   collection,
   doc,
   getDocs,
@@ -9,7 +9,6 @@
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { Ad } from "@/types";
 
 const adsCol = collection(db, "ads");
@@ -23,7 +22,7 @@ export async function getAds(activeOnly = false): Promise<Ad[]> {
 }
 
 export async function createAd(data: Omit<Ad, "id" | "createdAt">) {
-  return addDoc(adsCol, { ...stripUndefined(data), createdAt: Date.now() });
+  return addDoc(adsCol, { ...data, createdAt: Date.now() });
 }
 
 export async function updateAd(id: string, data: Partial<Ad>) {

@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/authContext";
 import { getOrdersForSeller, cancelOrderBySeller } from "@/lib/users";
-import { subscribeOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
+import { getOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
 import { createDispute, getDispute } from "@/lib/disputes";
 import { getPublicProfileCached } from "@/lib/sellerCache";
 import { Order, OrderChatMessage, Dispute } from "@/types";
 import { useToast } from "@/lib/toastContext";
-import { MessageCircle, AlertTriangle, Ban, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageCircle, AlertTriangle, Ban } from "lucide-react";
 import { SalesChart } from "@/components/SalesChart";
 import { useMascot } from "@/lib/mascotContext";
 
@@ -28,7 +28,7 @@ function SaleCard({ order }: { order: Order }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<OrderChatMessage[]>([]);
   const [chatText, setChatText] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -43,32 +43,31 @@ function SaleCard({ order }: { order: Order }) {
     });
   }, [order.userId]);
 
-  // Живая подписка — сообщения обновляются сами без перезагрузки
-  useEffect(() => {
-    const unsub = subscribeOrderChat(order.id, (chat) => {
-      setMessages(chat?.messages ?? []);
-    });
-    return unsub;
-  }, [order.id]);
-
-  // Автоскролл вниз при новых сообщениях
-  useEffect(() => {
-    if (chatOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, chatOpen]);
-
   useEffect(() => {
     if (status === "disputed") {
       getDispute(order.id).then(setDispute).catch(() => {});
     }
   }, [status, order.id]);
 
+  async function toggleChat() {
+    if (!chatOpen) {
+      setChatLoading(true);
+      try {
+        const chat = await getOrderChat(order.id);
+        setMessages(chat?.messages ?? []);
+      } finally {
+        setChatLoading(false);
+      }
+    }
+    setChatOpen((v) => !v);
+  }
+
   async function handleSendChat(e: React.FormEvent) {
     e.preventDefault();
     if (!chatText.trim()) return;
     const text = chatText.trim();
     setChatText("");
+    setMessages((m) => [...m, { from: "seller", text, createdAt: Date.now() }]);
     try {
       await sendOrderChatMessage(order.id, order.userId, order.sellerId, "seller", text);
     } catch {
@@ -140,86 +139,90 @@ function SaleCard({ order }: { order: Order }) {
         </div>
       )}
 
-      {/* Кнопки действий — видны сразу, не спрятаны в чате */}
       <div className="flex flex-wrap gap-2 mt-3">
-        {status === "pending_confirmation" && (
-          <>
-            <button onClick={() => setCancelOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-              <Ban size={14} /> Отменить заказ
-            </button>
-            <button onClick={() => setDisputeOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-              <AlertTriangle size={14} /> Пожаловаться на покупателя
-            </button>
-          </>
-        )}
-        {/* Кнопка чата — только для активных заказов */}
-        {status !== "cancelled" && (
-          <button onClick={() => setChatOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-            <MessageCircle size={14} />
-            {chatOpen ? <><ChevronUp size={14} /> Скрыть чат</> : <><ChevronDown size={14} /> Чат с покупателем</>}
-          </button>
-        )}
+        <button onClick={toggleChat} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
+          <MessageCircle size={14} /> Чат с покупателем
+        </button>
       </div>
-
-      {cancelOpen && (
-        <form onSubmit={handleCancel} className="space-y-2 mt-3">
-          <textarea
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="Причина отмены (необязательно)"
-            rows={2}
-            className="input-field py-2 text-sm"
-          />
-          <button disabled={busy} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
-            Отменить и вернуть деньги
-          </button>
-        </form>
-      )}
-
-      {disputeOpen && (
-        <form onSubmit={handleDispute} className="space-y-2 mt-3">
-          <textarea
-            value={disputeReason}
-            onChange={(e) => setDisputeReason(e.target.value)}
-            placeholder="Опиши проблему с этим покупателем"
-            rows={2}
-            className="input-field py-2 text-sm"
-          />
-          <button disabled={busy} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
-            Отправить жалобу
-          </button>
-        </form>
-      )}
 
       {chatOpen && (
         <div className="mt-3 border-t border-border pt-3">
-          <div className="space-y-2 max-h-56 overflow-y-auto mb-2">
-            {messages.length === 0 ? (
-              <p className="text-xs text-white/30">Сообщений пока нет.</p>
-            ) : (
-              messages.map((m, i) =>
-                m.from === "system" ? (
-                  <p key={i} className="text-xs text-center text-white/40 italic py-1">{m.text}</p>
+          {chatLoading ? (
+            <p className="text-xs text-white/30">Загрузка чата...</p>
+          ) : (
+            <>
+              <div className="space-y-2 max-h-56 overflow-y-auto mb-2">
+                {messages.length === 0 ? (
+                  <p className="text-xs text-white/30">Сообщений пока нет.</p>
                 ) : (
-                  <div key={i} className={`text-sm max-w-[80%] px-3 py-2 rounded-btn ${m.from === "seller" ? "bg-accent/15 ml-auto text-right" : "bg-surface"}`}>
-                    <p className="text-[10px] text-white/30 mb-0.5">{m.from === "seller" ? "Ты" : m.from === "admin" ? "Админ" : buyerName}</p>
-                    {m.text}
-                  </div>
-                )
-              )
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-          <form onSubmit={handleSendChat} className="flex gap-2">
-            <input
-              autoComplete="off"
-              value={chatText}
-              onChange={(e) => setChatText(e.target.value)}
-              placeholder="Написать сообщение..."
-              className="input-field py-2 text-sm flex-1"
-            />
-            <button className="btn-primary px-3 py-2"><Send size={14} /></button>
-          </form>
+                  messages.map((m, i) =>
+                    m.from === "system" ? (
+                      <p key={i} className="text-xs text-center text-white/40 italic py-1">{m.text}</p>
+                    ) : (
+                      <div key={i} className={`text-sm max-w-[80%] px-3 py-2 rounded-btn ${m.from === "seller" ? "bg-accent/15 ml-auto text-right" : "bg-surface"}`}>
+                        <p className="text-[10px] text-white/30 mb-0.5">{m.from === "seller" ? "Ты" : m.from === "admin" ? "Админ" : buyerName}</p>
+                        {m.text}
+                      </div>
+                    )
+                  )
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-2">
+                {status === "pending_confirmation" && (
+                  <>
+                    <button onClick={() => setCancelOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
+                      <Ban size={14} /> Отменить заказ
+                    </button>
+                    <button onClick={() => setDisputeOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
+                      <AlertTriangle size={14} /> Пожаловаться на покупателя
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {cancelOpen && (
+                <form onSubmit={handleCancel} className="space-y-2 mb-2">
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Причина отмены (необязательно)"
+                    rows={2}
+                    className="input-field py-2 text-sm"
+                  />
+                  <button disabled={busy} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
+                    Отменить и вернуть деньги
+                  </button>
+                </form>
+              )}
+
+              {disputeOpen && (
+                <form onSubmit={handleDispute} className="space-y-2 mb-2">
+                  <textarea
+                    value={disputeReason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    placeholder="Опиши проблему с этим покупателем"
+                    rows={2}
+                    className="input-field py-2 text-sm"
+                  />
+                  <button disabled={busy} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
+                    Отправить жалобу
+                  </button>
+                </form>
+              )}
+
+              <form onSubmit={handleSendChat} className="flex gap-2">
+                <input
+            autoComplete="off"
+                  value={chatText}
+                  onChange={(e) => setChatText(e.target.value)}
+                  placeholder="Написать сообщение..."
+                  className="input-field py-2 text-sm flex-1"
+                />
+                <button className="btn-primary px-3 py-2">Отправить</button>
+              </form>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -237,6 +240,10 @@ export default function SalesPage() {
     getOrdersForSeller(user.uid)
       .then((list) => {
         setOrders(list);
+        // Продавец и покупатель — разные люди в разных вкладках, поэтому "живого" пуша в
+        // момент продажи нет технически. Вместо этого сравниваем список заказов с тем, что
+        // видели в прошлый раз (храним локально у продавца в браузере) — если появились новые
+        // заказы с прошлого визита на эту страницу, показываем маскота прямо сейчас.
         try {
           const key = `vt_seen_orders_${user.uid}`;
           const seenRaw = localStorage.getItem(key);
@@ -245,7 +252,9 @@ export default function SalesPage() {
             if (list.some((o) => !seen.has(o.id))) celebrate("sale");
           }
           localStorage.setItem(key, JSON.stringify(list.map((o) => o.id)));
-        } catch {}
+        } catch {
+          // localStorage недоступен (приватный режим и т.п.) — просто не показываем маскота.
+        }
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps

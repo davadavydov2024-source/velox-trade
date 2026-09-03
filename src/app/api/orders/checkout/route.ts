@@ -39,11 +39,6 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < lines.length; i++) {
       const snap = productSnaps[i];
       if (!snap.exists) return NextResponse.json({ error: "Один из товаров больше не существует" }, { status: 400 });
-      // Аукционные товары продаются только через торги (см. api/auctions/*) — обычный чекаут
-      // обходил бы аукцион и позволял купить лот по цене продавца, минуя ставки.
-      if (snap.data()?.auctionEnabled) {
-        return NextResponse.json({ error: `«${snap.data()?.name}» продаётся через аукцион — сделай ставку на странице товара` }, { status: 400 });
-      }
       const stock = snap.data()?.stock ?? 0;
       if (stock < lines[i].quantity) {
         return NextResponse.json({ error: `«${snap.data()?.name}» — в наличии всего ${stock} шт.` }, { status: 400 });
@@ -58,7 +53,6 @@ export async function POST(req: NextRequest) {
       gameId: string;
       image?: string;
       discountPercent?: number;
-      deliveryMethod?: "seller" | "bot"; // старые товары до этой фичи — трактуем как "seller"
     }[];
     const imageByProductId = new Map(products.map((p) => [p.id, p.image]));
 
@@ -97,11 +91,6 @@ export async function POST(req: NextRequest) {
     // были привязаны к конкретной сделке (как и раньше на клиенте).
     const bySeller = new Map<string, { productId: string; name: string; price: number; quantity: number }[]>();
     const gameIdBySeller = new Map<string, string>(); // для карточки выдачи — берём игру первого товара в группе
-    // Способ выдачи задаётся один раз продавцом при создании товара (Product.deliveryMethod), а не
-    // на каждый заказ. Если в одном заказе у продавца смешались товары с разными способами —
-    // перестраховываемся в сторону защиты сделки: достаточно одного "bot" в группе, чтобы вся
-    // заявка на выдачу пошла через бота-посредника.
-    const deliveryMethodBySeller = new Map<string, "seller" | "bot">();
     products.forEach((p, i) => {
       const unitPrice = +(p.discountPercent ? p.price * (1 - p.discountPercent / 100) : p.price).toFixed(2);
       const sellerId = p.sellerId || "store";
@@ -109,9 +98,6 @@ export async function POST(req: NextRequest) {
       group.push({ productId: p.id, name: p.name, price: unitPrice, quantity: lines[i].quantity });
       bySeller.set(sellerId, group);
       if (!gameIdBySeller.has(sellerId)) gameIdBySeller.set(sellerId, p.gameId);
-      const method = p.deliveryMethod === "bot" ? "bot" : "seller";
-      const current = deliveryMethodBySeller.get(sellerId);
-      if (current !== "bot") deliveryMethodBySeller.set(sellerId, method);
     });
     const discountRatio = subtotal > 0 ? finalTotal / subtotal : 1;
 
@@ -148,14 +134,10 @@ export async function POST(req: NextRequest) {
         });
         ids.push(orderRef.id);
 
-        // Заявка на выдачу (см. /admin/deliveries). Один Delivery на весь заказ — сколько бы
-        // товаров одного продавца в нём ни было. Способ выдачи уже известен из товара
-        // (Product.deliveryMethod) — ничего выбирать заново не нужно. "bot" сразу стартует с
-        // awaiting_nickname (ждём ник покупателя), "seller" сразу закрывается как delivered —
-        // площадка в сделке не участвует, дальше работает обычная кнопка "Подтвердить получение".
+        // Заявка на выдачу через бота-посредника (см. /admin/bot-accounts и /admin/deliveries).
+        // Один Delivery на весь заказ — сколько бы товаров одного продавца в нём ни было.
         // Часовой лимит на выдачу — только для призов колеса фортуны (см. api/wheel/spin),
         // обычная покупка не имеет срока: expiresAt не задаём вовсе.
-        const method = deliveryMethodBySeller.get(sellerId) ?? "seller";
         tx.set(db.collection("deliveries").doc(orderRef.id), {
           orderId: orderRef.id,
           source: "purchase",
@@ -164,8 +146,7 @@ export async function POST(req: NextRequest) {
           productId: items[0].productId,
           productName: items.map((it) => it.name).join(", "),
           gameId: gameIdBySeller.get(sellerId) ?? "",
-          method,
-          status: method === "bot" ? "awaiting_nickname" : "delivered",
+          status: "awaiting_nickname",
           createdAt: Date.now(),
         });
 

@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { BotAccount } from "@/types";
 
 const col = collection(db, "botAccounts");
@@ -17,7 +16,7 @@ export async function getActiveBotAccountsForGame(gameId: string): Promise<BotAc
 }
 
 export async function createBotAccount(data: Omit<BotAccount, "id" | "createdAt">) {
-  return addDoc(col, { ...stripUndefined(data), createdAt: Date.now() });
+  return addDoc(col, { ...data, createdAt: Date.now() });
 }
 
 export async function updateBotAccount(id: string, changes: Partial<BotAccount>) {

@@ -91,8 +91,7 @@ export async function POST(req: NextRequest) {
 
       tx.update(tradeRef, { status: "accepted", respondedAt: Date.now() });
 
-      // Leg A: fromUser получает запрошенный товар, toUser его отдаёт. Прямой обмен всегда идёт
-      // через бота — тут нет обычного "продавца", который мог бы заранее выбрать способ выдачи.
+      // Leg A: fromUser получает запрошенный товар, toUser его отдаёт.
       const legARef = db.collection("deliveries").doc(`${tradeId}_a`);
       tx.set(legARef, {
         orderId: legARef.id,
@@ -103,7 +102,6 @@ export async function POST(req: NextRequest) {
         productId: trade.requestedProductId,
         productName: trade.requestedProductName,
         gameId: trade.requestedGameId,
-        method: "bot",
         status: "awaiting_nickname",
         createdAt: Date.now(),
       });
@@ -119,7 +117,6 @@ export async function POST(req: NextRequest) {
         productId: trade.offeredProductId,
         productName: trade.offeredProductName,
         gameId: trade.offeredGameId,
-        method: "bot",
         status: "awaiting_nickname",
         createdAt: Date.now(),
       });

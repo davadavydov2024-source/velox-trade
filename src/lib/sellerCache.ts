@@ -9,7 +9,6 @@ export interface PublicProfile {
   ratingCount: number;
   createdAt: number | null;
   isOnline: boolean;
-  lastActiveAt: number | null;
 }
 
 const cache = new Map<string, Promise<PublicProfile | null>>();

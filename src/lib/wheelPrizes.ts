@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { stripUndefined } from "./stripUndefined";
 import { WheelPrize } from "@/types";
 
 const prizesCol = collection(db, "wheelPrizes");
@@ -27,7 +26,7 @@ export async function getActiveWheelProductIds(): Promise<Set<string>> {
 }
 
 export async function createWheelPrize(data: Omit<WheelPrize, "id" | "createdAt">) {
-  return addDoc(prizesCol, { ...stripUndefined(data), createdAt: Date.now() });
+  return addDoc(prizesCol, { ...data, createdAt: Date.now() });
 }
 
 export async function updateWheelPrize(id: string, changes: Partial<WheelPrize>) {
