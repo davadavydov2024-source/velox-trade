@@ -28,6 +28,8 @@ import {
   Bot,
   PackageCheck,
   ArrowLeftRight,
+  Shield,
+  Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
@@ -52,6 +54,8 @@ const NAV = [
   { href: "/admin/notifications", label: "Уведомления", icon: Bell },
   { href: "/admin/site-reviews", label: "Отзывы о сайте", icon: Star },
   { href: "/admin/maintenance", label: "Закрывающие экраны", icon: PowerOff },
+  { href: "/admin/registrations", label: "IP регистраций", icon: Shield },
+  { href: "/admin/contests", label: "Конкурсы", icon: Trophy },
   { href: "/admin/settings", label: "Настройки сайта", icon: Settings },
   { href: "/admin/features", label: "Функции", icon: SlidersHorizontal },
 ];

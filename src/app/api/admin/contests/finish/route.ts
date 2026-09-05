@@ -10,8 +10,7 @@ function isAdminUid(uid: string): boolean {
 }
 
 /** Ручное завершение конкурса с сайта (/admin/contests) — победители выбираются случайно из всех
- * участников, как и раньше (см. lib/telegramContests.ts → finishContest), просто триггер теперь
- * только этот роут, а не автоматика по времени/числу участников или кнопка в самом боте. */
+ * участников (см. lib/telegramContests.ts → finishContest). */
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");

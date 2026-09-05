@@ -95,6 +95,12 @@ export async function getAllUsers(): Promise<UserProfile[]> {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile);
 }
 
+/** Все записи о регистрациях с их IP — для /admin/registrations. См. api/auth/log-registration. */
+export async function getRegistrationLog(): Promise<{ uid: string; ip: string; userAgent: string; createdAt: number }[]> {
+  const snap = await getDocs(query(collection(db, "registrationLog"), orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => d.data() as { uid: string; ip: string; userAgent: string; createdAt: number });
+}
+
 export async function setUserBalance(uid: string, newBalance: number) {
   return updateDoc(doc(db, "users", uid), { balance: newBalance });
 }

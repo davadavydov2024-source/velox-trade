@@ -10,18 +10,15 @@ function getAdminUids(): string[] {
   return (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-// Порог, после которого считаем IP подозрительным на мультиаккаунтинг/накрутку и шлём алерт
-// админам. Не блокирует регистрацию — только оповещает, окончательное решение (бан, проверка)
-// остаётся за админом в /admin/registrations.
 const SUSPICIOUS_THRESHOLD = 3;
 
 /**
- * Вызывается клиентом сразу после успешной регистрации (см. authContext.tsx → register()) —
- * саму регистрацию делает Firebase Auth SDK напрямую с клиента (это стандартный путь и его не
- * стоит оборачивать сервером), а этот роут только фиксирует IP регистрации отдельной записью в
- * коллекции registrationLog, чтобы админ мог видеть все IP и обнаруживать паттерны абьюза.
- * Капча (см. Captcha.tsx) проверяется на форме регистрации ДО этого момента — здесь её проверять
- * уже поздно и незачем, аккаунт к этому вызову уже реально создан в Firebase Auth.
+ * Вызывается клиентом сразу после успешной регистрации (email/пароль, Google) — саму регистрацию
+ * делает Firebase Auth SDK напрямую с клиента, а этот роут только фиксирует IP регистрации
+ * отдельной записью в коллекции registrationLog, чтобы админ мог видеть все IP и обнаруживать
+ * паттерны абьюза (см. /admin/registrations). Регистрация через Telegram логируется отдельно, в
+ * момент создания аккаунта на сервере (см. api/auth/telegram-widget и api/telegram/webhook), где
+ * IP тоже доступен напрямую.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -36,9 +33,6 @@ export async function POST(req: NextRequest) {
     const ip = getClientIp(req);
     const db = adminDb();
 
-    // Идемпотентность: один пользователь может дёрнуть этот роут максимум один раз за свою
-    // регистрацию, но на случай двойного вызова (например, повторный рендер клиента) не пишем
-    // вторую запись — id документа равен uid.
     const logRef = db.collection("registrationLog").doc(uid);
     const existing = await logRef.get();
     if (existing.exists) return NextResponse.json({ ok: true, alreadyLogged: true });
@@ -50,7 +44,6 @@ export async function POST(req: NextRequest) {
       createdAt: Date.now(),
     });
 
-    // Считаем, сколько всего регистраций было с этого IP (включая только что созданную).
     const sameIpSnap = await db.collection("registrationLog").where("ip", "==", ip).get();
     const count = sameIpSnap.size;
 
@@ -65,8 +58,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, sameIpCount: count });
   } catch (err) {
     console.error("auth/log-registration error:", err);
-    // Не критично для основного флоу регистрации — пользователь уже зарегистрирован, просто не
-    // залогировался IP в этот раз. Возвращаем 200, чтобы клиент не показывал ошибку из-за этого.
     return NextResponse.json({ ok: false });
   }
 }

@@ -54,9 +54,9 @@ export default function AdminContestsPage() {
         <Gift size={22} /> Конкурсы в Telegram-боте
       </h1>
       <p className="text-sm text-white/40 max-w-2xl mb-5">
-        Создаются командой «Конкурсы» в самом боте (мастер по шагам). Здесь — список всех конкурсов, их участники и
-        кнопка ручного подведения итогов. Автозавершения нет — конкурс остаётся активным, пока ты сам не нажмёшь
-        «Подвести итоги».
+        Создаются командой «Конкурсы» в самом боте (мастер по шагам). Здесь — список всех конкурсов, счётчик
+        участников каждого и кнопка ручного подведения итогов. Автозавершения нет — конкурс остаётся активным, пока
+        ты сам не нажмёшь «Подвести итоги».
       </p>
 
       {loading ? (
@@ -75,6 +75,13 @@ export default function AdminContestsPage() {
                     {c.status === "active" ? "🟢 Активен" : "🏁 Завершён"}
                   </p>
                 </div>
+                {/* Заметный счётчик участников — главный запрошенный элемент этой страницы */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent font-semibold text-sm shrink-0">
+                  <Users size={15} /> {c.entries.length}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
                 {c.status === "active" ? (
                   <button
                     onClick={() => handleFinish(c.id)}
@@ -92,7 +99,7 @@ export default function AdminContestsPage() {
 
               <div className="border-t border-border pt-3">
                 <p className="text-xs text-white/50 mb-2 flex items-center gap-1.5">
-                  <Users size={13} /> Участники ({c.entries.length})
+                  <Users size={13} /> Список участников ({c.entries.length})
                 </p>
                 {c.entries.length === 0 ? (
                   <p className="text-xs text-white/30">Пока никто не участвует.</p>
@@ -107,15 +114,17 @@ export default function AdminContestsPage() {
                             {e.firstName}
                             {e.telegramUsername && ` (@${e.telegramUsername})`}
                           </span>
-                          <a
-                            href={`https://t.me/${e.telegramUsername ?? ""}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-white/30 hover:text-white/60"
-                            title="Открыть чат в Telegram"
-                          >
-                            <ExternalLink size={12} />
-                          </a>
+                          {e.telegramUsername && (
+                            <a
+                              href={`https://t.me/${e.telegramUsername}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-white/30 hover:text-white/60"
+                              title="Открыть чат в Telegram"
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
                         </div>
                       );
                     })}

@@ -13,7 +13,7 @@ interface LogEntry {
   createdAt: number;
 }
 
-const SUSPICIOUS_THRESHOLD = 3; // тот же порог, что и в api/auth/log-registration — держим синхронно
+const SUSPICIOUS_THRESHOLD = 3;
 
 export default function AdminRegistrationsPage() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -32,8 +32,6 @@ export default function AdminRegistrationsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Сколько раз встречается каждый IP — используется и для фильтра "только подозрительные",
-  // и для бейджа количества рядом с каждой записью.
   const ipCounts = useMemo(() => {
     const map = new Map<string, number>();
     entries.forEach((e) => map.set(e.ip, (map.get(e.ip) ?? 0) + 1));
@@ -63,8 +61,7 @@ export default function AdminRegistrationsPage() {
       <h1 className="text-2xl font-bold mb-1">IP-адреса регистраций</h1>
       <p className="text-sm text-white/40 max-w-2xl mb-5">
         Список всех зарегистрированных аккаунтов с IP-адресом, с которого они регистрировались. При{" "}
-        {SUSPICIOUS_THRESHOLD}+ регистрациях с одного IP админам автоматически приходит уведомление
-        (Telegram/push) — сюда можно зайти и проверить детали в любой момент.
+        {SUSPICIOUS_THRESHOLD}+ регистрациях с одного IP админам автоматически приходит уведомление.
       </p>
 
       {suspiciousIpCount > 0 && (
