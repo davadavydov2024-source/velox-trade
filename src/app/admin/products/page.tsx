@@ -21,6 +21,7 @@ const EMPTY: Omit<Product, "id" | "createdAt"> = {
   price: 0,
   rarity: "common",
   stock: 0,
+  deliveryMethod: "seller",
 };
 
 export default function AdminProductsPage() {
