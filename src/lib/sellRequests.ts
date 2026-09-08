@@ -1,13 +1,15 @@
-import { collection, addDoc, getDocs, query, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, deleteDoc, where } from "firebase/firestore";
 import { db } from "./firebase";
+import { stripUndefined } from "./stripUndefined";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
 import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
+import { notifyPush } from "./webPushNotify";
 
 const sellRequestsCol = collection(db, "sellRequests");
 
 export async function createSellRequest(data: Omit<SellRequest, "id" | "createdAt" | "status">) {
-  const ref = await addDoc(sellRequestsCol, { ...data, status: "pending", createdAt: Date.now() });
+  const ref = await addDoc(sellRequestsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
   notifyAdminTelegram(`🏷️ Новая заявка на продажу: «${data.itemName}» от ${data.userNick} — ${data.price} ₽`);
   return ref;
 }
@@ -50,9 +52,21 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
     price: request.price,
     rarity: request.rarity ?? "common",
     stock: request.stock ?? 1,
-    ...(request.discountPercent ? { discountPercent: request.discountPercent } : {}),
+    deliveryMethod: request.deliveryMethod ?? "seller",
+    ...(request.discountPercent && !request.auctionEnabled ? { discountPercent: request.discountPercent } : {}),
+    ...(request.auctionEnabled
+      ? {
+          auctionEnabled: true,
+          auctionStatus: "active" as const,
+          auctionStartPrice: request.auctionStartPrice ?? request.price,
+          auctionCurrentPrice: request.auctionStartPrice ?? request.price,
+          auctionMinStep: request.auctionMinStep ?? 10,
+          auctionBidCount: 0,
+        }
+      : {}),
   });
   await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });
   notifyTelegram(request.userId, `✅ Заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге!`);
+  notifyPush(request.userId, "Заявка одобрена", `«${request.itemName}» — товар уже в каталоге.`, `/product/${productRef.id}`, "messages");
   return productRef.id;
 }
