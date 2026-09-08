@@ -203,7 +203,10 @@ export async function handleContestJoin(contestId: string, chatId: number, first
 
 /** Вызывается из cron (см. api/cron/reminders — туда добавлена проверка истёкших по времени
  * конкурсов) и напрямую из handleContestJoin для конкурсов "по количеству участников". */
-export async function finishContest(contestId: string) {
+/** Подводит итоги конкурса. Если manualWinnerChatIds передан (см. api/admin/contests/finish) —
+ * победители именно эти люди (ручной выбор админом на сайте), иначе — случайный выбор из всех
+ * участников, как раньше. */
+export async function finishContest(contestId: string, manualWinnerChatIds?: number[]) {
   const db = adminDb();
   const contestRef = db.collection("telegramContests").doc(contestId);
   const contestSnap = await contestRef.get();
@@ -214,8 +217,9 @@ export async function finishContest(contestId: string) {
   const entriesSnap = await db.collection("telegramContestEntries").where("contestId", "==", contestId).get();
   const entries = entriesSnap.docs.map((d) => d.data() as TelegramContestEntry);
 
-  const shuffled = [...entries].sort(() => Math.random() - 0.5);
-  const winners = shuffled.slice(0, contest.winnersCount);
+  const winners = manualWinnerChatIds
+    ? entries.filter((e) => manualWinnerChatIds.includes(e.chatId))
+    : [...entries].sort(() => Math.random() - 0.5).slice(0, contest.winnersCount);
 
   await contestRef.update({
     status: "finished",

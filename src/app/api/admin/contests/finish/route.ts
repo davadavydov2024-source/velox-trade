@@ -9,8 +9,9 @@ function isAdminUid(uid: string): boolean {
   return list.includes(uid);
 }
 
-/** Ручное завершение конкурса с сайта (/admin/contests) — победители выбираются случайно из всех
- * участников (см. lib/telegramContests.ts → finishContest). */
+/** Ручное завершение конкурса с сайта (/admin/contests). Если winnerChatIds передан — берём
+ * именно этих людей как победителей (ручной выбор из списка участников), иначе — случайный выбор
+ * из всех участников, как раньше (см. lib/telegramContests.ts → finishContest). */
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -20,10 +21,13 @@ export async function POST(req: NextRequest) {
     const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
     if (!decoded || !isAdminUid(decoded.uid)) return NextResponse.json({ error: "Доступ только для админов" }, { status: 403 });
 
-    const { contestId } = await req.json();
+    const { contestId, winnerChatIds } = await req.json();
     if (typeof contestId !== "string" || !contestId) return NextResponse.json({ error: "Не указан конкурс" }, { status: 400 });
+    if (winnerChatIds !== undefined && (!Array.isArray(winnerChatIds) || winnerChatIds.some((x) => typeof x !== "number"))) {
+      return NextResponse.json({ error: "Некорректный список победителей" }, { status: 400 });
+    }
 
-    await finishContest(contestId);
+    await finishContest(contestId, winnerChatIds);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("admin/contests/finish error:", err);
