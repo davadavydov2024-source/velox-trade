@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Gift, Users, ExternalLink, Trophy, Clock, Dices, CheckSquare, Square, Plus, X } from "lucide-react";
+import { Gift, Users, ExternalLink, Trophy, Clock, Dices, CheckSquare, Square, Plus, X, Trash2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/lib/toastContext";
 import { TelegramContest, TelegramContestEntry } from "@/types";
@@ -49,6 +49,27 @@ export default function AdminContestsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(contestId: string) {
+    if (!confirm("Удалить этот конкурс? Пост в канале и все записи участников удалятся безвозвратно.")) return;
+    setDeletingId(contestId);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/admin/contests?id=${encodeURIComponent(contestId)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast("success", "Конкурс удалён.");
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось удалить конкурс");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   function updateForm<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -301,8 +322,18 @@ export default function AdminContestsPage() {
                     </p>
                   </div>
                   {/* Заметный счётчик участников */}
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent font-semibold text-sm shrink-0">
-                    <Users size={15} /> {c.entries.length}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent font-semibold text-sm">
+                      <Users size={15} /> {c.entries.length}
+                    </div>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      disabled={deletingId === c.id}
+                      title="Удалить конкурс"
+                      className="p-2 rounded-full text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
 
