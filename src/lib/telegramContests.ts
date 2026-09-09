@@ -221,8 +221,15 @@ export async function handleContestJoin(contestId: string, chatId: number, first
     return "Сначала подключи Telegram к своему аккаунту на сайте: Профиль → Безопасность → «Подключить Telegram», потом жми участвовать снова.";
   }
 
-  const isMember = await checkChannelMembership(contest.channelId, chatId);
-  if (!isMember) return `Сначала подпишись на ${contest.channelId}, потом жми участвовать снова.`;
+  const membership = await checkChannelMembership(contest.channelId, chatId);
+  if (membership.status === "error") {
+    // Не пишем пользователю "подпишись" в этом случае — это вводит в заблуждение, если он реально
+    // подписан. Настоящая причина почти всегда: бот не добавлен в канал ${contest.channelId} как
+    // администратор (или хотя бы участник) — без этого getChatMember не отвечает ни для кого.
+    // Подробности ошибки Telegram — в логах сервера (tgCall(getChatMember) Telegram API error).
+    return `Не получилось проверить подписку на ${contest.channelId} — вероятно, бот ещё не добавлен в этот канал администратором. Напиши об этом в поддержку, чтобы это поправили, и попробуй снова чуть позже.`;
+  }
+  if (membership.status === "not_member") return `Сначала подпишись на ${contest.channelId}, потом жми участвовать снова.`;
 
   const entryRef = db.collection("telegramContestEntries").doc(`${contestId}_${chatId}`);
   const existing = await entryRef.get();
