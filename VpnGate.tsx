@@ -37,25 +37,15 @@ async function checkVpn(): Promise<VpnCheckStatus> {
   const timer = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
 
   try {
-    // Бесплатный тариф proxycheck.io без ключа: определяет VPN/прокси/хостинг по IP клиента.
-    const res = await fetch("https://proxycheck.io/v2/?vpn=1&asn=1&risk=1", {
-      signal: controller.signal,
-      cache: "no-store",
-    });
+    // Раньше здесь был прямой fetch на proxycheck.io — он падает с CORS-ошибкой ("blocked by
+    // CORS policy"), потому что proxycheck.io не отдаёт Access-Control-Allow-Origin для браузерных
+    // запросов. Теперь дёргаем свой серверный роут (api/vpn-check), который сам ходит в
+    // proxycheck.io сервер-сервер, где CORS не действует.
+    const res = await fetch("/api/vpn-check", { signal: controller.signal, cache: "no-store" });
     if (!res.ok) return "error";
 
     const data = await res.json();
-    if (data?.status !== "ok") return "error";
-
-    // Ответ вида { status: "ok", "1.2.3.4": { proxy: "yes", type: "VPN", risk: 66 } }
-    const ipKey = Object.keys(data).find((k) => k !== "status" && k !== "node");
-    if (!ipKey) return "clean";
-
-    const info = data[ipKey];
-    const isProxy = info?.proxy === "yes";
-    const highRisk = typeof info?.risk === "number" && info.risk >= 66;
-
-    return isProxy || highRisk ? "blocked" : "clean";
+    return data?.blocked ? "blocked" : "clean";
   } catch {
     return "error";
   } finally {
