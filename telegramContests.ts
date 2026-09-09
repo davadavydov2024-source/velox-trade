@@ -1,0 +1,302 @@
+import { adminDb } from "./firebaseAdmin";
+import { sendTelegramMessage, sendTelegramPhoto, editTelegramMessage, checkChannelMembership, InlineButton } from "./telegramBot";
+import { setBotState, getContestDraft, updateContestDraft, clearContestDraft } from "./telegramBotState";
+import { stripUndefined } from "./stripUndefined";
+import { findUidByChatId } from "./telegramUserInfo";
+import { TelegramContest, TelegramContestEntry } from "@/types";
+
+const COLOR_CHOICES: { label: string; value: string }[] = [
+  { label: "🔵 Синий", value: "blue" },
+  { label: "🟢 Зелёный", value: "green" },
+  { label: "🔴 Красный", value: "red" },
+  { label: "🟡 Жёлтый", value: "yellow" },
+  { label: "⚪️ Обычный", value: "default" },
+];
+
+// ===================== Меню и старт мастера =====================
+
+export function contestMenuButtons(): InlineButton[][] {
+  return [
+    [{ text: "➕ Новый конкурс", callback_data: "contest_new" }],
+    [{ text: "📋 Активные конкурсы", callback_data: "contest_active_list" }],
+    [{ text: "⬅️ Назад", callback_data: "admin_menu" }],
+  ];
+}
+
+export const CONTEST_MENU_TEXT = "🎉 Конкурсы. Что делаем?";
+
+export async function startContestWizard(chatId: number) {
+  await clearContestDraft(chatId);
+  await setBotState(chatId, "admin_contest_winners");
+  await sendTelegramMessage(chatId, "Сколько будет победителей? Введи число (например, 1 или 3).");
+}
+
+// ===================== Шаги мастера (обработка текстовых ответов) =====================
+// Каждая функция возвращает true, если сама разобралась с сообщением (и отправила следующий
+// шаг/ошибку), false — если сообщение не подошло под ожидаемый формат этого шага.
+
+export async function handleContestWinnersStep(chatId: number, text: string): Promise<boolean> {
+  const n = Number(text.trim());
+  if (!Number.isInteger(n) || n < 1 || n > 50) {
+    await sendTelegramMessage(chatId, "Введи целое число победителей от 1 до 50.");
+    return true;
+  }
+  await updateContestDraft(chatId, { winnersCount: n });
+  await setBotState(chatId, "admin_contest_photo");
+  await sendTelegramMessage(chatId, "Пришли фото для поста конкурса (или напиши «пропустить», если без фото).");
+  return true;
+}
+
+export async function handleContestPhotoStep(chatId: number, photoUrl: string | null, skip: boolean): Promise<boolean> {
+  if (!skip && !photoUrl) return false; // не фото и не "пропустить" — пусть основной обработчик решит, что делать
+  await updateContestDraft(chatId, { photoUrl: photoUrl ?? undefined });
+  await setBotState(chatId, "admin_contest_text");
+  await sendTelegramMessage(chatId, "Текст поста конкурса — что разыгрываем, условия и т.п.");
+  return true;
+}
+
+export async function handleContestTextStep(chatId: number, text: string): Promise<boolean> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    await sendTelegramMessage(chatId, "Текст не может быть пустым — напиши что-нибудь.");
+    return true;
+  }
+  await updateContestDraft(chatId, { text: trimmed });
+  await setBotState(chatId, "admin_contest_button_text");
+  await sendTelegramMessage(chatId, "Текст на кнопке участия (например: «Участвовать 🎉»).");
+  return true;
+}
+
+export async function handleContestButtonTextStep(chatId: number, text: string): Promise<boolean> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    await sendTelegramMessage(chatId, "Текст кнопки не может быть пустым.");
+    return true;
+  }
+  await updateContestDraft(chatId, { buttonText: trimmed });
+  await setBotState(chatId, "admin_contest_color");
+  await sendTelegramMessage(
+    chatId,
+    "Выбери цвет кнопки (влияет на подпись в сообщении — Telegram не красит сами inline-кнопки):",
+    COLOR_CHOICES.map((c) => [{ text: c.label, callback_data: `contest_color_${c.value}` }])
+  );
+  return true;
+}
+
+export async function handleContestColorChoice(chatId: number, messageId: number, color: string) {
+  await updateContestDraft(chatId, { buttonColor: color });
+  await setBotState(chatId, "admin_contest_channel");
+  await editTelegramMessage(chatId, messageId, "Цвет выбран. Теперь укажи канал для конкурса — username вида @channel или числовой ID.");
+}
+
+export async function handleContestChannelStep(chatId: number, text: string): Promise<boolean> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    await sendTelegramMessage(chatId, "Укажи канал — например @my_channel.");
+    return true;
+  }
+  const channelId = trimmed.startsWith("@") || trimmed.startsWith("-") ? trimmed : `@${trimmed}`;
+  await updateContestDraft(chatId, { channelId });
+  // Итоги подводятся только вручную через сайт (/admin/contests) — после канала мастеру больше
+  // нечего спрашивать, публикуем сразу.
+  await publishContest(chatId);
+  return true;
+}
+
+// ===================== Публикация =====================
+
+export interface CreateContestInput {
+  winnersCount: number;
+  photoUrl?: string;
+  text: string;
+  buttonText: string;
+  buttonColor?: string;
+  channelId: string;
+  /** chat_id админа, создавшего конкурс через бота. Для конкурсов, созданных с сайта (админка),
+   * своего чата с ботом нет — передаём 0 как метку "создано с сайта" (см. api/admin/contests POST). */
+  createdByAdminChatId: number;
+}
+
+/** Общая логика создания конкурса и публикации поста в канале — используется и мастером бота
+ * (publishContest ниже), и созданием конкурса прямо из админки на сайте (api/admin/contests POST),
+ * чтобы не дублировать её в двух местах. */
+export async function createAndPublishContest(
+  input: CreateContestInput
+): Promise<{ success: boolean; message: string; contestId?: string }> {
+  const db = adminDb();
+  const contestRef = db.collection("telegramContests").doc();
+  const now = Date.now();
+
+  const contest: Omit<TelegramContest, "id"> = {
+    createdByAdminChatId: input.createdByAdminChatId,
+    winnersCount: input.winnersCount,
+    photoUrl: input.photoUrl,
+    text: input.text,
+    buttonText: input.buttonText,
+    buttonColor: input.buttonColor ?? "default",
+    channelId: input.channelId,
+    status: "active",
+    createdAt: now,
+  };
+
+  await contestRef.set(stripUndefined(contest));
+
+  const postText = `🎉 ${input.text}\n\n🏆 Победителей: ${input.winnersCount}\n📢 Условие: подписка на канал`;
+  const buttons: InlineButton[][] = [[{ text: input.buttonText, callback_data: `contest_join_${contestRef.id}` }]];
+
+  const messageId = input.photoUrl
+    ? await sendPhotoToChannelAndGetId(input.channelId, input.photoUrl, postText, buttons)
+    : await sendMessageToChannelAndGetId(input.channelId, postText, buttons);
+
+  if (!messageId) {
+    return {
+      success: false,
+      message: `Не удалось опубликовать пост в канале ${input.channelId}. Проверь, что бот добавлен туда администратором.`,
+      contestId: contestRef.id,
+    };
+  }
+
+  await contestRef.update({ messageId });
+  return { success: true, message: `Конкурс опубликован в ${input.channelId}!`, contestId: contestRef.id };
+}
+
+async function publishContest(adminChatId: number) {
+  const draft = await getContestDraft(adminChatId);
+  if (!draft.winnersCount || !draft.text || !draft.buttonText || !draft.channelId) {
+    await sendTelegramMessage(adminChatId, "Что-то в мастере пошло не так — начни заново командой «Конкурсы».");
+    await clearContestDraft(adminChatId);
+    await setBotState(adminChatId, null);
+    return;
+  }
+
+  const result = await createAndPublishContest({
+    createdByAdminChatId: adminChatId,
+    winnersCount: draft.winnersCount,
+    photoUrl: draft.photoUrl,
+    text: draft.text,
+    buttonText: draft.buttonText,
+    buttonColor: draft.buttonColor,
+    channelId: draft.channelId,
+  });
+
+  await sendTelegramMessage(adminChatId, result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+
+  await clearContestDraft(adminChatId);
+  await setBotState(adminChatId, null);
+}
+
+// sendTelegramPhoto/sendTelegramMessage в lib/telegramBot.ts принимают chat_id только как number
+// (личные чаты) — Bot API на самом деле принимает и строковый @username канала, поэтому
+// используем небольшой type-cast здесь, а не меняем сигнатуры общих функций ради одного места.
+async function sendMessageToChannelAndGetId(channelId: string, text: string, buttons: InlineButton[][]): Promise<number | null> {
+  return sendTelegramMessage(channelId as unknown as number, text, buttons);
+}
+async function sendPhotoToChannelAndGetId(channelId: string, photoUrl: string, caption: string, buttons: InlineButton[][]): Promise<number | null> {
+  const ok = await sendTelegramPhoto(channelId as unknown as number, photoUrl, caption, buttons);
+  // sendTelegramPhoto возвращает только boolean, а не message_id — конкурсу с фото придётся
+  // обойтись без последующего редактирования поста при завершении (пишем итоги отдельным
+  // сообщением в канал вместо editMessageText, см. finishContest ниже). -1 как метка "успех без id".
+  return ok ? -1 : null;
+}
+
+// ===================== Участие =====================
+
+/** Нажатие кнопки "Участвовать" под постом в канале. Возвращает текст для всплывающего
+ * уведомления Telegram (передаётся в answerCallbackQuery на уровне webhook).
+ * Итоги теперь подводятся только вручную админом через сайт (/admin/contests) — здесь никакого
+ * автозавершения нет, ни по времени, ни по числу участников, чтобы не завершить конкурс раньше,
+ * чем админ реально готов это сделать. */
+export async function handleContestJoin(contestId: string, chatId: number, firstName: string, telegramUsername: string | null): Promise<string> {
+  const db = adminDb();
+  const contestSnap = await db.collection("telegramContests").doc(contestId).get();
+  if (!contestSnap.exists) return "Конкурс не найден.";
+  const contest = contestSnap.data() as TelegramContest;
+  if (contest.status !== "active") return "Конкурс уже завершён.";
+
+  // Участие требует привязанный к сайту аккаунт — иначе не по кому будет узнать победителя на
+  // сайте и что-либо выдать/начислить ему. Ссылка та же, что бот уже использует для команд
+  // /balance и /orders (см. lib/telegramUserInfo.ts → findUidByChatId).
+  const uid = await findUidByChatId(chatId);
+  if (!uid) {
+    return "Сначала подключи Telegram к своему аккаунту на сайте: Профиль → Безопасность → «Подключить Telegram», потом жми участвовать снова.";
+  }
+
+  const isMember = await checkChannelMembership(contest.channelId, chatId);
+  if (!isMember) return `Сначала подпишись на ${contest.channelId}, потом жми участвовать снова.`;
+
+  const entryRef = db.collection("telegramContestEntries").doc(`${contestId}_${chatId}`);
+  const existing = await entryRef.get();
+  if (existing.exists) return "Ты уже участвуешь в этом конкурсе! 🎉";
+
+  const entry: Omit<TelegramContestEntry, "id"> = { contestId, chatId, uid, telegramUsername, firstName, joinedAt: Date.now() };
+  await entryRef.set(entry);
+
+  return "Ты участвуешь! Итоги подведёт администратор. Удачи! 🍀";
+}
+
+// ===================== Подведение итогов =====================
+
+/** Вызывается из cron (см. api/cron/reminders — туда добавлена проверка истёкших по времени
+ * конкурсов) и напрямую из handleContestJoin для конкурсов "по количеству участников". */
+/** Подводит итоги конкурса. Если manualWinnerChatIds передан (см. api/admin/contests/finish) —
+ * победители именно эти люди (ручной выбор админом на сайте), иначе — случайный выбор из всех
+ * участников, как раньше. */
+export async function finishContest(contestId: string, manualWinnerChatIds?: number[]) {
+  const db = adminDb();
+  const contestRef = db.collection("telegramContests").doc(contestId);
+  const contestSnap = await contestRef.get();
+  if (!contestSnap.exists) return;
+  const contest = contestSnap.data() as TelegramContest;
+  if (contest.status !== "active") return; // уже завершён — не разыгрываем дважды
+
+  const entriesSnap = await db.collection("telegramContestEntries").where("contestId", "==", contestId).get();
+  const entries = entriesSnap.docs.map((d) => d.data() as TelegramContestEntry);
+
+  const winners = manualWinnerChatIds
+    ? entries.filter((e) => manualWinnerChatIds.includes(e.chatId))
+    : [...entries].sort(() => Math.random() - 0.5).slice(0, contest.winnersCount);
+
+  await contestRef.update({
+    status: "finished",
+    finishedAt: Date.now(),
+    winnerChatIds: winners.map((w) => w.chatId),
+  });
+
+  const winnersText =
+    winners.length === 0
+      ? "Участников не набралось 😔"
+      : winners.map((w, i) => `${i + 1}. ${w.firstName}${w.telegramUsername ? ` (@${w.telegramUsername})` : ""}`).join("\n");
+
+  const resultText = `🏁 Конкурс завершён!\n\nВсего участников: ${entries.length}\n\n🏆 Победители:\n${winnersText}`;
+
+  // Пост с фото не имеет сохранённого message_id (см. комментарий в sendPhotoToChannelAndGetId
+  // выше) — для него итоги идут отдельным сообщением в канал. Пост без фото редактируем на
+  // месте, чтобы кнопка "Участвовать" пропала и результат был виден прямо в исходном посте.
+  if (contest.messageId && contest.messageId > 0) {
+    await editTelegramMessage(contest.channelId as unknown as number, contest.messageId, `${contest.text}\n\n${resultText}`);
+  } else {
+    await sendTelegramMessage(contest.channelId as unknown as number, resultText);
+  }
+
+  await sendTelegramMessage(contest.createdByAdminChatId, `🏁 Конкурс завершён и итоги опубликованы в ${contest.channelId}.\n\n${resultText}`);
+
+  for (const winner of winners) {
+    await sendTelegramMessage(winner.chatId, `🎉 Поздравляем! Ты выиграл(а) в конкурсе «${contest.text.slice(0, 60)}»! Организатор скоро свяжется с тобой.`);
+  }
+}
+
+export async function sendActiveContestsList(chatId: number) {
+  const snap = await adminDb().collection("telegramContests").where("status", "==", "active").get();
+  if (snap.empty) {
+    await sendTelegramMessage(chatId, "Активных конкурсов нет.");
+    return;
+  }
+  for (const doc of snap.docs) {
+    const c = doc.data() as TelegramContest;
+    const entriesSnap = await adminDb().collection("telegramContestEntries").where("contestId", "==", doc.id).count().get();
+    await sendTelegramMessage(
+      chatId,
+      `🎉 ${c.text.slice(0, 80)}\nКанал: ${c.channelId}\nУчастников: ${entriesSnap.data().count}\n\nПодвести итоги можно на сайте: /admin/contests`
+    );
+  }
+}

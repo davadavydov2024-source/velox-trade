@@ -1,261 +1,414 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useState } from "react";
-import { ArrowRight, Sparkles, Flame } from "lucide-react";
-import { getGames, getProducts } from "@/lib/products";
-import { getPublicStats } from "@/lib/stats";
-import { Game, Product } from "@/types";
-import { safeImageSrc } from "@/lib/safeImage";
-import { ProductCard } from "@/components/ProductCard";
-import { PromoCarousel } from "@/components/PromoCarousel";
-import { QuickTopupCard } from "@/components/QuickTopupCard";
-import { AdSlotCard } from "@/components/AdSlotCard";
-import { SiteRatingWidget } from "@/components/SiteRatingWidget";
-import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
-import { LiveActivityFeed } from "@/components/LiveActivityFeed";
+import { Gift, Users, ExternalLink, Trophy, Clock, Dices, CheckSquare, Square, Plus, X } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { useToast } from "@/lib/toastContext";
+import { TelegramContest, TelegramContestEntry } from "@/types";
+import { ImageUploadField } from "@/components/ImageUploadField";
 
-const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
+type ContestWithEntries = TelegramContest & { entries: TelegramContestEntry[] };
 
-export default function HomePage() {
-  const [games, setGames] = useState<Game[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [featured, setFeatured] = useState<Product[]>([]);
-  const [dealsCount, setDealsCount] = useState(0);
+const COLOR_CHOICES: { label: string; value: string }[] = [
+  { label: "🔵 Синий", value: "blue" },
+  { label: "🟢 Зелёный", value: "green" },
+  { label: "🔴 Красный", value: "red" },
+  { label: "🟡 Жёлтый", value: "yellow" },
+  { label: "⚪️ Обычный", value: "default" },
+];
+
+const EMPTY_FORM = {
+  winnersCount: "1",
+  text: "",
+  buttonText: "Участвовать 🎉",
+  buttonColor: "default",
+  channelId: "",
+  photoUrl: "",
+};
+
+/** "2 дня 3 часа" / "5 часов" / "12 минут" — сколько конкурс уже идёт (или шёл до завершения). */
+function formatDuration(fromMs: number, toMs: number): string {
+  const totalMinutes = Math.floor((toMs - fromMs) / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days} дн ${hours} ч`;
+  if (hours > 0) return `${hours} ч ${minutes} мин`;
+  return `${minutes} мин`;
+}
+
+export default function AdminContestsPage() {
+  const [contests, setContests] = useState<ContestWithEntries[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [finishingId, setFinishingId] = useState<string | null>(null);
+  // Для конкурса, у которого сейчас открыт ручной выбор победителей — id конкурса и набор отмеченных chatId.
+  const [pickingFor, setPickingFor] = useState<string | null>(null);
+  const [pickedChatIds, setPickedChatIds] = useState<Set<number>>(new Set());
+  const { toast } = useToast();
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  function updateForm<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleCreate() {
+    const winnersCount = Number(form.winnersCount);
+    if (!Number.isInteger(winnersCount) || winnersCount < 1 || winnersCount > 50) {
+      toast("warning", "Число победителей должно быть целым от 1 до 50.");
+      return;
+    }
+    if (!form.text.trim()) {
+      toast("warning", "Заполни текст конкурса.");
+      return;
+    }
+    if (!form.buttonText.trim()) {
+      toast("warning", "Заполни текст кнопки.");
+      return;
+    }
+    if (!form.channelId.trim()) {
+      toast("warning", "Укажи канал (например, @my_channel).");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/contests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          winnersCount,
+          text: form.text.trim(),
+          buttonText: form.buttonText.trim(),
+          buttonColor: form.buttonColor,
+          channelId: form.channelId.trim(),
+          photoUrl: form.photoUrl || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast("success", "Конкурс создан и опубликован в канале.");
+      setForm(EMPTY_FORM);
+      setShowCreate(false);
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось создать конкурс");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function load() {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+    const res = await fetch("/api/admin/contests", { headers: { Authorization: `Bearer ${idToken}` } });
+    const data = await res.json();
+    if (res.ok) setContests(data.contests);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    getGames()
-      .then(setGames)
-      .catch((err) => { console.error("Ошибка загрузки игр:", err); setGames([]); })
-      .finally(() => setLoaded(true));
-    getProducts({ excludeWheelLocked: true })
-      .then((products) => {
-        const now = Date.now();
-        setFeatured(products.filter((p) => p.boostTier === "home" && (p.boostUntil ?? 0) > now).slice(0, 6));
-      })
-      .catch(() => setFeatured([]));
-    getPublicStats()
-      .then((s) => setDealsCount(s.dealsCount))
-      .catch(() => setDealsCount(0));
+    load();
   }, []);
+
+  async function handleFinishRandom(contestId: string) {
+    if (!confirm("Подвести итоги случайным выбором? Победители выберутся из всех участников, отменить нельзя.")) return;
+    setFinishingId(contestId);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/contests/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ contestId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast("success", "Итоги подведены и опубликованы в канале.");
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось завершить конкурс");
+    } finally {
+      setFinishingId(null);
+    }
+  }
+
+  function startPicking(contest: ContestWithEntries) {
+    setPickingFor(contest.id);
+    setPickedChatIds(new Set());
+  }
+
+  function togglePick(chatId: number, maxWinners: number) {
+    setPickedChatIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(chatId)) {
+        next.delete(chatId);
+      } else if (next.size < maxWinners) {
+        next.add(chatId);
+      }
+      return next;
+    });
+  }
+
+  async function handleFinishManual(contestId: string) {
+    if (pickedChatIds.size === 0) {
+      toast("warning", "Отметь хотя бы одного победителя.");
+      return;
+    }
+    if (!confirm(`Подвести итоги с выбранными победителями (${pickedChatIds.size})? Отменить нельзя.`)) return;
+    setFinishingId(contestId);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/contests/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ contestId, winnerChatIds: [...pickedChatIds] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast("success", "Итоги подведены и опубликованы в канале.");
+      setPickingFor(null);
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось завершить конкурс");
+    } finally {
+      setFinishingId(null);
+    }
+  }
 
   return (
     <div>
-      {/* Большой промо-баннер — теперь самое первое, что видно на странице */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 lg:pt-4">
-        <PromoCarousel />
-      </div>
-
-      {/* Живая лента покупок — социальное доказательство сразу под баннером */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-        <LiveActivityFeed />
-      </div>
-
-      {/* Mobile hero — компактный, с реальными данными вместо статичного лого */}
-      <section className="lg:hidden border-b border-border px-4 pt-4 pb-6 space-y-4">
-        <div>
-          <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-3">
-            <Sparkles size={13} /> №1 маркетплейс игровых предметов
-          </span>
-          {dealsCount > 0 && (
-            <span className="flex items-center gap-1.5 text-[11px] text-white/40 mb-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
-            </span>
-          )}
-          <h1 className="text-2xl font-extrabold leading-tight mb-1.5 tracking-tight">Лучший магазин игровых предметов</h1>
-          <p className="text-white/50 text-sm">Roblox-предметы быстро, безопасно и по честным ценам</p>
-        </div>
-
-        <Link
-          href="/profile/wheel"
-          className="block rounded-2xl p-4 relative overflow-hidden"
-          style={{ background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))" }}
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Gift size={22} /> Конкурсы в Telegram-боте
+        </h1>
+        <button
+          onClick={() => setShowCreate((v) => !v)}
+          className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 whitespace-nowrap"
         >
-          <p className="text-black/60 text-[11px] font-semibold mb-1">Колесо фортуны</p>
-          <p className="text-black font-bold text-base">Крути и выигрывай предметы</p>
-        </Link>
+          {showCreate ? <X size={14} /> : <Plus size={14} />} {showCreate ? "Отмена" : "Новый конкурс"}
+        </button>
+      </div>
+      <p className="text-sm text-white/40 max-w-2xl mb-5">
+        Создать конкурс можно здесь же на сайте (кнопка выше) или командой «Конкурсы» в самом боте — оба
+        способа делают одно и то же и публикуют пост в канале. Ниже — список всех конкурсов, счётчик
+        участников, время проведения и два способа подвести итоги: случайным выбором или вручную отметив
+        победителей. Автозавершения нет — конкурс остаётся активным, пока ты сам не завершишь его.
+      </p>
 
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-sm font-semibold text-white/70">Игры</p>
-            <Link href="/games" className="text-accent text-xs">
-              Все игры →
-            </Link>
+      {showCreate && (
+        <div className="card p-4 mb-5 space-y-3">
+          <h2 className="font-semibold text-sm">Новый конкурс</h2>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs text-white/50 block mb-1">Число победителей</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={form.winnersCount}
+                onChange={(e) => updateForm("winnersCount", e.target.value)}
+                className="input-field w-full"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-white/50 block mb-1">Канал (@username или числовой ID)</span>
+              <input
+                type="text"
+                placeholder="@my_channel"
+                value={form.channelId}
+                onChange={(e) => updateForm("channelId", e.target.value)}
+                className="input-field w-full"
+              />
+            </label>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-            {(loaded ? games.slice(0, 8) : Array.from({ length: 5 })).map((game, i) =>
-              loaded && game ? (
-                <Link key={(game as Game).id} href={`/catalog?game=${(game as Game).slug}`} className="flex-none flex flex-col items-center gap-1.5 w-14">
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/30 ring-1 ring-white/5">
-                    <Image src={safeImageSrc((game as Game).image)} alt={(game as Game).name} fill className="object-cover" sizes="48px" />
-                  </div>
-                  <span className="text-[10px] text-center text-white/60 leading-tight truncate w-full">{(game as Game).name}</span>
-                </Link>
-              ) : (
-                <div key={i} className="flex-none w-12 h-12 rounded-xl bg-white/5 animate-pulse" />
-              )
-            )}
+
+          <label className="block">
+            <span className="text-xs text-white/50 block mb-1">Текст поста — что разыгрываем, условия и т.п.</span>
+            <textarea
+              rows={3}
+              value={form.text}
+              onChange={(e) => updateForm("text", e.target.value)}
+              className="input-field w-full resize-none"
+            />
+          </label>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs text-white/50 block mb-1">Текст кнопки участия</span>
+              <input
+                type="text"
+                value={form.buttonText}
+                onChange={(e) => updateForm("buttonText", e.target.value)}
+                className="input-field w-full"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-white/50 block mb-1">Цвет подписи под кнопкой</span>
+              <select
+                value={form.buttonColor}
+                onChange={(e) => updateForm("buttonColor", e.target.value)}
+                className="input-field w-full"
+              >
+                {COLOR_CHOICES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        </div>
 
-        <div className="flex gap-2.5">
-          <Link href="/catalog" className="btn-primary flex-1 py-3 text-sm text-center">
-            Начать покупки
-          </Link>
-          <Link href="/profile/sell" className="btn-secondary flex-1 py-3 text-sm text-center">
-            Продать предмет
-          </Link>
-        </div>
-      </section>
-
-      {/* Hero (десктоп) */}
-      <section className="hidden lg:block relative overflow-hidden border-b border-border">
-        <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 md:pt-24 pb-10 md:pb-12 grid md:grid-cols-2 gap-12 items-center relative">
           <div>
-            {dealsCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-white/50 bg-white/5 px-3 py-1.5 rounded-full mb-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
-              </span>
-            )}
-            <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-5 ml-2">
-              <Sparkles size={14} /> №1 маркетплейс игровых предметов
-            </span>
-            <h1 className="text-4xl md:text-6xl font-extrabold leading-[1.1] mb-5 tracking-tight">
-              Лучший магазин
-              <br />
-              <span className="bg-gradient-to-r from-accent to-accent-light bg-clip-text text-transparent">
-                игровых предметов
-              </span>
-            </h1>
-            <p className="text-white/50 mb-8 max-w-md text-lg">
-              Покупай и продавай предметы из Roblox быстро, безопасно и по честным ценам — Grow a Garden, Adopt Me,
-              Blox Fruits и десятки других игр.
-            </p>
-            <div className="flex flex-wrap gap-3 mb-10">
-              <Link href="/catalog" className="btn-primary px-6 py-3.5 flex items-center gap-2 shadow-glow">
-                Начать покупки <ArrowRight size={18} />
-              </Link>
-              <Link href="/profile/sell" className="btn-secondary px-6 py-3.5">
-                Продать предмет
-              </Link>
-            </div>
-            <div className="flex gap-8">
-              {[
-                { label: "Безопасные сделки", value: "100%" },
-                { label: "Поддержка", value: "24/7" },
-                { label: "Доставка предметов", value: "~5 мин" },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <p className="text-xl font-bold text-accent">{stat.value}</p>
-                  <p className="text-xs text-white/40">{stat.label}</p>
-                </div>
-              ))}
-            </div>
+            <span className="text-xs text-white/50 block mb-1">Фото поста (необязательно)</span>
+            <ImageUploadField value={form.photoUrl} onChange={(url) => updateForm("photoUrl", url)} folder="contests" size={96} />
           </div>
 
-          <div className="relative pt-2">
-            {!loaded ? (
-              <div className="grid grid-cols-3 gap-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className={`rounded-2xl bg-white/5 animate-pulse h-32 ${i === 0 ? "col-span-2" : ""}`} />
-                ))}
-              </div>
-            ) : games.length === 0 ? (
-              <div className="relative w-56 h-56 md:w-72 md:h-72 mx-auto">
-                <Image src="/icons/logo-nobg.png" alt="Velox Trade" fill className="object-contain" sizes="288px" priority />
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                {games.slice(0, 5).map((game, i) => (
-                  <Link
-                    key={game.id}
-                    href={`/catalog?game=${game.slug}`}
-                    className={`relative card p-2.5 hover:-translate-y-1 transition-transform duration-300 ${i === 0 ? "col-span-2 row-span-1 -rotate-1 border-accent/60" : ""}`}
-                  >
-                    <div
-                      className="relative w-full rounded-xl overflow-hidden bg-black/30"
-                      style={{ height: i === 0 ? 96 : 76, borderLeft: `3px solid ${ACCENTS[i % ACCENTS.length]}` }}
-                    >
-                      <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="180px" />
-                      {i === 0 && (
-                        <span className="absolute top-1.5 left-1.5 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
-                          <Flame size={11} /> Хайп
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs font-medium mt-2 truncate">{game.name}</p>
-                  </Link>
-                ))}
-                <Link
-                  href="/games"
-                  className="card p-2.5 flex items-center justify-center text-accent text-xs font-medium bg-accent/5 border-accent/20 hover:bg-accent/10 transition-colors"
-                >
-                  Все игры →
-                </Link>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="btn-primary px-5 py-2.5 text-sm flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Gift size={14} /> {creating ? "Публикуем..." : "Создать и опубликовать в канале"}
+          </button>
         </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid sm:grid-cols-2 gap-4">
-        <AdSlotCard />
-        <QuickTopupCard />
-      </section>
-
-      {featured.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">⭐ Рекомендуем</h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {featured.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </section>
       )}
 
-      {/* Popular games */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Популярные игры</h2>
-          <Link href="/games" className="text-accent text-sm hover:underline">
-            Все игры →
-          </Link>
-        </div>
-        {!loaded ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="card aspect-square animate-pulse bg-white/5" />
-            ))}
-          </div>
-        ) : games.length === 0 ? (
-          <div className="card p-10 text-center text-white/40">
-            Игры появятся здесь, как только администратор добавит их в админ-панели.
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            {games.map((game) => (
-              <Link
-                key={game.id}
-                href={`/catalog?game=${game.slug}`}
-                className="card p-4 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300"
-              >
-                <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
-                  <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="56px" />
+      {loading ? (
+        <p className="text-white/40 text-sm">Загрузка...</p>
+      ) : contests.length === 0 ? (
+        <p className="text-white/40 text-sm">Пока нет ни одного конкурса — создай его кнопкой выше или в боте.</p>
+      ) : (
+        <div className="space-y-4">
+          {contests.map((c) => {
+            const isPicking = pickingFor === c.id;
+            const durationEnd = c.status === "active" ? Date.now() : c.finishedAt ?? Date.now();
+            return (
+              <div key={c.id} className="card p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{c.text}</p>
+                    <p className="text-xs text-white/40 mt-1 flex items-center gap-1 flex-wrap">
+                      <span>Канал: {c.channelId}</span>
+                      <span>· Победителей: {c.winnersCount}</span>
+                      <span>· {c.status === "active" ? "🟢 Активен" : "🏁 Завершён"}</span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={11} /> {formatDuration(c.createdAt, durationEnd)}
+                      </span>
+                    </p>
+                  </div>
+                  {/* Заметный счётчик участников */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent font-semibold text-sm shrink-0">
+                    <Users size={15} /> {c.entries.length}
+                  </div>
                 </div>
-                <span className="text-xs text-center text-white/70 leading-tight">{game.name}</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
 
-      <RecentlyViewedSection />
-      <SiteRatingWidget />
+                {c.status === "active" && !isPicking && (
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <button
+                      onClick={() => handleFinishRandom(c.id)}
+                      disabled={finishingId === c.id || c.entries.length === 0}
+                      className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <Dices size={14} /> {finishingId === c.id ? "Подводим..." : "Случайные победители"}
+                    </button>
+                    <button
+                      onClick={() => startPicking(c)}
+                      disabled={c.entries.length === 0}
+                      className="btn-secondary px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <Trophy size={14} /> Выбрать победителей вручную
+                    </button>
+                  </div>
+                )}
+
+                {isPicking && (
+                  <div className="mb-3 p-3 rounded-lg bg-black/20 border border-accent/20">
+                    <p className="text-xs text-white/50 mb-2">
+                      Отметь до {c.winnersCount} {c.winnersCount === 1 ? "победителя" : "победителей"} — выбрано {pickedChatIds.size}/{c.winnersCount}
+                    </p>
+                    <div className="space-y-1 max-h-56 overflow-y-auto mb-3">
+                      {c.entries.map((e) => {
+                        const checked = pickedChatIds.has(e.chatId);
+                        return (
+                          <button
+                            key={e.chatId}
+                            onClick={() => togglePick(e.chatId, c.winnersCount)}
+                            className={`w-full flex items-center gap-2 text-xs py-1.5 px-2 rounded-md text-left ${
+                              checked ? "bg-accent/15 text-accent" : "text-white/60 hover:bg-white/5"
+                            }`}
+                          >
+                            {checked ? <CheckSquare size={14} /> : <Square size={14} />}
+                            {e.firstName}
+                            {e.telegramUsername && ` (@${e.telegramUsername})`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleFinishManual(c.id)}
+                        disabled={finishingId === c.id || pickedChatIds.size === 0}
+                        className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Trophy size={14} /> {finishingId === c.id ? "Подводим..." : "Завершить с этими победителями"}
+                      </button>
+                      <button onClick={() => setPickingFor(null)} className="btn-secondary px-4 py-2 text-sm">
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {c.status !== "active" && (
+                  <p className="text-xs text-white/30 whitespace-nowrap mb-3">
+                    Победители: {c.winnerChatIds?.length ?? 0}
+                  </p>
+                )}
+
+                <div className="border-t border-border pt-3">
+                  <p className="text-xs text-white/50 mb-2 flex items-center gap-1.5">
+                    <Users size={13} /> Список участников ({c.entries.length})
+                  </p>
+                  {c.entries.length === 0 ? (
+                    <p className="text-xs text-white/30">Пока никто не участвует.</p>
+                  ) : (
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {c.entries.map((e) => {
+                        const isWinner = c.winnerChatIds?.includes(e.chatId);
+                        return (
+                          <div key={e.chatId} className="flex items-center justify-between text-xs py-1">
+                            <span className={isWinner ? "text-accent font-medium" : "text-white/60"}>
+                              {isWinner && "🏆 "}
+                              {e.firstName}
+                              {e.telegramUsername && ` (@${e.telegramUsername})`}
+                            </span>
+                            {e.telegramUsername && (
+                              <a
+                                href={`https://t.me/${e.telegramUsername}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-white/30 hover:text-white/60"
+                                title="Открыть чат в Telegram"
+                              >
+                                <ExternalLink size={12} />
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
+
