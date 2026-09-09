@@ -22,7 +22,12 @@ export async function getBotState(chatId: number): Promise<BotMode> {
 }
 
 export async function setBotState(chatId: number, mode: BotMode) {
-  await adminDb().collection("telegramBotState").doc(String(chatId)).set({ mode, updatedAt: Date.now() });
+  // ВАЖНО: merge: true — без него этот .set() перетирал весь документ состояния чата целиком,
+  // включая contestDraft, который лежит в том же документе (см. ContestDraft ниже). Так как
+  // setBotState вызывается после КАЖДОГО шага мастера конкурсов, черновик стирался сразу после
+  // первого же шага, и к моменту публикации в publishContest() почти все поля драфта оказывались
+  // пустыми — мастер падал с "Что-то в мастере пошло не так" на последнем шаге (после ввода канала).
+  await adminDb().collection("telegramBotState").doc(String(chatId)).set({ mode, updatedAt: Date.now() }, { merge: true });
 }
 
 /** Черновик конкурса, который админ собирает по шагам мастера (см. lib/telegramContests.ts) —

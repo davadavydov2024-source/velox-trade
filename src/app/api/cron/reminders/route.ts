@@ -4,6 +4,7 @@ import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const HOUR = 60 * 60 * 1000;

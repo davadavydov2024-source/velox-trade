@@ -105,6 +105,61 @@ export async function handleContestChannelStep(chatId: number, text: string): Pr
 
 // ===================== Публикация =====================
 
+export interface CreateContestInput {
+  winnersCount: number;
+  photoUrl?: string;
+  text: string;
+  buttonText: string;
+  buttonColor?: string;
+  channelId: string;
+  /** chat_id админа, создавшего конкурс через бота. Для конкурсов, созданных с сайта (админка),
+   * своего чата с ботом нет — передаём 0 как метку "создано с сайта" (см. api/admin/contests POST). */
+  createdByAdminChatId: number;
+}
+
+/** Общая логика создания конкурса и публикации поста в канале — используется и мастером бота
+ * (publishContest ниже), и созданием конкурса прямо из админки на сайте (api/admin/contests POST),
+ * чтобы не дублировать её в двух местах. */
+export async function createAndPublishContest(
+  input: CreateContestInput
+): Promise<{ success: boolean; message: string; contestId?: string }> {
+  const db = adminDb();
+  const contestRef = db.collection("telegramContests").doc();
+  const now = Date.now();
+
+  const contest: Omit<TelegramContest, "id"> = {
+    createdByAdminChatId: input.createdByAdminChatId,
+    winnersCount: input.winnersCount,
+    photoUrl: input.photoUrl,
+    text: input.text,
+    buttonText: input.buttonText,
+    buttonColor: input.buttonColor ?? "default",
+    channelId: input.channelId,
+    status: "active",
+    createdAt: now,
+  };
+
+  await contestRef.set(stripUndefined(contest));
+
+  const postText = `🎉 ${input.text}\n\n🏆 Победителей: ${input.winnersCount}\n📢 Условие: подписка на канал`;
+  const buttons: InlineButton[][] = [[{ text: input.buttonText, callback_data: `contest_join_${contestRef.id}` }]];
+
+  const messageId = input.photoUrl
+    ? await sendPhotoToChannelAndGetId(input.channelId, input.photoUrl, postText, buttons)
+    : await sendMessageToChannelAndGetId(input.channelId, postText, buttons);
+
+  if (!messageId) {
+    return {
+      success: false,
+      message: `Не удалось опубликовать пост в канале ${input.channelId}. Проверь, что бот добавлен туда администратором.`,
+      contestId: contestRef.id,
+    };
+  }
+
+  await contestRef.update({ messageId });
+  return { success: true, message: `Конкурс опубликован в ${input.channelId}!`, contestId: contestRef.id };
+}
+
 async function publishContest(adminChatId: number) {
   const draft = await getContestDraft(adminChatId);
   if (!draft.winnersCount || !draft.text || !draft.buttonText || !draft.channelId) {
@@ -114,37 +169,17 @@ async function publishContest(adminChatId: number) {
     return;
   }
 
-  const db = adminDb();
-  const contestRef = db.collection("telegramContests").doc();
-  const now = Date.now();
-
-  const contest: Omit<TelegramContest, "id"> = {
+  const result = await createAndPublishContest({
     createdByAdminChatId: adminChatId,
     winnersCount: draft.winnersCount,
     photoUrl: draft.photoUrl,
     text: draft.text,
     buttonText: draft.buttonText,
-    buttonColor: draft.buttonColor ?? "default",
+    buttonColor: draft.buttonColor,
     channelId: draft.channelId,
-    status: "active",
-    createdAt: now,
-  };
+  });
 
-  await contestRef.set(stripUndefined(contest));
-
-  const postText = `🎉 ${draft.text}\n\n🏆 Победителей: ${draft.winnersCount}\n📢 Условие: подписка на канал`;
-  const buttons: InlineButton[][] = [[{ text: draft.buttonText, callback_data: `contest_join_${contestRef.id}` }]];
-
-  const messageId = draft.photoUrl
-    ? await sendPhotoToChannelAndGetId(draft.channelId, draft.photoUrl, postText, buttons)
-    : await sendMessageToChannelAndGetId(draft.channelId, postText, buttons);
-
-  if (!messageId) {
-    await sendTelegramMessage(adminChatId, `⚠️ Не удалось опубликовать пост в канале ${draft.channelId}. Проверь, что бот добавлен туда администратором.`);
-  } else {
-    await contestRef.update({ messageId });
-    await sendTelegramMessage(adminChatId, `✅ Конкурс опубликован в ${draft.channelId}!`);
-  }
+  await sendTelegramMessage(adminChatId, result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
 
   await clearContestDraft(adminChatId);
   await setBotState(adminChatId, null);

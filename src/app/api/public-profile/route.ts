@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
+// Роут читает query-параметры через nextUrl.searchParams — без этого Next пробует пререндерить
+// его статически при билде и падает с "Dynamic server usage" (см. лог деплоя на Vercel).
+export const dynamic = "force-dynamic";
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 минуты без "пинга" — считаем офлайн
 

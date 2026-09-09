@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebaseAdmin";
 import { finishContest } from "@/lib/telegramContests";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function isAdminUid(uid: string): boolean {
   const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);

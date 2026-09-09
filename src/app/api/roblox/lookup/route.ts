@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * Ищет игрока Roblox по нику и возвращает его аватарку — чтобы продавец/админ мог визуально

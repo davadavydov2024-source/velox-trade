@@ -4,6 +4,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import { ACHIEVEMENTS, AchievementStatKey } from "@/lib/achievements";
 
 export const runtime = "nodejs";
+// Роут читает Authorization из headers — без этого Next пробует пререндерить его статически
+// при билде и падает с "Dynamic server usage" (см. лог деплоя на Vercel).
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {

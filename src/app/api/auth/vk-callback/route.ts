@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const VK_CLIENT_ID = process.env.NEXT_PUBLIC_VK_CLIENT_ID;
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET;
