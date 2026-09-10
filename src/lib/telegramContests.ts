@@ -5,6 +5,10 @@ import { stripUndefined } from "./stripUndefined";
 import { findUidByChatId } from "./telegramUserInfo";
 import { TelegramContest, TelegramContestEntry } from "@/types";
 
+// Тот же паттерн, что и в клиентских компонентах (SupportPanel, security/page.tsx и т.д.) — один
+// бот на весь проект, юзернейм не секрет, поэтому спокойно берём NEXT_PUBLIC_-переменную и на сервере.
+const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
+
 const COLOR_CHOICES: { label: string; value: string }[] = [
   { label: "🔵 Синий", value: "blue" },
   { label: "🟢 Зелёный", value: "green" },
@@ -158,8 +162,14 @@ export async function createAndPublishContest(
   await contestRef.set(stripUndefined(contest));
 
   const postText = `🎉 ${input.text}\n\n🏆 Победителей: ${input.winnersCount}\n📢 Условие: подписка на канал`;
+  // Раньше кнопка была callback_data (contest_join_...) — Telegram отвечал на неё эфемерным
+  // всплывающим тостом поверх канала, который часть пользователей просто не замечала (или он
+  // терялся из-за сбоя до answerCallbackQuery — см. правку в webhook route.ts) — из-за этого
+  // казалось, что "кнопка не работает". Теперь это url-кнопка с диплинком в самого бота
+  // (t.me/bot?start=contest_<id>) — по нажатию открывается чат с ботом, и результат (успех или
+  // конкретная причина ошибки) приходит обычным сообщением в переписке, а не мимолётным тостом.
   const buttons: InlineButton[][] = [
-    [{ text: buildButtonLabel(input.buttonText, input.buttonColor), callback_data: `contest_join_${contestRef.id}` }],
+    [{ text: buildButtonLabel(input.buttonText, input.buttonColor), url: `https://t.me/${BOT_USERNAME}?start=contest_${contestRef.id}` }],
   ];
 
   const messageId = input.photoUrl

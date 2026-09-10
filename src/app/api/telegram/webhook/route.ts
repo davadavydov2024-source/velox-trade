@@ -313,6 +313,23 @@ export async function POST(req: NextRequest) {
       const parts = text.trim().split(/\s+/);
       const code = parts[1];
 
+      // Диплинк с кнопки "Участвовать" под постом конкурса: t.me/bot?start=contest_<id>.
+      // Раньше это была callback_data-кнопка, ответ на которую Telegram показывал мимолётным
+      // тостом поверх канала — часть пользователей его просто не замечала, из-за чего казалось,
+      // что кнопка не работает. Теперь это открывает чат с ботом, и результат (успех или точная
+      // причина ошибки — например, "сначала подключи аккаунт") приходит обычным сообщением.
+      if (code?.startsWith("contest_")) {
+        const contestId = code.slice("contest_".length);
+        try {
+          const replyText = await handleContestJoin(contestId, chatId, firstName, telegramUsername);
+          await sendTelegramMessage(chatId, replyText, backOnlyButtons("menu_back"));
+        } catch (err) {
+          console.error("handleContestJoin error (deep-link):", err);
+          await sendTelegramMessage(chatId, "Что-то пошло не так, попробуй ещё раз чуть позже.", backOnlyButtons("menu_back"));
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       const handled = code ? await handleAccountLinking(code, chatId, telegramUsername) : false;
       if (!handled) {
         await setBotState(chatId, null);
