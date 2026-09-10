@@ -117,6 +117,22 @@ export interface CreateContestInput {
   createdByAdminChatId: number;
 }
 
+/** Telegram технически не умеет красить inline-кнопки (это ограничение самого Bot API, не наше) —
+ * поэтому "цвет" реализован как эмодзи-индикатор перед текстом кнопки. Раньше buttonColor вообще
+ * никак не использовался при публикации поста (сохранялся в базу и всё) — из-за этого выбор цвета
+ * в форме ни на что не влиял. */
+const BUTTON_COLOR_EMOJI: Record<string, string> = {
+  blue: "🔵",
+  green: "🟢",
+  red: "🔴",
+  yellow: "🟡",
+};
+
+function buildButtonLabel(text: string, color?: string): string {
+  const emoji = color ? BUTTON_COLOR_EMOJI[color] : undefined;
+  return emoji ? `${emoji} ${text}` : text;
+}
+
 /** Общая логика создания конкурса и публикации поста в канале — используется и мастером бота
  * (publishContest ниже), и созданием конкурса прямо из админки на сайте (api/admin/contests POST),
  * чтобы не дублировать её в двух местах. */
@@ -142,11 +158,14 @@ export async function createAndPublishContest(
   await contestRef.set(stripUndefined(contest));
 
   const postText = `🎉 ${input.text}\n\n🏆 Победителей: ${input.winnersCount}\n📢 Условие: подписка на канал`;
-  const buttons: InlineButton[][] = [[{ text: input.buttonText, callback_data: `contest_join_${contestRef.id}` }]];
+  const buttons: InlineButton[][] = [
+    [{ text: buildButtonLabel(input.buttonText, input.buttonColor), callback_data: `contest_join_${contestRef.id}` }],
+  ];
 
   const messageId = input.photoUrl
     ? await sendPhotoToChannelAndGetId(input.channelId, input.photoUrl, postText, buttons)
     : await sendMessageToChannelAndGetId(input.channelId, postText, buttons);
+
 
   if (!messageId) {
     return {

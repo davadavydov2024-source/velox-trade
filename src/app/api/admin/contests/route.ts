@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { createAndPublishContest } from "@/lib/telegramContests";
+import { deleteTelegramMessage } from "@/lib/telegramBot";
 import { TelegramContest, TelegramContestEntry } from "@/types";
 
 export const runtime = "nodejs";
@@ -88,5 +89,45 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("admin/contests POST error:", err);
     return NextResponse.json({ error: "Не удалось создать конкурс" }, { status: 500 });
+  }
+}
+
+/** Удаление конкурса из /admin/contests — стирает и запись в базе, и сам пост в канале (если он
+ * ещё существует), и все записи участников. Работает для конкурсов в любом статусе — активных
+ * (просто отменяет розыгрыш) и уже завершённых (уборка истории). */
+export async function DELETE(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!idToken) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
+
+    const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
+    if (!decoded || !isAdminUid(decoded.uid)) return NextResponse.json({ error: "Доступ только для админов" }, { status: 403 });
+
+    const contestId = req.nextUrl.searchParams.get("id");
+    if (!contestId) return NextResponse.json({ error: "Не указан id конкурса" }, { status: 400 });
+
+    const db = adminDb();
+    const contestRef = db.collection("telegramContests").doc(contestId);
+    const contestSnap = await contestRef.get();
+    if (!contestSnap.exists) return NextResponse.json({ error: "Конкурс не найден" }, { status: 404 });
+    const contest = contestSnap.data() as TelegramContest;
+
+    // messageId === -1 — метка "пост с фото, id сообщения не сохранён" (см. sendPhotoToChannelAndGetId
+    // в lib/telegramContests.ts) — удалить его отсюда нечем, просто пропускаем это без ошибки.
+    if (contest.messageId && contest.messageId > 0) {
+      await deleteTelegramMessage(contest.channelId, contest.messageId);
+    }
+
+    const entriesSnap = await db.collection("telegramContestEntries").where("contestId", "==", contestId).get();
+    const batch = db.batch();
+    entriesSnap.docs.forEach((doc) => batch.delete(doc.ref));
+    batch.delete(contestRef);
+    await batch.commit();
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("admin/contests DELETE error:", err);
+    return NextResponse.json({ error: "Не удалось удалить конкурс" }, { status: 500 });
   }
 }

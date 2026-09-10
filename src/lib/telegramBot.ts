@@ -70,6 +70,15 @@ export async function editTelegramMessage(chatId: number, messageId: number, tex
   return result !== null;
 }
 
+/** Используется при удалении конкурса из /admin/contests — стираем сам пост в канале, а не только
+ * запись в базе. messageId может быть -1 (конкурс с фото — см. sendPhotoToChannelAndGetId в
+ * telegramContests.ts, там message_id не сохраняется), в этом случае удалять нечего, пост в канале
+ * останется — тихо игнорируем это в вызывающем коде, а не считаем ошибкой. */
+export async function deleteTelegramMessage(chatId: string | number, messageId: number): Promise<boolean> {
+  const result = await tgCall("deleteMessage", { chat_id: chatId, message_id: messageId });
+  return result !== null;
+}
+
 export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<boolean> {
   const result = await tgCall("answerCallbackQuery", { callback_query_id: callbackQueryId, text });
   return result !== null;

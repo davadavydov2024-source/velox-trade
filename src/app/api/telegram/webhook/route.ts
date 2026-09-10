@@ -176,8 +176,18 @@ export async function POST(req: NextRequest) {
       // не позволяет ответить на один и тот же callback дважды (answerCallbackQuery ниже безусловный).
       if (data.startsWith("contest_join_")) {
         const contestId = data.slice("contest_join_".length);
-        const replyText = await handleContestJoin(contestId, chatId, firstName, username);
-        await answerCallbackQuery(callback.id, replyText);
+        try {
+          const replyText = await handleContestJoin(contestId, chatId, firstName, username);
+          await answerCallbackQuery(callback.id, replyText);
+        } catch (err) {
+          // ВАЖНО: раньше исключение здесь долетало до общего catch внизу всей функции, который
+          // просто логирует и отвечает {ok:true} — answerCallbackQuery так и не вызывался, и кнопка
+          // "Участвовать" визуально просто гасла без всплывающего текста и без ошибки (симптом
+          // "кнопка не работает, вообще ничего не происходит"). Теперь при любом сбое пользователь
+          // всё равно получает всплывающее уведомление, а точная причина падения — в логе ниже.
+          console.error("handleContestJoin error:", err);
+          await answerCallbackQuery(callback.id, "Что-то пошло не так, попробуй ещё раз чуть позже.");
+        }
         return NextResponse.json({ ok: true });
       }
 
