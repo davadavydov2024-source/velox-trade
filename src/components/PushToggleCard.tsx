@@ -66,12 +66,15 @@ export function PushToggleCard() {
         toast("success", "Push-уведомления включены");
       }
     } catch (err: any) {
+      console.error("Push toggle error:", err);
       if (err?.message === "permission-denied") {
         toast("warning", "Разрешение на уведомления не дано — включи его в настройках браузера для этого сайта");
       } else if (err?.message === "vapid-not-configured") {
-        toast("error", "Push ещё не настроен на сервере");
+        toast("error", "Push ещё не настроен на сервере (нет NEXT_PUBLIC_FCM_VAPID_KEY)");
+      } else if (err?.message === "push-unsupported") {
+        toast("error", "Браузер не поддерживает push, либо service worker не смог зарегистрироваться — см. консоль (F12)");
       } else {
-        toast("error", "Не удалось изменить настройку уведомлений");
+        toast("error", `Не удалось изменить настройку: ${err?.message || err?.code || "неизвестная ошибка"} — подробности в консоли (F12)`);
       }
     } finally {
       setBusy(false);

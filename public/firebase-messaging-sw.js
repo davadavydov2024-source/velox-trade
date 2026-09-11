@@ -9,15 +9,14 @@ importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-com
 
 // Публичные ключи Firebase не секретны (это client-side конфиг, тот же, что в src/lib/firebase.ts) —
 // сервис-воркеры не имеют доступа к переменным окружения сборки, поэтому значения здесь
-// приходится продублировать буквально. ЗАПОЛНИ ИХ теми же значениями, что у тебя в Vercel
-// Environment Variables под именами NEXT_PUBLIC_FIREBASE_*.
+// продублированы буквально из Firebase Console → Project settings → Your apps.
 firebase.initializeApp({
-  apiKey: "REPLACE_WITH_NEXT_PUBLIC_FIREBASE_API_KEY",
-  authDomain: "REPLACE_WITH_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-  projectId: "REPLACE_WITH_NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+  apiKey: "AIzaSyAF5IihdpySoQQS-cVoi5paTiHbJ2R-oJQ",
+  authDomain: "blade-shoop.firebaseapp.com",
+  projectId: "blade-shoop",
+  storageBucket: "blade-shoop.firebasestorage.app",
   messagingSenderId: "482950290327",
-  appId: "REPLACE_WITH_NEXT_PUBLIC_FIREBASE_APP_ID",
+  appId: "1:482950290327:web:469b993a8f947a9f9342d2",
 });
 
 const messaging = firebase.messaging();
