@@ -53,6 +53,22 @@ export default function ProfilePage() {
     e.preventDefault();
     setSaving(true);
     try {
+      const trimmedName = name.trim();
+      const nameChanged = trimmedName !== profile!.displayName;
+      // Раньше здесь проверки не было вообще — если ввести один пробел (или несколько), trim() даёт
+      // пустую строку, но она всё равно проходила как "новое имя", и профиль оставался с пустым
+      // именем без единой ошибки. Теперь пустое/слишком короткое имя (после trim) не сохраняется.
+      if (nameChanged && trimmedName.length < 2) {
+        toast("warning", "Имя не может быть пустым — минимум 2 символа");
+        setSaving(false);
+        return;
+      }
+      if (nameChanged && trimmedName.length > 20) {
+        toast("warning", "Имя слишком длинное — максимум 20 символов");
+        setSaving(false);
+        return;
+      }
+
       const usernameChanged = username.trim().toLowerCase() !== (profile!.username ?? "");
       if (usernameChanged && username.trim()) {
         if (!isValidUsernameFormat(username)) {
@@ -82,7 +98,7 @@ export default function ProfilePage() {
       }
 
       await updateProfileInfo(user!.uid, profile!, {
-        displayName: name.trim() !== profile!.displayName ? name.trim() : undefined,
+        displayName: nameChanged ? trimmedName : undefined,
         photoURL: avatarChanged ? avatarUrl.trim() || null : undefined,
         bio,
         username: usernameChanged && username.trim() ? username.trim().toLowerCase() : undefined,
@@ -91,7 +107,7 @@ export default function ProfilePage() {
       await refreshProfile();
       toast("success", "Профиль обновлён");
     } catch (err: any) {
-      if (err?.code === "name-cooldown" || err?.code === "avatar-cooldown") {
+      if (err?.code === "name-cooldown" || err?.code === "avatar-cooldown" || err?.code === "invalid-name") {
         toast("error", err.message);
       } else if (err?.code === "permission-denied") {
         toast("error", "Нет доступа к базе данных. Проверь правила Firestore.");

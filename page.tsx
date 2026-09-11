@@ -1,445 +1,286 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Gift, Users, ExternalLink, Trophy, Clock, Dices, CheckSquare, Square, Plus, X, Trash2 } from "lucide-react";
-import { auth } from "@/lib/firebase";
+import Image from "next/image";
+import Link from "next/link";
+import { useAuth } from "@/lib/authContext";
+import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, AlertCircle } from "lucide-react";
+import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
+import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
 import { useToast } from "@/lib/toastContext";
-import { TelegramContest, TelegramContestEntry } from "@/types";
+import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
+import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ImageUploadField } from "@/components/ImageUploadField";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 
-type ContestWithEntries = TelegramContest & { entries: TelegramContestEntry[] };
-
-const COLOR_CHOICES: { label: string; value: string }[] = [
-  { label: "🔵 Синий", value: "blue" },
-  { label: "🟢 Зелёный", value: "green" },
-  { label: "🔴 Красный", value: "red" },
-  { label: "🟡 Жёлтый", value: "yellow" },
-  { label: "⚪️ Обычный", value: "default" },
-];
-
-const EMPTY_FORM = {
-  winnersCount: "1",
-  text: "",
-  buttonText: "Участвовать 🎉",
-  buttonColor: "default",
-  channelId: "",
-  photoUrl: "",
-};
-
-/** "2 дня 3 часа" / "5 часов" / "12 минут" — сколько конкурс уже идёт (или шёл до завершения). */
-function formatDuration(fromMs: number, toMs: number): string {
-  const totalMinutes = Math.floor((toMs - fromMs) / 60000);
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-  if (days > 0) return `${days} дн ${hours} ч`;
-  if (hours > 0) return `${hours} ч ${minutes} мин`;
-  return `${minutes} мин`;
+function cooldownLeft(lastChangeAt?: number): number {
+  if (!lastChangeAt) return 0;
+  return Math.max(0, lastChangeAt + NAME_CHANGE_COOLDOWN_MS - Date.now());
 }
 
-export default function AdminContestsPage() {
-  const [contests, setContests] = useState<ContestWithEntries[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [finishingId, setFinishingId] = useState<string | null>(null);
-  // Для конкурса, у которого сейчас открыт ручной выбор победителей — id конкурса и набор отмеченных chatId.
-  const [pickingFor, setPickingFor] = useState<string | null>(null);
-  const [pickedChatIds, setPickedChatIds] = useState<Set<number>>(new Set());
+function formatDays(ms: number): string {
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+  return `${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
+}
+
+export default function ProfilePage() {
+  const { profile, user, refreshProfile } = useAuth();
   const { toast } = useToast();
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  async function handleDelete(contestId: string) {
-    if (!confirm("Удалить этот конкурс? Пост в канале и все записи участников удалятся безвозвратно.")) return;
-    setDeletingId(contestId);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch(`/api/admin/contests?id=${encodeURIComponent(contestId)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast("success", "Конкурс удалён.");
-      load();
-    } catch (err: any) {
-      toast("error", err?.message || "Не удалось удалить конкурс");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  function updateForm<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleCreate() {
-    const winnersCount = Number(form.winnersCount);
-    if (!Number.isInteger(winnersCount) || winnersCount < 1 || winnersCount > 50) {
-      toast("warning", "Число победителей должно быть целым от 1 до 50.");
-      return;
-    }
-    if (!form.text.trim()) {
-      toast("warning", "Заполни текст конкурса.");
-      return;
-    }
-    if (!form.buttonText.trim()) {
-      toast("warning", "Заполни текст кнопки.");
-      return;
-    }
-    if (!form.channelId.trim()) {
-      toast("warning", "Укажи канал (например, @my_channel).");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/admin/contests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          winnersCount,
-          text: form.text.trim(),
-          buttonText: form.buttonText.trim(),
-          buttonColor: form.buttonColor,
-          channelId: form.channelId.trim(),
-          photoUrl: form.photoUrl || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast("success", "Конкурс создан и опубликован в канале.");
-      setForm(EMPTY_FORM);
-      setShowCreate(false);
-      load();
-    } catch (err: any) {
-      toast("error", err?.message || "Не удалось создать конкурс");
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function load() {
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) return;
-    const res = await fetch("/api/admin/contests", { headers: { Authorization: `Bearer ${idToken}` } });
-    const data = await res.json();
-    if (res.ok) setContests(data.contests);
-    setLoading(false);
-  }
+  const [name, setName] = useState(profile?.displayName ?? "");
+  const [username, setUsername] = useState(profile?.username ?? "");
+  const [bio, setBio] = useState(profile?.bio ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(profile?.photoURL ?? "");
+  const [saving, setSaving] = useState(false);
+  const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
 
   useEffect(() => {
-    load();
-  }, []);
+    if (!user) return;
+    getOrdersForUser(user.uid)
+      .then((orders) => setPurchaseCount(orders.filter((o) => o.status === "confirmed").length))
+      .catch(() => setPurchaseCount(null));
+  }, [user]);
 
-  async function handleFinishRandom(contestId: string) {
-    if (!confirm("Подвести итоги случайным выбором? Победители выберутся из всех участников, отменить нельзя.")) return;
-    setFinishingId(contestId);
+  if (!profile || !user) return null;
+
+  const nameCooldown = cooldownLeft(profile.lastNameChangeAt);
+  const avatarCooldown = cooldownLeft(profile.lastAvatarChangeAt);
+  const avgRating = profile.ratingCount ? (profile.ratingSum ?? 0) / profile.ratingCount : null;
+  const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
+  const otherBadges = profile.badges.filter((b) => !CHECKMARK_BADGES.includes(b));
+  const memberSince = new Date(profile.createdAt).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/admin/contests/finish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ contestId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast("success", "Итоги подведены и опубликованы в канале.");
-      load();
-    } catch (err: any) {
-      toast("error", err?.message || "Не удалось завершить конкурс");
-    } finally {
-      setFinishingId(null);
-    }
-  }
-
-  function startPicking(contest: ContestWithEntries) {
-    setPickingFor(contest.id);
-    setPickedChatIds(new Set());
-  }
-
-  function togglePick(chatId: number, maxWinners: number) {
-    setPickedChatIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(chatId)) {
-        next.delete(chatId);
-      } else if (next.size < maxWinners) {
-        next.add(chatId);
+      const trimmedName = name.trim();
+      const nameChanged = trimmedName !== profile!.displayName;
+      // Раньше здесь проверки не было вообще — если ввести один пробел (или несколько), trim() даёт
+      // пустую строку, но она всё равно проходила как "новое имя", и профиль оставался с пустым
+      // именем без единой ошибки. Теперь пустое/слишком короткое имя (после trim) не сохраняется.
+      if (nameChanged && trimmedName.length < 2) {
+        toast("warning", "Имя не может быть пустым — минимум 2 символа");
+        setSaving(false);
+        return;
       }
-      return next;
-    });
-  }
+      if (nameChanged && trimmedName.length > 20) {
+        toast("warning", "Имя слишком длинное — максимум 20 символов");
+        setSaving(false);
+        return;
+      }
 
-  async function handleFinishManual(contestId: string) {
-    if (pickedChatIds.size === 0) {
-      toast("warning", "Отметь хотя бы одного победителя.");
-      return;
-    }
-    if (!confirm(`Подвести итоги с выбранными победителями (${pickedChatIds.size})? Отменить нельзя.`)) return;
-    setFinishingId(contestId);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/admin/contests/finish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ contestId, winnerChatIds: [...pickedChatIds] }),
+      const usernameChanged = username.trim().toLowerCase() !== (profile!.username ?? "");
+      if (usernameChanged && username.trim()) {
+        if (!isValidUsernameFormat(username)) {
+          toast("warning", "Юзернейм: 3-20 символов, только латиница, цифры и подчёркивание");
+          setSaving(false);
+          return;
+        }
+        const available = await isUsernameAvailable(username);
+        if (!available) {
+          toast("warning", "Этот юзернейм уже занят");
+          setSaving(false);
+          return;
+        }
+      }
+
+      const avatarChanged = avatarUrl !== (profile!.photoURL ?? "");
+      if (avatarChanged && avatarUrl && !isValidImageSrc(avatarUrl)) {
+        toast("warning", "Ссылка на аватар должна начинаться с http:// или https://");
+        setSaving(false);
+        return;
+      }
+
+      // Сначала резервируем новый юзернейм (и освобождаем старый), потом пишем сам профиль —
+      // если резервирование не удастся (например, кто-то успел занять его первым), профиль не тронется.
+      if (usernameChanged && username.trim()) {
+        await claimUsername(user!.uid, username.trim(), profile!.username);
+      }
+
+      await updateProfileInfo(user!.uid, profile!, {
+        displayName: nameChanged ? trimmedName : undefined,
+        photoURL: avatarChanged ? avatarUrl.trim() || null : undefined,
+        bio,
+        username: usernameChanged && username.trim() ? username.trim().toLowerCase() : undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast("success", "Итоги подведены и опубликованы в канале.");
-      setPickingFor(null);
-      load();
+
+      await refreshProfile();
+      toast("success", "Профиль обновлён");
     } catch (err: any) {
-      toast("error", err?.message || "Не удалось завершить конкурс");
+      if (err?.code === "name-cooldown" || err?.code === "avatar-cooldown" || err?.code === "invalid-name") {
+        toast("error", err.message);
+      } else if (err?.code === "permission-denied") {
+        toast("error", "Нет доступа к базе данных. Проверь правила Firestore.");
+      } else {
+        toast("error", "Не удалось сохранить изменения");
+      }
     } finally {
-      setFinishingId(null);
+      setSaving(false);
     }
   }
 
   return (
-    <div>
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Gift size={22} /> Конкурсы в Telegram-боте
-        </h1>
-        <button
-          onClick={() => setShowCreate((v) => !v)}
-          className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 whitespace-nowrap"
-        >
-          {showCreate ? <X size={14} /> : <Plus size={14} />} {showCreate ? "Отмена" : "Новый конкурс"}
-        </button>
-      </div>
-      <p className="text-sm text-white/40 max-w-2xl mb-5">
-        Создать конкурс можно здесь же на сайте (кнопка выше) или командой «Конкурсы» в самом боте — оба
-        способа делают одно и то же и публикуют пост в канале. Ниже — список всех конкурсов, счётчик
-        участников, время проведения и два способа подвести итоги: случайным выбором или вручную отметив
-        победителей. Автозавершения нет — конкурс остаётся активным, пока ты сам не завершишь его.
-      </p>
-
-      {showCreate && (
-        <div className="card p-4 mb-5 space-y-3">
-          <h2 className="font-semibold text-sm">Новый конкурс</h2>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-xs text-white/50 block mb-1">Число победителей</span>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={form.winnersCount}
-                onChange={(e) => updateForm("winnersCount", e.target.value)}
-                className="input-field w-full"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-white/50 block mb-1">Канал (@username или числовой ID)</span>
-              <input
-                type="text"
-                placeholder="@my_channel"
-                value={form.channelId}
-                onChange={(e) => updateForm("channelId", e.target.value)}
-                className="input-field w-full"
-              />
-            </label>
+    <div className="space-y-6">
+      <OnboardingChecklist />
+      <div className="card p-6">
+        <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
+          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">
+            <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
           </div>
-
-          <label className="block">
-            <span className="text-xs text-white/50 block mb-1">Текст поста — что разыгрываем, условия и т.п.</span>
-            <textarea
-              rows={3}
-              value={form.text}
-              onChange={(e) => updateForm("text", e.target.value)}
-              className="input-field w-full resize-none"
-            />
-          </label>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-xs text-white/50 block mb-1">Текст кнопки участия</span>
-              <input
-                type="text"
-                value={form.buttonText}
-                onChange={(e) => updateForm("buttonText", e.target.value)}
-                className="input-field w-full"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-white/50 block mb-1">Цвет подписи под кнопкой</span>
-              <select
-                value={form.buttonColor}
-                onChange={(e) => updateForm("buttonColor", e.target.value)}
-                className="input-field w-full"
-              >
-                {COLOR_CHOICES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div>
-            <span className="text-xs text-white/50 block mb-1">Фото поста (необязательно)</span>
-            <ImageUploadField value={form.photoUrl} onChange={(url) => updateForm("photoUrl", url)} folder="contests" size={96} />
-          </div>
-
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="btn-primary px-5 py-2.5 text-sm flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <Gift size={14} /> {creating ? "Публикуем..." : "Создать и опубликовать в канале"}
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-white/40 text-sm">Загрузка...</p>
-      ) : contests.length === 0 ? (
-        <p className="text-white/40 text-sm">Пока нет ни одного конкурса — создай его кнопкой выше или в боте.</p>
-      ) : (
-        <div className="space-y-4">
-          {contests.map((c) => {
-            const isPicking = pickingFor === c.id;
-            const durationEnd = c.status === "active" ? Date.now() : c.finishedAt ?? Date.now();
-            return (
-              <div key={c.id} className="card p-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-                  <div className="min-w-0">
-                    <p className="font-medium">{c.text}</p>
-                    <p className="text-xs text-white/40 mt-1 flex items-center gap-1 flex-wrap">
-                      <span>Канал: {c.channelId}</span>
-                      <span>· Победителей: {c.winnersCount}</span>
-                      <span>· {c.status === "active" ? "🟢 Активен" : "🏁 Завершён"}</span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={11} /> {formatDuration(c.createdAt, durationEnd)}
-                      </span>
-                    </p>
-                  </div>
-                  {/* Заметный счётчик участников */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent font-semibold text-sm">
-                      <Users size={15} /> {c.entries.length}
-                    </div>
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      disabled={deletingId === c.id}
-                      title="Удалить конкурс"
-                      className="p-2 rounded-full text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h1 className="text-xl font-bold">{profile.displayName}</h1>
+              {checkmarks.map((b) => (
+                <ShieldCheck key={b} size={17} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
+              ))}
+            </div>
+            <p className="text-white/40 text-sm mb-1.5">{profile.username ? `@${profile.username}` : "Юзернейм не задан"}</p>
+            <div className="flex items-center gap-3 flex-wrap mb-2">
+              <span className="flex items-center gap-1 text-xs text-white/40">
+                <CalendarDays size={13} /> На сайте с {memberSince}
+              </span>
+              {otherBadges.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {otherBadges.map((b) => (
+                    <span
+                      key={b}
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b] }}
                     >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
+                      {BADGE_LABEL[b]}
+                    </span>
+                  ))}
                 </div>
-
-                {c.status === "active" && !isPicking && (
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <button
-                      onClick={() => handleFinishRandom(c.id)}
-                      disabled={finishingId === c.id || c.entries.length === 0}
-                      className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      <Dices size={14} /> {finishingId === c.id ? "Подводим..." : "Случайные победители"}
-                    </button>
-                    <button
-                      onClick={() => startPicking(c)}
-                      disabled={c.entries.length === 0}
-                      className="btn-secondary px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      <Trophy size={14} /> Выбрать победителей вручную
-                    </button>
-                  </div>
-                )}
-
-                {isPicking && (
-                  <div className="mb-3 p-3 rounded-lg bg-black/20 border border-accent/20">
-                    <p className="text-xs text-white/50 mb-2">
-                      Отметь до {c.winnersCount} {c.winnersCount === 1 ? "победителя" : "победителей"} — выбрано {pickedChatIds.size}/{c.winnersCount}
-                    </p>
-                    <div className="space-y-1 max-h-56 overflow-y-auto mb-3">
-                      {c.entries.map((e) => {
-                        const checked = pickedChatIds.has(e.chatId);
-                        return (
-                          <button
-                            key={e.chatId}
-                            onClick={() => togglePick(e.chatId, c.winnersCount)}
-                            className={`w-full flex items-center gap-2 text-xs py-1.5 px-2 rounded-md text-left ${
-                              checked ? "bg-accent/15 text-accent" : "text-white/60 hover:bg-white/5"
-                            }`}
-                          >
-                            {checked ? <CheckSquare size={14} /> : <Square size={14} />}
-                            {e.firstName}
-                            {e.telegramUsername && ` (@${e.telegramUsername})`}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleFinishManual(c.id)}
-                        disabled={finishingId === c.id || pickedChatIds.size === 0}
-                        className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        <Trophy size={14} /> {finishingId === c.id ? "Подводим..." : "Завершить с этими победителями"}
-                      </button>
-                      <button onClick={() => setPickingFor(null)} className="btn-secondary px-4 py-2 text-sm">
-                        Отмена
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {c.status !== "active" && (
-                  <p className="text-xs text-white/30 whitespace-nowrap mb-3">
-                    Победители: {c.winnerChatIds?.length ?? 0}
-                  </p>
-                )}
-
-                <div className="border-t border-border pt-3">
-                  <p className="text-xs text-white/50 mb-2 flex items-center gap-1.5">
-                    <Users size={13} /> Список участников ({c.entries.length})
-                  </p>
-                  {c.entries.length === 0 ? (
-                    <p className="text-xs text-white/30">Пока никто не участвует.</p>
-                  ) : (
-                    <div className="space-y-1 max-h-56 overflow-y-auto">
-                      {c.entries.map((e) => {
-                        const isWinner = c.winnerChatIds?.includes(e.chatId);
-                        return (
-                          <div key={e.chatId} className="flex items-center justify-between text-xs py-1">
-                            <span className={isWinner ? "text-accent font-medium" : "text-white/60"}>
-                              {isWinner && "🏆 "}
-                              {e.firstName}
-                              {e.telegramUsername && ` (@${e.telegramUsername})`}
-                            </span>
-                            {e.telegramUsername && (
-                              <a
-                                href={`https://t.me/${e.telegramUsername}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-white/30 hover:text-white/60"
-                                title="Открыть чат в Telegram"
-                              >
-                                <ExternalLink size={12} />
-                              </a>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+              )}
+            </div>
+            {profile.username && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
+                  Как видят другие →
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const link = `${window.location.origin}/seller/${profile.username}`;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ title: "Мой профиль", url: link });
+                      } catch {
+                        // Пользователь закрыл системное окно "Поделиться" — это не ошибка
+                      }
+                    } else {
+                      navigator.clipboard.writeText(link);
+                      toast("success", "Ссылка на профиль скопирована");
+                    }
+                  }}
+                  className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
+                >
+                  <Copy size={12} /> Поделиться профилем
+                </button>
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
-      )}
+
+        <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="glass rounded-card p-3 text-center">
+            <Wallet size={16} className="text-accent mx-auto mb-1" />
+            <p className="text-base font-bold">{profile.balance.toFixed(0)} ₽</p>
+            <p className="text-[10px] text-white/40">Баланс</p>
+          </div>
+          <div className="glass rounded-card p-3 text-center">
+            <ShoppingBag size={16} className="text-accent mx-auto mb-1" />
+            <p className="text-base font-bold">{purchaseCount ?? "—"}</p>
+            <p className="text-[10px] text-white/40">Покупок</p>
+          </div>
+          <div className="glass rounded-card p-3 text-center">
+            <Star size={16} className="text-accent mx-auto mb-1" />
+            <p className="text-base font-bold">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
+            <p className="text-[10px] text-white/40">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
+          </div>
+        </div>
+
+        {!profile.emailVerified && (
+          <p className="text-xs text-yellow-400/80 flex items-center gap-1.5 mt-4">
+            <AlertCircle size={13} /> Email {profile.email} не подтверждён — проверьте почту в разделе «Безопасность».
+          </p>
+        )}
+
+        <Link href="/profile/topup" className="btn-primary inline-block mt-5 px-5 py-2.5 text-sm">
+          Пополнить баланс
+        </Link>
+      </div>
+
+      <form onSubmit={handleSaveProfile} className="card p-6 space-y-4">
+        <h2 className="font-bold flex items-center gap-2">
+          <User size={18} className="text-accent" /> Редактировать профиль
+        </h2>
+        {!profile.username && (
+          <p className="text-xs text-white/30">Придумай имя пользователя ниже, чтобы получить ссылку на свой профиль, которой можно делиться.</p>
+        )}
+
+        <div>
+          <ImageUploadField
+            value={avatarUrl ?? ""}
+            onChange={setAvatarUrl}
+            folder="avatars"
+            label="Аватар"
+            shape="round"
+            size={80}
+            disabled={avatarCooldown > 0}
+          />
+          {avatarCooldown > 0 ? (
+            <p className="text-[11px] text-yellow-400/70 mt-1.5">Следующая смена доступна через {formatDays(avatarCooldown)}</p>
+          ) : (
+            <p className="text-[11px] text-white/30 mt-1.5">Менять можно раз в 7 дней</p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block">Ник</label>
+          <input
+            autoComplete="off"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={nameCooldown > 0}
+            className="input-field py-2.5 disabled:opacity-40"
+          />
+          {nameCooldown > 0 && (
+            <p className="text-[11px] text-yellow-400/70 mt-1">Следующая смена доступна через {formatDays(nameCooldown)}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block">Юзернейм (для ссылки на профиль продавца)</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">@</span>
+            <input
+              autoComplete="off"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              placeholder="my_nickname"
+              className="input-field py-2.5 pl-7"
+            />
+          </div>
+          <p className="text-[11px] text-white/30 mt-1">3-20 символов: латиница, цифры, подчёркивание. Без недельного лимита.</p>
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block">О себе (необязательно)</label>
+          <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={2} className="input-field py-2.5" />
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block flex items-center gap-1.5">
+            <Mail size={12} /> Email
+          </label>
+          <p className="text-sm text-white/60">{profile.email}</p>
+        </div>
+
+        <button disabled={saving} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50">
+          <Save size={15} /> {saving ? "Сохраняем..." : "Сохранить"}
+        </button>
+      </form>
     </div>
   );
 }
-
