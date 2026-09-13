@@ -285,6 +285,7 @@ export interface OrderChatMessage {
   from: "buyer" | "seller" | "admin" | "system";
   text: string;
   createdAt: number;
+  imageUrl?: string;
 }
 
 export interface OrderChat {

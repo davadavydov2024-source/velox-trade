@@ -1,14 +1,17 @@
 "use client";
 
+import { Fragment } from "react";
 import { useEffect, useState } from "react";
-import { Check, X, AlertTriangle } from "lucide-react";
+import { Check, X, AlertTriangle, MessageCircle, ChevronDown } from "lucide-react";
 import { getAllDisputes, resolveDispute } from "@/lib/disputes";
 import { Dispute } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { OrderChatThread } from "@/components/OrderChatThread";
 
 export default function AdminDisputesPage() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openChatFor, setOpenChatFor] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -41,9 +44,8 @@ export default function AdminDisputesPage() {
           <AlertTriangle className="text-accent" size={22} /> Жалобы на сделки
         </h1>
         <p className="text-sm text-white/40 mb-4">
-          Одобрение жалобы — сигнал, что сделка признана проблемной; отклонение — что заказ в порядке. Возврат
-          средств при одобрении делай вручную через Пользователи → изменить баланс, пока в проекте нет
-          автоматического возврата.
+          Открой переписку по заказу («Чат») — там можно писать напрямую покупателю и продавцу, а слэш-команды
+          (например, /refund) сразу выполняют действие: одобрить/отклонить спор, вернуть деньги, предупредить.
         </p>
 
         {loading ? (
@@ -68,7 +70,18 @@ export default function AdminDisputesPage() {
                   <button onClick={() => handleResolve(d, false)} className="btn-secondary px-4 py-2 text-sm flex items-center gap-1.5">
                     <X size={14} /> Отклонить
                   </button>
+                  <button
+                    onClick={() => setOpenChatFor((cur) => (cur === d.orderId ? null : d.orderId))}
+                    className="btn-secondary px-4 py-2 text-sm flex items-center gap-1.5 ml-auto"
+                  >
+                    <MessageCircle size={14} /> Чат <ChevronDown size={13} className={openChatFor === d.orderId ? "rotate-180" : ""} />
+                  </button>
                 </div>
+                {openChatFor === d.orderId && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <OrderChatThread orderId={d.orderId} counterpartName="Участники спора" asAdmin />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -86,20 +99,39 @@ export default function AdminDisputesPage() {
                   <th className="p-3">От</th>
                   <th className="p-3">Причина</th>
                   <th className="p-3">Статус</th>
+                  <th className="p-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {resolved.map((d) => (
-                  <tr key={d.id} className="border-b border-border/50">
-                    <td className="p-3">#{d.orderId.slice(0, 8)}</td>
-                    <td className="p-3">{d.buyerName}</td>
-                    <td className="p-3 text-white/50">{d.reason}</td>
-                    <td className="p-3">
-                      <span className={d.status === "approved" ? "text-green-400" : "text-red-400"}>
-                        {d.status === "approved" ? "Одобрена" : "Отклонена"}
-                      </span>
-                    </td>
-                  </tr>
+                  <Fragment key={d.id}>
+                    <tr className="border-b border-border/50">
+                      <td className="p-3">#{d.orderId.slice(0, 8)}</td>
+                      <td className="p-3">{d.buyerName}</td>
+                      <td className="p-3 text-white/50">{d.reason}</td>
+                      <td className="p-3">
+                        <span className={d.status === "approved" ? "text-green-400" : "text-red-400"}>
+                          {d.status === "approved" ? "Одобрена" : "Отклонена"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => setOpenChatFor((cur) => (cur === d.orderId ? null : d.orderId))}
+                          className="text-white/40 hover:text-white/80"
+                          title="Открыть чат"
+                        >
+                          <MessageCircle size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                    {openChatFor === d.orderId && (
+                      <tr>
+                        <td colSpan={5} className="p-4 bg-black/20">
+                          <OrderChatThread orderId={d.orderId} counterpartName="Участники спора" asAdmin />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

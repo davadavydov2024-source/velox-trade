@@ -1,286 +1,143 @@
 "use client";
 
+import { Fragment } from "react";
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { useAuth } from "@/lib/authContext";
-import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, AlertCircle } from "lucide-react";
-import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
-import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
+import { Check, X, AlertTriangle, MessageCircle, ChevronDown } from "lucide-react";
+import { getAllDisputes, resolveDispute } from "@/lib/disputes";
+import { Dispute } from "@/types";
 import { useToast } from "@/lib/toastContext";
-import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
-import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
-import { ImageUploadField } from "@/components/ImageUploadField";
-import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { OrderChatThread } from "@/components/OrderChatThread";
 
-function cooldownLeft(lastChangeAt?: number): number {
-  if (!lastChangeAt) return 0;
-  return Math.max(0, lastChangeAt + NAME_CHANGE_COOLDOWN_MS - Date.now());
-}
-
-function formatDays(ms: number): string {
-  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  return `${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
-}
-
-export default function ProfilePage() {
-  const { profile, user, refreshProfile } = useAuth();
+export default function AdminDisputesPage() {
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openChatFor, setOpenChatFor] = useState<string | null>(null);
   const { toast } = useToast();
-  const [name, setName] = useState(profile?.displayName ?? "");
-  const [username, setUsername] = useState(profile?.username ?? "");
-  const [bio, setBio] = useState(profile?.bio ?? "");
-  const [avatarUrl, setAvatarUrl] = useState(profile?.photoURL ?? "");
-  const [saving, setSaving] = useState(false);
-  const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    getOrdersForUser(user.uid)
-      .then((orders) => setPurchaseCount(orders.filter((o) => o.status === "confirmed").length))
-      .catch(() => setPurchaseCount(null));
-  }, [user]);
+    getAllDisputes()
+      .then(setDisputes)
+      .finally(() => setLoading(false));
+  }, []);
 
-  if (!profile || !user) return null;
-
-  const nameCooldown = cooldownLeft(profile.lastNameChangeAt);
-  const avatarCooldown = cooldownLeft(profile.lastAvatarChangeAt);
-  const avgRating = profile.ratingCount ? (profile.ratingSum ?? 0) / profile.ratingCount : null;
-  const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
-  const otherBadges = profile.badges.filter((b) => !CHECKMARK_BADGES.includes(b));
-  const memberSince = new Date(profile.createdAt).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
-
-  async function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
+  async function handleResolve(d: Dispute, approve: boolean) {
     try {
-      const trimmedName = name.trim();
-      const nameChanged = trimmedName !== profile!.displayName;
-      // Раньше здесь проверки не было вообще — если ввести один пробел (или несколько), trim() даёт
-      // пустую строку, но она всё равно проходила как "новое имя", и профиль оставался с пустым
-      // именем без единой ошибки. Теперь пустое/слишком короткое имя (после trim) не сохраняется.
-      if (nameChanged && trimmedName.length < 2) {
-        toast("warning", "Имя не может быть пустым — минимум 2 символа");
-        setSaving(false);
-        return;
-      }
-      if (nameChanged && trimmedName.length > 20) {
-        toast("warning", "Имя слишком длинное — максимум 20 символов");
-        setSaving(false);
-        return;
-      }
-
-      const usernameChanged = username.trim().toLowerCase() !== (profile!.username ?? "");
-      if (usernameChanged && username.trim()) {
-        if (!isValidUsernameFormat(username)) {
-          toast("warning", "Юзернейм: 3-20 символов, только латиница, цифры и подчёркивание");
-          setSaving(false);
-          return;
-        }
-        const available = await isUsernameAvailable(username);
-        if (!available) {
-          toast("warning", "Этот юзернейм уже занят");
-          setSaving(false);
-          return;
-        }
-      }
-
-      const avatarChanged = avatarUrl !== (profile!.photoURL ?? "");
-      if (avatarChanged && avatarUrl && !isValidImageSrc(avatarUrl)) {
-        toast("warning", "Ссылка на аватар должна начинаться с http:// или https://");
-        setSaving(false);
-        return;
-      }
-
-      // Сначала резервируем новый юзернейм (и освобождаем старый), потом пишем сам профиль —
-      // если резервирование не удастся (например, кто-то успел занять его первым), профиль не тронется.
-      if (usernameChanged && username.trim()) {
-        await claimUsername(user!.uid, username.trim(), profile!.username);
-      }
-
-      await updateProfileInfo(user!.uid, profile!, {
-        displayName: nameChanged ? trimmedName : undefined,
-        photoURL: avatarChanged ? avatarUrl.trim() || null : undefined,
-        bio,
-        username: usernameChanged && username.trim() ? username.trim().toLowerCase() : undefined,
-      });
-
-      await refreshProfile();
-      toast("success", "Профиль обновлён");
+      await resolveDispute(d.orderId, approve);
+      setDisputes((list) => list.map((x) => (x.id === d.id ? { ...x, status: approve ? "approved" : "rejected" } : x)));
+      toast("success", approve ? "Жалоба одобрена" : "Жалоба отклонена");
     } catch (err: any) {
-      if (err?.code === "name-cooldown" || err?.code === "avatar-cooldown" || err?.code === "invalid-name") {
-        toast("error", err.message);
-      } else if (err?.code === "permission-denied") {
-        toast("error", "Нет доступа к базе данных. Проверь правила Firestore.");
+      if (err?.code === "permission-denied") {
+        toast("error", "Нет прав на запись. Проверь, что твой UID указан в firestore.rules как админ.");
       } else {
-        toast("error", "Не удалось сохранить изменения");
+        toast("error", "Не удалось обновить жалобу");
       }
-    } finally {
-      setSaving(false);
     }
   }
 
+  const open = disputes.filter((d) => d.status === "open");
+  const resolved = disputes.filter((d) => d.status !== "open");
+
   return (
-    <div className="space-y-6">
-      <OnboardingChecklist />
-      <div className="card p-6">
-        <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
-          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">
-            <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h1 className="text-xl font-bold">{profile.displayName}</h1>
-              {checkmarks.map((b) => (
-                <ShieldCheck key={b} size={17} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
-              ))}
-            </div>
-            <p className="text-white/40 text-sm mb-1.5">{profile.username ? `@${profile.username}` : "Юзернейм не задан"}</p>
-            <div className="flex items-center gap-3 flex-wrap mb-2">
-              <span className="flex items-center gap-1 text-xs text-white/40">
-                <CalendarDays size={13} /> На сайте с {memberSince}
-              </span>
-              {otherBadges.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {otherBadges.map((b) => (
-                    <span
-                      key={b}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b] }}
-                    >
-                      {BADGE_LABEL[b]}
-                    </span>
-                  ))}
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
+          <AlertTriangle className="text-accent" size={22} /> Жалобы на сделки
+        </h1>
+        <p className="text-sm text-white/40 mb-4">
+          Открой переписку по заказу («Чат») — там можно писать напрямую покупателю и продавцу, а слэш-команды
+          (например, /refund) сразу выполняют действие: одобрить/отклонить спор, вернуть деньги, предупредить.
+        </p>
+
+        {loading ? (
+          <div className="card p-6 text-center text-white/40">Загрузка...</div>
+        ) : open.length === 0 ? (
+          <div className="card p-6 text-center text-white/40">Открытых жалоб нет</div>
+        ) : (
+          <div className="space-y-2">
+            {open.map((d) => (
+              <div key={d.id} className="card p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium">
+                    Заказ #{d.orderId.slice(0, 8)} — от {d.buyerName}
+                  </p>
+                  <p className="text-xs text-white/30">{new Date(d.createdAt).toLocaleString("ru-RU")}</p>
                 </div>
-              )}
-            </div>
-            {profile.username && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
-                  Как видят другие →
-                </Link>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const link = `${window.location.origin}/seller/${profile.username}`;
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({ title: "Мой профиль", url: link });
-                      } catch {
-                        // Пользователь закрыл системное окно "Поделиться" — это не ошибка
-                      }
-                    } else {
-                      navigator.clipboard.writeText(link);
-                      toast("success", "Ссылка на профиль скопирована");
-                    }
-                  }}
-                  className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
-                >
-                  <Copy size={12} /> Поделиться профилем
-                </button>
+                <p className="text-sm text-white/60 mb-3">{d.reason}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => handleResolve(d, true)} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
+                    <Check size={14} /> Одобрить
+                  </button>
+                  <button onClick={() => handleResolve(d, false)} className="btn-secondary px-4 py-2 text-sm flex items-center gap-1.5">
+                    <X size={14} /> Отклонить
+                  </button>
+                  <button
+                    onClick={() => setOpenChatFor((cur) => (cur === d.orderId ? null : d.orderId))}
+                    className="btn-secondary px-4 py-2 text-sm flex items-center gap-1.5 ml-auto"
+                  >
+                    <MessageCircle size={14} /> Чат <ChevronDown size={13} className={openChatFor === d.orderId ? "rotate-180" : ""} />
+                  </button>
+                </div>
+                {openChatFor === d.orderId && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <OrderChatThread orderId={d.orderId} counterpartName="Участники спора" asAdmin />
+                  </div>
+                )}
               </div>
-            )}
+            ))}
           </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          <div className="glass rounded-card p-3 text-center">
-            <Wallet size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold">{profile.balance.toFixed(0)} ₽</p>
-            <p className="text-[10px] text-white/40">Баланс</p>
-          </div>
-          <div className="glass rounded-card p-3 text-center">
-            <ShoppingBag size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold">{purchaseCount ?? "—"}</p>
-            <p className="text-[10px] text-white/40">Покупок</p>
-          </div>
-          <div className="glass rounded-card p-3 text-center">
-            <Star size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
-            <p className="text-[10px] text-white/40">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
-          </div>
-        </div>
-
-        {!profile.emailVerified && (
-          <p className="text-xs text-yellow-400/80 flex items-center gap-1.5 mt-4">
-            <AlertCircle size={13} /> Email {profile.email} не подтверждён — проверьте почту в разделе «Безопасность».
-          </p>
         )}
-
-        <Link href="/profile/topup" className="btn-primary inline-block mt-5 px-5 py-2.5 text-sm">
-          Пополнить баланс
-        </Link>
       </div>
 
-      <form onSubmit={handleSaveProfile} className="card p-6 space-y-4">
-        <h2 className="font-bold flex items-center gap-2">
-          <User size={18} className="text-accent" /> Редактировать профиль
-        </h2>
-        {!profile.username && (
-          <p className="text-xs text-white/30">Придумай имя пользователя ниже, чтобы получить ссылку на свой профиль, которой можно делиться.</p>
-        )}
-
+      {resolved.length > 0 && (
         <div>
-          <ImageUploadField
-            value={avatarUrl ?? ""}
-            onChange={setAvatarUrl}
-            folder="avatars"
-            label="Аватар"
-            shape="round"
-            size={80}
-            disabled={avatarCooldown > 0}
-          />
-          {avatarCooldown > 0 ? (
-            <p className="text-[11px] text-yellow-400/70 mt-1.5">Следующая смена доступна через {formatDays(avatarCooldown)}</p>
-          ) : (
-            <p className="text-[11px] text-white/30 mt-1.5">Менять можно раз в 7 дней</p>
-          )}
-        </div>
-
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">Ник</label>
-          <input
-            autoComplete="off"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={nameCooldown > 0}
-            className="input-field py-2.5 disabled:opacity-40"
-          />
-          {nameCooldown > 0 && (
-            <p className="text-[11px] text-yellow-400/70 mt-1">Следующая смена доступна через {formatDays(nameCooldown)}</p>
-          )}
-        </div>
-
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">Юзернейм (для ссылки на профиль продавца)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">@</span>
-            <input
-              autoComplete="off"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
-              placeholder="my_nickname"
-              className="input-field py-2.5 pl-7"
-            />
+          <h2 className="text-lg font-bold mb-3">История</h2>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-white/40 border-b border-border">
+                  <th className="p-3">Заказ</th>
+                  <th className="p-3">От</th>
+                  <th className="p-3">Причина</th>
+                  <th className="p-3">Статус</th>
+                  <th className="p-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {resolved.map((d) => (
+                  <Fragment key={d.id}>
+                    <tr className="border-b border-border/50">
+                      <td className="p-3">#{d.orderId.slice(0, 8)}</td>
+                      <td className="p-3">{d.buyerName}</td>
+                      <td className="p-3 text-white/50">{d.reason}</td>
+                      <td className="p-3">
+                        <span className={d.status === "approved" ? "text-green-400" : "text-red-400"}>
+                          {d.status === "approved" ? "Одобрена" : "Отклонена"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => setOpenChatFor((cur) => (cur === d.orderId ? null : d.orderId))}
+                          className="text-white/40 hover:text-white/80"
+                          title="Открыть чат"
+                        >
+                          <MessageCircle size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                    {openChatFor === d.orderId && (
+                      <tr>
+                        <td colSpan={5} className="p-4 bg-black/20">
+                          <OrderChatThread orderId={d.orderId} counterpartName="Участники спора" asAdmin />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <p className="text-[11px] text-white/30 mt-1">3-20 символов: латиница, цифры, подчёркивание. Без недельного лимита.</p>
         </div>
-
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">О себе (необязательно)</label>
-          <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={2} className="input-field py-2.5" />
-        </div>
-
-        <div>
-          <label className="text-xs text-white/40 mb-1 block flex items-center gap-1.5">
-            <Mail size={12} /> Email
-          </label>
-          <p className="text-sm text-white/60">{profile.email}</p>
-        </div>
-
-        <button disabled={saving} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50">
-          <Save size={15} /> {saving ? "Сохраняем..." : "Сохранить"}
-        </button>
-      </form>
+      )}
     </div>
   );
 }
