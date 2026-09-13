@@ -28,6 +28,7 @@ export default function SellPage() {
 
   const [step, setStep] = useState<Step>(0);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [category, setCategory] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [itemName, setItemName] = useState("");
   const [price, setPrice] = useState("");
@@ -118,6 +119,7 @@ export default function SellPage() {
         itemName: itemName.trim(),
         gameId: selectedGame!.slug,
         gameName: selectedGame!.name,
+        ...(category ? { category } : {}),
         imageUrl,
         price: priceNum,
         ...(discountNum > 0 && !auctionEnabled ? { discountPercent: discountNum } : {}),
@@ -141,6 +143,7 @@ export default function SellPage() {
       toast("success", "Заявка на продажу отправлена. Администратор проверит её и свяжется с тобой.");
       setStep(0);
       setSelectedGame(null);
+      setCategory("");
       setImageUrl("");
       setItemName("");
       setPrice("");
@@ -220,7 +223,10 @@ export default function SellPage() {
                       <button
                         key={game.id}
                         type="button"
-                        onClick={() => setSelectedGame(game)}
+                        onClick={() => {
+                          setSelectedGame(game);
+                          setCategory("");
+                        }}
                         className={`relative flex flex-col items-center gap-1.5 p-2.5 rounded-btn border transition-all ${
                           active ? "border-accent bg-accent/10" : "border-transparent bg-surface hover:border-white/10"
                         }`}
@@ -259,6 +265,20 @@ export default function SellPage() {
                 placeholder="Название предмета"
                 className="input-field py-2.5"
               />
+
+              {selectedGame && selectedGame.categories && selectedGame.categories.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-2">Категория</p>
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field py-2.5 w-full">
+                    <option value="">Без категории</option>
+                    {selectedGame.categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -424,6 +444,7 @@ export default function SellPage() {
                       <p className="text-sm font-medium truncate">{itemName || "Без названия"}</p>
                       <p className="text-xs text-white/40">
                         {selectedGame?.name} · {RARITY_LABEL[rarity]}
+                        {category ? ` · ${category}` : ""}
                       </p>
                     </div>
                   </div>

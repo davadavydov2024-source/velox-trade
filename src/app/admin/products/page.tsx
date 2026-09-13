@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Plus, Trash2, Edit3 } from "lucide-react";
-import { getProducts, createProduct, updateProduct, deleteProduct } from "@/lib/products";
+import { getProducts, createProduct, updateProduct, deleteProduct, getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { Product, Rarity, RARITY_LABEL } from "@/types";
+import { Product, Rarity, RARITY_LABEL, Game } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
@@ -31,11 +31,13 @@ export default function AdminProductsPage() {
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
   const [minPrice, setMinPrice] = useState(1);
+  const [games, setGames] = useState<Game[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     refresh();
     getFeatureFlags().then((f) => setMinPrice(f.minProductPriceRub || 1));
+    getGames().then(setGames).catch(() => setGames([]));
   }, []);
 
   async function refresh() {
@@ -143,9 +145,27 @@ export default function AdminProductsPage() {
             required
             placeholder="ID игры (slug, напр. adopt-me)"
             value={form.gameId}
-            onChange={(e) => setForm({ ...form, gameId: e.target.value })}
+            onChange={(e) => setForm({ ...form, gameId: e.target.value, category: undefined })}
             className="input-field py-2.5"
           />
+          {(() => {
+            const game = games.find((g) => g.slug === form.gameId);
+            if (!game?.categories?.length) return null;
+            return (
+              <select
+                value={form.category ?? ""}
+                onChange={(e) => setForm({ ...form, category: e.target.value || undefined })}
+                className="input-field py-2.5"
+              >
+                <option value="">Без категории</option>
+                {game.categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            );
+          })()}
           <input
             autoComplete="off"
             required
@@ -218,6 +238,7 @@ export default function AdminProductsPage() {
             <tr className="text-left text-white/40 border-b border-border">
               <th className="p-3">Товар</th>
               <th className="p-3">Игра</th>
+              <th className="p-3">Категория</th>
               <th className="p-3">Цена</th>
               <th className="p-3">Остаток</th>
               <th className="p-3">Редкость</th>
@@ -227,7 +248,7 @@ export default function AdminProductsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-white/40">
+                <td colSpan={7} className="p-6 text-center text-white/40">
                   Загрузка...
                 </td>
               </tr>
@@ -241,6 +262,7 @@ export default function AdminProductsPage() {
                     {p.name}
                   </td>
                   <td className="p-3 text-white/50">{p.gameId}</td>
+                  <td className="p-3 text-white/40">{p.category ?? "—"}</td>
                   <td className="p-3">{p.price} ₽</td>
                   <td className="p-3">{p.stock}</td>
                   <td className="p-3 text-white/50">{RARITY_LABEL[p.rarity]}</td>

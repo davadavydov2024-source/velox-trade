@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
-import { getProducts } from "@/lib/products";
+import { getProducts, getGameBySlug } from "@/lib/products";
 import { Product, Rarity, RARITY_LABEL } from "@/types";
 
 const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
@@ -19,6 +19,8 @@ function CatalogInner() {
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState(initialQuery);
   const [rarity, setRarity] = useState<Rarity | "">("");
+  const [gameCategories, setGameCategories] = useState<string[]>([]);
+  const [category, setCategory] = useState("");
   const [sort, setSort] = useState<"newest" | "price_asc" | "price_desc">("newest");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -30,6 +32,23 @@ function CatalogInner() {
       .finally(() => setLoaded(true));
   }, [sort]);
 
+  // Категории зависят от конкретной игры — при смене ?game= подгружаем список категорий этой
+  // игры (задаются админом на /admin/games) и сбрасываем выбранную категорию, если она есть.
+  useEffect(() => {
+    setCategory("");
+    if (!gameSlug) {
+      setGameCategories([]);
+      return;
+    }
+    let cancelled = false;
+    getGameBySlug(gameSlug)
+      .then((g) => !cancelled && setGameCategories(g?.categories ?? []))
+      .catch(() => !cancelled && setGameCategories([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [gameSlug]);
+
   const filtered = useMemo(() => {
     const now = Date.now();
     const boostRank = (p: Product) => {
@@ -39,6 +58,7 @@ function CatalogInner() {
     return products
       .filter((p) => {
         if (gameSlug && p.gameId !== gameSlug) return false;
+        if (category && p.category !== category) return false;
         if (onlyNew && !p.isNew) return false;
         if (rarity && p.rarity !== rarity) return false;
         if (onlyAvailable && p.stock <= 0) return false;
@@ -46,7 +66,7 @@ function CatalogInner() {
         return true;
       })
       .sort((a, b) => boostRank(b) - boostRank(a));
-  }, [products, gameSlug, onlyNew, rarity, onlyAvailable, search]);
+  }, [products, gameSlug, category, onlyNew, rarity, onlyAvailable, search]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
@@ -72,6 +92,33 @@ function CatalogInner() {
               className="input-field py-2.5 text-sm"
             />
           </div>
+
+          {gameCategories.length > 0 && (
+            <div>
+              <p className="text-xs text-white/40 mb-2">Категория</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setCategory("")}
+                  className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                    category === "" ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                  }`}
+                >
+                  Все
+                </button>
+                {gameCategories.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCategory(c)}
+                    className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                      category === c ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <p className="text-xs text-white/40 mb-2">Редкость</p>

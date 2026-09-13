@@ -14,6 +14,10 @@ export interface Game {
   slug: string;
   image: string;
   productCount?: number;
+  // Категории товаров для этой конкретной игры (напр. для MM2: "Ножи", "Питомцы") — задаются
+  // админом вручную на /admin/games, шаблоны под популярные Roblox-игры лежат в
+  // lib/gameCategoryTemplates.ts. Список пуст по умолчанию — категории не обязательны.
+  categories?: string[];
 }
 
 // ---- Боты-посредники для передачи предметов внутри игры (эскроу) ----
@@ -85,6 +89,9 @@ export interface Product {
   price: number;
   rarity: Rarity;
   stock: number;
+  // Категория внутри игры (напр. "Ножи" для MM2) — необязательна, выбирается из Game.categories
+  // той игры, к которой относится товар. Если у игры категории не заданы, поле просто не показывается.
+  category?: string;
   isNew?: boolean;
   discountPercent?: number;
   boostTier?: "game" | "home"; // продвижение продавцом за баланс — "home" старше "game"
@@ -563,6 +570,8 @@ export interface SellRequest {
   itemName: string;
   gameId: string;
   gameName: string;
+  // См. комментарий на Product.category — переносится на товар при одобрении заявки.
+  category?: string;
   imageUrl: string;
   price: number; // цена, которую хочет получить продавец (то, что он ввёл в форме)
   discountPercent?: number; // необязательная скидка от самого продавца — переносится на товар при одобрении
