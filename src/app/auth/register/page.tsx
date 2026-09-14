@@ -165,7 +165,8 @@ function RegisterInner() {
       <AuthBackground />
 
       <div className="auth-card-rise max-w-md w-full">
-        <div className="card p-8 relative overflow-hidden">
+        <div className="auth-glow-border rounded-card">
+        <div className="card p-8 relative overflow-hidden z-[1]">
           {/* Тонкое свечение по верхнему краю карточки — просто декоративная полоска, оживляет
              иначе плоский верх card. */}
           <div
@@ -365,6 +366,7 @@ function RegisterInner() {
               {t("auth_login_link")}
             </Link>
           </p>
+        </div>
         </div>
       </div>
     </div>
