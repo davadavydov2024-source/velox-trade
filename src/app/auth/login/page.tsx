@@ -3,12 +3,13 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, Send, MessageCircle, QrCode } from "lucide-react";
+import { Mail, Lock, Send, MessageCircle, QrCode, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { QrDeviceLogin } from "@/components/QrDeviceLogin";
+import { AuthBackground } from "@/components/AuthBackground";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -133,151 +134,189 @@ function LoginInner() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-16">
-      <div className="card p-8">
-        <h1 className="text-2xl font-bold mb-1">Вход в аккаунт</h1>
-        <p className="text-white/40 text-sm mb-6">Рады видеть тебя снова в Velox Trade</p>
+    <div className="relative min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-16">
+      <AuthBackground />
 
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setMode("password")}
-            className={`flex-1 py-2 rounded-btn text-sm font-medium transition-colors ${
-              mode === "password" ? "bg-accent text-black" : "bg-surface text-white/60"
-            }`}
-          >
-            Пароль
-          </button>
-          <button
-            onClick={() => setMode("qr")}
-            className={`flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
-              mode === "qr" ? "bg-accent text-black" : "bg-surface text-white/60"
-            }`}
-          >
-            <QrCode size={14} /> По QR
-          </button>
-          {flags.telegramLoginEnabled && (
+      <div className="auth-card-rise max-w-md w-full">
+        <div className="auth-glow-border rounded-card">
+        <div className="card p-8 relative overflow-hidden z-[1]">
+          <div
+            className="absolute top-0 left-0 right-0 h-[2px] opacity-70"
+            style={{ background: "linear-gradient(90deg, transparent, var(--color-accent), transparent)" }}
+          />
+
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles size={20} className="text-accent shrink-0" />
+            <h1
+              className="text-2xl font-bold auth-title-sheen bg-clip-text text-transparent"
+              style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
+            >
+              Вход в аккаунт
+            </h1>
+          </div>
+          <p className="text-white/40 text-sm mb-6">Рады видеть тебя снова в Velox Trade</p>
+
+          <div className="relative flex mb-6 bg-surface rounded-btn p-1">
+            {(() => {
+              const tabs = flags.telegramLoginEnabled ? (["password", "qr", "telegram"] as const) : (["password", "qr"] as const);
+              const index = tabs.indexOf(mode as (typeof tabs)[number]);
+              const n = tabs.length;
+              return (
+                <div
+                  className="absolute top-1 bottom-1 rounded-btn bg-accent transition-all duration-300 ease-out"
+                  style={{ left: `calc(${index} * (100% - 8px) / ${n} + 4px)`, width: `calc((100% - 8px) / ${n})` }}
+                />
+              );
+            })()}
             <button
-              onClick={() => setMode("telegram")}
-              className={`flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                mode === "telegram" ? "bg-accent text-black" : "bg-surface text-white/60"
+              onClick={() => setMode("password")}
+              className={`relative z-10 flex-1 py-2 rounded-btn text-sm font-medium transition-colors duration-200 ${
+                mode === "password" ? "text-black" : "text-white/60"
               }`}
             >
-              <MessageCircle size={14} /> Telegram
+              Пароль
             </button>
-          )}
-        </div>
-
-        {mode === "qr" ? (
-          <QrDeviceLogin onSuccess={() => router.push(redirectTo)} />
-        ) : mode === "password" ? (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  className="input-field pl-10"
-                />
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
-                <input
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Пароль"
-                  className="input-field pl-10"
-                />
-              </div>
-              <div className="text-right">
-                <Link href="/auth/reset" className="text-xs text-accent hover:underline">
-                  Забыли пароль?
-                </Link>
-              </div>
-              <button disabled={loading} className="btn-primary w-full py-3 disabled:opacity-50">
-                {loading ? "Входим..." : "Войти"}
+            <button
+              onClick={() => setMode("qr")}
+              className={`relative z-10 flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors duration-200 ${
+                mode === "qr" ? "text-black" : "text-white/60"
+              }`}
+            >
+              <QrCode size={14} /> По QR
+            </button>
+            {flags.telegramLoginEnabled && (
+              <button
+                onClick={() => setMode("telegram")}
+                className={`relative z-10 flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors duration-200 ${
+                  mode === "telegram" ? "text-black" : "text-white/60"
+                }`}
+              >
+                <MessageCircle size={14} /> Telegram
               </button>
-            </form>
-
-            {flags.googleLoginEnabled && (
-              <>
-                <div className="flex items-center gap-3 my-5">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-white/30">или</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-
-                <div className="space-y-2">
-                  <button onClick={handleGoogle} className="btn-secondary w-full py-3">
-                    Войти через Google
-                  </button>
-                </div>
-              </>
             )}
-          </>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-xs text-white/40">
-              Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
-              вошёл).
-            </p>
-            {!codeSent ? (
-              <form onSubmit={handleRequestCode} className="space-y-4">
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
+          </div>
+
+          <div className="auth-pill-pop" key={mode}>
+          {mode === "qr" ? (
+            <QrDeviceLogin onSuccess={() => router.push(redirectTo)} />
+          ) : mode === "password" ? (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="relative group">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
                   <input
                     type="email"
                     required
                     autoComplete="email"
-                    value={tgEmail}
-                    onChange={(e) => setTgEmail(e.target.value)}
-                    placeholder="Email аккаунта"
-                    className="input-field pl-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email"
+                    className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
                   />
                 </div>
-                <button disabled={tgSending} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                  <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyCode} className="space-y-4">
-                <input
-                  required
-                  autoComplete="one-time-code"
-                  value={tgCode}
-                  onChange={(e) => setTgCode(e.target.value)}
-                  placeholder="Код из Telegram (6 цифр)"
-                  maxLength={6}
-                  className="input-field text-center tracking-[0.3em] font-mono text-lg"
-                />
-                <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
-                  {tgVerifying ? "Проверяем..." : "Войти"}
-                </button>
+                <div className="relative group">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
+                  <input
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Пароль"
+                    className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                  />
+                </div>
+                <div className="text-right">
+                  <Link href="/auth/reset" className="text-xs text-accent hover:underline">
+                    Забыли пароль?
+                  </Link>
+                </div>
                 <button
-                  type="button"
-                  onClick={() => setCodeSent(false)}
-                  className="text-xs text-white/40 hover:text-white/70 w-full text-center"
+                  disabled={loading}
+                  className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
                 >
-                  Ввести другой email
+                  {loading ? "Входим..." : "Войти"}
                 </button>
               </form>
-            )}
-          </div>
-        )}
 
-        <p className="text-center text-sm text-white/40 mt-6">
-          Нет аккаунта?{" "}
-          <Link href="/auth/register" className="text-accent hover:underline">
-            Зарегистрироваться
-          </Link>
-        </p>
+              {flags.googleLoginEnabled && (
+                <>
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs text-white/30">или</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <button onClick={handleGoogle} className="btn-secondary w-full py-3">
+                      Войти через Google
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-white/40">
+                Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
+                вошёл).
+              </p>
+              {!codeSent ? (
+                <form onSubmit={handleRequestCode} className="space-y-4">
+                  <div className="relative group">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={tgEmail}
+                      onChange={(e) => setTgEmail(e.target.value)}
+                      placeholder="Email аккаунта"
+                      className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    />
+                  </div>
+                  <button
+                    disabled={tgSending}
+                    className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
+                  >
+                    <Send size={16} /> {tgSending ? "Отправляем..." : "Отправить код в Telegram"}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyCode} className="space-y-4">
+                  <input
+                    required
+                    autoComplete="one-time-code"
+                    value={tgCode}
+                    onChange={(e) => setTgCode(e.target.value)}
+                    placeholder="Код из Telegram (6 цифр)"
+                    maxLength={6}
+                    className="input-field text-center tracking-[0.3em] font-mono text-lg focus:ring-2 focus:ring-accent/30 transition-shadow"
+                  />
+                  <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
+                    {tgVerifying ? "Проверяем..." : "Войти"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCodeSent(false)}
+                    className="text-xs text-white/40 hover:text-white/70 w-full text-center"
+                  >
+                    Ввести другой email
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+          </div>
+
+          <p className="text-center text-sm text-white/40 mt-6">
+            Нет аккаунта?{" "}
+            <Link href="/auth/register" className="text-accent hover:underline">
+              Зарегистрироваться
+            </Link>
+          </p>
+        </div>
+        </div>
       </div>
     </div>
   );
@@ -285,7 +324,14 @@ function LoginInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="max-w-md mx-auto px-4 py-16 text-center text-white/40">Загрузка...</div>}>
+    <Suspense
+      fallback={
+        <div className="relative min-h-[calc(100vh-64px)] flex items-center justify-center px-4">
+          <AuthBackground />
+          <p className="text-white/40">Загрузка...</p>
+        </div>
+      }
+    >
       <LoginInner />
     </Suspense>
   );

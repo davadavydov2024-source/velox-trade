@@ -361,6 +361,19 @@ body {
 }
 .auth-pill-pop { animation: auth-pill-pop 0.25s ease-out; }
 
+/* Слайд-переход между "страницами" мастера регистрации — направление зависит от того, идём мы
+   вперёд (Далее) или назад (Назад), см. .auth-step-forward / .auth-step-back в register/page.tsx. */
+@keyframes auth-step-in-right {
+  from { opacity: 0; transform: translateX(36px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes auth-step-in-left {
+  from { opacity: 0; transform: translateX(-36px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.auth-step-forward { animation: auth-step-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.auth-step-back { animation: auth-step-in-left 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+
 @keyframes auth-spin-slow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
