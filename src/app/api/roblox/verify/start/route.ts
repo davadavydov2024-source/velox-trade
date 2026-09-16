@@ -38,9 +38,12 @@ export async function POST(req: NextRequest) {
     const thumbData = thumbRes.ok ? await thumbRes.json() : null;
     const avatarUrl: string | null = thumbData?.data?.[0]?.imageUrl ?? null;
 
-    // Код короткий и с явным префиксом — легко найти в описании профиля глазами, и легко потом
-    // удалить. Одна попытка перезаписывает предыдущую (на случай если пользователь ошибся ником).
-    const code = `verify-${Math.random().toString(36).slice(2, 8)}`;
+    // Одна попытка перезаписывает предыдущую (на случай если пользователь ошибся ником).
+    // ВАЖНО: код НЕ должен содержать слов вроде "verify"/"код"/"подтверди" — фильтр Roblox активно
+    // блюрит/скрывает такие фразы в описании профиля именно потому, что "verify your account" —
+    // классическая формулировка мошенников. Поэтому код — просто нейтральный набор символов без
+    // единого узнаваемого слова, не похожий ни на ссылку, ни на просьбу что-то подтвердить.
+    const code = Math.random().toString(36).slice(2, 10);
 
     await adminDb().collection("robloxVerifications").doc(decoded.uid).set({
       code,

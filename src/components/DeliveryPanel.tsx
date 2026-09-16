@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle, ShieldCheck, History, ChevronDown } from "lucide-react";
+import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle, ShieldCheck, History, ChevronDown, Hourglass } from "lucide-react";
 import { subscribeDelivery, submitDeliveryNickname } from "@/lib/deliveries";
 import { Delivery } from "@/types";
 import { useToast } from "@/lib/toastContext";
@@ -26,6 +26,29 @@ function Countdown({ expiresAt }: { expiresAt: number }) {
     <span className="text-xs text-white/50 flex items-center gap-1">
       <Clock size={12} /> осталось {mins}:{secs.toString().padStart(2, "0")}
     </span>
+  );
+}
+
+/** Считает время, прошедшее с момента, как заявка стала ждать действия админа (передача боту
+ * подтверждена/нет и т.п.) — просто чтобы у покупателя/продавца было ощущение "процесс идёт", а не
+ * тишина. После 10 минут текст меняет цвет на предупреждающий — это не жёсткий лимит (в отличие от
+ * Countdown выше для призов колеса), просто визуальный сигнал, что ожидание уже подзатянулось. */
+function ElapsedWait({ since }: { since: number }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const elapsedMs = Math.max(0, Date.now() - since);
+  const mins = Math.floor(elapsedMs / 60000);
+  const secs = Math.floor((elapsedMs % 60000) / 1000);
+  const slow = mins >= 10;
+  return (
+    <p className={`text-xs flex items-center gap-1.5 ${slow ? "text-amber-400" : "text-white/40"}`}>
+      <Hourglass size={12} className={slow ? "" : "animate-pulse"} />
+      Ждём подтверждения администратора — {mins}:{secs.toString().padStart(2, "0")}
+      {slow && " (обычно быстрее, но иногда это занимает время)"}
+    </p>
   );
 }
 
@@ -146,14 +169,17 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
               подтвердит администратор, статус обновится автоматически.
             </p>
           ) : (
-            <p className="text-xs text-white/50">
-              Продавцу отправлено, куда передать предмет. Как только бот его получит, ты увидишь это здесь и сможешь забрать
-              предмет у бота в игре.
-            </p>
+            <>
+              <p className="text-xs text-white/50">
+                Продавцу отправлено, куда передать предмет. Как только бот его получит, ты увидишь это здесь и сможешь забрать
+                предмет у бота в игре.
+              </p>
+              {delivery.buyerNicknameSubmittedAt && <ElapsedWait since={delivery.buyerNicknameSubmittedAt} />}
+            </>
           )}
         </div>
       ) : delivery.status === "received_by_bot" ? (
-        <div className="text-sm">
+        <div className="text-sm space-y-1.5">
           <p className="text-accent font-medium mb-1">Бот получил предмет от продавца ✅</p>
           {isBuyer ? (
             <p className="text-xs text-white/50">
@@ -168,6 +194,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
           ) : (
             <p className="text-xs text-white/50">Ждём, пока администратор выдаст предмет покупателю у бота.</p>
           )}
+          {delivery.receivedAt && <ElapsedWait since={delivery.receivedAt} />}
         </div>
       ) : delivery.status === "cancelled" ? (
         <div className="text-sm">

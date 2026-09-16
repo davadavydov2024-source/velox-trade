@@ -94,8 +94,9 @@ export async function POST(req: NextRequest) {
     getAdminUids().forEach((adminUid) =>
       sendWebPush(adminUid, { title: "Заявка готова к передаче", body: `${result.productName} — ник: ${trimmedNickname}`, url: "/admin/deliveries" }, "purchases")
     );
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
     notifyAdminTelegramServer(
-      `📦 Новая выдача готова к передаче: «${result.productName}»\nНик покупателя: ${trimmedNickname}\nБот-посредник: ${result.botNickname}\nПроверь передачу в игре и подтверди в /admin/deliveries.`
+      `📦 Новая выдача готова к передаче: «${result.productName}»\nНик покупателя: ${trimmedNickname}\nБот-посредник: ${result.botNickname}\n\n👉 ${siteUrl}/admin/deliveries`
     );
 
     return NextResponse.json({ ok: true, botNickname: result.botNickname });
