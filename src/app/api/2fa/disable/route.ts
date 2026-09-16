@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { verifyTotpCode, hashBackupCode } from "@/lib/totp";
+import { getOrMigrateTotpSecret } from "@/lib/botCredentialCrypto";
 
 export const runtime = "nodejs";
 
@@ -21,9 +22,10 @@ export async function POST(req: NextRequest) {
     if (!snap.exists || !snap.data()?.enabled) {
       return NextResponse.json({ error: "2FA и так не включена" }, { status: 400 });
     }
-    const data = snap.data() as { secret: string; backupCodeHashes: string[] };
+    const data = snap.data() as { secret?: string; secretEnc?: string; backupCodeHashes: string[] };
+    const totpSecret = await getOrMigrateTotpSecret(secretRef, data);
 
-    const validTotp = typeof code === "string" && verifyTotpCode(data.secret, code);
+    const validTotp = typeof code === "string" && verifyTotpCode(totpSecret, code);
     const validBackup = typeof code === "string" && data.backupCodeHashes.includes(hashBackupCode(code));
     if (!validTotp && !validBackup) {
       return NextResponse.json({ error: "Неверный код — для отключения 2FA нужен текущий код из приложения" }, { status: 400 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { verifyTotpCode, hashBackupCode } from "@/lib/totp";
+import { getOrMigrateTotpSecret } from "@/lib/botCredentialCrypto";
 
 export const runtime = "nodejs";
 
@@ -26,9 +27,10 @@ export async function POST(req: NextRequest) {
       // 2FA не включена — считаем, что проверять нечего (гейт на клиенте и так его не должен был показать).
       return NextResponse.json({ ok: true });
     }
-    const data = snap.data() as { secret: string; backupCodeHashes: string[]; usedBackupCodeHashes?: string[] };
+    const data = snap.data() as { secret?: string; secretEnc?: string; backupCodeHashes: string[]; usedBackupCodeHashes?: string[] };
+    const totpSecret = await getOrMigrateTotpSecret(secretRef, data);
 
-    if (verifyTotpCode(data.secret, code)) {
+    if (verifyTotpCode(totpSecret, code)) {
       return NextResponse.json({ ok: true });
     }
 

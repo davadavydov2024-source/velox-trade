@@ -158,8 +158,10 @@ function LoginInner() {
 
           <div className="relative flex mb-6 bg-surface rounded-btn p-1">
             {(() => {
-              const tabs = flags.telegramLoginEnabled ? (["password", "qr", "telegram"] as const) : (["password", "qr"] as const);
-              const index = tabs.indexOf(mode as (typeof tabs)[number]);
+              const tabs: readonly ("password" | "qr" | "telegram")[] = flags.telegramLoginEnabled
+                ? ["password", "qr", "telegram"]
+                : ["password", "qr"];
+              const index = tabs.indexOf(mode);
               const n = tabs.length;
               return (
                 <div

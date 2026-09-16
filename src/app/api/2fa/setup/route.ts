@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { generateBase32Secret, buildOtpauthUrl } from "@/lib/totp";
+import { encryptSecret } from "@/lib/botCredentialCrypto";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,9 @@ export async function POST(req: NextRequest) {
     // Новый секрет при каждом заходе на экран настройки — если человек не завершит подтверждение
     // старым, он просто перезапишется, ничего страшного (secret недействителен, пока не enabled).
     const secret = generateBase32Secret();
-    await secretRef.set({ secret, enabled: false, createdAt: Date.now() }, { merge: true });
+    // В базе храним только зашифрованную версию — plaintext уходит пользователю один раз (для
+    // QR-кода/добавления в приложение-аутентификатор) и на сервере больше нигде не остаётся.
+    await secretRef.set({ secretEnc: encryptSecret(secret), enabled: false, createdAt: Date.now() }, { merge: true });
 
     const accountLabel = decoded.email || uid;
     const otpauthUrl = buildOtpauthUrl(secret, accountLabel);

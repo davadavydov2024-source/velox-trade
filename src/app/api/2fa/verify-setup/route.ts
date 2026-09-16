@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { verifyTotpCode, generateBackupCodes, hashBackupCode } from "@/lib/totp";
+import { getOrMigrateTotpSecret } from "@/lib/botCredentialCrypto";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const secretRef = db.collection("twoFactorSecrets").doc(uid);
     const snap = await secretRef.get();
     if (!snap.exists) return NextResponse.json({ error: "Сначала запусти настройку 2FA заново" }, { status: 400 });
-    const { secret } = snap.data() as { secret: string };
+    const secret = await getOrMigrateTotpSecret(secretRef, snap.data() as { secret?: string; secretEnc?: string });
 
     if (!verifyTotpCode(secret, code)) {
       return NextResponse.json({ error: "Неверный код. Проверь время на телефоне и попробуй снова." }, { status: 400 });
