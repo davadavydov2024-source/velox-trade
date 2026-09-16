@@ -35,6 +35,8 @@ export async function GET(req: NextRequest) {
         ratingCount: data.ratingCount ?? 0,
         createdAt: data.createdAt ?? null,
         isOnline: Date.now() - lastActiveAt < ONLINE_THRESHOLD_MS,
+        nameColor: data.nameColor ?? undefined,
+        nameFont: data.nameFont ?? undefined,
       },
     });
   } catch (err) {

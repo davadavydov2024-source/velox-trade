@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendWebPush } from "@/lib/webPushServer";
+import { notifyAdminTelegramServer } from "@/lib/telegramNotifyServer";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,11 @@ export async function POST(req: NextRequest) {
         botNickname: bot.nickname,
         botProfileLink: bot.profileLink ?? null,
         status: "awaiting_transfer",
+        logs: FieldValue.arrayUnion({
+          at: Date.now(),
+          actor: "buyer",
+          action: `Покупатель указал игровой ник: ${trimmedNickname}. Назначен бот-посредник: ${bot.nickname}`,
+        }),
       });
 
       // Системное сообщение в чат заказа — и продавец, и покупатель сразу видят, что происходит,
@@ -87,6 +93,9 @@ export async function POST(req: NextRequest) {
     // Не критично для основного результата — фоново, не блокируя ответ покупателю.
     getAdminUids().forEach((adminUid) =>
       sendWebPush(adminUid, { title: "Заявка готова к передаче", body: `${result.productName} — ник: ${trimmedNickname}`, url: "/admin/deliveries" }, "purchases")
+    );
+    notifyAdminTelegramServer(
+      `📦 Новая выдача готова к передаче: «${result.productName}»\nНик покупателя: ${trimmedNickname}\nБот-посредник: ${result.botNickname}\nПроверь передачу в игре и подтверди в /admin/deliveries.`
     );
 
     return NextResponse.json({ ok: true, botNickname: result.botNickname });

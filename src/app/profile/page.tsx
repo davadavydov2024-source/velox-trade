@@ -12,6 +12,7 @@ import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
 import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { StyledNickname } from "@/components/StyledNickname";
 
 function cooldownLeft(lastChangeAt?: number): number {
   if (!lastChangeAt) return 0;
@@ -122,14 +123,19 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       <OnboardingChecklist />
-      <div className="card p-6">
+      <div className="card overflow-hidden">
+        <div
+          className="h-16 sm:h-20"
+          style={{ background: "linear-gradient(120deg, var(--color-accent) 0%, #4a6cf7 60%, #22c55e 100%)", opacity: 0.25 }}
+        />
+        <div className="p-6 -mt-10 sm:-mt-12">
         <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
-          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">
+          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-4 ring-bg shadow-[0_0_0_2px_var(--color-accent)]">
             <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pt-2 sm:pt-8">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h1 className="text-xl font-bold">{profile.displayName}</h1>
+              <h1 className="text-xl font-bold"><StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} /></h1>
               {checkmarks.map((b) => (
                 <ShieldCheck key={b} size={17} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
               ))}
@@ -209,6 +215,7 @@ export default function ProfilePage() {
         <Link href="/profile/topup" className="btn-primary inline-block mt-5 px-5 py-2.5 text-sm">
           Пополнить баланс
         </Link>
+        </div>
       </div>
 
       <form onSubmit={handleSaveProfile} className="card p-6 space-y-4">

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff } from "lucide-react";
-import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole } from "@/lib/users";
+import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff, Palette } from "lucide-react";
+import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole, adminUpdateNickname } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
+import { NICKNAME_COLOR_PRESETS, NICKNAME_FONT_PRESETS } from "@/lib/nicknameStyles";
+import { StyledNickname } from "@/components/StyledNickname";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
 
@@ -32,6 +34,9 @@ export default function AdminUsersPage() {
   const [editingBadges, setEditingBadges] = useState<UserProfile | null>(null);
   const [draftBadges, setDraftBadges] = useState<UserBadge[]>([]);
   const [savingBadges, setSavingBadges] = useState(false);
+  const [editingNick, setEditingNick] = useState<UserProfile | null>(null);
+  const [nickDraft, setNickDraft] = useState({ displayName: "", nameColor: "default", nameFont: "default" });
+  const [savingNick, setSavingNick] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -102,6 +107,36 @@ export default function AdminUsersPage() {
     }
   }
 
+  function openNickEditor(u: UserProfile) {
+    setEditingNick(u);
+    setNickDraft({ displayName: u.displayName, nameColor: u.nameColor ?? "default", nameFont: u.nameFont ?? "default" });
+  }
+
+  async function saveNick() {
+    if (!editingNick) return;
+    setSavingNick(true);
+    try {
+      await adminUpdateNickname(editingNick.uid, {
+        displayName: nickDraft.displayName,
+        nameColor: nickDraft.nameColor,
+        nameFont: nickDraft.nameFont,
+      });
+      setUsers((list) =>
+        list.map((x) =>
+          x.uid === editingNick.uid
+            ? { ...x, displayName: nickDraft.displayName.trim(), nameColor: nickDraft.nameColor, nameFont: nickDraft.nameFont }
+            : x
+        )
+      );
+      toast("success", "Ник обновлён");
+      setEditingNick(null);
+    } catch (err: any) {
+      toast("error", err?.code === "invalid-name" ? err.message : "Не удалось сохранить ник");
+    } finally {
+      setSavingNick(false);
+    }
+  }
+
   function openBadgeEditor(u: UserProfile) {
     setEditingBadges(u);
     setDraftBadges(u.badges);
@@ -153,6 +188,7 @@ export default function AdminUsersPage() {
             <tr className="text-left text-white/40 border-b border-border">
               <th className="p-3">Пользователь</th>
               <th className="p-3">Email</th>
+              <th className="p-3">Возраст</th>
               <th className="p-3">Баланс</th>
               <th className="p-3">Метки</th>
               <th className="p-3">Роль персонала</th>
@@ -164,13 +200,13 @@ export default function AdminUsersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="p-6 text-center text-white/40">
+                <td colSpan={9} className="p-6 text-center text-white/40">
                   Загрузка...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-6 text-center text-white/40">
+                <td colSpan={9} className="p-6 text-center text-white/40">
                   Пользователи не найдены
                 </td>
               </tr>
@@ -186,15 +222,16 @@ export default function AdminUsersPage() {
                         title={Date.now() - (u.lastActiveAt ?? 0) < 2 * 60 * 1000 ? "В сети" : "Не в сети"}
                       />
                       {u.username ? (
-                        <Link href={`/seller/${u.username}`} target="_blank" className="hover:text-accent hover:underline">
-                          {u.displayName}
+                        <Link href={`/seller/${u.username}`} target="_blank" className="hover:underline">
+                          <StyledNickname name={u.displayName} nameColor={u.nameColor} nameFont={u.nameFont} />
                         </Link>
                       ) : (
-                        u.displayName
+                        <StyledNickname name={u.displayName} nameColor={u.nameColor} nameFont={u.nameFont} />
                       )}
                     </span>
                   </td>
                   <td className="p-3 text-white/50">{u.email}</td>
+                  <td className="p-3 text-white/40">{u.age ?? "—"}</td>
                   <td className="p-3">{u.balance.toFixed(2)} ₽</td>
                   <td className="p-3">
                     <div className="flex gap-1 flex-wrap max-w-[220px]">
@@ -231,6 +268,13 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="p-3">
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => openNickEditor(u)}
+                        className="p-1.5 rounded-md hover:bg-white/10 text-white/60"
+                        title="Изменить ник, цвет и шрифт"
+                      >
+                        <Palette size={15} />
+                      </button>
                       <button
                         onClick={() => openBadgeEditor(u)}
                         className="p-1.5 rounded-md hover:bg-white/10 text-white/60"
@@ -300,6 +344,78 @@ export default function AdminUsersPage() {
                 {savingBadges ? "Сохраняем..." : "Сохранить"}
               </button>
               <button onClick={() => setEditingBadges(null)} className="btn-secondary px-5 py-2.5 text-sm">
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingNick && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingNick(null)}>
+          <div className="card p-6 max-w-md w-full space-y-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">Ник — {editingNick.displayName}</h2>
+              <button onClick={() => setEditingNick(null)} className="text-white/40 hover:text-white/80">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="text-center py-3 rounded-btn bg-surface">
+              <p className="text-xs text-white/30 mb-1.5">Предпросмотр</p>
+              <p className="text-xl">
+                <StyledNickname name={nickDraft.displayName || "Ник"} nameColor={nickDraft.nameColor} nameFont={nickDraft.nameFont} />
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-white/40 mb-1.5">Имя</p>
+              <input
+                autoComplete="off"
+                value={nickDraft.displayName}
+                onChange={(e) => setNickDraft((d) => ({ ...d, displayName: e.target.value }))}
+                className="input-field py-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <p className="text-xs text-white/40 mb-1.5">Цвет</p>
+              <div className="flex flex-wrap gap-1.5">
+                {NICKNAME_COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setNickDraft((d) => ({ ...d, nameColor: c.id }))}
+                    className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                      nickDraft.nameColor === c.id ? "border-white/60" : "border-transparent bg-white/5 hover:bg-white/10"
+                    }`}
+                    style={c.color ? { color: c.color, background: nickDraft.nameColor === c.id ? `${c.color}22` : undefined } : undefined}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs text-white/40 mb-1.5">Шрифт</p>
+              <select
+                value={nickDraft.nameFont}
+                onChange={(e) => setNickDraft((d) => ({ ...d, nameFont: e.target.value }))}
+                className="input-field py-2 text-sm w-full"
+              >
+                {NICKNAME_FONT_PRESETS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={saveNick} disabled={savingNick} className="btn-primary px-5 py-2.5 text-sm flex-1 disabled:opacity-50">
+                {savingNick ? "Сохраняем..." : "Сохранить"}
+              </button>
+              <button onClick={() => setEditingNick(null)} className="btn-secondary px-5 py-2.5 text-sm">
                 Отмена
               </button>
             </div>

@@ -46,6 +46,11 @@ export async function POST(req: NextRequest) {
         // "seller" — заявка на бота больше не нужна, дальше действует обычная кнопка
         // "Подтвердить получение" у покупателя. "bot" — запускаем существующий флоу с ника.
         status: method === "bot" ? "awaiting_nickname" : "delivered",
+        logs: FieldValue.arrayUnion({
+          at: Date.now(),
+          actor: "seller",
+          action: method === "bot" ? "Продавец выбрал выдачу через бота-посредника" : "Продавец выбрал выдать предмет самостоятельно",
+        }),
       });
 
       const chatText =

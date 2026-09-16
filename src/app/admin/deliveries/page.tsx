@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PackageCheck, User, Bot, Clock, ExternalLink, XCircle } from "lucide-react";
+import { PackageCheck, User, Bot, Clock, ExternalLink, XCircle, History, ChevronDown } from "lucide-react";
 import { getAllDeliveries, adminUpdateDeliveryStatus, DELIVERY_TIMEOUT_MS } from "@/lib/deliveries";
 import { Delivery, DeliveryStatus } from "@/types";
 import { useToast } from "@/lib/toastContext";
@@ -45,6 +45,7 @@ export default function AdminDeliveriesPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"active" | "all">("active");
+  const [logsOpenId, setLogsOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     refresh();
@@ -226,6 +227,32 @@ export default function AdminDeliveriesPage() {
                   <p className="text-xs text-white/30">
                     Отменено администрацией{d.cancelReason ? `: «${d.cancelReason}»` : ""}
                   </p>
+                )}
+
+                {d.logs && d.logs.length > 0 && (
+                  <div className="pt-2 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setLogsOpenId((cur) => (cur === d.id ? null : d.id))}
+                      className="text-xs text-white/30 hover:text-white/60 flex items-center gap-1"
+                    >
+                      <History size={12} /> Полный лог ({d.logs.length}){" "}
+                      <ChevronDown size={11} className={logsOpenId === d.id ? "rotate-180" : ""} />
+                    </button>
+                    {logsOpenId === d.id && (
+                      <ul className="mt-2 space-y-1.5">
+                        {d.logs.map((log, i) => (
+                          <li key={i} className="text-[11px] text-white/40 flex gap-2">
+                            <span className="text-white/25 shrink-0">
+                              {new Date(log.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <span className="text-white/20 shrink-0">[{log.actor}]</span>
+                            <span>{log.action}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 )}
               </div>
             );

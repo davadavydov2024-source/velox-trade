@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles, ChevronLeft, KeyRound } from "lucide-react";
+import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles, ChevronLeft, KeyRound, CalendarDays } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/lib/toastContext";
@@ -33,10 +33,12 @@ function translateAuthError(code?: string) {
 
 // Шаги мастера регистрации — каждый рисуется как отдельная "страница" внутри карточки, со
 // слайд-анимацией между ними (см. .auth-step-forward/.auth-step-back в globals.css).
-// 0 — язык + способ регистрации; 1..3 — только для способа "пароль" (имя → email → пароль);
-// путь "телеграм" со своего step 1 показывает свою форму и дальше сам управляет внутренними
-// состояниями (ссылка на бота / ожидание / подтверждено).
-type Step = 0 | 1 | 2 | 3;
+// 0 — язык + способ регистрации; 1..4 — только для способа "пароль" (имя → email → возраст →
+// пароль); путь "телеграм" со своего step 1 показывает одну форму (имя+email+возраст) и дальше сам
+// управляет внутренними состояниями (ссылка на бота / ожидание / подтверждено).
+type Step = 0 | 1 | 2 | 3 | 4;
+const MIN_AGE = 6;
+const MAX_AGE = 120;
 
 function RegisterInner() {
   const { register } = useAuth();
@@ -65,7 +67,7 @@ function RegisterInner() {
 
   function goNext() {
     setDir(1);
-    setStep((s) => Math.min(3, s + 1) as Step);
+    setStep((s) => Math.min(4, s + 1) as Step);
   }
   function goBack() {
     setDir(-1);
@@ -75,6 +77,7 @@ function RegisterInner() {
   // --- регистрация по паролю ---
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -82,6 +85,7 @@ function RegisterInner() {
   // --- регистрация через Telegram ---
   const [tgName, setTgName] = useState("");
   const [tgEmail, setTgEmail] = useState("");
+  const [tgAge, setTgAge] = useState("");
   const [tgLinkUrl, setTgLinkUrl] = useState<string | null>(null);
   const [tgCode, setTgCode] = useState<string | null>(null);
   const [tgCreating, setTgCreating] = useState(false);
@@ -112,6 +116,16 @@ function RegisterInner() {
     goNext();
   }
 
+  function handleAgeNext(e: React.FormEvent) {
+    e.preventDefault();
+    const value = Number(age);
+    if (!Number.isInteger(value) || value < MIN_AGE || value > MAX_AGE) {
+      toast("warning", `Укажи реальный возраст (от ${MIN_AGE} до ${MAX_AGE})`);
+      return;
+    }
+    goNext();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password.length < 6) {
@@ -120,7 +134,7 @@ function RegisterInner() {
     }
     setLoading(true);
     try {
-      await register(email, password, name, language);
+      await register(email, password, name, language, Number(age));
       if (refCode) {
         try {
           const idToken = await auth.currentUser?.getIdToken();
@@ -147,9 +161,14 @@ function RegisterInner() {
 
   async function handleStartTelegramRegister(e: React.FormEvent) {
     e.preventDefault();
+    const ageValue = Number(tgAge);
+    if (!Number.isInteger(ageValue) || ageValue < MIN_AGE || ageValue > MAX_AGE) {
+      toast("warning", `Укажи реальный возраст (от ${MIN_AGE} до ${MAX_AGE})`);
+      return;
+    }
     setTgCreating(true);
     try {
-      const code = await createTelegramRegisterRequest(tgEmail, tgName);
+      const code = await createTelegramRegisterRequest(tgEmail, tgName, ageValue);
       setTgCode(code);
       setTgLinkUrl(`https://t.me/${TELEGRAM_BOT}?start=${code}`);
 
@@ -203,7 +222,7 @@ function RegisterInner() {
   }
 
   const usesSteps = mode === "password" && flags.registrationEnabled;
-  const totalSteps = 4; // 0..3 — только для пути "пароль"; для телеграма степпер не показываем
+  const totalSteps = 5; // 0..4 — только для пути "пароль"; для телеграма степпер не показываем
   const animClass = dir === 1 ? "auth-step-forward" : "auth-step-back";
 
   return (
@@ -350,6 +369,28 @@ function RegisterInner() {
             )}
 
             {step === 3 && mode === "password" && (
+              <form onSubmit={handleAgeNext} className="space-y-4">
+                <div className="text-center mb-2">
+                  <CalendarDays size={28} className="mx-auto text-accent mb-2" />
+                  <p className="text-sm text-white/50">Сколько тебе лет?</p>
+                </div>
+                <input
+                  autoFocus
+                  required
+                  type="number"
+                  min={MIN_AGE}
+                  max={MAX_AGE}
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  placeholder="Возраст"
+                  className="input-field text-center focus:ring-2 focus:ring-accent/30 transition-shadow"
+                />
+                <p className="text-xs text-white/25 text-center">Видно только администрации, нигде на сайте не показывается.</p>
+                <button className="btn-primary w-full py-3 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow">Далее</button>
+              </form>
+            )}
+
+            {step === 4 && mode === "password" && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="text-center mb-2">
                   <KeyRound size={28} className="mx-auto text-accent mb-2" />
@@ -454,6 +495,19 @@ function RegisterInner() {
                         value={tgEmail}
                         onChange={(e) => setTgEmail(e.target.value)}
                         placeholder="Email"
+                        className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                      />
+                    </div>
+                    <div className="relative group">
+                      <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
+                      <input
+                        type="number"
+                        required
+                        min={MIN_AGE}
+                        max={MAX_AGE}
+                        value={tgAge}
+                        onChange={(e) => setTgAge(e.target.value)}
+                        placeholder="Возраст"
                         className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
                       />
                     </div>

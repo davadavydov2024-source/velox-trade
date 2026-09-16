@@ -32,7 +32,7 @@ interface AuthContextValue {
   refreshProfile: () => Promise<UserProfile | null>;
   login: (email: string, password: string) => Promise<void>;
   loginWithCustomToken: (token: string) => Promise<void>;
-  register: (email: string, password: string, name: string, language?: "ru" | "en" | "zh") => Promise<void>;
+  register: (email: string, password: string, name: string, language?: "ru" | "en" | "zh", age?: number) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -101,11 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithCustomToken(auth, token);
   }
 
-  async function register(email: string, password: string, name: string, language?: "ru" | "en" | "zh") {
+  async function register(email: string, password: string, name: string, language?: "ru" | "en" | "zh", age?: number) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
     await sendEmailVerification(cred.user);
-    await ensureUserProfile(cred.user.uid, email, name, undefined, language);
+    await ensureUserProfile(cred.user.uid, email, name, undefined, language, age);
   }
 
   async function loginWithGoogle() {

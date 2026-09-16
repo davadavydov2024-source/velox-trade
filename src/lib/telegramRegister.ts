@@ -9,13 +9,14 @@ function randomCode(): string {
 }
 
 /** Создаёт заявку на регистрацию нового аккаунта через Telegram и возвращает код для deep-ссылки на бота. */
-export async function createTelegramRegisterRequest(email: string, displayName: string): Promise<string> {
+export async function createTelegramRegisterRequest(email: string, displayName: string, age?: number): Promise<string> {
   const code = randomCode();
   await setDoc(doc(db, "telegramRegisterRequests", code), {
     email: email.trim().toLowerCase(),
     displayName: displayName.trim(),
     status: "pending",
     createdAt: Date.now(),
+    ...(age !== undefined ? { age } : {}),
   });
   return code;
 }

@@ -18,3 +18,15 @@ export async function notifyTelegramServer(uid: string, text: string): Promise<v
     console.error("notifyTelegramServer error:", err);
   }
 }
+
+/** То же самое для уведомлений прямо админу (TELEGRAM_ADMIN_CHAT_ID) — из серверного кода, без
+ * похода на свой же /api/notify/admin. См. комментарий у notifyTelegramServer выше. */
+export async function notifyAdminTelegramServer(text: string): Promise<void> {
+  try {
+    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TELEGRAM_ADMIN_CHAT_ID) : null;
+    if (!adminChatId) return;
+    await sendTelegramMessage(adminChatId, text);
+  } catch (err) {
+    console.error("notifyAdminTelegramServer error:", err);
+  }
+}

@@ -339,6 +339,7 @@ export function OrderChatThread({
         </div>
       )}
 
+      <div className="shrink-0">
       <div className="flex items-center gap-2 mb-3">
         <div>
           <p className="font-bold flex items-center gap-1.5">
@@ -405,8 +406,9 @@ export function OrderChatThread({
       )}
 
       {order && order.status === "pending_confirmation" && <DeliveryPanel orderId={orderId} isBuyer={isBuyer} isSeller={isSeller} />}
+      </div>
 
-      <div ref={scrollRef} className="flex-1 space-y-1.5 max-h-[380px] overflow-y-auto mb-3 pr-1">
+      <div ref={scrollRef} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
         {messages.length === 0 ? (
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
         ) : (
@@ -428,22 +430,22 @@ export function OrderChatThread({
               <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSameSender ? "mt-0.5" : "mt-2.5"}`}>
                 {!isMine && !prevSameSender && (
                   <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
+                    className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
                     style={{ background: `${avatarColor(senderLabel)}22`, color: avatarColor(senderLabel) }}
                   >
                     {initials(senderLabel)}
                   </div>
                 )}
-                {!isMine && prevSameSender && <div className="w-6 shrink-0" />}
+                {!isMine && prevSameSender && <div className="w-7 shrink-0" />}
 
                 <div
-                  className={`max-w-[75%] group ${
+                  className={`max-w-[85%] sm:max-w-[75%] group shadow-sm ${
                     isWarning
                       ? "bg-amber-500/15 border border-amber-500/30 text-amber-200"
                       : isMine
-                      ? "bg-accent text-black"
-                      : "bg-surface text-white/80"
-                  } ${m.imageUrl ? "p-1.5" : "px-3 py-2"} text-sm rounded-2xl ${isMine ? "rounded-br-sm" : "rounded-bl-sm"}`}
+                      ? "bg-gradient-to-br from-accent to-accent-dark text-black"
+                      : "bg-surface border border-white/[0.04] text-white/80"
+                  } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2.5"} text-[13.5px] leading-snug rounded-2xl ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
                 >
                   {!isMine && !prevSameSender && (
                     <p className={`text-[10px] mb-0.5 ${m.imageUrl ? "px-1.5 pt-1" : ""} text-white/30`}>{senderLabel}</p>
@@ -455,7 +457,7 @@ export function OrderChatThread({
                         alt=""
                         width={220}
                         height={220}
-                        className="rounded-xl object-cover max-h-[220px] w-auto"
+                        className="rounded-xl object-cover max-h-[220px] w-auto max-w-full"
                       />
                     </button>
                   )}
@@ -468,6 +470,7 @@ export function OrderChatThread({
         )}
       </div>
 
+      <div className="shrink-0">
       {order && (
         <div className="flex flex-wrap gap-2 mb-3">
           {isBuyer && order.status === "pending_confirmation" && (
@@ -562,7 +565,7 @@ export function OrderChatThread({
           </div>
         )}
 
-        <form onSubmit={handleSend} className="flex gap-2">
+        <form onSubmit={handleSend} className="flex gap-2 items-end" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           <input
             autoComplete="off"
             ref={fileInputRef}
@@ -576,7 +579,7 @@ export function OrderChatThread({
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingPhoto}
             title="Отправить фото"
-            className="btn-secondary px-3 shrink-0 disabled:opacity-50"
+            className="btn-secondary px-3 py-2.5 shrink-0 disabled:opacity-50"
           >
             {uploadingPhoto ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
           </button>
@@ -585,12 +588,13 @@ export function OrderChatThread({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={isAdminViewer ? "Сообщение или команда (/help)..." : "Написать сообщение..."}
-            className="input-field py-2.5 text-sm flex-1"
+            className="input-field py-2.5 text-sm flex-1 rounded-full"
           />
-          <button className="btn-primary px-4 shrink-0">
+          <button className="btn-primary w-10 h-10 shrink-0 rounded-full flex items-center justify-center p-0">
             <Send size={16} />
           </button>
         </form>
+      </div>
       </div>
     </div>
   );

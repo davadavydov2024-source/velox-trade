@@ -100,7 +100,7 @@ function CatalogInner() {
                 <button
                   onClick={() => setCategory("")}
                   className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                    category === "" ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                    category === "" ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
                   }`}
                 >
                   Все
@@ -110,7 +110,7 @@ function CatalogInner() {
                     key={c}
                     onClick={() => setCategory(c)}
                     className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                      category === c ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                      category === c ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
                     }`}
                   >
                     {c}
@@ -126,7 +126,7 @@ function CatalogInner() {
               <button
                 onClick={() => setRarity("")}
                 className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                  rarity === "" ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                  rarity === "" ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
                 Все
@@ -136,7 +136,7 @@ function CatalogInner() {
                   key={r}
                   onClick={() => setRarity(r)}
                   className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                    rarity === r ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                    rarity === r ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
                   }`}
                 >
                   {RARITY_LABEL[r]}
@@ -181,8 +181,10 @@ function CatalogInner() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filtered.map((p) => (
-                <ProductCard key={p.id} product={p} />
+              {filtered.map((p, i) => (
+                <div key={p.id} className="activity-card-enter" style={{ animationDelay: `${Math.min(i, 12) * 30}ms`, animationFillMode: "backwards" }}>
+                  <ProductCard product={p} />
+                </div>
               ))}
             </div>
           )}

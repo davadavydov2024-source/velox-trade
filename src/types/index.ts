@@ -31,6 +31,19 @@ export interface BotAccount {
   profileLink?: string;
   active: boolean;
   createdAt: number;
+  // Сам пароль/2FA-секрет здесь НЕ хранятся (см. коллекцию botCredentials и
+  // lib/botCredentialCrypto.ts) — это просто флаг "учётные данные заданы", чтобы UI показывал
+  // актуальное состояние, не читая зашифрованные данные лишний раз.
+  hasCredentials?: boolean;
+}
+
+export interface BotCredentialAccessLogEntry {
+  id: string;
+  botId: string;
+  adminUid: string;
+  adminName: string;
+  field: "password" | "totp" | "both";
+  at: number;
 }
 
 export type DeliveryMethod = "seller" | "bot";
@@ -42,6 +55,14 @@ export type DeliveryStatus =
   | "delivered" // админ подтвердил: предмет выдан покупателю
   | "cancelled" // админ отменил выдачу вручную (спор, ошибка, невозможность передачи и т.п.)
   | "expired"; // не успели уложиться в отведённое время (1 час)
+
+// Одна запись в истории заявки на выдачу — видна и админу (полный аудит), и самому покупателю/
+// продавцу (упрощённый вид тех же событий, см. DeliveryPanel) на одних и тех же данных.
+export interface DeliveryLogEntry {
+  at: number;
+  actor: "buyer" | "seller" | "admin" | "system";
+  action: string; // человекочитаемое описание события, напр. "Продавец выбрал выдачу через бота"
+}
 
 // Один Delivery на один Order (id документа = orderId) — и для обычных покупок, и для призов
 // колеса фортуны (оба пути создают Order, см. api/orders/checkout и api/wheel/spin).
@@ -77,6 +98,20 @@ export interface Delivery {
   cancelledAt?: number;
   cancelledByAdminUid?: string;
   cancelReason?: string;
+  // Полная история событий заявки — заполняется на сервере при каждом переходе (выбор способа,
+  // ввод ника, подтверждения админа, отмена). См. DeliveryLogEntry выше.
+  logs?: DeliveryLogEntry[];
+}
+
+// Привязка Roblox-аккаунта к профилю сайта — ТОЛЬКО через публичный API Roblox (код в описании
+// профиля), без пароля и без .ROBLOSECURITY cookie. См. /api/roblox/verify/* и lib/robloxLink.ts.
+export interface RobloxLink {
+  uid: string;
+  robloxUserId: number;
+  robloxUsername: string;
+  robloxDisplayName: string;
+  avatarUrl: string | null;
+  verifiedAt: number;
 }
 
 export interface Product {
@@ -261,6 +296,13 @@ export interface UserProfile {
   wheelSpinsCount?: number; // сколько раз всего крутили колесо — для страницы достижений
   twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
   pushCategories?: PushCategories; // отсутствует у старых профилей — тогда считаем, что включено всё (DEFAULT_PUSH_CATEGORIES)
+  // Возраст указывается один раз при регистрации, пользователь сам его не меняет — виден только
+  // администратору на /admin/users (не показывается публично на сайте).
+  age?: number;
+  // Оформление ника — задаётся ТОЛЬКО администратором на /admin/users (не пользователем себе
+  // самому), см. NICKNAME_COLOR_PRESETS / NICKNAME_FONT_PRESETS и компонент StyledNickname.
+  nameColor?: string;
+  nameFont?: string;
 }
 
 export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";

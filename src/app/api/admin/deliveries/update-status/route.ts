@@ -32,13 +32,14 @@ export async function POST(req: NextRequest) {
     const db = adminDb();
     const isAdmin = isAdminUid(decoded.uid);
     let isHelper = false;
+    const actorSnap = await db.collection("users").doc(decoded.uid).get();
     if (!isAdmin) {
-      const actorSnap = await db.collection("users").doc(decoded.uid).get();
       isHelper = actorSnap.data()?.staffRole === "helper";
     }
     if (!isAdmin && !isHelper) {
       return NextResponse.json({ error: "Доступ только для администраторов и помощников по выдаче" }, { status: 403 });
     }
+    const actorName: string = actorSnap.data()?.displayName ?? "Администратор";
 
     const { orderId, status, cancelReason } = await req.json();
     if (typeof orderId !== "string" || !orderId) {
@@ -84,6 +85,11 @@ export async function POST(req: NextRequest) {
           cancelledAt: Date.now(),
           cancelledByAdminUid: decoded.uid,
           ...(reason ? { cancelReason: reason } : {}),
+          logs: FieldValue.arrayUnion({
+            at: Date.now(),
+            actor: "admin",
+            action: `${actorName} отменил(а) выдачу${reason ? `. Причина: ${reason}` : ""}`,
+          }),
         });
         tx.update(db.collection("orderChats").doc(orderId), {
           messages: FieldValue.arrayUnion({
@@ -104,7 +110,16 @@ export async function POST(req: NextRequest) {
 
       const timestampField = status === "received_by_bot" ? "receivedAt" : "deliveredAt";
       const adminField = status === "received_by_bot" ? "receivedByAdminUid" : "deliveredByAdminUid";
-      tx.update(deliveryRef, { status, [timestampField]: Date.now(), [adminField]: decoded.uid });
+      const logAction =
+        status === "received_by_bot"
+          ? `${actorName} подтвердил(а): бот получил предмет от продавца`
+          : `${actorName} подтвердил(а): товар выдан покупателю`;
+      tx.update(deliveryRef, {
+        status,
+        [timestampField]: Date.now(),
+        [adminField]: decoded.uid,
+        logs: FieldValue.arrayUnion({ at: Date.now(), actor: "admin", action: logAction }),
+      });
 
       const chatText =
         status === "received_by_bot"

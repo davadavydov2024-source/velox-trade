@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { WifiOff } from "lucide-react";
+import { WifiOff, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 
@@ -11,6 +11,7 @@ type VpnCheckStatus = "checking" | "clean" | "blocked" | "error";
 const CHECK_TIMEOUT_MS = 4000;
 const CACHE_KEY = "vpn-check-cache-v1";
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 минут, чтобы не дёргать API на каждый переход
+const DISMISS_KEY = "vpn-banner-dismissed-v1";
 
 function readCache(): { status: VpnCheckStatus; ts: number } | null {
   try {
@@ -53,12 +54,27 @@ async function checkVpn(): Promise<VpnCheckStatus> {
   }
 }
 
+/**
+ * ВАЖНО: это больше не блокирующий гейт. Раньше VPN-пользователь не мог пользоваться сайтом,
+ * пока не отключит VPN — это лишнее и вредное ограничение (у многих VPN включён постоянно по
+ * другим причинам, а сайт при этом реально работает, просто чуть медленнее из-за лишнего прыжка
+ * через прокси-сервер). Теперь это ненавязчивый закрываемый баннер-предупреждение сверху страницы,
+ * который не мешает пользоваться сайтом и не переживает обновление страницы после закрытия
+ * (специально sessionStorage, а не localStorage — баннер не должен быть закрыт навсегда).
+ */
 export function VpnGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, profile } = useAuth();
   const [status, setStatus] = useState<VpnCheckStatus>("checking");
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    try {
+      if (sessionStorage.getItem(DISMISS_KEY) === "1") setDismissed(true);
+    } catch {
+      // ignore
+    }
+
     const cached = readCache();
     if (cached) {
       setStatus(cached.status);
@@ -78,31 +94,36 @@ export function VpnGate({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const isAdmin = isAdminUid(user?.uid) || profile?.badges?.includes("admin");
-  const bypass = pathname.startsWith("/admin") || isAdmin;
-
-  // Пока идёт проверка (или она упала с ошибкой) — не блокируем сайт, чтобы не терять
-  // пользователей из-за сбоя стороннего API.
-  if (status !== "blocked" || bypass) {
-    return <>{children}</>;
+  function dismiss() {
+    setDismissed(true);
+    try {
+      sessionStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      // ignore
+    }
   }
 
+  const isAdmin = isAdminUid(user?.uid) || profile?.badges?.includes("admin");
+  const bypass = pathname.startsWith("/admin") || isAdmin;
+  const showBanner = status === "blocked" && !bypass && !dismissed;
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-bg">
-      <div className="card p-8 max-w-md text-center space-y-4">
-        <WifiOff className="mx-auto text-yellow-400" size={40} />
-        <h1 className="text-xl font-bold">Обнаружен VPN или прокси</h1>
-        <p className="text-white/60 text-sm">
-          Похоже, ты используешь VPN, прокси или похожее соединение — из-за этого часть сайта
-          (каталог, оплата, чаты) может не загружаться или работать некорректно.
-        </p>
-        <p className="text-white/40 text-xs">
-          Отключи VPN/прокси и обнови страницу, чтобы пользоваться сайтом без ограничений.
-        </p>
-        <button onClick={() => window.location.reload()} className="btn-secondary px-5 py-2.5 text-sm">
-          Я отключил VPN — обновить
-        </button>
-      </div>
-    </div>
+    <>
+      {showBanner && (
+        <div className="sticky top-0 z-40 bg-amber-500/15 border-b border-amber-500/25 backdrop-blur">
+          <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-3 text-sm">
+            <WifiOff size={16} className="text-amber-400 shrink-0" />
+            <p className="text-amber-200/90 flex-1">
+              Похоже, ты используешь VPN или прокси — сайт может работать чуть медленнее из-за этого. Отключать
+              VPN необязательно, всё должно продолжать работать.
+            </p>
+            <button onClick={dismiss} className="text-amber-200/60 hover:text-amber-100 shrink-0 p-1" aria-label="Закрыть">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+      {children}
+    </>
   );
 }

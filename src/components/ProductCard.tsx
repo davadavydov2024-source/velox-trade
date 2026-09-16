@@ -9,6 +9,7 @@ import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
+import { StyledNickname } from "./StyledNickname";
 import { FavoriteButton } from "./FavoriteButton";
 
 const RARITY_BORDER: Record<string, string> = {
@@ -42,7 +43,7 @@ export function ProductCard({ product }: { product: Product }) {
   const avgRating = seller?.ratingCount ? (seller.ratingSum ?? 0) / seller.ratingCount : null;
 
   return (
-    <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1 ${isBoosted ? "ring-1 ring-accent/60" : ""}`}>
+    <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1.5 hover:shadow-glow transition-all duration-300 ${isBoosted ? "ring-1 ring-accent/60" : ""}`}>
       <Link href={`/product/${product.id}`} className="block relative aspect-square rounded-[12px] overflow-hidden bg-black/30 mb-3">
         <Image
           src={safeImageSrc(product.image)}
@@ -89,7 +90,9 @@ export function ProductCard({ product }: { product: Product }) {
               <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-green-400 border border-black/50" />
             )}
           </span>
-          <span className="truncate max-w-[80px]">{seller.displayName}</span>
+          <span className="truncate max-w-[80px]">
+            <StyledNickname name={seller.displayName} nameColor={seller.nameColor} nameFont={seller.nameFont} />
+          </span>
           {avgRating !== null && (
             <span className="flex items-center gap-0.5 text-accent shrink-0">
               <Star size={10} className="fill-accent" /> {avgRating.toFixed(1)}

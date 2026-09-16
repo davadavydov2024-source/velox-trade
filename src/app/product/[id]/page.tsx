@@ -16,6 +16,7 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { TradeOfferModal } from "@/components/TradeOfferModal";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
+import { StyledNickname } from "@/components/StyledNickname";
 import { getSellerReviews } from "@/lib/reviews";
 import { addRecentlyViewed } from "@/lib/recentlyViewed";
 import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
@@ -81,7 +82,7 @@ export default function ProductPage() {
     : product.price;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 pb-28 md:pb-10">
       <div className="grid md:grid-cols-2 gap-10">
         <div>
           <div
@@ -105,7 +106,9 @@ export default function ProductPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
-                  <p className="font-medium text-sm truncate">{seller.displayName}</p>
+                  <p className="font-medium text-sm truncate">
+                    <StyledNickname name={seller.displayName} nameColor={seller.nameColor} nameFont={seller.nameFont} />
+                  </p>
                   {seller.badges.filter((b) => CHECKMARK_BADGES.includes(b)).map((b) => (
                     <ShieldCheck key={b} size={14} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
                   ))}
@@ -263,6 +266,25 @@ export default function ProductPage() {
       )}
 
       <RecentlyViewedSection excludeId={product.id} />
+
+      {/* Липкая панель покупки на мобильных — на телефоне кнопки в основной колонке уходят далеко
+         вниз под описанием, так удобнее купить без скролла обратно наверх. */}
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-bg/95 backdrop-blur border-t border-border p-3 flex items-center gap-3"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="min-w-0">
+          <p className="text-[10px] text-white/40 truncate max-w-[110px]">{product.name}</p>
+          <p className="text-lg font-extrabold text-accent leading-tight">{finalPrice} ₽</p>
+        </div>
+        <Link
+          href="/cart"
+          onClick={() => add(product, qty)}
+          className="btn-primary flex-1 py-3 flex items-center justify-center gap-2"
+        >
+          <Zap size={17} /> Купить сейчас
+        </Link>
+      </div>
     </div>
   );
 }

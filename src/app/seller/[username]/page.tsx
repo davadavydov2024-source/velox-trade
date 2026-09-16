@@ -10,6 +10,7 @@ import { getSellerReviews } from "@/lib/reviews";
 import { getProducts } from "@/lib/products";
 import { Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
+import { StyledNickname } from "@/components/StyledNickname";
 import { safeImageSrc } from "@/lib/safeImage";
 
 export default function SellerProfilePage() {
@@ -58,7 +59,7 @@ export default function SellerProfilePage() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <h1 className="text-xl font-bold">{profile.displayName}</h1>
+            <h1 className="text-xl font-bold"><StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} /></h1>
             {checkmarks.map((b) => (
               <ShieldCheck key={b} size={18} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
             ))}

@@ -112,6 +112,14 @@ export default function HomePage() {
       {/* Hero (десктоп) */}
       <section className="hidden lg:block relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
+        <div
+          className="auth-blob-1 absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full opacity-[0.12] blur-3xl pointer-events-none"
+          style={{ background: "radial-gradient(circle, var(--color-accent) 0%, transparent 70%)" }}
+        />
+        <div
+          className="auth-blob-2 absolute top-1/3 -right-24 w-[380px] h-[380px] rounded-full opacity-[0.08] blur-3xl pointer-events-none"
+          style={{ background: "radial-gradient(circle, #4a6cf7 0%, transparent 70%)" }}
+        />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 md:pt-24 pb-10 md:pb-12 grid md:grid-cols-2 gap-12 items-center relative">
           <div>
             {dealsCount > 0 && (
@@ -208,11 +216,15 @@ export default function HomePage() {
       {featured.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">⭐ Рекомендуем</h2>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <span className="text-accent">⭐</span> Рекомендуем
+            </h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {featured.map((p) => (
-              <ProductCard key={p.id} product={p} />
+            {featured.map((p, i) => (
+              <div key={p.id} className="activity-card-enter" style={{ animationDelay: `${i * 40}ms`, animationFillMode: "backwards" }}>
+                <ProductCard product={p} />
+              </div>
             ))}
           </div>
         </section>
@@ -238,11 +250,12 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            {games.map((game) => (
+            {games.map((game, i) => (
               <Link
                 key={game.id}
                 href={`/catalog?game=${game.slug}`}
-                className="card p-4 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300"
+                className="card p-4 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300 activity-card-enter"
+                style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
               >
                 <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
                   <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="56px" />

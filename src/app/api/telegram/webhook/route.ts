@@ -97,7 +97,7 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
   const regReqRef = db.collection("telegramRegisterRequests").doc(code);
   const regReqSnap = await regReqRef.get();
   if (regReqSnap.exists) {
-    const { email, displayName, status } = regReqSnap.data() as { email: string; displayName: string; status: string };
+    const { email, displayName, status, age } = regReqSnap.data() as { email: string; displayName: string; status: string; age?: number };
 
     if (status === "done") {
       await sendTelegramMessage(chatId, "Этот аккаунт уже зарегистрирован. Просто открой сайт и войди по коду.");
@@ -122,6 +122,9 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
         banned: false,
         createdAt: Date.now(),
         lastLoginAt: Date.now(),
+        // Возраст указывается один раз на регистрации — только для админа, см. комментарий на
+        // UserProfile.age в types/index.ts.
+        ...(age !== undefined ? { age } : {}),
       });
     }
 

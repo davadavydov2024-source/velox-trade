@@ -24,7 +24,14 @@ function generateReferralCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-export async function ensureUserProfile(uid: string, email: string, displayName: string, photoURL?: string, language?: "ru" | "en" | "zh") {
+export async function ensureUserProfile(
+  uid: string,
+  email: string,
+  displayName: string,
+  photoURL?: string,
+  language?: "ru" | "en" | "zh",
+  age?: number
+) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   if (snap.exists()) {
@@ -44,10 +51,13 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
     lastLoginAt: Date.now(),
     language: language ?? "ru",
     referralCode,
+    // Возраст указывается один раз на регистрации (см. /auth/register) — только для админа,
+    // публично на сайте нигде не показывается.
+    ...(age !== undefined ? { age } : {}),
   };
   await setDoc(ref, profile);
   await setDoc(doc(db, "referralCodes", referralCode), { uid });
-  notifyAdminTelegram(`🆕 Новый пользователь: ${displayName} (${email})`);
+  notifyAdminTelegram(`🆕 Новый пользователь: ${displayName} (${email})${age !== undefined ? `, возраст: ${age}` : ""}`);
   return { uid, ...profile } as UserProfile;
 }
 
@@ -111,6 +121,26 @@ export async function adjustUserBalance(uid: string, delta: number) {
 
 export async function setUserBadges(uid: string, badges: UserBadge[]) {
   return updateDoc(doc(db, "users", uid), { badges });
+}
+
+/** Изменение ника (без ограничений по времени — 7-дневный кулдаун в updateProfileInfo действует
+ * только на самостоятельное изменение пользователем) и оформления ника (цвет/шрифт) — доступно
+ * только администратору, см. /admin/users. Пользователь сам цвет/шрифт себе выставить не может. */
+export async function adminUpdateNickname(uid: string, changes: { displayName?: string; nameColor?: string; nameFont?: string }) {
+  const update: Record<string, unknown> = {};
+  if (changes.displayName !== undefined) {
+    const trimmed = changes.displayName.trim();
+    if (trimmed.length < 2) {
+      const err = new Error("Ник не может быть пустым — минимум 2 символа");
+      (err as any).code = "invalid-name";
+      throw err;
+    }
+    update.displayName = trimmed;
+  }
+  if (changes.nameColor !== undefined) update.nameColor = changes.nameColor;
+  if (changes.nameFont !== undefined) update.nameFont = changes.nameFont;
+  if (Object.keys(update).length === 0) return;
+  return updateDoc(doc(db, "users", uid), update);
 }
 
 /** Назначает/снимает роль персонала (менеджер поддержки или помощник по выдаче) — без доступа к админке. */
