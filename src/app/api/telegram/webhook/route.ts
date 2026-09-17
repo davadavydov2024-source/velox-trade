@@ -110,15 +110,27 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
       const existing = await auth.getUserByEmail(email);
       uid = existing.uid;
     } catch {
-      const created = await auth.createUser({ email, displayName });
+      // Та же проверка, что и для обычной регистрации по паролю (см. /api/auth/email-code/*) —
+      // почта должна быть подтверждена кодом до того, как аккаунт реально создастся.
+      const codeRef = db.collection("emailVerificationCodes").doc(email);
+      const codeSnap = await codeRef.get();
+      const codeData = codeSnap.exists ? (codeSnap.data() as { verified?: boolean; verifiedAt?: number }) : null;
+      const isEmailVerified = !!codeData?.verified && !!codeData.verifiedAt && Date.now() - codeData.verifiedAt < 30 * 60 * 1000;
+      if (!isEmailVerified) {
+        await sendTelegramMessage(chatId, "Почта не подтверждена кодом — вернись на сайт, подтверди email и попробуй снова.");
+        return true;
+      }
+
+      const created = await auth.createUser({ email, displayName, emailVerified: true });
       uid = created.uid;
+      await codeRef.delete();
       await db.collection("users").doc(uid).set({
         email,
         displayName,
         photoURL: null,
         balance: 0,
         badges: ["user"],
-        emailVerified: false,
+        emailVerified: true,
         banned: false,
         createdAt: Date.now(),
         lastLoginAt: Date.now(),
