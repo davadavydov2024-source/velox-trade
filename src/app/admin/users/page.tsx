@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff, Palette } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff, Palette, MessageCircle } from "lucide-react";
 import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole, adminUpdateNickname } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
 import { NICKNAME_COLOR_PRESETS, NICKNAME_FONT_PRESETS } from "@/lib/nicknameStyles";
@@ -38,6 +39,7 @@ export default function AdminUsersPage() {
   const [nickDraft, setNickDraft] = useState({ displayName: "", nameColor: "default", nameFont: "default" });
   const [savingNick, setSavingNick] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     getAllUsers()
@@ -268,6 +270,15 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="p-3">
                     <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          router.push(`/chats?dm=${u.uid}&name=${encodeURIComponent(u.displayName)}&photo=${encodeURIComponent(u.photoURL ?? "")}`)
+                        }
+                        className="p-1.5 rounded-md hover:bg-white/10 text-white/60"
+                        title="Написать пользователю напрямую"
+                      >
+                        <MessageCircle size={15} />
+                      </button>
                       <button
                         onClick={() => openNickEditor(u)}
                         className="p-1.5 rounded-md hover:bg-white/10 text-white/60"

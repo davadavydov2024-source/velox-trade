@@ -56,9 +56,19 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="auth-card-rise auth-glow-border rounded-card" onClick={(e) => e.stopPropagation()}>
+      <div className="card w-full max-w-sm p-5 relative overflow-hidden z-[1]">
+        <div
+          className="absolute top-0 left-0 right-0 h-[2px] opacity-70"
+          style={{ background: "linear-gradient(90deg, transparent, var(--color-accent), transparent)" }}
+        />
         <div className="flex items-center justify-between mb-4">
-          <p className="font-semibold">Добавить аккаунт</p>
+          <p
+            className="font-semibold auth-title-sheen bg-clip-text text-transparent"
+            style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
+          >
+            Добавить аккаунт
+          </p>
           <button onClick={onClose} className="text-white/40 hover:text-white">
             <X size={18} />
           </button>
@@ -85,7 +95,7 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="input-field w-full"
+            className="input-field w-full focus:ring-2 focus:ring-accent/30 transition-shadow"
             autoComplete="username"
           />
           <input
@@ -94,15 +104,20 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
             placeholder="Пароль"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="input-field w-full"
+            className="input-field w-full focus:ring-2 focus:ring-accent/30 transition-shadow"
             autoComplete="current-password"
           />
           {error && <p className="text-xs text-red-400">{error}</p>}
-          <button type="submit" disabled={busy !== null} className="btn-primary w-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={busy !== null}
+            className="btn-primary w-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
+          >
             {busy === "email" ? <Loader2 size={16} className="animate-spin" /> : null}
             Войти и добавить
           </button>
         </form>
+      </div>
       </div>
     </div>,
     document.body
@@ -140,15 +155,22 @@ export function AccountSwitcher() {
         return (
           <div
             key={acc.slotId}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-btn text-sm ${isActive ? "bg-accent/15" : "hover:bg-white/5"}`}
+            className={`relative flex items-center gap-2.5 px-3 py-2 rounded-btn text-sm transition-colors duration-150 ${
+              isActive ? "bg-accent/15" : "hover:bg-white/5"
+            }`}
           >
+            {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-accent" />}
             <button
               type="button"
               onClick={() => !isActive && switchAccount(acc.slotId)}
               disabled={isActive}
               className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:cursor-default"
             >
-              <div className="relative w-7 h-7 rounded-full overflow-hidden bg-accent/20 flex-none flex items-center justify-center text-xs font-semibold text-accent">
+              <div
+                className={`relative w-7 h-7 rounded-full overflow-hidden bg-accent/20 flex-none flex items-center justify-center text-xs font-semibold text-accent transition-all ${
+                  isActive ? "ring-2 ring-accent" : ""
+                }`}
+              >
                 {acc.photoURL ? <Image src={acc.photoURL} alt="" fill className="object-cover" sizes="28px" /> : initialsOf(acc.displayName)}
               </div>
               <div className="min-w-0">

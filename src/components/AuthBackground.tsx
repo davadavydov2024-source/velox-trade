@@ -1,14 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
+import { usePathname } from "next/navigation";
 
 /**
- * Анимированный фон для страниц входа/регистрации — крупные яркие движущиеся цветные пятна поверх
- * медленно вращающегося градиентного "мешa", плюс всплывающие частицы. Специально сделан заметным
- * и ярким (не тонким/едва видимым), чтобы эффект считывался сразу при открытии страницы, без
- * наведения мыши. Чисто декоративный слой, fixed и pointer-events-none.
+ * Анимированный фон. Два режима:
+ * - "hero" (по умолчанию) — яркая, заметная версия для страниц входа/регистрации/404 и т.п.,
+ *   где фон — часть впечатления, а не подложка под плотный контент.
+ * - "ambient" — сильно приглушённая версия для обычных страниц сайта (каталог, админка, профиль
+ *   и т.д.), подключена глобально в layout.tsx: пятна почти не видны и не мешают читать списки/
+ *   таблицы, но лёгкое фирменное движение на фоне есть везде. Без частиц и без затемняющего слоя
+ *   поверх (тут не нужно "приглушать яркость" — она и так низкая).
  */
-export function AuthBackground() {
+export function AuthBackground({ variant = "hero" }: { variant?: "hero" | "ambient" }) {
+  const pathname = usePathname();
   const particles = useMemo(
     () =>
       Array.from({ length: 22 }).map((_, i) => ({
@@ -20,6 +25,30 @@ export function AuthBackground() {
       })),
     []
   );
+
+  // В админке фон не нужен — там плотные таблицы и формы, декоративное движение только мешает
+  // работе. Ограничение только для "ambient" (глобальный фон в layout.tsx) — для "hero" (страницы
+  // входа/регистрации/404) это не актуально, admin туда не попадает.
+  if (variant === "ambient" && pathname?.startsWith("/admin")) return null;
+
+  if (variant === "ambient") {
+    return (
+      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-bg">
+        <div
+          className="auth-blob-1 absolute -top-40 -left-40 w-[560px] h-[560px] rounded-full opacity-[0.05] blur-3xl"
+          style={{ background: "radial-gradient(circle, var(--color-accent) 0%, transparent 65%)" }}
+        />
+        <div
+          className="auth-blob-2 absolute -bottom-52 -right-32 w-[620px] h-[620px] rounded-full opacity-[0.045] blur-3xl"
+          style={{ background: "radial-gradient(circle, #4a6cf7 0%, transparent 65%)" }}
+        />
+        <div
+          className="auth-blob-3 absolute top-1/2 left-1/2 w-[440px] h-[440px] rounded-full opacity-[0.035] blur-3xl"
+          style={{ background: "radial-gradient(circle, #22c55e 0%, transparent 65%)" }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-bg">

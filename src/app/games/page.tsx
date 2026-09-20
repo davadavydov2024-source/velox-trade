@@ -20,7 +20,12 @@ export default function GamesPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-      <h1 className="text-3xl font-bold mb-8">Все игры</h1>
+      <h1
+        className="text-3xl font-bold mb-8 auth-title-sheen bg-clip-text text-transparent inline-block"
+        style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
+      >
+        Все игры
+      </h1>
 
       {!loaded ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
@@ -34,11 +39,12 @@ export default function GamesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
-          {games.map((game) => (
+          {games.map((game, i) => (
             <Link
               key={game.id}
               href={`/catalog?game=${game.slug}`}
-              className="card p-5 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300"
+              className="card p-5 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300 activity-card-enter"
+              style={{ animationDelay: `${i * 25}ms`, animationFillMode: "backwards" }}
             >
               <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
                 <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="80px" />

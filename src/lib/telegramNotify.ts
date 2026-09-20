@@ -26,3 +26,19 @@ export function notifyAdminTelegram(text: string): void {
     keepalive: true,
   }).catch(() => {});
 }
+
+/**
+ * Email-версия notifyTelegram выше — тот же fire-and-forget паттерн. Используется только для
+ * реальных событий по сделкам (сообщение в чате заказа, ответ поддержки, одобрение товара) —
+ * НЕ для личных сообщений и обменов, см. комментарий в api/notify/email/route.ts.
+ */
+export function notifyEmail(uid: string, subject: string, html: string): void {
+  fetch("/api/notify/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, subject, html }),
+    keepalive: true,
+  }).catch(() => {
+    // Намеренно игнорируем: уведомление не критично для основного действия.
+  });
+}

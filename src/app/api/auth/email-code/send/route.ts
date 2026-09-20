@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { sendMail } from "@/lib/mailer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,21 +32,22 @@ export async function POST(req: NextRequest) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await ref.set({ code, createdAt: Date.now(), attempts: 0, verified: false });
 
-    await db.collection("mail").add({
-      to: [normalized],
-      message: {
-        subject: `${code} — код подтверждения регистрации`,
-        html: `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111;">
-          <p>Твой код для завершения регистрации:</p>
-          <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0;">${code}</p>
-          <p style="color:#666;font-size:13px;">Код действует 10 минут. Если ты не запрашивал(а) регистрацию — просто игнорируй это письмо.</p>
-        </div>`,
-      },
-    });
+    await sendMail(
+      normalized,
+      `${code} — код подтверждения регистрации`,
+      `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111;">
+        <p>Твой код для завершения регистрации:</p>
+        <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0;">${code}</p>
+        <p style="color:#666;font-size:13px;">Код действует 10 минут. Если ты не запрашивал(а) регистрацию — просто игнорируй это письмо.</p>
+      </div>`
+    );
 
     return NextResponse.json({ ok: true });
-  } catch (err) {
+  } catch (err: any) {
     console.error("auth/email-code/send error:", err);
+    if (err?.message?.includes("Resend не настроен")) {
+      return NextResponse.json({ error: "Отправка почты не настроена на сервере — обратись к разработчику" }, { status: 500 });
+    }
     return NextResponse.json({ error: "Не удалось отправить код" }, { status: 500 });
   }
 }

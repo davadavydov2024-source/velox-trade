@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight, Gamepad2 } from "lucide-react";
+import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
@@ -50,7 +50,6 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
       links: [
         { href: "/profile/favorites", label: t("profile_nav_favorites"), icon: Heart },
         { href: "/profile/appearance", label: t("profile_nav_appearance"), icon: Palette },
-        { href: "/profile/roblox", label: "Roblox-аккаунт", icon: Gamepad2 },
         { href: "/profile/security", label: t("profile_nav_security"), icon: Shield },
       ],
     },

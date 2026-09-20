@@ -11,6 +11,7 @@ import { RARITY_COLOR } from "@/lib/rarityColors";
 import { WheelPrize } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { WheelConfetti } from "@/components/WheelConfetti";
+import { AuthBackground } from "@/components/AuthBackground";
 
 interface PrizeResult {
   id: string;
@@ -200,7 +201,8 @@ export default function WheelPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
+    <div className="max-w-md mx-auto space-y-6 relative">
+      <AuthBackground />
       <div className="text-center">
         <h1 className="text-xl font-bold flex items-center justify-center gap-2">
           <Disc3 size={22} className="text-accent" /> Колесо Фортуны

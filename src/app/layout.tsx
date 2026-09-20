@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { AuthBackground } from "@/components/AuthBackground";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru">
       <body className="bg-bg text-white min-h-screen flex flex-col">
+        <AuthBackground variant="ambient" />
         <Providers>
           <Header />
           <main className="flex-1 pb-16 lg:pb-0">{children}</main>

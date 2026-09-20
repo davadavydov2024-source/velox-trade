@@ -3,7 +3,7 @@ import { db } from "./firebase";
 import { stripUndefined } from "./stripUndefined";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
-import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
+import { notifyTelegram, notifyAdminTelegram, notifyEmail } from "./telegramNotify";
 import { notifyPush } from "./webPushNotify";
 
 const sellRequestsCol = collection(db, "sellRequests");
@@ -69,5 +69,13 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
   await updateDoc(doc(db, "sellRequests", request.id), { status: "approved", productId: productRef.id });
   notifyTelegram(request.userId, `✅ Заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге!`);
   notifyPush(request.userId, "Заявка одобрена", `«${request.itemName}» — товар уже в каталоге.`, `/product/${productRef.id}`, "messages");
+  notifyEmail(
+    request.userId,
+    `Товар «${request.itemName}» опубликован!`,
+    `<div style="font-family:sans-serif;font-size:15px;color:#111;line-height:1.6;">
+      <p>Твоя заявка на продажу «${request.itemName}» одобрена — товар уже в каталоге и доступен для покупки.</p>
+      <p style="color:#666;font-size:13px;">Посмотреть можно на сайте, в разделе «Мои товары».</p>
+    </div>`
+  );
   return productRef.id;
 }

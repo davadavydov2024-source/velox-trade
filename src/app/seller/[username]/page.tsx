@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { Star, ShieldCheck } from "lucide-react";
+import { Star, ShieldCheck, MessageCircle } from "lucide-react";
 import { getUidByUsername } from "@/lib/usernames";
 import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { getSellerReviews } from "@/lib/reviews";
@@ -12,9 +12,12 @@ import { Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/t
 import { ProductCard } from "@/components/ProductCard";
 import { StyledNickname } from "@/components/StyledNickname";
 import { safeImageSrc } from "@/lib/safeImage";
+import { useAuth } from "@/lib/authContext";
 
 export default function SellerProfilePage() {
   const { username } = useParams<{ username: string }>();
+  const { user } = useAuth();
+  const router = useRouter();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -73,6 +76,18 @@ export default function SellerProfilePage() {
               <span className="flex items-center gap-1 text-sm text-accent font-medium">
                 <Star size={14} className="fill-accent" /> {avgRating.toFixed(1)} ({profile.ratingCount})
               </span>
+            )}
+            {user && user.uid !== profile.uid && (
+              <button
+                onClick={() =>
+                  router.push(
+                    `/chats?dm=${profile.uid}&name=${encodeURIComponent(profile.displayName)}&photo=${encodeURIComponent(profile.photoURL ?? "")}`
+                  )
+                }
+                className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5"
+              >
+                <MessageCircle size={13} /> Написать
+              </button>
             )}
             <div className="flex flex-wrap gap-1">
               {otherBadges.map((b) => (

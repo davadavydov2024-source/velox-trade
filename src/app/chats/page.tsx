@@ -12,9 +12,16 @@ import { safeImageSrc } from "@/lib/safeImage";
 import { SupportPanel } from "@/components/SupportPanel";
 import { NewsPanel } from "@/components/NewsPanel";
 import { OrderChatThread } from "@/components/OrderChatThread";
+import { DmThread } from "@/components/DmThread";
+import { subscribeUserConversations, conversationId as buildConversationId } from "@/lib/directMessages";
+import { DirectConversation } from "@/types";
 import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
-type ChatView = { kind: "support" } | { kind: "news" } | { kind: "order"; orderId: string; counterpartName: string };
+type ChatView =
+  | { kind: "support" }
+  | { kind: "news" }
+  | { kind: "order"; orderId: string; counterpartName: string }
+  | { kind: "dm"; peerUid: string; peerName: string; peerPhoto: string | null };
 
 interface ChatListItem {
   orderId: string;
@@ -63,10 +70,27 @@ function ChatsInner() {
   const [view, setView] = useState<ChatView | null>(null);
   const [items, setItems] = useState<ChatListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
 
   useEffect(() => {
     if (params.get("tab") === "support") setView({ kind: "support" });
   }, [params]);
+
+  // Пришли по ссылке "Написать" с профиля продавца (?dm=<uid>&name=<имя>&photo=<url>) — открываем
+  // личную переписку с этим человеком сразу, не дожидаясь клика в списке.
+  useEffect(() => {
+    const dmUid = params.get("dm");
+    if (!dmUid || !user) return;
+    const name = params.get("name") || "Пользователь";
+    const photo = params.get("photo") || null;
+    setView({ kind: "dm", peerUid: dmUid, peerName: name, peerPhoto: photo });
+  }, [params, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeUserConversations(user.uid, setDmConversations);
+    return unsub;
+  }, [user]);
 
   // Пришли сразу после покупки/выигрыша с конкретным ?order= — открываем этот чат, как только
   // список чатов подгрузится (имя собеседника берём уже из готового списка, не запрашиваем отдельно).
@@ -220,6 +244,37 @@ function ChatsInner() {
               );
             })
           )}
+
+          {user && dmConversations.length > 0 && (
+            <>
+              <div className="border-t border-border my-2" />
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">Личные сообщения</p>
+              {dmConversations.map((conv) => {
+                const peerUid = conv.participants.find((p) => p !== user.uid)!;
+                const peerName = conv.participantNames[peerUid] ?? "Пользователь";
+                const peerPhoto = conv.participantPhotos[peerUid] ?? null;
+                const active = view?.kind === "dm" && view.peerUid === peerUid;
+                return (
+                  <button key={conv.id} onClick={() => setView({ kind: "dm", peerUid, peerName, peerPhoto })} className={itemClasses(active)}>
+                    {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+                    <div
+                      className="relative w-12 h-12 rounded-full overflow-hidden bg-black/30 shrink-0 flex items-center justify-center text-xs font-semibold"
+                      style={!peerPhoto ? { background: `${avatarColor(peerName)}22`, color: avatarColor(peerName) } : undefined}
+                    >
+                      {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-sm truncate">{peerName}</p>
+                        <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
+                      </div>
+                      <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* На мобильных открытый чат — отдельный полноэкранный слой (как в мессенджерах), а не
@@ -247,6 +302,14 @@ function ChatsInner() {
                 {view.kind === "support" && <SupportPanel />}
                 {view.kind === "news" && <NewsPanel />}
                 {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} />}
+                {view.kind === "dm" && user && (
+                  <DmThread
+                    conversationId={buildConversationId(user.uid, view.peerUid)}
+                    peerUid={view.peerUid}
+                    peerName={view.peerName}
+                    peerPhoto={view.peerPhoto}
+                  />
+                )}
               </div>
             </>
           )}

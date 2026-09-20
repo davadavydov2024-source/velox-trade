@@ -103,15 +103,26 @@ export interface Delivery {
   logs?: DeliveryLogEntry[];
 }
 
-// Привязка Roblox-аккаунта к профилю сайта — ТОЛЬКО через публичный API Roblox (код в описании
-// профиля), без пароля и без .ROBLOSECURITY cookie. См. /api/roblox/verify/* и lib/robloxLink.ts.
-export interface RobloxLink {
-  uid: string;
-  robloxUserId: number;
-  robloxUsername: string;
-  robloxDisplayName: string;
-  avatarUrl: string | null;
-  verifiedAt: number;
+// Личные сообщения между пользователями вне заказов (профиль продавца → "Написать") — отдельная
+// от orderChats система: тут нет ролей buyer/seller/admin, просто два равноправных собеседника.
+export interface DirectMessage {
+  from: string; // uid отправителя
+  text: string;
+  createdAt: number;
+  imageUrl?: string;
+}
+
+export interface DirectConversation {
+  id: string; // = [uidA, uidB].sort().join("_")
+  participants: [string, string];
+  // Снимок имени/фото на момент последнего сообщения — чтобы список диалогов не делал лишний
+  // запрос профиля на каждый рендер; если человек сменит ник, здесь оно обновится только при
+  // следующем сообщении (это ок для списка чатов, не для официальных данных).
+  participantNames: Record<string, string>;
+  participantPhotos: Record<string, string | null>;
+  messages: DirectMessage[];
+  updatedAt: number;
+  lastMessage: string;
 }
 
 export interface Product {

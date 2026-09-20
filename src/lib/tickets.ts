@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { SupportTicket, TicketMessage } from "@/types";
-import { notifyAdminTelegram, notifyTelegram } from "./telegramNotify";
+import { notifyAdminTelegram, notifyTelegram, notifyEmail } from "./telegramNotify";
 import { notifyPush } from "./webPushNotify";
 
 const ticketsCol = collection(db, "tickets");
@@ -84,6 +84,15 @@ export async function addTicketMessage(id: string, from: "user" | "admin", text:
     if (from === "admin") {
       notifyTelegram(ticket.userId, `💬 Ответ в поддержке по обращению «${ticket.subject}»:\n${preview}`);
       notifyPush(ticket.userId, "Ответ в поддержке", preview, "/chats?tab=support");
+      notifyEmail(
+        ticket.userId,
+        `Ответ в поддержке — «${ticket.subject}»`,
+        `<div style="font-family:sans-serif;font-size:15px;color:#111;line-height:1.6;">
+          <p>Поддержка ответила по твоему обращению «${ticket.subject}»:</p>
+          <p style="background:#f5f5f5;border-radius:8px;padding:12px;margin:12px 0;">${preview}</p>
+          <p style="color:#666;font-size:13px;">Ответить можно на сайте, в разделе «Чаты» → «Поддержка».</p>
+        </div>`
+      );
     } else {
       notifyAdminTelegram(`💬 Новое сообщение в поддержке от ${ticket.userName} по «${ticket.subject}»: ${preview}`);
     }

@@ -63,17 +63,23 @@ export default function HomePage() {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
             </span>
           )}
-          <h1 className="text-2xl font-extrabold leading-tight mb-1.5 tracking-tight">Лучший магазин игровых предметов</h1>
+          <h1
+            className="text-2xl font-extrabold leading-tight mb-1.5 tracking-tight auth-title-sheen bg-clip-text text-transparent"
+            style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
+          >
+            Лучший магазин игровых предметов
+          </h1>
           <p className="text-white/50 text-sm">Roblox-предметы быстро, безопасно и по честным ценам</p>
         </div>
 
         <Link
           href="/profile/wheel"
-          className="block rounded-2xl p-4 relative overflow-hidden"
+          className="block rounded-2xl p-4 relative overflow-hidden active:scale-[0.98] transition-transform"
           style={{ background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))" }}
         >
-          <p className="text-black/60 text-[11px] font-semibold mb-1">Колесо фортуны</p>
-          <p className="text-black font-bold text-base">Крути и выигрывай предметы</p>
+          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10 blur-xl" />
+          <p className="text-black/60 text-[11px] font-semibold mb-1 relative">Колесо фортуны</p>
+          <p className="text-black font-bold text-base relative">Крути и выигрывай предметы</p>
         </Link>
 
         <div>

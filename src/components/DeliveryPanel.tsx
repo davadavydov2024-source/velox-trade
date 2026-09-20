@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle, ShieldCheck, History, ChevronDown, Hourglass } from "lucide-react";
+import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle, History, ChevronDown, Hourglass } from "lucide-react";
 import { subscribeDelivery, submitDeliveryNickname } from "@/lib/deliveries";
 import { Delivery } from "@/types";
 import { useToast } from "@/lib/toastContext";
-import { useAuth } from "@/lib/authContext";
-import { getRobloxLink } from "@/lib/robloxLink";
 import { RobloxUserPreview } from "@/components/RobloxUserPreview";
 
 function isEffectivelyExpired(d: Delivery): boolean {
@@ -54,29 +52,15 @@ function ElapsedWait({ since }: { since: number }) {
 
 export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string; isBuyer: boolean; isSeller: boolean }) {
   const { toast } = useToast();
-  const { user } = useAuth();
   const [delivery, setDelivery] = useState<Delivery | null | undefined>(undefined); // undefined = ещё грузится
   const [nickname, setNickname] = useState("");
   const [busy, setBusy] = useState(false);
-  const [verifiedNickname, setVerifiedNickname] = useState<string | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeDelivery(orderId, setDelivery);
     return unsub;
   }, [orderId]);
-
-  // Если у покупателя привязан Roblox-аккаунт (см. /profile/roblox) — сразу подставляем его
-  // подтверждённый ник вместо пустого поля, вводить вручную не нужно.
-  useEffect(() => {
-    if (!isBuyer || !user) return;
-    getRobloxLink(user.uid).then((link) => {
-      if (link) {
-        setVerifiedNickname(link.robloxUsername);
-        setNickname((cur) => cur || link.robloxUsername);
-      }
-    });
-  }, [isBuyer, user]);
 
   // undefined — идёт первая загрузка, ничего не показываем, чтобы не мигало.
   // null — записи о выдаче нет вовсе (например, старый заказ до появления этой фичи) — тоже не показываем.
@@ -120,11 +104,6 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
                 ? " Выдача приза с колеса фортуны активна 1 час, ник можно указать только один раз."
                 : " Ник можно указать только один раз."}
             </p>
-            {verifiedNickname && (
-              <p className="text-xs text-green-400 flex items-center gap-1">
-                <ShieldCheck size={12} /> Подставлен подтверждённый ник ({verifiedNickname}) — можно поменять, если нужно указать другой аккаунт.
-              </p>
-            )}
             <form onSubmit={handleSubmit} className="space-y-2">
               <div className="flex gap-2">
                 <input
