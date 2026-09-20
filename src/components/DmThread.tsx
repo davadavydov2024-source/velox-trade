@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
@@ -49,9 +49,9 @@ export function DmThread({
     if (!value || !user || !profile) return;
     setText("");
     try {
-      await sendDirectMessage(user.uid, profile.displayName, profile.photoURL, peerUid, peerName, peerPhoto, value);
+      await sendDirectMessage(user.uid, profile.displayName, profile.photoURL ?? null, peerUid, peerName, peerPhoto, value);
     } catch {
-      toast("error", "Не удалось отправить сообщение");
+      toast("error", "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ");
       setText(value);
     }
   }
@@ -61,9 +61,9 @@ export function DmThread({
     setUploadingPhoto(true);
     try {
       const url = await uploadImage(file, "dm-photos");
-      await sendDirectMessage(user.uid, profile.displayName, profile.photoURL, peerUid, peerName, peerPhoto, "", url);
+      await sendDirectMessage(user.uid, profile.displayName, profile.photoURL ?? null, peerUid, peerName, peerPhoto, "", url);
     } catch (err) {
-      toast("error", err instanceof ImageUploadError ? err.message : "Не удалось отправить фото");
+      toast("error", err instanceof ImageUploadError ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ С„РѕС‚Рѕ");
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -90,7 +90,7 @@ export function DmThread({
 
       <div ref={scrollRef} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
         {messages.length === 0 ? (
-          <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
+          <p className="text-sm text-white/30 text-center py-8">РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚. РќР°РїРёС€РёС‚Рµ РїРµСЂРІС‹Рј.</p>
         ) : (
           messages.map((m, i) => {
             const isMine = m.from === user?.uid;
@@ -122,7 +122,7 @@ export function DmThread({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploadingPhoto}
-          title="Отправить фото"
+          title="РћС‚РїСЂР°РІРёС‚СЊ С„РѕС‚Рѕ"
           className="btn-secondary px-3 py-2.5 shrink-0 disabled:opacity-50"
         >
           {uploadingPhoto ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
@@ -131,7 +131,7 @@ export function DmThread({
           autoComplete="off"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Написать сообщение..."
+          placeholder="РќР°РїРёСЃР°С‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ..."
           className="input-field py-2.5 text-sm flex-1 rounded-full"
         />
         <button className="btn-primary w-10 h-10 shrink-0 rounded-full flex items-center justify-center p-0">
@@ -141,3 +141,4 @@ export function DmThread({
     </div>
   );
 }
+
