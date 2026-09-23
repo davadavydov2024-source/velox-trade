@@ -1,47 +1,49 @@
 /**
- * Отправка почты через Resend (resend.com) — обычный HTTP-запрос к их API, без SMTP и без
- * плясок с паролями приложений Gmail/Яндекса (которые у части аккаунтов Google просто
- * недоступны без объяснения причин). Бесплатный тариф Resend: 100 писем/день, 3000/месяц —
- * с головой хватает для кодов регистрации и уведомлений.
+ * Отправка почты через SendGrid (sendgrid.com) — обычный HTTP-запрос к их API. Плюс перед Brevo:
+ * не нужно подтверждать целый домен — только ОДИН email-адрес (Single Sender Verification),
+ * подтверждается за одну минуту простым кликом по ссылке в письме от SendGrid. После этого можно
+ * слать на любые адреса. Бесплатный тариф: 100 писем в день навсегда.
  *
  * Настройка (5 минут):
- *  1. Зарегистрируйся на https://resend.com (можно через Google/GitHub)
- *  2. Dashboard → API Keys → Create API Key → скопируй ключ (начинается с "re_")
- *  3. Без верификации своего домена можно слать только с адреса onboarding@resend.dev — этого
- *     достаточно, чтобы всё заработало прямо сейчас. Позже, если захочешь слать с адреса вида
- *     noreply@твойсайт.ru, привяжи домен в Resend (Domains → Add Domain, там же дадут DNS-записи).
+ *  1. Зарегистрируйся на https://signup.sendgrid.com (тоже попросят подтвердить телефон —
+ *     виртуальные/VoIP номера обычно не проходят, нужен настоящий)
+ *  2. Settings → Sender Authentication → Single Sender Verification → Create New Sender →
+ *     укажи любую свою настоящую почту (даже обычный Gmail подойдёт) → SendGrid пришлёт письмо
+ *     с кнопкой подтверждения на эту почту → нажми
+ *  3. Settings → API Keys → Create API Key → права "Full Access" (или хотя бы "Mail Send") →
+ *     скопируй ключ (показывается только один раз!)
  *
  * Переменные окружения:
- *   RESEND_API_KEY=re_xxxxxxxx
- *   RESEND_FROM_EMAIL=onboarding@resend.dev   (или свой адрес после верификации домена)
- *   RESEND_FROM_NAME=Velox Trade              (необязательно)
+ *   SENDGRID_API_KEY=SG.xxxxxxxx
+ *   SENDGRID_FROM_EMAIL=<та самая подтверждённая на шаге 2 почта>
+ *   SENDGRID_FROM_NAME=Velox Trade (необязательно)
  */
 export async function sendMail(to: string, subject: string, html: string): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-  const fromName = process.env.RESEND_FROM_NAME || "Velox Trade";
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  const fromName = process.env.SENDGRID_FROM_NAME || "Velox Trade";
 
-  if (!apiKey) {
-    throw new Error("Resend не настроен — задай RESEND_API_KEY в переменных окружения");
+  if (!apiKey || !fromEmail) {
+    throw new Error("SendGrid не настроен — задай SENDGRID_API_KEY и SENDGRID_FROM_EMAIL в переменных окружения");
   }
 
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: `${fromName} <${fromEmail}>`,
-      to: [to],
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: fromEmail, name: fromName },
       subject,
-      html,
+      content: [{ type: "text/html", value: html }],
     }),
   });
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
-    console.error("Resend send error:", res.status, errBody);
-    throw new Error("Не удалось отправить письмо через Resend");
+    console.error("SendGrid send error:", res.status, errBody);
+    throw new Error("Не удалось отправить письмо через SendGrid");
   }
 }

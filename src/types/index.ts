@@ -708,22 +708,3 @@ export interface PublicActivityItem {
   type: "purchase" | "wheel";
   createdAt: number;
 }
-
-   export interface RobloxLink {
-     uid: string;
-     robloxUserId: number;
-     robloxUsername: string;
-     robloxDisplayName: string;
-     avatarUrl: string | null;
-     verifiedAt: number;
-   }
-
-
-export interface RobloxLink {
-  uid: string;
-  robloxUserId: number;
-  robloxUsername: string;
-  robloxDisplayName: string;
-  avatarUrl: string | null;
-  verifiedAt: number;
-}

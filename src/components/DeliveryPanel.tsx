@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle } from "lucide-react";
+import { Bot, Clock, User, CheckCircle2, ExternalLink, XCircle, History, ChevronDown, Hourglass } from "lucide-react";
 import { subscribeDelivery, submitDeliveryNickname } from "@/lib/deliveries";
 import { Delivery } from "@/types";
 import { useToast } from "@/lib/toastContext";
@@ -27,11 +27,35 @@ function Countdown({ expiresAt }: { expiresAt: number }) {
   );
 }
 
+/** Считает время, прошедшее с момента, как заявка стала ждать действия админа (передача боту
+ * подтверждена/нет и т.п.) — просто чтобы у покупателя/продавца было ощущение "процесс идёт", а не
+ * тишина. После 10 минут текст меняет цвет на предупреждающий — это не жёсткий лимит (в отличие от
+ * Countdown выше для призов колеса), просто визуальный сигнал, что ожидание уже подзатянулось. */
+function ElapsedWait({ since }: { since: number }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const elapsedMs = Math.max(0, Date.now() - since);
+  const mins = Math.floor(elapsedMs / 60000);
+  const secs = Math.floor((elapsedMs % 60000) / 1000);
+  const slow = mins >= 10;
+  return (
+    <p className={`text-xs flex items-center gap-1.5 ${slow ? "text-amber-400" : "text-white/40"}`}>
+      <Hourglass size={12} className={slow ? "" : "animate-pulse"} />
+      Ждём подтверждения администратора — {mins}:{secs.toString().padStart(2, "0")}
+      {slow && " (обычно быстрее, но иногда это занимает время)"}
+    </p>
+  );
+}
+
 export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string; isBuyer: boolean; isSeller: boolean }) {
   const { toast } = useToast();
   const [delivery, setDelivery] = useState<Delivery | null | undefined>(undefined); // undefined = ещё грузится
   const [nickname, setNickname] = useState("");
   const [busy, setBusy] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeDelivery(orderId, setDelivery);
@@ -75,8 +99,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
         isBuyer ? (
           <>
             <p className="text-xs text-white/50">
-              Укажи свой игровой ник — он нужен в любом случае: и если для этой игры подключён бот-посредник, и если продавец
-              передаёт предмет напрямую.
+              Укажи свой игровой ник — после этого мы покажем аккаунт бота-посредника, через который пройдёт передача предмета.
               {delivery.expiresAt
                 ? " Выдача приза с колеса фортуны активна 1 час, ник можно указать только один раз."
                 : " Ник можно указать только один раз."}
@@ -99,7 +122,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
             </form>
           </>
         ) : (
-          <p className="text-xs text-white/50">Ждём, пока покупатель укажет свой игровой ник — тогда будет понятно, куда передать предмет.</p>
+          <p className="text-xs text-white/50">Ждём, пока покупатель укажет свой игровой ник — тогда покажем, куда передать предмет.</p>
         )
       ) : delivery.status === "awaiting_transfer" ? (
         <div className="space-y-2 text-sm">
@@ -111,52 +134,31 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
               <RobloxUserPreview username={delivery.buyerNickname} />
             </>
           )}
-
-          {delivery.botNickname ? (
-            <>
-              <p className="flex items-center gap-1.5 text-white/70">
-                <Bot size={13} className="text-white/40" /> Бот-посредник: <span className="font-medium">{delivery.botNickname}</span>
-                {delivery.botProfileLink && (
-                  <a href={delivery.botProfileLink} target="_blank" rel="noopener noreferrer" className="text-accent">
-                    <ExternalLink size={12} />
-                  </a>
-                )}
-              </p>
-              {isSeller ? (
-                <p className="text-xs text-white/50">
-                  Передай предмет с аккаунта покупателя ({delivery.buyerNickname}) на аккаунт бота-посредника выше. Как только это
-                  подтвердит администратор, статус обновится автоматически.
-                </p>
-              ) : (
-                <p className="text-xs text-white/50">
-                  Продавцу отправлено, куда передать предмет. Как только бот его получит, ты увидишь это здесь и сможешь забрать
-                  предмет у бота в игре.
-                </p>
-              )}
-            </>
+          <p className="flex items-center gap-1.5 text-white/70">
+            <Bot size={13} className="text-white/40" /> Бот-посредник: <span className="font-medium">{delivery.botNickname}</span>
+            {delivery.botProfileLink && (
+              <a href={delivery.botProfileLink} target="_blank" rel="noopener noreferrer" className="text-accent">
+                <ExternalLink size={12} />
+              </a>
+            )}
+          </p>
+          {isSeller ? (
+            <p className="text-xs text-white/50">
+              Передай предмет с аккаунта покупателя ({delivery.buyerNickname}) на аккаунт бота-посредника выше. Как только это
+              подтвердит администратор, статус обновится автоматически.
+            </p>
           ) : (
-            // Для этой игры не подключён бот-посредник — сделка идёт напрямую между покупателем
-            // и продавцом, но ник уже сохранён и обеим сторонам виден.
             <>
-              <p className="flex items-center gap-1.5 text-white/50 text-xs">
-                <Bot size={13} className="text-white/25" /> Бот-посредник для этой игры не подключён — передача идёт напрямую.
+              <p className="text-xs text-white/50">
+                Продавцу отправлено, куда передать предмет. Как только бот его получит, ты увидишь это здесь и сможешь забрать
+                предмет у бота в игре.
               </p>
-              {isSeller ? (
-                <p className="text-xs text-white/50">
-                  Передай предмет напрямую покупателю ({delivery.buyerNickname}) в игре. После этого попроси его подтвердить получение
-                  в чате заказа.
-                </p>
-              ) : (
-                <p className="text-xs text-white/50">
-                  Продавцу виден твой ник — он передаст предмет напрямую в игре. Как только получишь его, подтверди получение в чате
-                  заказа.
-                </p>
-              )}
+              {delivery.buyerNicknameSubmittedAt && <ElapsedWait since={delivery.buyerNicknameSubmittedAt} />}
             </>
           )}
         </div>
       ) : delivery.status === "received_by_bot" ? (
-        <div className="text-sm">
+        <div className="text-sm space-y-1.5">
           <p className="text-accent font-medium mb-1">Бот получил предмет от продавца ✅</p>
           {isBuyer ? (
             <p className="text-xs text-white/50">
@@ -171,6 +173,7 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
           ) : (
             <p className="text-xs text-white/50">Ждём, пока администратор выдаст предмет покупателю у бота.</p>
           )}
+          {delivery.receivedAt && <ElapsedWait since={delivery.receivedAt} />}
         </div>
       ) : delivery.status === "cancelled" ? (
         <div className="text-sm">
@@ -184,6 +187,28 @@ export function DeliveryPanel({ orderId, isBuyer, isSeller }: { orderId: string;
         <p className="text-sm text-green-400 flex items-center gap-1.5">
           <CheckCircle2 size={15} /> Товар выдан
         </p>
+      )}
+
+      {delivery.logs && delivery.logs.length > 0 && (
+        <div className="pt-2 border-t border-white/5">
+          <button
+            type="button"
+            onClick={() => setLogsOpen((v) => !v)}
+            className="text-xs text-white/30 hover:text-white/60 flex items-center gap-1"
+          >
+            <History size={12} /> История ({delivery.logs.length}) <ChevronDown size={11} className={logsOpen ? "rotate-180" : ""} />
+          </button>
+          {logsOpen && (
+            <ul className="mt-2 space-y-1.5">
+              {delivery.logs.map((log, i) => (
+                <li key={i} className="text-[11px] text-white/40 flex gap-2">
+                  <span className="text-white/25 shrink-0">{new Date(log.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>{log.action}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

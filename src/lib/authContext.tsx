@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   signOut as fbSignOut,
+  sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile,
   User,
@@ -103,10 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function register(email: string, password: string, name: string, language?: "ru" | "en" | "zh", age?: number) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
-    // Раньше здесь был sendEmailVerification (ссылка от Firebase) — теперь почту подтверждают
-    // кодом ДО создания аккаунта (см. /auth/register и /api/auth/email-code/*), а сразу после
-    // создания аккаунта страница регистрации сама вызывает /api/auth/email-code/finalize, чтобы
-    // проставить emailVerified через Admin SDK — присылать ещё и письмо со ссылкой уже незачем.
+    // Firebase Auth сам шлёт письмо со ссылкой подтверждения — работает из коробки, без SMTP/
+    // сторонних сервисов, потому что это встроенная функция самого Firebase (использует его
+    // собственную отправку, не связанную с нашими SMTP_*/RESEND_*/BREVO_* попытками выше).
+    // Пока пользователь не перейдёт по ссылке — emailVerified остаётся false (см. syncEmailVerified
+    // в users.ts, который подхватывает это значение при каждом входе).
+    await sendEmailVerification(cred.user);
     await ensureUserProfile(cred.user.uid, email, name, undefined, language, age);
   }
 

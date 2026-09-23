@@ -12,9 +12,16 @@ import { safeImageSrc } from "@/lib/safeImage";
 import { SupportPanel } from "@/components/SupportPanel";
 import { NewsPanel } from "@/components/NewsPanel";
 import { OrderChatThread } from "@/components/OrderChatThread";
+import { DmThread } from "@/components/DmThread";
+import { subscribeUserConversations, conversationId as buildConversationId } from "@/lib/directMessages";
+import { DirectConversation } from "@/types";
 import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
-type ChatView = { kind: "support" } | { kind: "news" } | { kind: "order"; orderId: string; counterpartName: string };
+type ChatView =
+  | { kind: "support" }
+  | { kind: "news" }
+  | { kind: "order"; orderId: string; counterpartName: string }
+  | { kind: "dm"; peerUid: string; peerName: string; peerPhoto: string | null };
 
 interface ChatListItem {
   orderId: string;
@@ -22,19 +29,9 @@ interface ChatListItem {
   lastMessage: string;
   updatedAt: number;
   itemImage: string | null;
-  orderStatus: "pending_confirmation" | "confirmed" | "disputed" | "cancelled" | null;
 }
 
 const AVATAR_COLORS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8", "#f87171"];
-
-// Цвет точки-статуса поверх аватара/фото товара в списке — тот же язык цвета, что и в
-// OrderChatThread (STATUS_LABEL), чтобы по одному взгляду на список было видно, где что горит.
-const STATUS_DOT: Record<NonNullable<ChatListItem["orderStatus"]>, string> = {
-  pending_confirmation: "#ff9800",
-  confirmed: "#4caf50",
-  disputed: "#f44336",
-  cancelled: "#6b7280",
-};
 
 function avatarColor(name: string) {
   const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
@@ -62,8 +59,8 @@ function formatWhen(ts: number) {
 }
 
 function itemClasses(active: boolean) {
-  return `relative w-full flex items-center gap-3 p-2.5 rounded-btn text-left transition-colors ${
-    active ? "bg-gradient-to-r from-accent/[0.12] to-transparent" : "hover:bg-white/[0.04]"
+  return `relative w-full flex items-center gap-3 p-3 rounded-btn text-left transition-colors ${
+    active ? "bg-accent/10" : "hover:bg-white/5 active:bg-white/10"
   }`;
 }
 
@@ -73,15 +70,27 @@ function ChatsInner() {
   const [view, setView] = useState<ChatView | null>(null);
   const [items, setItems] = useState<ChatListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  const filteredItems = search.trim()
-    ? items.filter((i) => (i.counterpartName + " " + i.lastMessage).toLowerCase().includes(search.trim().toLowerCase()))
-    : items;
+  const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
 
   useEffect(() => {
     if (params.get("tab") === "support") setView({ kind: "support" });
   }, [params]);
+
+  // Пришли по ссылке "Написать" с профиля продавца (?dm=<uid>&name=<имя>&photo=<url>) — открываем
+  // личную переписку с этим человеком сразу, не дожидаясь клика в списке.
+  useEffect(() => {
+    const dmUid = params.get("dm");
+    if (!dmUid || !user) return;
+    const name = params.get("name") || "Пользователь";
+    const photo = params.get("photo") || null;
+    setView({ kind: "dm", peerUid: dmUid, peerName: name, peerPhoto: photo });
+  }, [params, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeUserConversations(user.uid, setDmConversations);
+    return unsub;
+  }, [user]);
 
   // Пришли сразу после покупки/выигрыша с конкретным ?order= — открываем этот чат, как только
   // список чатов подгрузится (имя собеседника берём уже из готового списка, не запрашиваем отдельно).
@@ -115,10 +124,8 @@ function ChatsInner() {
               }
             }
             let itemImage: string | null = null;
-            let orderStatus: ChatListItem["orderStatus"] = null;
             try {
               const order = await getOrderById(chat.orderId);
-              orderStatus = order?.status ?? null;
               const productId = order?.items[0]?.productId;
               if (productId) {
                 const product = await getProductById(productId);
@@ -134,7 +141,6 @@ function ChatsInner() {
               lastMessage: last ? last.text : "Сообщений пока нет",
               updatedAt: chat.updatedAt,
               itemImage,
-              orderStatus,
             } as ChatListItem;
           })
         );
@@ -152,31 +158,15 @@ function ChatsInner() {
   }, [user]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl font-bold mb-6">Чаты</h1>
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+      <h1 className="text-2xl font-bold mb-6 hidden sm:block">Чаты</h1>
       <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
-      <div className="grid md:grid-cols-[320px_1fr] gap-5">
-        <div className={`card p-2 md:max-h-[70vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
-          {/* Поиск фильтрует список ниже по имени собеседника и последнему сообщению — не трогает
-              «Поддержку»/«Новости», у них фиксированное место сверху. */}
-          <div className="px-1 pt-1 pb-2">
-            <div className="flex items-center gap-2 bg-black/20 border border-border rounded-full px-3.5 py-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/30 shrink-0">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Поиск по чатам"
-                className="bg-transparent outline-none text-sm placeholder:text-white/30 flex-1 min-w-0"
-              />
-            </div>
-          </div>
-
+      <div className="grid md:grid-cols-[340px_1fr] gap-5">
+        <div className={`card p-2 md:max-h-[75vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
           <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
-            <div className="w-11 h-11 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
-              <LifeBuoy size={18} className="text-accent" />
+            {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+              <LifeBuoy size={19} className="text-accent" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
@@ -188,8 +178,9 @@ function ChatsInner() {
           </button>
 
           <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
-            <div className="w-11 h-11 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
-              <Megaphone size={18} className="text-accent" />
+            {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+              <Megaphone size={19} className="text-accent" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
@@ -209,8 +200,8 @@ function ChatsInner() {
           ) : loading ? (
             <div className="space-y-2 px-1">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-2.5 animate-pulse">
-                  <div className="w-11 h-11 rounded-full bg-white/5 shrink-0" />
+                <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-white/5 shrink-0" />
                   <div className="flex-1 space-y-1.5">
                     <div className="h-2.5 bg-white/5 rounded w-2/3" />
                     <div className="h-2 bg-white/5 rounded w-4/5" />
@@ -220,38 +211,28 @@ function ChatsInner() {
             </div>
           ) : items.length === 0 ? (
             <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
-          ) : filteredItems.length === 0 ? (
-            <p className="text-xs text-white/30 text-center py-6 px-2">Ничего не найдено.</p>
           ) : (
-            filteredItems.map((item) => {
-              const isActive = view?.kind === "order" && view.orderId === item.orderId;
+            items.map((item) => {
+              const active = view?.kind === "order" && view.orderId === item.orderId;
               return (
                 <button
                   key={item.orderId}
                   onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName })}
-                  className={itemClasses(isActive)}
+                  className={itemClasses(active)}
                 >
-                  {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
-                  <div className="relative shrink-0">
-                    {item.itemImage ? (
-                      <div className="relative w-11 h-11 rounded-btn overflow-hidden bg-black/30">
-                        <Image src={safeImageSrc(item.itemImage)} alt="" fill className="object-cover" sizes="44px" />
-                      </div>
-                    ) : (
-                      <div
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-xs font-semibold"
-                        style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
-                      >
-                        {initials(item.counterpartName) || "?"}
-                      </div>
-                    )}
-                    {item.orderStatus && (
-                      <span
-                        className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface"
-                        style={{ background: STATUS_DOT[item.orderStatus] }}
-                      />
-                    )}
-                  </div>
+                  {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+                  {item.itemImage ? (
+                    <div className="relative w-12 h-12 rounded-btn overflow-hidden bg-black/30 shrink-0">
+                      <Image src={safeImageSrc(item.itemImage)} alt="" fill className="object-cover" sizes="48px" />
+                    </div>
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
+                      style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
+                    >
+                      {initials(item.counterpartName) || "?"}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-sm truncate">{item.counterpartName}</p>
@@ -263,22 +244,73 @@ function ChatsInner() {
               );
             })
           )}
+
+          {user && dmConversations.length > 0 && (
+            <>
+              <div className="border-t border-border my-2" />
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">Личные сообщения</p>
+              {dmConversations.map((conv) => {
+                const peerUid = conv.participants.find((p) => p !== user.uid)!;
+                const peerName = conv.participantNames[peerUid] ?? "Пользователь";
+                const peerPhoto = conv.participantPhotos[peerUid] ?? null;
+                const active = view?.kind === "dm" && view.peerUid === peerUid;
+                return (
+                  <button key={conv.id} onClick={() => setView({ kind: "dm", peerUid, peerName, peerPhoto })} className={itemClasses(active)}>
+                    {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+                    <div
+                      className="relative w-12 h-12 rounded-full overflow-hidden bg-black/30 shrink-0 flex items-center justify-center text-xs font-semibold"
+                      style={!peerPhoto ? { background: `${avatarColor(peerName)}22`, color: avatarColor(peerName) } : undefined}
+                    >
+                      {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-sm truncate">{peerName}</p>
+                        <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
+                      </div>
+                      <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
 
-        <div className={`card p-5 ${!view ? "hidden md:block" : ""}`}>
+        {/* На мобильных открытый чат — отдельный полноэкранный слой (как в мессенджерах), а не
+           card с ограниченной высотой; на десктопе — обычная правая колонка макета. */}
+        <div
+          className={`card md:p-5 flex flex-col ${
+            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-40 md:static md:z-auto rounded-none md:rounded-card md:h-[75vh]"
+          }`}
+        >
           {!view ? (
-            <div className="text-center text-white/30 py-24">
+            <div className="text-center text-white/30 py-24 m-auto">
               <MessageCircle className="mx-auto mb-2" size={28} />
               Выберите чат слева
             </div>
           ) : (
             <>
-              <button onClick={() => setView(null)} className="md:hidden text-xs text-white/40 hover:text-white/70 mb-4 flex items-center gap-1">
-                <ChevronLeft size={14} /> Ко всем чатам
+              <button
+                onClick={() => setView(null)}
+                className="md:hidden flex items-center gap-2 text-sm text-white/60 hover:text-white px-4 py-3.5 border-b border-border shrink-0 sticky top-0 bg-bg z-10"
+                style={{ paddingTop: "calc(0.875rem + env(safe-area-inset-top))" }}
+              >
+                <ChevronLeft size={18} /> Ко всем чатам
               </button>
-              {view.kind === "support" && <SupportPanel />}
-              {view.kind === "news" && <NewsPanel />}
-              {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} />}
+              <div className="flex-1 min-h-0 flex flex-col p-4 md:p-0 overflow-hidden">
+                {view.kind === "support" && <SupportPanel />}
+                {view.kind === "news" && <NewsPanel />}
+                {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} />}
+                {view.kind === "dm" && user && (
+                  <DmThread
+                    conversationId={buildConversationId(user.uid, view.peerUid)}
+                    peerUid={view.peerUid}
+                    peerName={view.peerName}
+                    peerPhoto={view.peerPhoto}
+                  />
+                )}
+              </div>
             </>
           )}
         </div>

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles, ChevronLeft, KeyRound, CalendarDays, MailCheck } from "lucide-react";
+import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles, ChevronLeft, KeyRound, CalendarDays } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/lib/toastContext";
@@ -36,7 +36,12 @@ function translateAuthError(code?: string) {
 // 0 — язык + способ регистрации; 1..4 — только для способа "пароль" (имя → email → возраст →
 // пароль); путь "телеграм" со своего step 1 показывает одну форму (имя+email+возраст) и дальше сам
 // управляет внутренними состояниями (ссылка на бота / ожидание / подтверждено).
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+// Шаги мастера регистрации — каждый рисуется как отдельная "страница" внутри карточки, со
+// слайд-анимацией между ними (см. .auth-step-forward/.auth-step-back в globals.css).
+// 0 — язык + способ регистрации; 1..4 — только для способа "пароль" (имя → email → возраст →
+// пароль); путь "телеграм" со своего step 1 показывает одну форму (имя+email+возраст) и дальше сам
+// управляет внутренними состояниями (ссылка на бота / ожидание / подтверждено).
+type Step = 0 | 1 | 2 | 3 | 4;
 const MIN_AGE = 6;
 const MAX_AGE = 120;
 
@@ -67,7 +72,7 @@ function RegisterInner() {
 
   function goNext() {
     setDir(1);
-    setStep((s) => Math.min(5, s + 1) as Step);
+    setStep((s) => Math.min(4, s + 1) as Step);
   }
   function goBack() {
     setDir(-1);
@@ -114,57 +119,6 @@ function RegisterInner() {
       return;
     }
     goNext();
-    sendEmailCode(email.trim());
-  }
-
-  const [emailCode, setEmailCode] = useState("");
-  const [emailCodeSending, setEmailCodeSending] = useState(false);
-  const [emailCodeChecking, setEmailCodeChecking] = useState(false);
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setInterval(() => setResendCooldown((v) => Math.max(0, v - 1)), 1000);
-    return () => clearInterval(t);
-  }, [resendCooldown]);
-
-  async function sendEmailCode(targetEmail: string) {
-    setEmailCodeSending(true);
-    try {
-      const res = await fetch("/api/auth/email-code/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: targetEmail }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setResendCooldown(30);
-    } catch (err: any) {
-      toast("error", err.message || "Не удалось отправить код");
-    } finally {
-      setEmailCodeSending(false);
-    }
-  }
-
-  async function handleEmailCodeNext(e: React.FormEvent) {
-    e.preventDefault();
-    setEmailCodeChecking(true);
-    try {
-      const res = await fetch("/api/auth/email-code/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), code: emailCode.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setEmailVerified(true);
-      goNext();
-    } catch (err: any) {
-      toast("error", err.message || "Не удалось проверить код");
-    } finally {
-      setEmailCodeChecking(false);
-    }
   }
 
   function handleAgeNext(e: React.FormEvent) {
@@ -187,22 +141,6 @@ function RegisterInner() {
     try {
       await register(email, password, name, language, Number(age));
 
-      // Почта уже подтверждена кодом на предыдущем шаге — переносим этот факт на только что
-      // созданный Firebase Auth аккаунт через Admin SDK (см. /api/auth/email-code/finalize).
-      // Не критично для успеха регистрации, если вдруг не сработает — просто аккаунт останется
-      // с emailVerified:false, как было бы и со старым письмом-ссылкой, если бы его не открыли.
-      try {
-        const idToken = await auth.currentUser?.getIdToken();
-        if (idToken) {
-          await fetch("/api/auth/email-code/finalize", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-          });
-        }
-      } catch {
-        // см. комментарий выше
-      }
-
       if (refCode) {
         try {
           const idToken = await auth.currentUser?.getIdToken();
@@ -217,7 +155,7 @@ function RegisterInner() {
           // Реферальный бонус не критичен для регистрации — молча игнорируем ошибку.
         }
       }
-      toast("success", "Аккаунт создан и почта подтверждена!");
+      toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
       celebrate("register");
       router.push("/profile");
     } catch (err: any) {
@@ -227,68 +165,8 @@ function RegisterInner() {
     }
   }
 
-  const [tgPhase, setTgPhase] = useState<"form" | "code">("form");
-  const [tgEmailCode, setTgEmailCode] = useState("");
-  const [tgCodeSending, setTgCodeSending] = useState(false);
-  const [tgCodeChecking, setTgCodeChecking] = useState(false);
-  const [tgResendCooldown, setTgResendCooldown] = useState(0);
-
-  useEffect(() => {
-    if (tgResendCooldown <= 0) return;
-    const t = setInterval(() => setTgResendCooldown((v) => Math.max(0, v - 1)), 1000);
-    return () => clearInterval(t);
-  }, [tgResendCooldown]);
-
-  async function sendTgEmailCode() {
-    setTgCodeSending(true);
-    try {
-      const res = await fetch("/api/auth/email-code/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: tgEmail }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setTgResendCooldown(30);
-    } catch (err: any) {
-      toast("error", err.message || "Не удалось отправить код");
-    } finally {
-      setTgCodeSending(false);
-    }
-  }
-
-  function handleTgDetailsNext(e: React.FormEvent) {
+  async function handleStartTelegramRegister(e: React.FormEvent) {
     e.preventDefault();
-    const ageValue = Number(tgAge);
-    if (!Number.isInteger(ageValue) || ageValue < MIN_AGE || ageValue > MAX_AGE) {
-      toast("warning", `Укажи реальный возраст (от ${MIN_AGE} до ${MAX_AGE})`);
-      return;
-    }
-    setTgPhase("code");
-    sendTgEmailCode();
-  }
-
-  async function handleTgCodeNext(e: React.FormEvent) {
-    e.preventDefault();
-    setTgCodeChecking(true);
-    try {
-      const res = await fetch("/api/auth/email-code/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: tgEmail.trim(), code: tgEmailCode.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      await handleStartTelegramRegister();
-    } catch (err: any) {
-      toast("error", err.message || "Не удалось проверить код");
-    } finally {
-      setTgCodeChecking(false);
-    }
-  }
-
-  async function handleStartTelegramRegister(e?: React.FormEvent) {
-    e?.preventDefault();
     const ageValue = Number(tgAge);
     if (!Number.isInteger(ageValue) || ageValue < MIN_AGE || ageValue > MAX_AGE) {
       toast("warning", `Укажи реальный возраст (от ${MIN_AGE} до ${MAX_AGE})`);
@@ -350,7 +228,7 @@ function RegisterInner() {
   }
 
   const usesSteps = mode === "password" && flags.registrationEnabled;
-  const totalSteps = 6; // 0..5 — только для пути "пароль"; для телеграма степпер не показываем
+  const totalSteps = 5; // 0..4 — только для пути "пароль"; для телеграма степпер не показываем
   const animClass = dir === 1 ? "auth-step-forward" : "auth-step-back";
 
   return (
@@ -497,41 +375,6 @@ function RegisterInner() {
             )}
 
             {step === 3 && mode === "password" && (
-              <form onSubmit={handleEmailCodeNext} className="space-y-4">
-                <div className="text-center mb-2">
-                  <MailCheck size={28} className="mx-auto text-accent mb-2" />
-                  <p className="text-sm text-white/50">
-                    Мы отправили код на <span className="text-white/80">{email}</span>
-                  </p>
-                </div>
-                <input
-                  autoFocus
-                  required
-                  autoComplete="one-time-code"
-                  value={emailCode}
-                  onChange={(e) => setEmailCode(e.target.value)}
-                  placeholder="Код из письма"
-                  maxLength={6}
-                  className="input-field text-center tracking-[0.3em] font-mono text-lg focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-                <button
-                  disabled={emailCodeChecking}
-                  className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
-                >
-                  {emailCodeChecking ? "Проверяем..." : "Подтвердить"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => sendEmailCode(email.trim())}
-                  disabled={emailCodeSending || resendCooldown > 0}
-                  className="text-xs text-white/40 hover:text-white/70 w-full text-center disabled:opacity-40"
-                >
-                  {resendCooldown > 0 ? `Отправить код ещё раз (${resendCooldown}с)` : emailCodeSending ? "Отправляем..." : "Отправить код ещё раз"}
-                </button>
-              </form>
-            )}
-
-            {step === 4 && mode === "password" && (
               <form onSubmit={handleAgeNext} className="space-y-4">
                 <div className="text-center mb-2">
                   <CalendarDays size={28} className="mx-auto text-accent mb-2" />
@@ -553,7 +396,7 @@ function RegisterInner() {
               </form>
             )}
 
-            {step === 5 && mode === "password" && (
+            {step === 4 && mode === "password" && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="text-center mb-2">
                   <KeyRound size={28} className="mx-auto text-accent mb-2" />
@@ -635,48 +478,8 @@ function RegisterInner() {
                       <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Ждём подтверждения...
                     </div>
                   </div>
-                ) : tgPhase === "code" ? (
-                  <form onSubmit={handleTgCodeNext} className="space-y-4">
-                    <div className="text-center mb-2">
-                      <MailCheck size={28} className="mx-auto text-accent mb-2" />
-                      <p className="text-sm text-white/50">
-                        Мы отправили код на <span className="text-white/80">{tgEmail}</span>
-                      </p>
-                    </div>
-                    <input
-                      autoFocus
-                      required
-                      autoComplete="one-time-code"
-                      value={tgEmailCode}
-                      onChange={(e) => setTgEmailCode(e.target.value)}
-                      placeholder="Код из письма"
-                      maxLength={6}
-                      className="input-field text-center tracking-[0.3em] font-mono text-lg focus:ring-2 focus:ring-accent/30 transition-shadow"
-                    />
-                    <button
-                      disabled={tgCodeChecking || tgCreating}
-                      className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
-                    >
-                      {tgCodeChecking || tgCreating ? "Проверяем..." : "Подтвердить"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={sendTgEmailCode}
-                      disabled={tgCodeSending || tgResendCooldown > 0}
-                      className="text-xs text-white/40 hover:text-white/70 w-full text-center disabled:opacity-40"
-                    >
-                      {tgResendCooldown > 0 ? `Отправить код ещё раз (${tgResendCooldown}с)` : tgCodeSending ? "Отправляем..." : "Отправить код ещё раз"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTgPhase("form")}
-                      className="text-xs text-white/30 hover:text-white/60 w-full text-center"
-                    >
-                      ← Изменить данные
-                    </button>
-                  </form>
                 ) : (
-                  <form onSubmit={handleTgDetailsNext} className="space-y-4">
+                  <form onSubmit={handleStartTelegramRegister} className="space-y-4">
                     <div className="relative group">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
                       <input
@@ -715,10 +518,10 @@ function RegisterInner() {
                       />
                     </div>
                     <button
-                      disabled={tgCodeSending}
+                      disabled={tgCreating}
                       className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
                     >
-                      {tgCodeSending ? "Отправляем код..." : "Далее"}
+                      {tgCreating ? "Готовим ссылку..." : "Продолжить в Telegram"}
                     </button>
                     <p className="text-xs text-white/30 text-center">Без пароля — вход будет по коду из Telegram.</p>
                   </form>
