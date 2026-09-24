@@ -1,6 +1,6 @@
 import { adminDb } from "./firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { sendTelegramMessage, editTelegramMessage, InlineButton } from "./telegramBot";
+import { sendTelegramMessage, editTelegramMessage, getAvailableGifts, sendGift, InlineButton } from "./telegramBot";
 
 interface SellRequest {
   id: string;
@@ -29,12 +29,21 @@ interface TopUpRequest {
   status: "pending" | "approved" | "rejected";
 }
 
+interface StarsWithdrawalRequest {
+  id: string;
+  sellerId: string;
+  sellerNick: string;
+  amountStars: number;
+  status: "pending" | "approved" | "rejected";
+}
+
 // ===================== Главное админ-меню =====================
 
 export function adminMenuButtons(): InlineButton[][] {
   return [
     [{ text: "🏷️ Заявки на продажу", callback_data: "admin_sell_requests" }],
     [{ text: "💰 Заявки на пополнение/вывод", callback_data: "admin_topups" }],
+    [{ text: "⭐ Заявки на вывод Stars", callback_data: "admin_stars_withdrawals" }],
     [{ text: "🎁 Промокоды", callback_data: "admin_promo_menu" }],
     [{ text: "🎉 Конкурсы", callback_data: "admin_contest_menu" }],
   ];
@@ -161,6 +170,115 @@ export async function approveTopUpFromBot(chatId: number, messageId: number, req
 export async function rejectTopUpFromBot(chatId: number, messageId: number, requestId: string) {
   await adminDb().collection("topups").doc(requestId).update({ status: "rejected" });
   await editTelegramMessage(chatId, messageId, "❌ Заявка отклонена.");
+}
+
+// ===================== Заявки на вывод Telegram Stars =====================
+// Сумма уже списана с starsBalance продавца в момент подачи заявки (см.
+// telegramStarsWithdrawals.ts → requestStarsWithdrawal) — здесь при подтверждении ничего
+// списывать не нужно, только пометить заявку и уведомить продавца, что реальные Stars/выплату
+// нужно отправить вручную (перевод через бота-плательщика или иным способом, которым обычно
+// рассчитывается площадка). При отклонении — вернуть сумму обратно на баланс.
+
+export async function sendPendingStarsWithdrawals(chatId: number) {
+  const snap = await adminDb().collection("starsWithdrawals").where("status", "==", "pending").get();
+  if (snap.empty) {
+    await sendTelegramMessage(chatId, "Новых заявок на вывод Stars нет.");
+    return;
+  }
+  for (const doc of snap.docs) {
+    const r = doc.data() as Omit<StarsWithdrawalRequest, "id">;
+    const text = `⭐ ${r.sellerNick} — вывод ${r.amountStars} ⭐`;
+    await sendTelegramMessage(chatId, text, [
+      [
+        { text: "✅ Подтвердить", callback_data: `stars_withdraw_approve_${doc.id}` },
+        { text: "❌ Отклонить", callback_data: `stars_withdraw_reject_${doc.id}` },
+      ],
+    ]);
+  }
+}
+
+export async function approveStarsWithdrawalFromBot(chatId: number, messageId: number, requestId: string) {
+  const db = adminDb();
+  const ref = db.collection("starsWithdrawals").doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await editTelegramMessage(chatId, messageId, "Заявка уже не найдена.");
+    return;
+  }
+  const r = snap.data() as Omit<StarsWithdrawalRequest, "id">;
+  if (r.status !== "pending") {
+    await editTelegramMessage(chatId, messageId, `Заявка уже обработана (статус: ${r.status}).`);
+    return;
+  }
+
+  // Продавцу нужно куда дарить — берём chatId по его uid (тот же, что и user_id для sendGift в
+  // личном чате с ботом).
+  const linkSnap = await db.collection("telegramLinks").doc(r.sellerId).get();
+  const sellerChatId: number | null = linkSnap.exists ? (linkSnap.data() as { chatId: number }).chatId : null;
+
+  let giftedTotal = 0;
+  const giftedNames: string[] = [];
+  if (sellerChatId) {
+    // "Жадно" раздаём подарками из каталога — сначала самые дорогие, с повторами, пока хватает
+    // суммы. Реально списывается с баланса Stars самого бота (пополняется оплатами через сайт) —
+    // если у бота звёзд не хватит на конкретный подарок, Telegram просто откажет на этом шаге, и
+    // мы переходим к следующему, более дешёвому варианту из каталога.
+    const gifts = await getAvailableGifts();
+    let remaining = r.amountStars;
+    for (const gift of gifts) {
+      while (remaining >= gift.starCount) {
+        const sent = await sendGift(sellerChatId, gift.id, `Вывод Stars с Velox Trade — ${r.amountStars} ⭐`);
+        if (!sent) break; // не хватило звёзд у бота на этот подарок — пробуем более дешёвый
+        remaining -= gift.starCount;
+        giftedTotal += gift.starCount;
+        giftedNames.push(`${gift.starCount}⭐`);
+      }
+    }
+  }
+
+  const leftover = r.amountStars - giftedTotal;
+  await ref.update({
+    status: "approved",
+    resolvedAt: Date.now(),
+    giftedStars: giftedTotal,
+    manualPayoutStars: leftover,
+  });
+
+  if (sellerChatId && giftedTotal > 0) {
+    await sendTelegramMessage(
+      sellerChatId,
+      `🎁 Вывод ${r.amountStars} ⭐ подтверждён! Подарки отправлены: ${giftedNames.join(", ")} (итого ${giftedTotal} ⭐).` +
+        (leftover > 0 ? ` Остаток ${leftover} ⭐ будет выплачен вручную — жди сообщения от администратора.` : "")
+    );
+  }
+
+  const summary =
+    leftover === 0
+      ? `✅ Подтверждено — ${r.sellerNick} полностью выдано подарками (${giftedNames.join(", ") || "—"}).`
+      : giftedTotal > 0
+        ? `✅ Подтверждено — ${r.sellerNick} подарками выдано ${giftedTotal} ⭐ (${giftedNames.join(", ")}), остаток ${leftover} ⭐ выплати вручную.`
+        : `✅ Подтверждено — у бота не хватило Stars ни на один подарок (или Telegram не привязан). Выплати ${r.amountStars} ⭐ пользователю ${r.sellerNick} вручную.`;
+  await editTelegramMessage(chatId, messageId, summary);
+}
+
+export async function rejectStarsWithdrawalFromBot(chatId: number, messageId: number, requestId: string) {
+  const db = adminDb();
+  const ref = db.collection("starsWithdrawals").doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await editTelegramMessage(chatId, messageId, "Заявка уже не найдена.");
+    return;
+  }
+  const r = snap.data() as Omit<StarsWithdrawalRequest, "id">;
+  if (r.status !== "pending") {
+    await editTelegramMessage(chatId, messageId, `Заявка уже обработана (статус: ${r.status}).`);
+    return;
+  }
+
+  // Сумма была списана в момент подачи заявки — при отклонении возвращаем её обратно.
+  await db.collection("users").doc(r.sellerId).update({ starsBalance: FieldValue.increment(r.amountStars) });
+  await ref.update({ status: "rejected", resolvedAt: Date.now() });
+  await editTelegramMessage(chatId, messageId, `❌ Заявка отклонена — ${r.amountStars} ⭐ возвращены на баланс ${r.sellerNick}.`);
 }
 
 // ===================== Промокоды =====================

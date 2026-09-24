@@ -18,6 +18,7 @@ import {
   SUPPORT_INSTRUCTIONS,
   PARTNERSHIP_INSTRUCTIONS,
   backOnlyButtons,
+  starsBalanceButtons,
   DONATE_MIN,
   DONATE_MAX,
   DONATE_PROMPT_TEXT,
@@ -31,6 +32,9 @@ import {
   sendPendingTopUps,
   approveTopUpFromBot,
   rejectTopUpFromBot,
+  sendPendingStarsWithdrawals,
+  approveStarsWithdrawalFromBot,
+  rejectStarsWithdrawalFromBot,
   promoMenuButtons,
   PROMO_CREATE_INSTRUCTIONS,
   createPromoCodeFromText,
@@ -39,6 +43,8 @@ import {
 } from "@/lib/telegramAdminPanel";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
+import { fulfillStarsInvoice } from "@/lib/starsOrders";
+import { getStarsBalanceMessage, requestStarsWithdrawal, MIN_STARS_WITHDRAWAL } from "@/lib/telegramStarsWithdrawals";
 import {
   contestMenuButtons,
   CONTEST_MENU_TEXT,
@@ -110,15 +116,27 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
       const existing = await auth.getUserByEmail(email);
       uid = existing.uid;
     } catch {
-      const created = await auth.createUser({ email, displayName });
+      // Та же проверка, что и для обычной регистрации по паролю (см. /api/auth/email-code/*) —
+      // почта должна быть подтверждена кодом до того, как аккаунт реально создастся.
+      const codeRef = db.collection("emailVerificationCodes").doc(email);
+      const codeSnap = await codeRef.get();
+      const codeData = codeSnap.exists ? (codeSnap.data() as { verified?: boolean; verifiedAt?: number }) : null;
+      const isEmailVerified = !!codeData?.verified && !!codeData.verifiedAt && Date.now() - codeData.verifiedAt < 30 * 60 * 1000;
+      if (!isEmailVerified) {
+        await sendTelegramMessage(chatId, "Почта не подтверждена кодом — вернись на сайт, подтверди email и попробуй снова.");
+        return true;
+      }
+
+      const created = await auth.createUser({ email, displayName, emailVerified: true });
       uid = created.uid;
+      await codeRef.delete();
       await db.collection("users").doc(uid).set({
         email,
         displayName,
         photoURL: null,
         balance: 0,
         badges: ["user"],
-        emailVerified: false,
+        emailVerified: true,
         banned: false,
         createdAt: Date.now(),
         lastLoginAt: Date.now(),
@@ -228,6 +246,28 @@ export async function POST(req: NextRequest) {
         } else {
           await sendTelegramMessage(chatId, await getRecentOrdersMessage(uid));
         }
+      } else if (data === "cmd_stars_balance") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+        } else {
+          const uidSnap = await adminDb().collection("users").doc(uid).get();
+          const canWithdraw = (uidSnap.data()?.starsBalance ?? 0) >= MIN_STARS_WITHDRAWAL;
+          await editTelegramMessage(chatId, messageId, await getStarsBalanceMessage(uid), starsBalanceButtons(canWithdraw));
+        }
+      } else if (data === "stars_withdraw_request") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту.");
+        } else {
+          const uidSnap = await adminDb().collection("users").doc(uid).get();
+          const nick: string = uidSnap.data()?.displayName ?? firstName;
+          const replyText = await requestStarsWithdrawal(uid, nick);
+          await sendTelegramMessage(chatId, replyText);
+          if (ADMIN_CHAT_ID && replyText.startsWith("✅")) {
+            await sendTelegramMessage(ADMIN_CHAT_ID, `⭐ Новая заявка на вывод Stars от ${nick} — раздел «Заявки на вывод Stars» в админке.`);
+          }
+        }
       } else if (isAdminChat(chatId)) {
         if (data === "admin_menu") {
           await setBotState(chatId, null);
@@ -236,6 +276,8 @@ export async function POST(req: NextRequest) {
           await sendPendingSellRequests(chatId);
         } else if (data === "admin_topups") {
           await sendPendingTopUps(chatId);
+        } else if (data === "admin_stars_withdrawals") {
+          await sendPendingStarsWithdrawals(chatId);
         } else if (data === "admin_promo_menu") {
           await editTelegramMessage(chatId, messageId, "🎁 Промокоды:", promoMenuButtons());
         } else if (data === "admin_promo_new") {
@@ -259,6 +301,10 @@ export async function POST(req: NextRequest) {
           await approveTopUpFromBot(chatId, messageId, data.slice("topup_approve_".length));
         } else if (data.startsWith("topup_reject_")) {
           await rejectTopUpFromBot(chatId, messageId, data.slice("topup_reject_".length));
+        } else if (data.startsWith("stars_withdraw_approve_")) {
+          await approveStarsWithdrawalFromBot(chatId, messageId, data.slice("stars_withdraw_approve_".length));
+        } else if (data.startsWith("stars_withdraw_reject_")) {
+          await rejectStarsWithdrawalFromBot(chatId, messageId, data.slice("stars_withdraw_reject_".length));
         } else if (data.startsWith("promo_deactivate_")) {
           await deactivatePromoCodeFromBot(chatId, messageId, data.slice("promo_deactivate_".length));
         }
@@ -275,8 +321,29 @@ export async function POST(req: NextRequest) {
 
     if (message.successful_payment) {
       const totalAmount = message.successful_payment.total_amount;
+      const payload: string = message.successful_payment.invoice_payload ?? "";
       const firstName: string = message.from?.first_name ?? "друг";
       const userTag = message.from?.username ? `@${message.from.username}` : `id${chatId}`;
+
+      // Счёт за товар (кнопка "Купить за Telegram Stars" на сайте) — payload вида "stars_<id>".
+      // Отличаем от доната (payload "donate_..."), который просто благодарит и уведомляет админа.
+      if (payload.startsWith("stars_")) {
+        const invoiceId = payload.slice("stars_".length);
+        try {
+          const replyText = await fulfillStarsInvoice(invoiceId, totalAmount);
+          await sendTelegramMessage(chatId, replyText);
+        } catch (err) {
+          // Деньги Telegram уже списал — молчать нельзя ни при какой ошибке, иначе покупатель
+          // заплатил, а заказа не увидит и не поймёт, что случилось.
+          console.error("fulfillStarsInvoice error:", err);
+          await sendTelegramMessage(
+            chatId,
+            `Оплата ${totalAmount} ⭐ прошла, но при оформлении заказа произошла ошибка. Напиши в поддержку на сайте — разберёмся и оформим вручную.`
+          );
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       await sendTelegramMessage(chatId, `Спасибо за поддержку — ${totalAmount} ⭐! 💫`);
       if (ADMIN_CHAT_ID) {
         await sendTelegramMessage(ADMIN_CHAT_ID, `💫 Донат от ${firstName} (${userTag}): ${totalAmount} ⭐`);

@@ -14,6 +14,7 @@ export function mainMenuButtons(isAdmin: boolean = false): InlineButton[][] {
       { text: "💰 Баланс", callback_data: "cmd_balance" },
       { text: "📦 Мои заказы", callback_data: "cmd_orders" },
     ],
+    [{ text: "⭐ Stars-баланс", callback_data: "cmd_stars_balance" }],
     [{ text: "💬 Обратная связь", callback_data: "menu_feedback" }],
     [{ text: "🤝 Сотрудничество", callback_data: "menu_partnership" }],
     [{ text: "💫 Поддержать проект", callback_data: "menu_donate" }],
@@ -53,4 +54,11 @@ export const PARTNERSHIP_INSTRUCTIONS =
 
 export function backOnlyButtons(target: "menu_feedback" | "menu_back" = "menu_feedback"): InlineButton[][] {
   return [[{ text: "⬅️ Назад", callback_data: target }]];
+}
+
+export function starsBalanceButtons(canWithdraw: boolean): InlineButton[][] {
+  const rows: InlineButton[][] = [];
+  if (canWithdraw) rows.push([{ text: "💸 Вывести", callback_data: "stars_withdraw_request" }]);
+  rows.push([{ text: "⬅️ Назад", callback_data: "menu_back" }]);
+  return rows;
 }

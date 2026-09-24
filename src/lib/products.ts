@@ -126,6 +126,21 @@ export async function boostProduct(productId: string, tier: "game" | "home"): Pr
   return data;
 }
 
+/** Устанавливает (или снимает при null) фиксированную цену товара в Telegram Stars — только для
+ * верифицированных продавцов, см. api/products/stars-price. */
+export async function setProductStarsPrice(productId: string, starsPrice: number | null): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/products/stars-price", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ productId, starsPrice }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось сохранить цену в Stars");
+}
+
 export async function createGame(data: Omit<Game, "id">) {
   return addDoc(gamesCol, data);
 }

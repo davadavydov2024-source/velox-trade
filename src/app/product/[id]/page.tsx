@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight, Send } from "lucide-react";
 import { getProducts, getGameBySlug, getPurchasableProductById } from "@/lib/products";
 import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
+import { requestStarsInvoice } from "@/lib/starsPayments";
 import { ProductCard } from "@/components/ProductCard";
 import { Lightbox } from "@/components/Lightbox";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -40,6 +41,7 @@ export default function ProductPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [starsLoading, setStarsLoading] = useState(false);
 
   useEffect(() => {
     // getPurchasableProductById (не обычный getProductById!) — если товар сейчас "заперт" под
@@ -224,6 +226,27 @@ export default function ProductPage() {
               </button>
             )}
           </div>
+
+          {user && product.sellerId !== "store" && product.sellerId !== user.uid && !!product.starsPrice && seller?.badges?.some((b) => CHECKMARK_BADGES.includes(b)) && (
+            <button
+              onClick={async () => {
+                if (starsLoading || product.stock <= 0) return;
+                setStarsLoading(true);
+                const res = await requestStarsInvoice(product.id, qty);
+                setStarsLoading(false);
+                if (res.ok) {
+                  toast("success", `Счёт на ${res.amountStars} ⭐ отправлен в Telegram — открой бота, чтобы оплатить`);
+                } else {
+                  toast("error", res.message);
+                }
+              }}
+              disabled={starsLoading || product.stock <= 0}
+              className="btn-secondary px-6 py-3 flex items-center gap-2 mt-3 w-full sm:w-auto border-accent/40"
+              title="Оплата напрямую в Telegram — продавец получит Stars сразу после оплаты"
+            >
+              <Send size={18} /> {starsLoading ? "Отправляем счёт..." : `Купить за ${product.starsPrice * qty} ⭐`}
+            </button>
+          )}
         </div>
       </div>
 

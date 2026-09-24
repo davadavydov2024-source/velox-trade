@@ -160,6 +160,12 @@ export interface Product {
   auctionHighestBidderName?: string | null;
   auctionBidCount?: number;
   auctionEndedAt?: number;
+  // Фиксированная цена товара в Telegram Stars, которую сам продавец указывает при создании/
+  // редактировании товара (см. /profile/my-products, api/products/stars-price). Кнопка "Купить за
+  // Stars" на карточке товара показывается только когда это поле задано (>0) И продавец
+  // верифицирован (см. CHECKMARK_BADGES) — см. api/telegram/stars/invoice. Отсутствует/0 = оплата
+  // Stars для этого товара недоступна.
+  starsPrice?: number;
   createdAt: number;
 }
 
@@ -203,6 +209,10 @@ export interface Order {
   items: { productId: string; name: string; price: number; quantity: number }[];
   total: number;
   status: "pending_confirmation" | "confirmed" | "disputed" | "cancelled";
+  // Как оплачен заказ. Отсутствие поля = оплата с баланса сайта (так было исторически,
+  // до появления Stars, поэтому старые заказы этого поля не имеют).
+  paymentMethod?: "balance" | "telegram_stars";
+  starsAmount?: number; // сумма в Stars, если paymentMethod === "telegram_stars"
   reviewSubmitted?: boolean;
   createdAt: number;
   confirmedAt?: number;
@@ -314,6 +324,32 @@ export interface UserProfile {
   // самому), см. NICKNAME_COLOR_PRESETS / NICKNAME_FONT_PRESETS и компонент StyledNickname.
   nameColor?: string;
   nameFont?: string;
+  // Накопленные Telegram Stars от продаж товаров с ценой в Stars (см. Product.starsPrice) —
+  // зачисляются сразу при оплате (starsOrders.ts → fulfillStarsInvoice), выводятся через бота
+  // от 15 ⭐ (см. telegramStarsWithdrawals.ts). Отдельно от обычного рублёвого balance.
+  starsBalance?: number;
+}
+
+export type StarsWithdrawalStatus = "pending" | "approved" | "rejected";
+
+// ---- Заявка продавца на вывод накопленных Stars — оформляется через бота (кнопка "⭐ Stars" в
+// главном меню), подтверждается администратором тоже через бота (см. telegramAdminPanel.ts).
+// Пока заявка "pending", сумма уже списана с starsBalance продавца (чтобы нельзя было запросить
+// вывод дважды за одни и те же звёзды); при отклонении сумма возвращается обратно.
+export interface StarsWithdrawal {
+  id: string;
+  sellerId: string;
+  sellerNick: string;
+  amountStars: number;
+  status: StarsWithdrawalStatus;
+  createdAt: number;
+  resolvedAt?: number;
+  // Заполняются при подтверждении (см. telegramAdminPanel.ts → approveStarsWithdrawalFromBot):
+  // сколько из суммы удалось раздать подарками из каталога (мишки, букеты и т.п. — списываются с
+  // реального баланса Stars бота), и сколько осталось доплатить администратору вручную, если
+  // звёзд у бота не хватило на полную сумму подходящими подарками.
+  giftedStars?: number;
+  manualPayoutStars?: number;
 }
 
 export type EventTheme = "winter" | "summer" | "birthday" | "milestone" | "update" | "weekly" | "none";
@@ -707,4 +743,34 @@ export interface PublicActivityItem {
   price: number;
   type: "purchase" | "wheel";
   createdAt: number;
+}
+
+// ---- Привязка аккаунта Roblox к профилю (см. src/app/profile/roblox, src/lib/robloxLink.ts,
+// src/app/api/roblox/*) — один документ в коллекции robloxLinks с id = uid пользователя сайта.
+export interface RobloxLink {
+  uid: string;
+  robloxUserId: number;
+  robloxUsername: string;
+  robloxDisplayName: string;
+  avatarUrl: string | null;
+  verifiedAt: number;
+}
+
+// ---- Покупка за Telegram Stars у верифицированных продавцов (значок CHECKMARK_BADGES) —
+// см. src/lib/starsPayments.ts (клиент), src/app/api/telegram/stars/invoice/route.ts (создание
+// счёта), src/lib/starsOrders.ts (выдача заказа при successful_payment в вебхуке бота).
+// Документ в коллекции starsInvoices, id — часть invoice_payload счёта в Telegram ("stars_<id>").
+export type StarsInvoiceStatus = "pending" | "paid" | "expired";
+
+export interface StarsInvoice {
+  id: string;
+  buyerId: string;
+  productId: string;
+  quantity: number;
+  sellerId: string;
+  amountStars: number;
+  status: StarsInvoiceStatus;
+  createdAt: number;
+  paidAt?: number;
+  orderId?: string; // заполняется после успешной выдачи заказа
 }

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Rocket, Zap, Star, Pencil, Trash2 } from "lucide-react";
+import { Rocket, Zap, Star, Pencil, Trash2, Send } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { getProducts, boostProduct, deleteProduct } from "@/lib/products";
+import { getProducts, boostProduct, deleteProduct, setProductStarsPrice } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { createProductEditRequest, MAX_PRODUCT_EDITS } from "@/lib/productEditRequests";
-import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
+import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags, CHECKMARK_BADGES } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { useLanguage } from "@/lib/languageStore";
@@ -34,6 +34,8 @@ function ProductBoostCard({
   const [editing, setEditing] = useState(false);
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [starsPriceInput, setStarsPriceInput] = useState(product.starsPrice ? String(product.starsPrice) : "");
+  const [savingStars, setSavingStars] = useState(false);
   const [editForm, setEditForm] = useState({
     name: product.name,
     description: product.description,
@@ -79,6 +81,20 @@ function ProductBoostCard({
     } catch {
       toast("error", "Не удалось удалить товар");
       setDeleting(false);
+    }
+  }
+
+  async function handleSaveStarsPrice() {
+    const trimmed = starsPriceInput.trim();
+    const value = trimmed === "" ? null : Number(trimmed);
+    setSavingStars(true);
+    try {
+      await setProductStarsPrice(product.id, value);
+      toast("success", value ? `Цена в Stars сохранена: ${value} ⭐` : "Оплата Stars отключена для этого товара");
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось сохранить цену в Stars");
+    } finally {
+      setSavingStars(false);
     }
   }
 
@@ -161,6 +177,32 @@ function ProductBoostCard({
           </button>
         </div>
       </div>
+
+      {profile?.badges?.some((b) => CHECKMARK_BADGES.includes(b)) && (
+        <div className="rounded-btn border border-border p-3 mt-2">
+          <p className="text-sm font-medium flex items-center gap-1.5">
+            <Send size={14} className="text-accent" /> Оплата Telegram Stars ⭐
+          </p>
+          <p className="text-xs text-white/40 my-1.5">
+            Укажи цену в Stars (целое число, минимум 15) — на карточке товара появится кнопка «Купить за Stars», оплата придёт прямо в бота. Оставь поле пустым, чтобы отключить.
+          </p>
+          <div className="flex gap-2">
+            <input
+              autoComplete="off"
+              type="number"
+              min={15}
+              step={1}
+              value={starsPriceInput}
+              onChange={(e) => setStarsPriceInput(e.target.value)}
+              placeholder="Например, 50"
+              className="input-field py-2 text-sm flex-1"
+            />
+            <button onClick={handleSaveStarsPrice} disabled={savingStars} className="btn-secondary px-4 py-2 text-xs disabled:opacity-50 shrink-0">
+              {savingStars ? "Сохранение..." : "Сохранить"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {editing ? (
         <div className="mt-3 rounded-btn border border-border p-3 space-y-2.5">

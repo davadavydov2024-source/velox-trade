@@ -128,3 +128,31 @@ export async function checkChannelMembership(channelId: string, userId: number):
   // restricted) считаем действующим подписчиком.
   return result.status === "left" || result.status === "kicked" ? { status: "not_member" } : { status: "member" };
 }
+
+// ===================== Подарки (мишки, букеты и т.п. за Stars) =====================
+// Telegram Bot API: getAvailableGifts/sendGift. Подарить можно, только если у САМОГО бота есть
+// накопленные Stars (реально пополняются за счёт оплат через sendInvoice — донаты, покупки
+// товаров и т.п.) — sendGift списывает звёзды с баланса бота, а не эмулирует их. Если у бота
+// звёзд не хватает, Telegram просто вернёт ошибку — tgCall её залогирует и вернёт null.
+
+export interface TelegramGift {
+  id: string;
+  starCount: number;
+}
+
+/** Список доступных в магазине подарков (мишки, букеты, сердца и т.п.), отсортированный по
+ * убыванию цены — удобно для "жадной" раздачи как можно более дорогими подарками. */
+export async function getAvailableGifts(): Promise<TelegramGift[]> {
+  const result = await tgCall<{ gifts: { id: string; star_count: number }[] }>("getAvailableGifts", {});
+  if (!result?.gifts) return [];
+  return result.gifts
+    .map((g) => ({ id: g.id, starCount: g.star_count }))
+    .sort((a, b) => b.starCount - a.starCount);
+}
+
+/** Дарит один подарок из каталога пользователю (user_id — тот же, что chatId в личном чате с
+ * ботом). Списывает starCount этого подарка с реального баланса Stars бота. */
+export async function sendGift(userId: number, giftId: string, text?: string): Promise<boolean> {
+  const result = await tgCall("sendGift", { user_id: userId, gift_id: giftId, text });
+  return result !== null;
+}
