@@ -4,7 +4,7 @@ import { CHECKMARK_BADGES } from "@/types";
 
 export const runtime = "nodejs";
 
-export const MIN_STARS_PRICE = 15;
+const MIN_STARS_PRICE = 15;
 
 export async function POST(req: NextRequest) {
   try {
