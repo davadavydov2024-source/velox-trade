@@ -1,389 +1,332 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
-import { auth } from "@/lib/firebase";
-import { useToast } from "@/lib/toastContext";
-import { getFeatureFlags } from "@/lib/featureFlags";
-import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
-import { createTelegramRegisterRequest } from "@/lib/telegramRegister";
-import { useLanguage, useLanguageStore } from "@/lib/languageStore";
-import { LANGUAGES } from "@/lib/i18n";
-import { useMascot } from "@/lib/mascotContext";
-import { AuthBackground } from "@/components/AuthBackground";
+import { getUserOrderChats } from "@/lib/orderChats";
+import { getUserProfile, getOrderById } from "@/lib/users";
+import { getProductById } from "@/lib/products";
+import { safeImageSrc } from "@/lib/safeImage";
+import { SupportPanel } from "@/components/SupportPanel";
+import { NewsPanel } from "@/components/NewsPanel";
+import { OrderChatThread } from "@/components/OrderChatThread";
+import { DmThread } from "@/components/DmThread";
+import { subscribeUserConversations, conversationId as buildConversationId } from "@/lib/directMessages";
+import { DirectConversation } from "@/types";
+import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
-const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
+type ChatView =
+  | { kind: "support" }
+  | { kind: "news" }
+  | { kind: "order"; orderId: string; counterpartName: string }
+  | { kind: "dm"; peerUid: string; peerName: string; peerPhoto: string | null };
 
-function translateAuthError(code?: string) {
-  switch (code) {
-    case "auth/email-already-in-use":
-      return "Этот email уже зарегистрирован";
-    case "auth/invalid-email":
-      return "Некорректный email";
-    case "auth/weak-password":
-      return "Слишком простой пароль";
-    default:
-      return "Ошибка регистрации. Попробуйте снова";
-  }
+interface ChatListItem {
+  orderId: string;
+  counterpartName: string;
+  lastMessage: string;
+  updatedAt: number;
+  itemImage: string | null;
 }
 
-function RegisterInner() {
-  const { register } = useAuth();
-  const { toast } = useToast();
-  const { celebrate } = useMascot();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const refCode = searchParams.get("ref");
-  const { t } = useLanguage();
-  const language = useLanguageStore((s) => s.language);
-  const setLanguage = useLanguageStore((s) => s.setLanguage);
+const AVATAR_COLORS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8", "#f87171"];
 
-  const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
-  const [flagsLoaded, setFlagsLoaded] = useState(false);
-  const [mode, setMode] = useState<"password" | "telegram">("password");
+function avatarColor(name: string) {
+  const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+}
+
+function formatWhen(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "вчера";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+}
+
+function itemClasses(active: boolean) {
+  return `relative w-full flex items-center gap-3 p-3 rounded-btn text-left transition-colors ${
+    active ? "bg-accent/10" : "hover:bg-white/5 active:bg-white/10"
+  }`;
+}
+
+function ChatsInner() {
+  const params = useSearchParams();
+  const { user } = useAuth();
+  const [view, setView] = useState<ChatView | null>(null);
+  const [items, setItems] = useState<ChatListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
 
   useEffect(() => {
-    getFeatureFlags().then((f) => {
-      setFlags(f);
-      setFlagsLoaded(true);
-      if (!f.telegramRegisterEnabled) setMode("password");
-    });
-  }, []);
+    if (params.get("tab") === "support") setView({ kind: "support" });
+  }, [params]);
 
-  // --- регистрация по паролю ---
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [agreed, setAgreed] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  // --- регистрация через Telegram ---
-  const [tgName, setTgName] = useState("");
-  const [tgEmail, setTgEmail] = useState("");
-  const [tgLinkUrl, setTgLinkUrl] = useState<string | null>(null);
-  const [tgCode, setTgCode] = useState<string | null>(null);
-  const [tgCreating, setTgCreating] = useState(false);
-  const [tgConfirmed, setTgConfirmed] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Пришли по ссылке "Написать" с профиля продавца (?dm=<uid>&name=<имя>&photo=<url>) — открываем
+  // личную переписку с этим человеком сразу, не дожидаясь клика в списке.
+  useEffect(() => {
+    const dmUid = params.get("dm");
+    if (!dmUid || !user) return;
+    const name = params.get("name") || "Пользователь";
+    const photo = params.get("photo") || null;
+    setView({ kind: "dm", peerUid: dmUid, peerName: name, peerPhoto: photo });
+  }, [params, user]);
 
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+    if (!user) return;
+    const unsub = subscribeUserConversations(user.uid, setDmConversations);
+    return unsub;
+  }, [user]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (password.length < 6) {
-      toast("warning", "Пароль должен быть не короче 6 символов");
+  // Пришли сразу после покупки/выигрыша с конкретным ?order= — открываем этот чат, как только
+  // список чатов подгрузится (имя собеседника берём уже из готового списка, не запрашиваем отдельно).
+  useEffect(() => {
+    const orderId = params.get("order");
+    if (!orderId || loading) return;
+    const match = items.find((i) => i.orderId === orderId);
+    if (match) setView({ kind: "order", orderId, counterpartName: match.counterpartName });
+  }, [params, items, loading]);
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
       return;
     }
-    setLoading(true);
-    try {
-      await register(email, password, name, language);
-      if (refCode) {
-        try {
-          const idToken = await auth.currentUser?.getIdToken();
-          if (idToken) {
-            await fetch("/api/auth/apply-referral", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-              body: JSON.stringify({ code: refCode }),
-            });
-          }
-        } catch {
-          // Реферальный бонус не критичен для регистрации — молча игнорируем ошибку.
-        }
-      }
-      toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
-      celebrate("register");
-      router.push("/profile");
-    } catch (err: any) {
-      toast("error", translateAuthError(err?.code));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleStartTelegramRegister(e: React.FormEvent) {
-    e.preventDefault();
-    setTgCreating(true);
-    try {
-      const code = await createTelegramRegisterRequest(tgEmail, tgName);
-      setTgCode(code);
-      setTgLinkUrl(`https://t.me/${TELEGRAM_BOT}?start=${code}`);
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/telegram/register-status?code=${code}`);
-          const data = await res.json();
-          if (data.done) {
-            setTgConfirmed(true);
-            if (pollRef.current) clearInterval(pollRef.current);
-          }
-        } catch {
-          // сеть моргнула — просто попробуем на следующем тике
-        }
-      }, 3000);
-    } catch (err: any) {
-      if (err?.code === "permission-denied") {
-        toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
-      } else {
-        toast("error", "Не удалось начать регистрацию");
-      }
-    } finally {
-      setTgCreating(false);
-    }
-  }
-
-  if (!flagsLoaded) {
-    return <div className="max-w-md mx-auto px-4 py-16 text-center text-white/40">Загрузка...</div>;
-  }
-
-  if (!flags.registrationEnabled) {
-    return (
-      <div className="relative min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-16">
-        <AuthBackground />
-        <div className="card auth-card-rise p-8 text-center max-w-md w-full">
-          <h1 className="text-xl font-bold mb-2">Регистрация временно закрыта</h1>
-          <p className="text-white/40 text-sm">
-            Администратор временно отключил регистрацию новых аккаунтов. Попробуй зайти позже.
-          </p>
-          <Link href="/auth/login" className="text-accent hover:underline text-sm mt-4 inline-block">
-            ← Ко входу
-          </Link>
-        </div>
-      </div>
-    );
-  }
+    let cancelled = false;
+    getUserOrderChats(user.uid)
+      .then(async (chats) => {
+        const enriched = await Promise.all(
+          chats.map(async (chat) => {
+            const counterpartId = chat.buyerId === user.uid ? chat.sellerId : chat.buyerId;
+            let counterpartName = "Пользователь";
+            if (counterpartId === "store") {
+              counterpartName = "Магазин";
+            } else {
+              try {
+                const p = await getUserProfile(counterpartId);
+                if (p) counterpartName = p.displayName;
+              } catch {
+                // профиль недоступен — оставляем название по умолчанию
+              }
+            }
+            let itemImage: string | null = null;
+            try {
+              const order = await getOrderById(chat.orderId);
+              const productId = order?.items[0]?.productId;
+              if (productId) {
+                const product = await getProductById(productId);
+                itemImage = product?.image ?? null;
+              }
+            } catch {
+              // товар недоступен — покажем аватар-заглушку вместо фото
+            }
+            const last = chat.messages[chat.messages.length - 1];
+            return {
+              orderId: chat.orderId,
+              counterpartName,
+              lastMessage: last ? last.text : "Сообщений пока нет",
+              updatedAt: chat.updatedAt,
+              itemImage,
+            } as ChatListItem;
+          })
+        );
+        if (!cancelled) setItems(enriched.sort((a, b) => b.updatedAt - a.updatedAt));
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   return (
-    <div className="relative min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-16">
-      <AuthBackground />
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+      <h1 className="text-2xl font-bold mb-6 hidden sm:block">Чаты</h1>
+      <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
+      <div className="grid md:grid-cols-[340px_1fr] gap-5">
+        <div className={`card p-2 md:max-h-[75vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
+          <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
+            {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+              <LifeBuoy size={19} className="text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <p className="font-medium text-sm truncate">Поддержка</p>
+                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
+              </div>
+              <p className="text-xs text-white/40 truncate">Мы поможем с любым вопросом</p>
+            </div>
+          </button>
 
-      <div className="auth-card-rise max-w-md w-full">
-        <div className="auth-glow-border rounded-card">
-        <div className="card p-8 relative overflow-hidden z-[1]">
-          {/* Тонкое свечение по верхнему краю карточки — просто декоративная полоска, оживляет
-             иначе плоский верх card. */}
-          <div
-            className="absolute top-0 left-0 right-0 h-[2px] opacity-70"
-            style={{ background: "linear-gradient(90deg, transparent, var(--color-accent), transparent)" }}
-          />
+          <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
+            {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+              <Megaphone size={19} className="text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <p className="font-medium text-sm truncate">Velox Trade Новости</p>
+                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
+              </div>
+              <p className="text-xs text-white/40 truncate">Официальный канал</p>
+            </div>
+          </button>
 
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles size={20} className="text-accent shrink-0" />
-            <h1
-              className="text-2xl font-bold auth-title-sheen bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
-            >
-              {t("auth_register_title")}
-            </h1>
-          </div>
-          <p className="text-white/40 text-sm mb-6">{t("auth_register_subtitle")}</p>
+          <div className="border-t border-border my-2" />
 
-          <div className="mb-6">
-            <p className="text-xs text-white/40 mb-2">{t("auth_language_label")}</p>
-            <div className="flex gap-2">
-              {LANGUAGES.map((l) => (
-                <button
-                  key={l.code}
-                  type="button"
-                  onClick={() => setLanguage(l.code)}
-                  className={`flex-1 py-2 rounded-btn text-sm flex items-center justify-center gap-1.5 transition-all duration-200 ${
-                    language === l.code ? "bg-accent text-black scale-[1.02]" : "bg-surface text-white/60 hover:bg-white/10"
-                  }`}
-                >
-                  <span>{l.flag}</span> {l.label}
-                </button>
+          {!user ? (
+            <p className="text-xs text-white/30 text-center py-6 px-2">
+              Войдите в аккаунт, чтобы увидеть чаты по своим сделкам.
+            </p>
+          ) : loading ? (
+            <div className="space-y-2 px-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-white/5 shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-2.5 bg-white/5 rounded w-2/3" />
+                    <div className="h-2 bg-white/5 rounded w-4/5" />
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-
-          {flags.telegramRegisterEnabled && (
-            <div className="relative flex mb-6 bg-surface rounded-btn p-1">
-              {/* Двигающаяся плашка под активным табом вместо мгновенной смены цвета фона */}
-              <div
-                className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-btn bg-accent transition-transform duration-300 ease-out"
-                style={{ transform: mode === "password" ? "translateX(0)" : "translateX(calc(100% + 8px))" }}
-              />
-              <button
-                onClick={() => setMode("password")}
-                className={`relative z-10 flex-1 py-2 rounded-btn text-sm font-medium transition-colors duration-200 ${
-                  mode === "password" ? "text-black" : "text-white/60"
-                }`}
-              >
-                Email и пароль
-              </button>
-              <button
-                onClick={() => setMode("telegram")}
-                className={`relative z-10 flex-1 py-2 rounded-btn text-sm font-medium flex items-center justify-center gap-1.5 transition-colors duration-200 ${
-                  mode === "telegram" ? "text-black" : "text-white/60"
-                }`}
-              >
-                <MessageCircle size={14} /> Через Telegram
-              </button>
-            </div>
+          ) : items.length === 0 ? (
+            <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
+          ) : (
+            items.map((item) => {
+              const active = view?.kind === "order" && view.orderId === item.orderId;
+              return (
+                <button
+                  key={item.orderId}
+                  onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName })}
+                  className={itemClasses(active)}
+                >
+                  {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+                  {item.itemImage ? (
+                    <div className="relative w-12 h-12 rounded-btn overflow-hidden bg-black/30 shrink-0">
+                      <Image src={safeImageSrc(item.itemImage)} alt="" fill className="object-cover" sizes="48px" />
+                    </div>
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
+                      style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
+                    >
+                      {initials(item.counterpartName) || "?"}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-sm truncate">{item.counterpartName}</p>
+                      <span className="text-[10px] text-white/30 shrink-0">{formatWhen(item.updatedAt)}</span>
+                    </div>
+                    <p className="text-xs text-white/40 truncate">{item.lastMessage}</p>
+                  </div>
+                </button>
+              );
+            })
           )}
 
-          {mode === "password" || !flags.telegramRegisterEnabled ? (
-            <form onSubmit={handleSubmit} className="space-y-4 auth-pill-pop">
-              <div className="relative group">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                <input
-                  required
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t("auth_name_placeholder")}
-                  className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-              </div>
-              <div className="relative group">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t("auth_email_placeholder")}
-                  className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-              </div>
-              <div className="relative group">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                <input
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t("auth_password_placeholder")}
-                  className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-              </div>
-              <label className="flex items-start gap-2 text-xs text-white/50">
-                <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5" />
-                <span>
-                  Я согласен с{" "}
-                  <Link href="/rules" target="_blank" className="text-accent hover:underline">
-                    правилами платформы
-                  </Link>
-                  ,{" "}
-                  <Link href="/privacy" target="_blank" className="text-accent hover:underline">
-                    политикой конфиденциальности
-                  </Link>{" "}
-                  и{" "}
-                  <Link href="/terms" target="_blank" className="text-accent hover:underline">
-                    пользовательским соглашением
-                  </Link>
-                  .
-                </span>
-              </label>
-              <button
-                disabled={loading || !agreed}
-                className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
-              >
-                {loading ? t("auth_submit_creating") : t("auth_submit_register")}
-              </button>
-            </form>
-          ) : tgConfirmed ? (
-            <div className="text-center py-4 space-y-4 auth-pill-pop">
-              <CheckCircle2 className="mx-auto text-green-400 animate-[fadeIn_0.4s_ease-out]" size={36} />
-              <p className="text-sm text-white/70">
-                Аккаунт создан! Код для входа уже отправлен тебе в Telegram — введи его на странице входа.
-              </p>
-              <Link href="/auth/login" className="btn-primary inline-block px-6 py-3 text-sm">
-                Перейти ко входу
-              </Link>
-            </div>
-          ) : tgLinkUrl ? (
-            <div className="space-y-3 text-center py-2 auth-pill-pop">
-              <div className="relative w-14 h-14 mx-auto">
-                <div className="absolute inset-0 rounded-full border-2 border-accent/20 border-t-accent auth-spin-slow" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <MessageCircle size={22} className="text-accent" />
-                </div>
-              </div>
-              <a
-                href={tgLinkUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-primary px-6 py-3 text-sm inline-flex items-center gap-2 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
-              >
-                Открыть Telegram-бота <ExternalLink size={14} />
-              </a>
-              <p className="text-xs text-white/40">
-                Нажми «Start» в боте — аккаунт создастся автоматически, и мы пришлём код для входа прямо туда. Эта
-                страница обновится сама.
-              </p>
-              <div className="flex items-center justify-center gap-2 text-xs text-white/30 pt-2">
-                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Ждём подтверждения...
-              </div>
+          {user && dmConversations.length > 0 && (
+            <>
+              <div className="border-t border-border my-2" />
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">Личные сообщения</p>
+              {dmConversations.map((conv) => {
+                const peerUid = conv.participants.find((p) => p !== user.uid)!;
+                const peerName = conv.participantNames[peerUid] ?? "Пользователь";
+                const peerPhoto = conv.participantPhotos[peerUid] ?? null;
+                const active = view?.kind === "dm" && view.peerUid === peerUid;
+                return (
+                  <button key={conv.id} onClick={() => setView({ kind: "dm", peerUid, peerName, peerPhoto })} className={itemClasses(active)}>
+                    {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
+                    <div
+                      className="relative w-12 h-12 rounded-full overflow-hidden bg-black/30 shrink-0 flex items-center justify-center text-xs font-semibold"
+                      style={!peerPhoto ? { background: `${avatarColor(peerName)}22`, color: avatarColor(peerName) } : undefined}
+                    >
+                      {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-sm truncate">{peerName}</p>
+                        <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
+                      </div>
+                      <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {/* На мобильных открытый чат — отдельный полноэкранный слой (как в мессенджерах), а не
+           card с ограниченной высотой; на десктопе — обычная правая колонка макета.
+           z-[60] — специально ВЫШЕ, чем z-40 у MobileTabBar (см. components/MobileTabBar.tsx):
+           раньше был тот же z-40, и при равном z-index шторка (рендерится позже в layout.tsx)
+           перекрывала низ экрана чата, включая поле ввода — из-за этого не получалось писать
+           в чатах на телефонах. Теперь чат полностью накрывает шторку, пока открыт. */}
+        <div
+          className={`card md:p-5 flex flex-col ${
+            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-[60] md:static md:z-auto rounded-none md:rounded-card md:h-[75vh]"
+          }`}
+        >
+          {!view ? (
+            <div className="text-center text-white/30 py-24 m-auto">
+              <MessageCircle className="mx-auto mb-2" size={28} />
+              Выберите чат слева
             </div>
           ) : (
-            <form onSubmit={handleStartTelegramRegister} className="space-y-4 auth-pill-pop">
-              <div className="relative group">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                <input
-                  required
-                  autoComplete="name"
-                  value={tgName}
-                  onChange={(e) => setTgName(e.target.value)}
-                  placeholder="Имя пользователя"
-                  className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-              </div>
-              <div className="relative group">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={tgEmail}
-                  onChange={(e) => setTgEmail(e.target.value)}
-                  placeholder="Email"
-                  className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-              </div>
+            <>
               <button
-                disabled={tgCreating}
-                className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
+                onClick={() => setView(null)}
+                className="md:hidden flex items-center gap-2 text-sm text-white/60 hover:text-white px-4 py-3.5 border-b border-border shrink-0 sticky top-0 bg-bg z-10"
+                style={{ paddingTop: "calc(0.875rem + env(safe-area-inset-top))" }}
               >
-                {tgCreating ? "Готовим ссылку..." : "Продолжить в Telegram"}
+                <ChevronLeft size={18} /> Ко всем чатам
               </button>
-              <p className="text-xs text-white/30 text-center">Без пароля — вход будет по коду из Telegram.</p>
-            </form>
+              <div className="flex-1 min-h-0 flex flex-col p-4 md:p-0 overflow-hidden">
+                {view.kind === "support" && <SupportPanel />}
+                {view.kind === "news" && <NewsPanel />}
+                {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} />}
+                {view.kind === "dm" && user && (
+                  <DmThread
+                    conversationId={buildConversationId(user.uid, view.peerUid)}
+                    peerUid={view.peerUid}
+                    peerName={view.peerName}
+                    peerPhoto={view.peerPhoto}
+                  />
+                )}
+              </div>
+            </>
           )}
-
-          <p className="text-center text-sm text-white/40 mt-6">
-            {t("auth_have_account")}{" "}
-            <Link href="/auth/login" className="text-accent hover:underline">
-              {t("auth_login_link")}
-            </Link>
-          </p>
-        </div>
         </div>
       </div>
     </div>
   );
 }
 
-export default function RegisterPage() {
+export default function ChatsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="relative min-h-[calc(100vh-64px)] flex items-center justify-center px-4">
-          <AuthBackground />
-          <p className="text-white/40">Загрузка...</p>
-        </div>
-      }
-    >
-      <RegisterInner />
+    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>}>
+      <ChatsInner />
     </Suspense>
   );
 }

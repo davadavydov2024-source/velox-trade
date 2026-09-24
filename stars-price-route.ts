@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { CHECKMARK_BADGES } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -38,12 +37,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Цена в Stars — целое число от ${MIN_STARS_PRICE}` }, { status: 400 });
     }
 
-    const sellerSnap = await db.collection("users").doc(uid).get();
-    const sellerBadges: string[] = sellerSnap.exists ? (sellerSnap.data()?.badges ?? []) : [];
-    if (!sellerBadges.some((b) => CHECKMARK_BADGES.includes(b as any))) {
-      return NextResponse.json({ error: "Оплата Stars доступна только верифицированным продавцам" }, { status: 403 });
-    }
-
+    // Раньше здесь была проверка на бейдж верификации (CHECKMARK_BADGES) — оплата Stars была
+    // доступна только верифицированным продавцам. Теперь доступно всем продавцам без ограничений.
     await productRef.update({ starsPrice });
     return NextResponse.json({ ok: true, starsPrice });
   } catch (err) {

@@ -1,0 +1,236 @@
+"use client";
+
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { SlidersHorizontal, Star } from "lucide-react";
+import { ProductCard } from "@/components/ProductCard";
+import { getProducts, getGameBySlug } from "@/lib/products";
+import { Product, Rarity, RARITY_LABEL } from "@/types";
+
+const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
+
+function CatalogInner() {
+  const params = useSearchParams();
+  const gameSlug = params.get("game") ?? "";
+  const initialQuery = params.get("q") ?? "";
+  const onlyNew = params.get("new") === "1";
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [search, setSearch] = useState(initialQuery);
+  const [rarity, setRarity] = useState<Rarity | "">("");
+  const [gameCategories, setGameCategories] = useState<string[]>([]);
+  const [category, setCategory] = useState("");
+  const [sort, setSort] = useState<"newest" | "price_asc" | "price_desc">("newest");
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
+  // "Оплата звёздами" — отдельный раздел/фильтр каталога: показывает только товары, для которых
+  // продавец указал цену в Telegram Stars (см. profile/my-products и api/products/stars-price).
+  // Поддерживает ?stars=1 в ссылке — так же, как ?new=1 для новинок — чтобы можно было прислать
+  // прямую ссылку на этот раздел.
+  const [onlyStars, setOnlyStars] = useState(params.get("stars") === "1");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    getProducts({ sort, excludeWheelLocked: true })
+      .then((p) => setProducts(p))
+      .catch((err) => { console.error("Ошибка загрузки товаров:", err); setProducts([]); })
+      .finally(() => setLoaded(true));
+  }, [sort]);
+
+  // Категории зависят от конкретной игры — при смене ?game= подгружаем список категорий этой
+  // игры (задаются админом на /admin/games) и сбрасываем выбранную категорию, если она есть.
+  useEffect(() => {
+    setCategory("");
+    if (!gameSlug) {
+      setGameCategories([]);
+      return;
+    }
+    let cancelled = false;
+    getGameBySlug(gameSlug)
+      .then((g) => !cancelled && setGameCategories(g?.categories ?? []))
+      .catch(() => !cancelled && setGameCategories([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [gameSlug]);
+
+  const filtered = useMemo(() => {
+    const now = Date.now();
+    const boostRank = (p: Product) => {
+      if ((p.boostUntil ?? 0) <= now) return 0;
+      return p.boostTier === "home" ? 2 : 1;
+    };
+    return products
+      .filter((p) => {
+        if (gameSlug && p.gameId !== gameSlug) return false;
+        if (category && p.category !== category) return false;
+        if (onlyNew && !p.isNew) return false;
+        if (rarity && p.rarity !== rarity) return false;
+        if (onlyAvailable && p.stock <= 0) return false;
+        if (onlyStars && !p.starsPrice) return false;
+        if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => boostRank(b) - boostRank(a));
+  }, [products, gameSlug, category, onlyNew, rarity, onlyAvailable, onlyStars, search]);
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl md:text-3xl font-bold">
+          {gameSlug ? `Каталог — ${gameSlug.replace(/-/g, " ")}` : "Каталог товаров"}
+        </h1>
+        <button className="md:hidden btn-secondary py-2 px-3" onClick={() => setFiltersOpen((v) => !v)}>
+          <SlidersHorizontal size={18} />
+        </button>
+      </div>
+
+      {/* Виден всегда (не спрятан за кнопкой фильтров на мобильных) — отдельный быстрый вход
+          в раздел "Оплата звёздами", а не только галочка в сайдбаре ниже. */}
+      <button
+        onClick={() => setOnlyStars((v) => !v)}
+        className={`mb-6 inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-full transition-colors ${
+          onlyStars ? "bg-accent text-black shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/70 hover:bg-white/10"
+        }`}
+      >
+        <Star size={13} className={onlyStars ? "" : "fill-accent text-accent"} /> Оплата звёздами
+      </button>
+
+      <div className="grid md:grid-cols-[240px_1fr] gap-8">
+        {/* Filters */}
+        <aside className={`${filtersOpen ? "block" : "hidden"} md:block space-y-6`}>
+          <div>
+            <label className="text-xs text-white/40 mb-2 block">Поиск</label>
+            <input
+            autoComplete="off"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Название предмета..."
+              className="input-field py-2.5 text-sm"
+            />
+          </div>
+
+          {gameCategories.length > 0 && (
+            <div>
+              <p className="text-xs text-white/40 mb-2">Категория</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setCategory("")}
+                  className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                    category === "" ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
+                  }`}
+                >
+                  Все
+                </button>
+                {gameCategories.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCategory(c)}
+                    className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                      category === c ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs text-white/40 mb-2">Редкость</p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setRarity("")}
+                className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                  rarity === "" ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
+                }`}
+              >
+                Все
+              </button>
+              {RARITIES.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRarity(r)}
+                  className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                    rarity === r ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
+                  }`}
+                >
+                  {RARITY_LABEL[r]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs text-white/40 mb-2">Сортировка</p>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              className="input-field py-2.5 text-sm"
+            >
+              <option value="newest">Новинки</option>
+              <option value="price_asc">Цена: по возрастанию</option>
+              <option value="price_desc">Цена: по убыванию</option>
+            </select>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input
+            autoComplete="off" type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
+            Только в наличии
+          </label>
+
+          {/* Раздел "Оплата звёздами" — товары, у которых продавец включил оплату Telegram Stars. */}
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input autoComplete="off" type="checkbox" checked={onlyStars} onChange={(e) => setOnlyStars(e.target.checked)} />
+            <span className="flex items-center gap-1">
+              Оплата звёздами <Star size={13} className="text-accent fill-accent" />
+            </span>
+          </label>
+        </aside>
+
+        {/* Grid */}
+        <div>
+          {!loaded ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="card p-3 aspect-[3/4] animate-pulse bg-white/5" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="card p-10 text-center text-white/40">
+              {products.length === 0
+                ? "Товары появятся здесь, как только администратор добавит их в каталог."
+                : "Ничего не найдено по заданным фильтрам."}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filtered.map((p, i) => (
+                <div key={p.id} className="activity-card-enter" style={{ animationDelay: `${Math.min(i, 12) * 30}ms`, animationFillMode: "backwards" }}>
+                  <ProductCard product={p} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CatalogPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="card p-3 aspect-[3/4] animate-pulse bg-white/5" />
+          ))}
+        </div>
+      }
+    >
+      <CatalogInner />
+    </Suspense>
+  );
+}
