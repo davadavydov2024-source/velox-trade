@@ -3,10 +3,10 @@
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle } from "lucide-react";
+import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle, Search } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { getUserOrderChats } from "@/lib/orderChats";
-import { getUserProfile, getOrderById } from "@/lib/users";
+import { getUserProfile, getOrderById, isAdminUid } from "@/lib/users";
 import { getProductById } from "@/lib/products";
 import { safeImageSrc } from "@/lib/safeImage";
 import { SupportPanel } from "@/components/SupportPanel";
@@ -14,7 +14,7 @@ import { NewsPanel } from "@/components/NewsPanel";
 import { OrderChatThread } from "@/components/OrderChatThread";
 import { DmThread } from "@/components/DmThread";
 import { subscribeUserConversations, conversationId as buildConversationId } from "@/lib/directMessages";
-import { DirectConversation } from "@/types";
+import { DirectConversation, Order } from "@/types";
 import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
 type ChatView =
@@ -23,15 +23,27 @@ type ChatView =
   | { kind: "order"; orderId: string; counterpartName: string }
   | { kind: "dm"; peerUid: string; peerName: string; peerPhoto: string | null };
 
+type ListTab = "all" | "deals" | "personal";
+
 interface ChatListItem {
   orderId: string;
   counterpartName: string;
   lastMessage: string;
   updatedAt: number;
   itemImage: string | null;
+  orderStatus: Order["status"] | null;
 }
 
 const AVATAR_COLORS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8", "#f87171"];
+
+// Цвет точки-статуса поверх аватара сделки — тот же язык цвета, что и в OrderChatThread
+// (STATUS_LABEL), чтобы по одному взгляду на список было видно, где что горит.
+const STATUS_DOT: Record<Order["status"], string> = {
+  pending_confirmation: "#ff9800",
+  confirmed: "#4caf50",
+  disputed: "#f44336",
+  cancelled: "#6b7280",
+};
 
 function avatarColor(name: string) {
   const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
@@ -59,9 +71,13 @@ function formatWhen(ts: number) {
 }
 
 function itemClasses(active: boolean) {
-  return `relative w-full flex items-center gap-3 p-3 rounded-btn text-left transition-colors ${
-    active ? "bg-accent/10" : "hover:bg-white/5 active:bg-white/10"
+  return `relative w-full flex items-center gap-3 p-2.5 rounded-btn text-left transition-colors ${
+    active ? "bg-gradient-to-r from-accent/10 to-transparent" : "hover:bg-white/[0.04] active:bg-white/[0.06]"
   }`;
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="px-2.5 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-white/25">{children}</p>;
 }
 
 function ChatsInner() {
@@ -71,6 +87,8 @@ function ChatsInner() {
   const [items, setItems] = useState<ChatListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<ListTab>("all");
 
   useEffect(() => {
     if (params.get("tab") === "support") setView({ kind: "support" });
@@ -124,15 +142,17 @@ function ChatsInner() {
               }
             }
             let itemImage: string | null = null;
+            let orderStatus: Order["status"] | null = null;
             try {
               const order = await getOrderById(chat.orderId);
+              orderStatus = order?.status ?? null;
               const productId = order?.items[0]?.productId;
               if (productId) {
                 const product = await getProductById(productId);
                 itemImage = product?.image ?? null;
               }
             } catch {
-              // товар недоступен — покажем аватар-заглушку вместо фото
+              // товар/заказ недоступен — покажем аватар-заглушку вместо фото, без статус-точки
             }
             const last = chat.messages[chat.messages.length - 1];
             return {
@@ -141,6 +161,7 @@ function ChatsInner() {
               lastMessage: last ? last.text : "Сообщений пока нет",
               updatedAt: chat.updatedAt,
               itemImage,
+              orderStatus,
             } as ChatListItem;
           })
         );
@@ -157,123 +178,212 @@ function ChatsInner() {
     };
   }, [user]);
 
+  const q = search.trim().toLowerCase();
+  const filteredItems = q ? items.filter((i) => (i.counterpartName + " " + i.lastMessage).toLowerCase().includes(q)) : items;
+  const filteredDm = q
+    ? dmConversations.filter((c) => {
+        const peerUid = c.participants.find((p) => p !== user?.uid) ?? "";
+        const peerName = c.participantNames[peerUid] ?? "";
+        return (peerName + " " + c.lastMessage).toLowerCase().includes(q);
+      })
+    : dmConversations;
+
+  const showPinned = tab === "all" && !q;
+  const showDeals = tab === "all" || tab === "deals";
+  const showPersonal = tab === "all" || tab === "personal";
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       <h1 className="text-2xl font-bold mb-6 hidden sm:block">Чаты</h1>
       <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
       <div className="grid md:grid-cols-[340px_1fr] gap-5">
         <div className={`card p-2 md:max-h-[75vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
-          <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
-            {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
-              <LifeBuoy size={19} className="text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
-                <p className="font-medium text-sm truncate">Поддержка</p>
-                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
-              </div>
-              <p className="text-xs text-white/40 truncate">Мы поможем с любым вопросом</p>
-            </div>
-          </button>
+          {/* Поиск — фильтрует и сделки, и личные сообщения ниже по имени/тексту последнего
+              сообщения. Закреплённые Поддержка/Новости при поиске уходят из виду, чтобы не мешать. */}
+          <label className="flex items-center gap-2 bg-black/20 border border-border rounded-full px-3.5 py-2 mx-1 mt-1 mb-2">
+            <Search size={14} className="text-white/30 shrink-0" />
+            <input
+              autoComplete="off"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск по чатам"
+              className="bg-transparent outline-none text-sm placeholder:text-white/30 flex-1 min-w-0"
+            />
+          </label>
 
-          <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
-            {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
-              <Megaphone size={19} className="text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
-                <p className="font-medium text-sm truncate">Velox Trade Новости</p>
-                <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
-              </div>
-              <p className="text-xs text-white/40 truncate">Официальный канал</p>
-            </div>
-          </button>
+          {/* Табы просто скрывают/показывают группы ниже — своего отдельного состояния данных
+              не заводим, вся логика загрузки чатов остаётся как была. */}
+          <div className="flex items-center gap-1 px-1 mb-2 border-b border-border">
+            {(
+              [
+                ["all", "Все"],
+                ["deals", `Сделки${items.length ? ` (${items.length})` : ""}`],
+                ["personal", "Личные"],
+              ] as [ListTab, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`relative px-3 py-2 text-sm font-medium transition-colors ${tab === key ? "text-white" : "text-white/40 hover:text-white/70"}`}
+              >
+                {label}
+                {tab === key && <span className="absolute left-2.5 right-2.5 -bottom-px h-0.5 rounded-full bg-accent" />}
+              </button>
+            ))}
+          </div>
 
-          <div className="border-t border-border my-2" />
-
-          {!user ? (
-            <p className="text-xs text-white/30 text-center py-6 px-2">
-              Войдите в аккаунт, чтобы увидеть чаты по своим сделкам.
-            </p>
-          ) : loading ? (
-            <div className="space-y-2 px-1">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
-                  <div className="w-12 h-12 rounded-full bg-white/5 shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-2.5 bg-white/5 rounded w-2/3" />
-                    <div className="h-2 bg-white/5 rounded w-4/5" />
-                  </div>
+          {showPinned && (
+            <>
+              <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
+                {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
+                <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+                  <LifeBuoy size={19} className="text-accent" />
                 </div>
-              ))}
-            </div>
-          ) : items.length === 0 ? (
-            <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
-          ) : (
-            items.map((item) => {
-              const active = view?.kind === "order" && view.orderId === item.orderId;
-              return (
-                <button
-                  key={item.orderId}
-                  onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName })}
-                  className={itemClasses(active)}
-                >
-                  {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-                  {item.itemImage ? (
-                    <div className="relative w-12 h-12 rounded-btn overflow-hidden bg-black/30 shrink-0">
-                      <Image src={safeImageSrc(item.itemImage)} alt="" fill className="object-cover" sizes="48px" />
-                    </div>
-                  ) : (
-                    <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
-                      style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
-                    >
-                      {initials(item.counterpartName) || "?"}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-sm truncate">{item.counterpartName}</p>
-                      <span className="text-[10px] text-white/30 shrink-0">{formatWhen(item.updatedAt)}</span>
-                    </div>
-                    <p className="text-xs text-white/40 truncate">{item.lastMessage}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <p className="font-medium text-sm truncate">Поддержка</p>
+                    <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
                   </div>
-                </button>
-              );
-            })
+                  <p className="text-xs text-white/40 truncate">Мы поможем с любым вопросом</p>
+                </div>
+              </button>
+
+              <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
+                {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
+                <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+                  <Megaphone size={19} className="text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <p className="font-medium text-sm truncate">Velox Trade Новости</p>
+                    <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
+                  </div>
+                  <p className="text-xs text-white/40 truncate">Официальный канал</p>
+                </div>
+              </button>
+
+              <div className="border-t border-border my-2" />
+            </>
           )}
 
-          {user && dmConversations.length > 0 && (
+          {showDeals && (
             <>
-              <div className="border-t border-border my-2" />
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">Личные сообщения</p>
-              {dmConversations.map((conv) => {
-                const peerUid = conv.participants.find((p) => p !== user.uid)!;
-                const peerName = conv.participantNames[peerUid] ?? "Пользователь";
-                const peerPhoto = conv.participantPhotos[peerUid] ?? null;
-                const active = view?.kind === "dm" && view.peerUid === peerUid;
-                return (
-                  <button key={conv.id} onClick={() => setView({ kind: "dm", peerUid, peerName, peerPhoto })} className={itemClasses(active)}>
-                    {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-                    <div
-                      className="relative w-12 h-12 rounded-full overflow-hidden bg-black/30 shrink-0 flex items-center justify-center text-xs font-semibold"
-                      style={!peerPhoto ? { background: `${avatarColor(peerName)}22`, color: avatarColor(peerName) } : undefined}
-                    >
-                      {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-sm truncate">{peerName}</p>
-                        <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
+              {tab === "all" && (items.length > 0 || loading) && <SectionLabel>Сделки</SectionLabel>}
+              {!user ? (
+                <p className="text-xs text-white/30 text-center py-6 px-2">
+                  Войдите в аккаунт, чтобы увидеть чаты по своим сделкам.
+                </p>
+              ) : loading ? (
+                <div className="space-y-2 px-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                      <div className="w-12 h-12 rounded-full bg-white/5 shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-2.5 bg-white/5 rounded w-2/3" />
+                        <div className="h-2 bg-white/5 rounded w-4/5" />
                       </div>
-                      <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
                     </div>
-                  </button>
-                );
-              })}
+                  ))}
+                </div>
+              ) : items.length === 0 ? (
+                <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
+              ) : filteredItems.length === 0 ? (
+                <p className="text-xs text-white/30 text-center py-6 px-2">Ничего не найдено.</p>
+              ) : (
+                filteredItems.map((item) => {
+                  const active = view?.kind === "order" && view.orderId === item.orderId;
+                  return (
+                    <button
+                      key={item.orderId}
+                      onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName })}
+                      className={itemClasses(active)}
+                    >
+                      {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
+                      <div className="relative shrink-0">
+                        {item.itemImage ? (
+                          <div className="relative w-12 h-12 rounded-btn overflow-hidden bg-black/30">
+                            <Image src={safeImageSrc(item.itemImage)} alt="" fill className="object-cover" sizes="48px" />
+                          </div>
+                        ) : (
+                          <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-semibold"
+                            style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
+                          >
+                            {initials(item.counterpartName) || "?"}
+                          </div>
+                        )}
+                        {item.orderStatus && (
+                          <span
+                            className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-surface"
+                            style={{ background: STATUS_DOT[item.orderStatus] }}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-sm truncate">{item.counterpartName}</p>
+                          <span className="text-[10px] text-white/30 shrink-0">{formatWhen(item.updatedAt)}</span>
+                        </div>
+                        <p className={`text-xs truncate ${item.orderStatus === "disputed" ? "text-red-400/80" : "text-white/40"}`}>
+                          {item.lastMessage}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </>
+          )}
+
+          {showPersonal && user && dmConversations.length > 0 && (
+            <>
+              {tab === "all" && <div className="border-t border-border my-2" />}
+              <SectionLabel>Личные</SectionLabel>
+              {tab === "personal" && (
+                <p className="px-2.5 pb-2 text-[11px] text-white/25">
+                  Сюда попадают только сообщения от администрации — пользователи не могут писать друг другу напрямую, только в чатах по сделкам.
+                </p>
+              )}
+              {filteredDm.length === 0 ? (
+                <p className="text-xs text-white/30 text-center py-6 px-2">Ничего не найдено.</p>
+              ) : (
+                filteredDm.map((conv) => {
+                  const peerUid = conv.participants.find((p) => p !== user.uid)!;
+                  const peerName = conv.participantNames[peerUid] ?? "Пользователь";
+                  const peerPhoto = conv.participantPhotos[peerUid] ?? null;
+                  const active = view?.kind === "dm" && view.peerUid === peerUid;
+                  return (
+                    <button key={conv.id} onClick={() => setView({ kind: "dm", peerUid, peerName, peerPhoto })} className={itemClasses(active)}>
+                      {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
+                      <div
+                        className="relative w-12 h-12 rounded-full overflow-hidden bg-black/30 shrink-0 flex items-center justify-center text-xs font-semibold"
+                        style={!peerPhoto ? { background: `${avatarColor(peerName)}22`, color: avatarColor(peerName) } : undefined}
+                      >
+                        {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
+                        {isAdminUid(peerUid) && (
+                          <span className="absolute -bottom-1 -right-1 text-[8px] font-bold px-1 py-0.5 rounded-full text-black bg-accent">
+                            ADM
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-sm truncate">{peerName}</p>
+                          <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
+                        </div>
+                        <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </>
+          )}
+
+          {showPersonal && tab === "personal" && user && dmConversations.length === 0 && (
+            <p className="text-xs text-white/30 text-center py-6 px-2">
+              Личных сообщений пока нет — сюда попадают только сообщения от администрации.
+            </p>
           )}
         </div>
 
