@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -268,7 +268,7 @@ function DealSheet({
 // ============================================================================
 // Основной компонент чата заказа
 // ============================================================================
-export function OrderChatThread({ orderId, counterpartName, asAdmin = false }: { orderId: string; counterpartName: string; asAdmin?: boolean }) {
+export function OrderChatThread({ orderId, counterpartName }: { orderId: string; counterpartName: string }) {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
@@ -594,4 +594,3 @@ export function OrderChatThread({ orderId, counterpartName, asAdmin = false }: {
     </div>
   );
 }
-
