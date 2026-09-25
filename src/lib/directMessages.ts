@@ -1,6 +1,8 @@
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, query, where, orderBy } from "firebase/firestore";
 import { db } from "./firebase";
 import { DirectConversation, DirectMessage } from "@/types";
+import { notifyTelegram } from "./telegramNotify";
+import { notifyPush } from "./webPushNotify";
 
 export function conversationId(uidA: string, uidB: string): string {
   return [uidA, uidB].sort().join("_");
@@ -54,4 +56,11 @@ export async function sendDirectMessage(
       [`participantPhotos.${fromUid}`]: fromPhoto,
     });
   }
+
+  // Уведомляем получателя в Telegram и push-уведомлением в браузере — раньше сообщение просто
+  // тихо ложилось в Firestore, и человек узнавал о нём только если сам зашёл на сайт в «Чаты»
+  // (особенно заметно было, когда писал админ). Email сюда намеренно НЕ подключаем — см.
+  // комментарий в api/notify/email/route.ts: личные сообщения решили туда не слать, это шум.
+  notifyTelegram(toUid, `💬 ${fromName} написал(а) вам:\n${preview}`);
+  notifyPush(toUid, `Сообщение от ${fromName}`, preview, "/chats", "messages");
 }

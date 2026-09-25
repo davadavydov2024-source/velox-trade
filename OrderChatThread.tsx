@@ -419,14 +419,20 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
   if (loading) return <div className="card p-6 text-center text-white/40 text-sm">Загрузка чата...</div>;
 
   return (
-    <div>
-      <div className="mb-3">
+    // flex-col h-full — обязательно: родитель в app/chats/page.tsx на мобильных рендерит открытый
+    // чат как полноэкранный слой с overflow-hidden и жёстко заданной высотой (как у DmThread).
+    // Раньше здесь был обычный блочный div — итоговая высота контента (шапка + карточка сделки +
+    // сообщения + кнопки + форма) на телефоне превышала высоту контейнера, и поле ввода внизу
+    // просто обрезалось за видимой областью — казалось, что "нельзя писать", хотя форма была на
+    // месте, просто невидима/недоступна для тапа.
+    <div className="flex flex-col h-full min-h-0">
+      <div className="mb-3 shrink-0">
         <p className="font-bold">{counterpartName}</p>
         <p className="text-xs text-white/40">Заказ #{orderId.slice(0, 8)}</p>
       </div>
 
       {order && (
-        <>
+        <div className="shrink-0">
           {/* Клик по товару открывает карточку сделки: фото, статус и весь таймлайн шагов —
               включая обязательный игровой ник — в одном месте, а не размазанным по чату. */}
           <button
@@ -475,10 +481,12 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
               setDisputeOpen(true);
             }}
           />
-        </>
+        </div>
       )}
 
-      <div className="space-y-2 max-h-[340px] overflow-y-auto mb-3">
+      {/* flex-1 min-h-0 — тянется на всё оставшееся место и прокручивается само, а не раздувает
+          общую высоту компонента (это и было причиной обрезанного поля ввода на телефонах). */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 mb-3">
         {messages.length === 0 ? (
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
         ) : (
@@ -520,7 +528,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
       </div>
 
       {order && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3 shrink-0">
           {isBuyer && order.status === "confirmed" && !order.reviewSubmitted && (
             <button onClick={() => setReviewOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
               <Star size={14} /> Оставить отзыв
@@ -535,7 +543,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
       )}
 
       {disputeOpen && (
-        <form onSubmit={handleDispute} className="space-y-2 mb-3">
+        <form onSubmit={handleDispute} className="space-y-2 mb-3 shrink-0">
           <textarea
             value={disputeReason}
             onChange={(e) => setDisputeReason(e.target.value)}
@@ -550,7 +558,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
       )}
 
       {reviewOpen && (
-        <form onSubmit={handleReview} className="space-y-2 mb-3">
+        <form onSubmit={handleReview} className="space-y-2 mb-3 shrink-0">
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} type="button" onClick={() => setRating(n as 1 | 2 | 3 | 4 | 5)}>
@@ -571,7 +579,7 @@ export function OrderChatThread({ orderId, counterpartName }: { orderId: string;
         </form>
       )}
 
-      <form onSubmit={handleSend} className="flex gap-2">
+      <form onSubmit={handleSend} className="flex gap-2 shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <input
           autoComplete="off"
           value={text}
