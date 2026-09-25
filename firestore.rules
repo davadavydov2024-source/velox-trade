@@ -306,6 +306,27 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- личные переписки (не привязанные к заказу) — раздел "Чаты" -> ЛС с продавцом/покупателем ---
+    // Документ создаётся лениво при первом сообщении (см. sendDirectMessage в lib/directMessages.ts),
+    // id документа = отсортированные uid обоих участников через "_". Сами сообщения хранятся массивом
+    // в поле messages ПРЯМО В ЭТОМ документе (не отдельная подколлекция).
+    match /directConversations/{conversationId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() && request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      // Разрешаем дописать ровно одно новое сообщение в конец messages (никогда не удалять и не
+      // редактировать старые), обновить lastMessage/updatedAt и свои собственные записи в
+      // participantNames/participantPhotos — но не тронуть список участников и чужие сообщения.
+      // Дописать сообщение можно только от своего имени (message.from == свой uid).
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.auth.uid in resource.data.participants &&
+          request.resource.data.participants == resource.data.participants &&
+          request.resource.data.messages.size() == resource.data.messages.size() + 1 &&
+          request.resource.data.messages[request.resource.data.messages.size() - 1].from == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
     // --- отзывы ---
     // Читают все (публичные профили продавцов), создаёт только покупатель на своё имя;
     // серверная проверка "заказ подтверждён и отзыв ещё не оставлен" — на уровне кода (lib/reviews.ts),
@@ -418,6 +439,17 @@ service cloud.firestore {
       allow create: if isSignedIn() && (request.resource.data.buyerId == request.auth.uid || request.resource.data.sellerId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // --- Telegram Stars: покупка товара и вывод накопленных Stars продавцом ---
+    // Оба процесса полностью серверные (создание счёта/зачисление/раздача подарками — только
+    // через Admin SDK в api/telegram/stars/invoice, lib/starsOrders.ts, lib/telegramAdminPanel.ts),
+    // клиенту не нужно ни читать, ни тем более писать сюда напрямую.
+    match /starsInvoices/{invoiceId} {
+      allow read, write: if false;
+    }
+    match /starsWithdrawals/{withdrawalId} {
+      allow read, write: if false;
     }
   }
 }
