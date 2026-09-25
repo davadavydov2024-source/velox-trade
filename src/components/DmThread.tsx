@@ -1,5 +1,5 @@
 "use client";
- 
+
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Send, ImagePlus, Loader2, X } from "lucide-react";
@@ -9,11 +9,11 @@ import { subscribeConversation, sendDirectMessage } from "@/lib/directMessages";
 import { DirectMessage } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
- 
+
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
- 
+
 export function DmThread({
   conversationId,
   peerUid,
@@ -33,16 +33,16 @@ export function DmThread({
   const [lightbox, setLightbox] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
- 
+
   useEffect(() => {
     const unsub = subscribeConversation(conversationId, (conv) => setMessages(conv?.messages ?? []));
     return unsub;
   }, [conversationId]);
- 
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
- 
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const value = text.trim();
@@ -55,7 +55,7 @@ export function DmThread({
       setText(value);
     }
   }
- 
+
   async function handlePhotoPick(file: File | undefined) {
     if (!file || !user || !profile) return;
     setUploadingPhoto(true);
@@ -69,7 +69,7 @@ export function DmThread({
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
- 
+
   return (
     <div className="flex flex-col h-full">
       {lightbox && (
@@ -80,14 +80,14 @@ export function DmThread({
           <img src={safeImageSrc(lightbox)} alt="" className="max-w-full max-h-full rounded-lg object-contain" />
         </div>
       )}
- 
+
       <div className="flex items-center gap-2.5 mb-3 shrink-0">
         <div className="relative w-9 h-9 rounded-full overflow-hidden bg-black/30 shrink-0">
           {peerPhoto && <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="36px" />}
         </div>
         <p className="font-bold text-sm">{peerName}</p>
       </div>
- 
+
       <div ref={scrollRef} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
         {messages.length === 0 ? (
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
@@ -115,7 +115,7 @@ export function DmThread({
           })
         )}
       </div>
- 
+
       <form onSubmit={handleSend} className="flex gap-2 items-end shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <input autoComplete="off" ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoPick(e.target.files?.[0])} />
         <button
@@ -141,4 +141,3 @@ export function DmThread({
     </div>
   );
 }
- 

@@ -67,6 +67,15 @@ export function ProductCard({ product }: { product: Product }) {
             -{product.discountPercent}%
           </span>
         )}
+        {!!product.starsPrice && (
+          <span
+            className={`absolute right-2 bg-[#1d9bf0] text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-0.5 ${
+              product.discountPercent ? "top-9" : "top-2"
+            }`}
+          >
+            ⭐ Stars
+          </span>
+        )}
         <div className="absolute bottom-2 right-2">
           <FavoriteButton productId={product.id} />
         </div>

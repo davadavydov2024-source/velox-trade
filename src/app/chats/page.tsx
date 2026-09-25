@@ -278,10 +278,14 @@ function ChatsInner() {
         </div>
 
         {/* На мобильных открытый чат — отдельный полноэкранный слой (как в мессенджерах), а не
-           card с ограниченной высотой; на десктопе — обычная правая колонка макета. */}
+           card с ограниченной высотой; на десктопе — обычная правая колонка макета.
+           z-[60] — специально ВЫШЕ, чем z-40 у MobileTabBar (см. components/MobileTabBar.tsx):
+           раньше был тот же z-40, и при равном z-index шторка (рендерится позже в layout.tsx)
+           перекрывала низ экрана чата, включая поле ввода — из-за этого не получалось писать
+           в чатах на телефонах. Теперь чат полностью накрывает шторку, пока открыт. */}
         <div
           className={`card md:p-5 flex flex-col ${
-            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-40 md:static md:z-auto rounded-none md:rounded-card md:h-[75vh]"
+            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-[60] md:static md:z-auto rounded-none md:rounded-card md:h-[75vh]"
           }`}
         >
           {!view ? (

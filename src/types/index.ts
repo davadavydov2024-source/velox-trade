@@ -193,6 +193,14 @@ export interface ProductEditRequest {
   proposedDescription: string;
   proposedPrice: number;
   proposedImage: string;
+  // Название и фото сознательно НЕ редактируются продавцом (см. app/profile/my-products) —
+  // proposedName/proposedImage всегда равны текущим значениям товара, просто дублируются сюда
+  // как часть общей заявки на одобрение.
+  proposedCategory: string; // "" — без категории
+  proposedRarity: Rarity;
+  // null — оплата Stars отключена для этого товара. Ноль сюда не кладём (см. api/products/stars-price
+  // для той же логики) — только конкретное число ⩾15 или null.
+  proposedStarsPrice: number | null;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }
@@ -663,6 +671,12 @@ export interface SellRequest {
   category?: string;
   imageUrl: string;
   price: number; // цена, которую хочет получить продавец (то, что он ввёл в форме)
+  // Оплата звёздами Telegram — альтернатива обычной оплате рублями, выбирается продавцом один раз
+  // здесь при создании (см. app/profile/sell). Когда указана, покупатель платит в Stars через бота
+  // вместо баланса на сайте; price выше всё равно заполняется (минимальной ценой платформы) — он
+  // нужен для внутренних механизмов (комиссия/аукцион/отчётность), которые всегда работают в ₽,
+  // но покупателю рублёвая цена в этом случае не показывается и не участвует в покупке.
+  starsPrice?: number;
   discountPercent?: number; // необязательная скидка от самого продавца — переносится на товар при одобрении
   commissionPercent: number; // комиссия платформы на момент подачи заявки (снимок текущей настройки, чтобы не менялась задним числом)
   description: string;

@@ -1,30 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import {
   Send,
-  CheckCircle2,
-  AlertTriangle,
   Star,
   XCircle,
-  ImagePlus,
+  ChevronRight,
   X,
-  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  User,
+  Package,
   ShieldCheck,
-  Terminal,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { subscribeOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
-import { getOrderById, confirmOrderReceipt, cancelOrderBySeller, getUserProfile, isAdminUid } from "@/lib/users";
+import { getOrderById, confirmOrderReceipt, cancelOrderBySeller } from "@/lib/users";
 import { getProductById } from "@/lib/products";
-import { createDispute, getDispute, resolveDispute } from "@/lib/disputes";
+import { createDispute, getDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
-import { OrderChatMessage, Order, Dispute } from "@/types";
+import { subscribeDelivery } from "@/lib/deliveries";
+import { OrderChatMessage, Order, Dispute, Delivery } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
-import { uploadImage, ImageUploadError } from "@/lib/storage";
-import { auth } from "@/lib/firebase";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
@@ -33,8 +32,6 @@ const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   disputed: { text: "Спор", color: "#f44336" },
   cancelled: { text: "Отменён", color: "#9aa3b2" },
 };
-
-const STEPS = ["Оплачен", "В процессе", "Завершён"];
 
 const AVATAR_COLORS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8", "#f87171"];
 
@@ -52,39 +49,226 @@ function initials(name: string) {
     .join("");
 }
 
-function stepIndex(status: Order["status"]) {
-  if (status === "pending_confirmation") return 1;
-  if (status === "confirmed") return 2;
-  return 0; // disputed/cancelled — прогресс не растёт дальше первого шага
+// ============================================================================
+// Таймлайн сделки (раньше был отдельным файлом components/OrderDealTimeline.tsx —
+// объединён сюда же, чтобы весь функционал жил в одном файле и не терялся при
+// переносе изменений в проект).
+// ============================================================================
+type StepState = "done" | "current" | "pending" | "dashed";
+
+function TimelineDot({ state, icon }: { state: StepState; icon: React.ReactNode }) {
+  const base = "w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2";
+  if (state === "done") return <div className={`${base} border-accent bg-accent/15 text-accent`}>{icon}</div>;
+  if (state === "current")
+    return <div className={`${base} border-accent bg-accent text-black shadow-[0_0_0_4px_rgba(255,152,0,0.16)]`}>{icon}</div>;
+  if (state === "dashed") return <div className={`${base} border-dashed border-red-400/40 text-red-300/80`}>{icon}</div>;
+  return <div className={`${base} border-border bg-surface text-white/30`}>{icon}</div>;
 }
 
-function formatTime(ts: number) {
-  return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+function TimelineLine({ done }: { done: boolean }) {
+  return <div className={`w-0.5 flex-1 my-0.5 min-h-[22px] ${done ? "bg-accent" : "bg-border"}`} />;
 }
 
-/** Админские слэш-команды в чате заказа — единственный способ для админа выполнять действия
- * (решить спор, вернуть деньги, предупредить) прямо из переписки, не переключаясь на отдельные
- * страницы /admin/disputes и /admin/users. Видны только когда чат открыт в режиме админа. */
-const ADMIN_COMMANDS = [
-  { cmd: "/approve", hint: "одобрить открытый спор (без возврата денег)" },
-  { cmd: "/reject", hint: "отклонить открытый спор" },
-  { cmd: "/refund", hint: "вернуть деньги покупателю и отменить заказ [причина]" },
-  { cmd: "/warn", hint: "отправить официальное предупреждение <текст>" },
-  { cmd: "/help", hint: "показать список команд" },
-] as const;
+/**
+ * Наглядный вертикальный таймлайн сделки: покупка -> обязательный игровой ник -> выдача (через
+ * бота-посредника или напрямую от продавца) -> опциональный спор -> подтверждение получения.
+ * Ник — отдельный, всегда обязательный шаг независимо от того, есть ли для игры бот-посредник
+ * (см. фикс в api/deliveries/submit-nickname).
+ */
+function OrderDealTimeline({ order, delivery }: { order: Order; delivery: Delivery | null | undefined }) {
+  const nicknameDone = !!delivery?.buyerNickname;
+  const deliveryDone = order.status === "confirmed" || delivery?.status === "delivered";
+  const deliveryCurrent = !deliveryDone && (delivery?.status === "awaiting_transfer" || delivery?.status === "received_by_bot");
+  const confirmDone = order.status === "confirmed";
+  const disputed = order.status === "disputed";
 
-export function OrderChatThread({
-  orderId,
-  counterpartName,
-  asAdmin = false,
+  const nicknameState: StepState = nicknameDone ? "done" : delivery ? "current" : "pending";
+  const deliveryState: StepState = deliveryDone ? "done" : deliveryCurrent ? "current" : "pending";
+  const disputeState: StepState = disputed ? "current" : "dashed";
+  const confirmState: StepState = confirmDone ? "done" : "pending";
+
+  const deliveryHint = !delivery
+    ? "Ждёт запуска выдачи"
+    : delivery.botNickname
+    ? `Через бота-посредника ${delivery.botNickname}`
+    : delivery.buyerNickname
+    ? "Напрямую от продавца — бот-посредник для этой игры не подключён"
+    : "Появится сразу после того, как ты укажешь игровой ник";
+
+  return (
+    <div>
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <TimelineDot state="done" icon={<CheckCircle2 size={14} />} />
+          <TimelineLine done />
+        </div>
+        <div className="pb-4 pt-0.5">
+          <p className="text-sm font-medium">Товар куплен</p>
+          <p className="text-xs text-white/40">Оплата списана с баланса, продавец уведомлён</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <TimelineDot state={nicknameState} icon={<User size={13} />} />
+          <TimelineLine done={nicknameDone} />
+        </div>
+        <div className="pb-4 pt-0.5">
+          <p className={`text-sm font-medium ${nicknameState === "pending" ? "text-white/60" : ""}`}>Игровой ник</p>
+          <p className="text-xs text-white/40">
+            {nicknameDone
+              ? `Указан: ${delivery?.buyerNickname}`
+              : "Обязательно в любом случае — и для выдачи через бота, и напрямую от продавца"}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <TimelineDot state={deliveryState} icon={<Package size={13} />} />
+          <TimelineLine done={deliveryDone} />
+        </div>
+        <div className="pb-4 pt-0.5">
+          <p className={`text-sm font-medium ${deliveryState === "pending" ? "text-white/60" : ""}`}>Выдача предмета</p>
+          <p className="text-xs text-white/40">{deliveryHint}</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <TimelineDot state={disputeState} icon={<AlertTriangle size={12} />} />
+          <TimelineLine done={false} />
+        </div>
+        <div className="pb-4 pt-0.5">
+          <p className={`text-sm font-medium ${disputed ? "text-red-300" : "text-white/60"}`}>Спор</p>
+          <p className="text-xs text-white/40">
+            {disputed ? "Открыт — подключился администратор" : "Необязательный шаг: если что-то пошло не так"}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <TimelineDot state={confirmState} icon={<ShieldCheck size={13} />} />
+        </div>
+        <div className="pt-0.5">
+          <p className={`text-sm font-medium ${confirmState === "pending" ? "text-white/60" : ""}`}>Подтверждение получения</p>
+          <p className="text-xs text-white/40">Сделка закроется, продавцу перейдут средства</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Модалка сделки (раньше был отдельным файлом components/DealSheet.tsx — тоже
+// объединена сюда).
+// ============================================================================
+function DealSheet({
+  open,
+  onClose,
+  order,
+  itemImage,
+  delivery,
+  isBuyer,
+  isSeller,
+  busy,
+  canConfirm,
+  onConfirm,
+  onOpenDispute,
 }: {
-  orderId: string;
-  counterpartName: string;
-  /** Открыть чат в режиме модерации — доступно только со страниц /admin/*. В этом режиме под
-   * каждым сообщением подписан конкретный отправитель (покупатель/продавец по имени), а не общий
-   * "counterpartName", и в поле ввода работают слэш-команды (см. ADMIN_COMMANDS). */
-  asAdmin?: boolean;
+  open: boolean;
+  onClose: () => void;
+  order: Order;
+  itemImage: string | null;
+  delivery: Delivery | null | undefined;
+  isBuyer: boolean;
+  isSeller: boolean;
+  busy: boolean;
+  canConfirm: boolean;
+  onConfirm: () => void;
+  onOpenDispute: () => void;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+
+      <div
+        className="relative w-full sm:max-w-md sm:mx-4 bg-surface border border-border rounded-t-2xl sm:rounded-2xl max-h-[88vh] overflow-y-auto"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="flex justify-center pt-2.5 pb-1 sm:hidden sticky top-0 bg-surface">
+          <span className="w-9 h-1 rounded-full bg-white/15" />
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="min-w-0">
+              <p className="font-bold text-lg leading-tight truncate">{order.items.map((i) => i.name).join(", ")}</p>
+              <p className="text-xs text-white/40 mt-0.5">Заказ #{order.id.slice(0, 8)}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:bg-white/5 hover:text-white shrink-0 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="relative w-full aspect-[4/3] rounded-xl bg-black/30 mb-2 overflow-hidden">
+            {itemImage && <Image src={safeImageSrc(itemImage)} alt="" fill className="object-contain p-6" sizes="420px" />}
+          </div>
+          <div className="flex items-center justify-between mb-6">
+            <span className="text-xs text-white/40">Количество: {order.items.reduce((s, i) => s + i.quantity, 0)}</span>
+            <span className="font-bold text-accent">{order.total.toFixed(2)} ₽</span>
+          </div>
+
+          <OrderDealTimeline order={order} delivery={delivery} />
+
+          {order.status === "pending_confirmation" && <DeliveryPanel orderId={order.id} isBuyer={isBuyer} isSeller={isSeller} />}
+
+          {isBuyer && order.status === "pending_confirmation" && (
+            <div className="flex gap-2.5 mt-4">
+              <button
+                onClick={onOpenDispute}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold border border-red-400/25 bg-red-400/[0.08] text-red-300 hover:bg-red-400/[0.14] transition-colors flex items-center justify-center gap-1.5"
+              >
+                <AlertTriangle size={14} /> Открыть спор
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={busy || !canConfirm}
+                title={!canConfirm ? "Сначала укажи игровой ник — это обязательно" : undefined}
+                className="btn-primary flex-1 py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <CheckCircle2 size={14} /> Подтвердить получение
+              </button>
+            </div>
+          )}
+          {isBuyer && order.status === "pending_confirmation" && !canConfirm && (
+            <p className="text-[11px] text-white/35 text-center mt-2">
+              Подтверждение получения станет доступно после того, как ты укажешь игровой ник выше.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Основной компонент чата заказа
+// ============================================================================
+export function OrderChatThread({ orderId, counterpartName }: { orderId: string; counterpartName: string }) {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
@@ -94,12 +278,8 @@ export function OrderChatThread({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [dispute, setDispute] = useState<Dispute | null>(null);
-  const [buyerName, setBuyerName] = useState("Покупатель");
-  const [sellerName, setSellerName] = useState("Продавец");
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [lightbox, setLightbox] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [delivery, setDelivery] = useState<Delivery | null | undefined>(undefined);
+  const [dealOpen, setDealOpen] = useState(false);
 
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
@@ -118,124 +298,47 @@ export function OrderChatThread({
             .then((p) => setItemImage(p?.image ?? null))
             .catch(() => setItemImage(null));
         }
-        if (asAdmin && ord) {
-          getUserProfile(ord.userId).then((p) => p && setBuyerName(p.displayName)).catch(() => {});
-          getUserProfile(ord.sellerId).then((p) => p && setSellerName(p.displayName)).catch(() => {});
-        }
       })
       .finally(() => setLoading(false));
 
     // Живая подписка — новые сообщения появляются сами, без перезагрузки страницы.
     const unsub = subscribeOrderChat(orderId, (chat) => setMessages(chat?.messages ?? []));
-    return unsub;
-  }, [orderId, asAdmin]);
+    // Живая подписка на выдачу — нужна, чтобы знать, указан ли уже обязательный игровой ник,
+    // и не давать подтвердить получение до этого шага.
+    const unsubDelivery = subscribeDelivery(orderId, setDelivery);
+    return () => {
+      unsub();
+      unsubDelivery();
+    };
+  }, [orderId]);
 
   useEffect(() => {
     if (order?.status === "disputed") getDispute(order.id).then(setDispute).catch(() => {});
   }, [order?.status, order?.id]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
-
-  const isBuyer = !asAdmin && !!(user && order && order.userId === user.uid);
-  const isSeller = !asAdmin && !!(user && order && order.sellerId === user.uid);
-  const isAdminViewer = asAdmin && isAdminUid(user?.uid);
+  const isBuyer = !!(user && order && order.userId === user.uid);
+  const isSeller = !!(user && order && order.sellerId === user.uid);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
+    if (!text.trim() || !user || !order) return;
     const value = text.trim();
-    if (!value || !user || !order) return;
-
-    if (isAdminViewer && value.startsWith("/")) {
-      await runAdminCommand(value);
-      setText("");
-      return;
-    }
-
     setText("");
-    const from: OrderChatMessage["from"] = isAdminViewer ? "admin" : isBuyer ? "buyer" : "seller";
+    const from: OrderChatMessage["from"] = isBuyer ? "buyer" : "seller";
     try {
       await sendOrderChatMessage(orderId, order.userId, order.sellerId, from, value);
     } catch {
       toast("error", "Не удалось отправить сообщение");
-      setText(value);
     }
   }
 
-  async function runAdminCommand(raw: string) {
-    if (!order) return;
-    const [cmd, ...rest] = raw.trim().split(/\s+/);
-    const arg = rest.join(" ").trim();
-
-    if (cmd === "/help") {
-      toast("info", "Команды: " + ADMIN_COMMANDS.map((c) => c.cmd).join(", ") + " — начни печатать «/», чтобы увидеть подсказки под полем ввода.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      if (cmd === "/approve" || cmd === "/reject") {
-        const d = dispute ?? (await getDispute(order.id));
-        if (!d || d.status !== "open") {
-          toast("warning", "По этому заказу нет открытого спора");
-          return;
-        }
-        await resolveDispute(order.id, cmd === "/approve");
-        await sendOrderChatMessage(
-          orderId,
-          order.userId,
-          order.sellerId,
-          "system",
-          cmd === "/approve" ? "✅ Администратор одобрил спор." : "❌ Администратор отклонил спор."
-        );
-        setDispute({ ...d, status: cmd === "/approve" ? "approved" : "rejected" });
-        toast("success", cmd === "/approve" ? "Спор одобрен" : "Спор отклонён");
-      } else if (cmd === "/refund") {
-        if (!confirm(`Вернуть ${order.total} ₽ покупателю и отменить заказ?`)) return;
-        const idToken = await auth.currentUser?.getIdToken();
-        const res = await fetch("/api/admin/orders/refund", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ orderId: order.id, reason: arg || undefined }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setOrder({ ...order, status: "cancelled" });
-        toast("success", "Деньги возвращены покупателю");
-      } else if (cmd === "/warn") {
-        if (!arg) {
-          toast("warning", "Напиши текст предупреждения после команды, например: /warn не груби продавцу");
-          return;
-        }
-        await sendOrderChatMessage(orderId, order.userId, order.sellerId, "admin", `⚠️ Предупреждение от администрации: ${arg}`);
-      } else {
-        toast("warning", `Неизвестная команда ${cmd}. Введи /help, чтобы увидеть список.`);
-      }
-    } catch (err: any) {
-      toast("error", err?.message || "Не удалось выполнить команду");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handlePhotoPick(file: File | undefined) {
-    if (!file || !user || !order) return;
-    setUploadingPhoto(true);
-    try {
-      const url = await uploadImage(file, "chat-photos");
-      const from: OrderChatMessage["from"] = isAdminViewer ? "admin" : isBuyer ? "buyer" : "seller";
-      await sendOrderChatMessage(orderId, order.userId, order.sellerId, from, "", url);
-    } catch (err) {
-      toast("error", err instanceof ImageUploadError ? err.message : "Не удалось отправить фото");
-    } finally {
-      setUploadingPhoto(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
+  // Ник обязателен ВСЕГДА перед подтверждением получения — и когда для игры подключён
+  // бот-посредник, и когда продавец передаёт предмет напрямую. Пока delivery ещё грузится
+  // (undefined), временно разрешаем — иначе кнопка на долю секунды мигнёт задизейбленной.
+  const canConfirm = delivery === undefined || !!delivery?.buyerNickname;
 
   async function handleConfirm() {
-    if (!order) return;
+    if (!order || !canConfirm) return;
     setBusy(true);
     try {
       await confirmOrderReceipt(order, profile?.displayName ?? "Покупатель");
@@ -313,50 +416,29 @@ export function OrderChatThread({
     }
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
-            <div className="h-9 w-40 rounded-2xl bg-white/5 animate-pulse" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  const showCommandHints = isAdminViewer && text.startsWith("/");
-  const matchingCommands = showCommandHints ? ADMIN_COMMANDS.filter((c) => c.cmd.startsWith(text.split(" ")[0])) : [];
+  if (loading) return <div className="card p-6 text-center text-white/40 text-sm">Загрузка чата...</div>;
 
   return (
-    <div className="flex flex-col h-full">
-      {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={() => setLightbox(null)}>
-            <X size={26} />
-          </button>
-          <img src={safeImageSrc(lightbox)} alt="" className="max-w-full max-h-full rounded-lg object-contain" />
-        </div>
-      )}
-
-      <div className="shrink-0">
-      <div className="flex items-center gap-2 mb-3">
-        <div>
-          <p className="font-bold flex items-center gap-1.5">
-            {counterpartName}
-            {isAdminViewer && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent flex items-center gap-1">
-                <ShieldCheck size={11} /> Режим админа
-              </span>
-            )}
-          </p>
-          <p className="text-xs text-white/40">Заказ #{orderId.slice(0, 8)}</p>
-        </div>
+    // flex-col h-full — обязательно: родитель в app/chats/page.tsx на мобильных рендерит открытый
+    // чат как полноэкранный слой с overflow-hidden и жёстко заданной высотой (как у DmThread).
+    // Раньше здесь был обычный блочный div — итоговая высота контента (шапка + карточка сделки +
+    // сообщения + кнопки + форма) на телефоне превышала высоту контейнера, и поле ввода внизу
+    // просто обрезалось за видимой областью — казалось, что "нельзя писать", хотя форма была на
+    // месте, просто невидима/недоступна для тапа.
+    <div className="flex flex-col h-full min-h-0">
+      <div className="mb-3 shrink-0">
+        <p className="font-bold">{counterpartName}</p>
+        <p className="text-xs text-white/40">Заказ #{orderId.slice(0, 8)}</p>
       </div>
 
       {order && (
-        <>
-          <div className="card p-3 flex items-center gap-3 mb-3">
+        <div className="shrink-0">
+          {/* Клик по товару открывает карточку сделки: фото, статус и весь таймлайн шагов —
+              включая обязательный игровой ник — в одном месте, а не размазанным по чату. */}
+          <button
+            onClick={() => setDealOpen(true)}
+            className="w-full card p-3 flex items-center gap-3 mb-3 text-left transition-colors hover:bg-white/[0.03] active:scale-[0.99]"
+          >
             <div className="relative w-11 h-11 rounded-btn overflow-hidden bg-black/30 shrink-0">
               {itemImage && <Image src={safeImageSrc(itemImage)} alt="" fill className="object-cover" sizes="44px" />}
             </div>
@@ -370,119 +452,83 @@ export function OrderChatThread({
             >
               {STATUS_LABEL[order.status].text}
             </span>
-          </div>
-
-          {(order.status === "pending_confirmation" || order.status === "confirmed") && (
-            <div className="mb-3">
-              <div className="flex items-center gap-1">
-                {STEPS.map((_, i) => (
-                  <div key={i} className="flex items-center flex-1 last:flex-none">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${i <= stepIndex(order.status) ? "bg-accent" : "bg-white/15"}`} />
-                    {i < STEPS.length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-1 ${i < stepIndex(order.status) ? "bg-accent" : "bg-white/15"}`} />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-between mt-1">
-                {STEPS.map((s) => (
-                  <span key={s} className="text-[9px] text-white/30">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+            <ChevronRight size={15} className="text-white/25 shrink-0" />
+          </button>
 
           {order.status === "disputed" && dispute && (
             <div className="mb-3 p-3 rounded-btn bg-red-500/5 border border-red-500/20 text-sm">
               <p className="text-red-400 font-medium mb-1">Жалоба: {dispute.reason}</p>
               <p className="text-white/40 text-xs">
-                Статус: {dispute.status === "open" ? "рассматривается администратором" : dispute.status === "approved" ? "одобрена" : "отклонена"}
+                Статус:{" "}
+                {dispute.status === "open" ? "рассматривается администратором" : dispute.status === "approved" ? "одобрена" : "отклонена"}
               </p>
             </div>
           )}
-        </>
+
+          <DealSheet
+            open={dealOpen}
+            onClose={() => setDealOpen(false)}
+            order={order}
+            itemImage={itemImage}
+            delivery={delivery}
+            isBuyer={isBuyer}
+            isSeller={isSeller}
+            busy={busy}
+            canConfirm={canConfirm}
+            onConfirm={handleConfirm}
+            onOpenDispute={() => {
+              setDealOpen(false);
+              setDisputeOpen(true);
+            }}
+          />
+        </div>
       )}
 
-      {order && order.status === "pending_confirmation" && <DeliveryPanel orderId={orderId} isBuyer={isBuyer} isSeller={isSeller} />}
-      </div>
-
-      <div ref={scrollRef} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
+      {/* flex-1 min-h-0 — тянется на всё оставшееся место и прокручивается само, а не раздувает
+          общую высоту компонента (это и было причиной обрезанного поля ввода на телефонах). */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 mb-3">
         {messages.length === 0 ? (
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
         ) : (
-          messages.map((m, i) => {
-            if (m.from === "system") {
-              return (
-                <p key={i} className="text-xs text-center text-white/40 italic py-1.5">
-                  {m.text}
-                </p>
-              );
-            }
-
-            const isMine = isAdminViewer ? m.from === "admin" : (isBuyer && m.from === "buyer") || (isSeller && m.from === "seller");
-            const senderLabel = m.from === "admin" ? "Админ" : asAdmin ? (m.from === "buyer" ? buyerName : sellerName) : counterpartName;
-            const prevSameSender = i > 0 && messages[i - 1].from === m.from;
-            const isWarning = m.from === "admin" && m.text.startsWith("⚠️ Предупреждение");
-
-            return (
-              <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSameSender ? "mt-0.5" : "mt-2.5"}`}>
-                {!isMine && !prevSameSender && (
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
-                    style={{ background: `${avatarColor(senderLabel)}22`, color: avatarColor(senderLabel) }}
-                  >
-                    {initials(senderLabel)}
+          messages.map((m, i) =>
+            m.from === "system" ? (
+              <p key={i} className="text-xs text-center text-white/40 italic py-1">
+                {m.text}
+              </p>
+            ) : (
+              (() => {
+                const isMine = user && order && ((isBuyer && m.from === "buyer") || (isSeller && m.from === "seller"));
+                return (
+                  <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
+                    {!isMine && (
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
+                        style={{
+                          background: `${avatarColor(m.from === "admin" ? "Админ" : counterpartName)}22`,
+                          color: avatarColor(m.from === "admin" ? "Админ" : counterpartName),
+                        }}
+                      >
+                        {initials(m.from === "admin" ? "Админ" : counterpartName)}
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[75%] px-3 py-2 text-sm ${
+                        isMine ? "bg-accent text-black rounded-2xl rounded-br-sm" : "bg-surface text-white/80 rounded-2xl rounded-bl-sm"
+                      }`}
+                    >
+                      {!isMine && <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? "Админ" : counterpartName}</p>}
+                      {m.text}
+                    </div>
                   </div>
-                )}
-                {!isMine && prevSameSender && <div className="w-7 shrink-0" />}
-
-                <div
-                  className={`max-w-[85%] sm:max-w-[75%] group shadow-sm ${
-                    isWarning
-                      ? "bg-amber-500/15 border border-amber-500/30 text-amber-200"
-                      : isMine
-                      ? "bg-gradient-to-br from-accent to-accent-dark text-black"
-                      : "bg-surface border border-white/[0.04] text-white/80"
-                  } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2.5"} text-[13.5px] leading-snug rounded-2xl ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
-                >
-                  {!isMine && !prevSameSender && (
-                    <p className={`text-[10px] mb-0.5 ${m.imageUrl ? "px-1.5 pt-1" : ""} text-white/30`}>{senderLabel}</p>
-                  )}
-                  {m.imageUrl && (
-                    <button type="button" onClick={() => setLightbox(m.imageUrl!)} className="block">
-                      <Image
-                        src={safeImageSrc(m.imageUrl)}
-                        alt=""
-                        width={220}
-                        height={220}
-                        className="rounded-xl object-cover max-h-[220px] w-auto max-w-full"
-                      />
-                    </button>
-                  )}
-                  {m.text && <p className={m.imageUrl ? "px-1.5 pt-1.5" : ""}>{m.text}</p>}
-                  <p className={`text-[9px] opacity-50 text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"}`}>{formatTime(m.createdAt)}</p>
-                </div>
-              </div>
-            );
-          })
+                );
+              })()
+            )
+          )
         )}
       </div>
 
-      <div className="shrink-0">
       {order && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {isBuyer && order.status === "pending_confirmation" && (
-            <>
-              <button onClick={handleConfirm} disabled={busy} className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5 disabled:opacity-50">
-                <CheckCircle2 size={14} /> Подтвердить получение
-              </button>
-              <button onClick={() => setDisputeOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
-                <AlertTriangle size={14} /> Открыть спор
-              </button>
-            </>
-          )}
+        <div className="flex flex-wrap gap-2 mb-3 shrink-0">
           {isBuyer && order.status === "confirmed" && !order.reviewSubmitted && (
             <button onClick={() => setReviewOpen((v) => !v)} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5">
               <Star size={14} /> Оставить отзыв
@@ -493,26 +539,11 @@ export function OrderChatThread({
               <XCircle size={14} /> Отменить продажу
             </button>
           )}
-          {isAdminViewer && order.status === "disputed" && dispute?.status === "open" && (
-            <>
-              <button onClick={() => runAdminCommand("/approve")} disabled={busy} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 text-green-400 disabled:opacity-50">
-                <CheckCircle2 size={14} /> Одобрить спор
-              </button>
-              <button onClick={() => runAdminCommand("/reject")} disabled={busy} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 text-red-400 disabled:opacity-50">
-                <XCircle size={14} /> Отклонить спор
-              </button>
-            </>
-          )}
-          {isAdminViewer && (order.status === "pending_confirmation" || order.status === "disputed") && (
-            <button onClick={() => runAdminCommand("/refund")} disabled={busy} className="btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 text-amber-400 disabled:opacity-50">
-              <Terminal size={14} /> Вернуть деньги
-            </button>
-          )}
         </div>
       )}
 
       {disputeOpen && (
-        <form onSubmit={handleDispute} className="space-y-2 mb-3">
+        <form onSubmit={handleDispute} className="space-y-2 mb-3 shrink-0">
           <textarea
             value={disputeReason}
             onChange={(e) => setDisputeReason(e.target.value)}
@@ -527,7 +558,7 @@ export function OrderChatThread({
       )}
 
       {reviewOpen && (
-        <form onSubmit={handleReview} className="space-y-2 mb-3">
+        <form onSubmit={handleReview} className="space-y-2 mb-3 shrink-0">
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} type="button" onClick={() => setRating(n as 1 | 2 | 3 | 4 | 5)}>
@@ -548,54 +579,18 @@ export function OrderChatThread({
         </form>
       )}
 
-      <div className="relative">
-        {matchingCommands.length > 0 && (
-          <div className="absolute bottom-full mb-1.5 left-0 right-0 card p-1.5 space-y-0.5 z-10">
-            {matchingCommands.map((c) => (
-              <button
-                key={c.cmd}
-                type="button"
-                onClick={() => setText(`${c.cmd} `)}
-                className="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-white/5 text-xs flex items-center gap-2"
-              >
-                <span className="font-mono text-accent">{c.cmd}</span>
-                <span className="text-white/40">{c.hint}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <form onSubmit={handleSend} className="flex gap-2 items-end" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-          <input
-            autoComplete="off"
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handlePhotoPick(e.target.files?.[0])}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingPhoto}
-            title="Отправить фото"
-            className="btn-secondary px-3 py-2.5 shrink-0 disabled:opacity-50"
-          >
-            {uploadingPhoto ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
-          </button>
-          <input
-            autoComplete="off"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={isAdminViewer ? "Сообщение или команда (/help)..." : "Написать сообщение..."}
-            className="input-field py-2.5 text-sm flex-1 rounded-full"
-          />
-          <button className="btn-primary w-10 h-10 shrink-0 rounded-full flex items-center justify-center p-0">
-            <Send size={16} />
-          </button>
-        </form>
-      </div>
-      </div>
+      <form onSubmit={handleSend} className="flex gap-2 shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <input
+          autoComplete="off"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Написать сообщение..."
+          className="input-field py-2.5 text-sm flex-1"
+        />
+        <button type="submit" className="btn-primary px-4">
+          <Send size={16} />
+        </button>
+      </form>
     </div>
   );
 }

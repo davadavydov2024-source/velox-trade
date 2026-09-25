@@ -2,18 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Rocket, Zap, Star, Pencil, Trash2, Send } from "lucide-react";
+import { Rocket, Star, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { getProducts, boostProduct, deleteProduct, setProductStarsPrice } from "@/lib/products";
+import { getProducts, boostProduct, deleteProduct } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { createProductEditRequest, MAX_PRODUCT_EDITS } from "@/lib/productEditRequests";
-import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags, CHECKMARK_BADGES } from "@/types";
+import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags, Rarity, RARITY_LABEL } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
-import { ImageUploadField } from "@/components/ImageUploadField";
 import { useLanguage } from "@/lib/languageStore";
 import { tf, rarityLabel } from "@/lib/i18n";
 
+const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 const LOCALE: Record<string, string> = { ru: "ru-RU", en: "en-US", zh: "zh-CN" };
 
 function ProductBoostCard({
@@ -34,21 +34,29 @@ function ProductBoostCard({
   const [editing, setEditing] = useState(false);
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [starsPriceInput, setStarsPriceInput] = useState(product.starsPrice ? String(product.starsPrice) : "");
-  const [savingStars, setSavingStars] = useState(false);
+  // Название и фото сюда сознательно не входят — их теперь редактировать нельзя вообще (см.
+  // комментарий у формы ниже). Оплата Stars раньше менялась отдельным блоком мгновенно и без
+  // ограничений — теперь это часть той же заявки на редактирование с лимитом 3 раза на товар.
   const [editForm, setEditForm] = useState({
-    name: product.name,
     description: product.description,
     price: product.price,
-    image: product.image,
+    category: product.category ?? "",
+    rarity: product.rarity,
+    starsPrice: product.starsPrice ? String(product.starsPrice) : "",
   });
 
   const editCount = product.editCount ?? 0;
   const editsLeft = MAX_PRODUCT_EDITS - editCount;
 
   async function handleSubmitEdit() {
-    if (!editForm.name.trim() || !editForm.description.trim() || !editForm.image || editForm.price <= 0) {
+    if (!editForm.description.trim() || editForm.price <= 0) {
       toast("warning", "Заполни все поля корректно");
+      return;
+    }
+    const starsTrimmed = editForm.starsPrice.trim();
+    const starsValue = starsTrimmed === "" ? null : Number(starsTrimmed);
+    if (starsValue !== null && (!Number.isInteger(starsValue) || starsValue < 15)) {
+      toast("warning", "Цена в Stars — целое число, минимум 15 (или оставь поле пустым, чтобы отключить)");
       return;
     }
     setSubmittingEdit(true);
@@ -57,10 +65,14 @@ function ProductBoostCard({
         productId: product.id,
         sellerId: product.sellerId,
         productName: product.name,
-        proposedName: editForm.name,
+        // Название и фото не меняются — просто передаём текущие значения товара как есть.
+        proposedName: product.name,
+        proposedImage: product.image,
         proposedDescription: editForm.description,
         proposedPrice: editForm.price,
-        proposedImage: editForm.image,
+        proposedCategory: editForm.category,
+        proposedRarity: editForm.rarity,
+        proposedStarsPrice: starsValue,
       });
       toast("success", "Заявка на редактирование отправлена админу");
       setEditing(false);
@@ -81,20 +93,6 @@ function ProductBoostCard({
     } catch {
       toast("error", "Не удалось удалить товар");
       setDeleting(false);
-    }
-  }
-
-  async function handleSaveStarsPrice() {
-    const trimmed = starsPriceInput.trim();
-    const value = trimmed === "" ? null : Number(trimmed);
-    setSavingStars(true);
-    try {
-      await setProductStarsPrice(product.id, value);
-      toast("success", value ? `Цена в Stars сохранена: ${value} ⭐` : "Оплата Stars отключена для этого товара");
-    } catch (err: any) {
-      toast("error", err?.message || "Не удалось сохранить цену в Stars");
-    } finally {
-      setSavingStars(false);
     }
   }
 
@@ -130,7 +128,8 @@ function ProductBoostCard({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">{product.name}</p>
           <p className="text-xs text-white/40">
-            {rarityLabel(language, product.rarity)} · {product.price} ₽ · {tf(language, "my_products_stock", { n: product.stock })}
+            {rarityLabel(language, product.rarity)} · {product.price} ₽
+            {product.starsPrice ? ` · ${product.starsPrice} ⭐` : ""} · {tf(language, "my_products_stock", { n: product.stock })}
           </p>
           {isActive && (
             <p className="text-xs text-accent mt-1 flex items-center gap-1">
@@ -178,42 +177,12 @@ function ProductBoostCard({
         </div>
       </div>
 
-      {profile?.badges?.some((b) => CHECKMARK_BADGES.includes(b)) && (
-        <div className="rounded-btn border border-border p-3 mt-2">
-          <p className="text-sm font-medium flex items-center gap-1.5">
-            <Send size={14} className="text-accent" /> Оплата Telegram Stars ⭐
-          </p>
-          <p className="text-xs text-white/40 my-1.5">
-            Укажи цену в Stars (целое число, минимум 15) — на карточке товара появится кнопка «Купить за Stars», оплата придёт прямо в бота. Оставь поле пустым, чтобы отключить.
-          </p>
-          <div className="flex gap-2">
-            <input
-              autoComplete="off"
-              type="number"
-              min={15}
-              step={1}
-              value={starsPriceInput}
-              onChange={(e) => setStarsPriceInput(e.target.value)}
-              placeholder="Например, 50"
-              className="input-field py-2 text-sm flex-1"
-            />
-            <button onClick={handleSaveStarsPrice} disabled={savingStars} className="btn-secondary px-4 py-2 text-xs disabled:opacity-50 shrink-0">
-              {savingStars ? "Сохранение..." : "Сохранить"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {editing ? (
         <div className="mt-3 rounded-btn border border-border p-3 space-y-2.5">
-          <ImageUploadField value={editForm.image} onChange={(url) => setEditForm((f) => ({ ...f, image: url }))} folder="products" label="Фото" size={64} />
-          <input
-            autoComplete="off"
-            value={editForm.name}
-            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Название"
-            className="input-field py-2 text-sm w-full"
-          />
+          {/* Название и фото сюда намеренно не включены — их менять нельзя. Редактируются:
+              описание, цена, категория, редкость и оплата Stars — всё одной заявкой, до 3 раз
+              на товар (см. MAX_PRODUCT_EDITS), с проверкой администратором. */}
+          <p className="text-xs text-white/30">Название и фото товара изменить нельзя — только описание, цену, категорию, редкость и оплату Stars.</p>
           <textarea
             value={editForm.description}
             onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
@@ -229,6 +198,37 @@ function ProductBoostCard({
             placeholder="Цена, ₽"
             className="input-field py-2 text-sm w-full"
           />
+          <input
+            autoComplete="off"
+            value={editForm.category}
+            onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+            placeholder="Категория (необязательно)"
+            className="input-field py-2 text-sm w-full"
+          />
+          <select
+            value={editForm.rarity}
+            onChange={(e) => setEditForm((f) => ({ ...f, rarity: e.target.value as Rarity }))}
+            className="input-field py-2 text-sm w-full"
+          >
+            {RARITIES.map((r) => (
+              <option key={r} value={r}>
+                {RARITY_LABEL[r]}
+              </option>
+            ))}
+          </select>
+          <div>
+            <p className="text-xs text-white/40 mb-1">Оплата Telegram Stars ⭐ (целое число, минимум 15 — оставь пустым, чтобы отключить)</p>
+            <input
+              autoComplete="off"
+              type="number"
+              min={15}
+              step={1}
+              value={editForm.starsPrice}
+              onChange={(e) => setEditForm((f) => ({ ...f, starsPrice: e.target.value }))}
+              placeholder="Например, 50"
+              className="input-field py-2 text-sm w-full"
+            />
+          </div>
           <div className="flex gap-2">
             <button onClick={handleSubmitEdit} disabled={submittingEdit} className="btn-primary flex-1 py-2 text-xs disabled:opacity-50">
               {submittingEdit ? "Отправка..." : "Отправить на проверку админу"}

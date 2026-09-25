@@ -7,7 +7,7 @@ import {
   approveProductEditRequest,
   rejectProductEditRequest,
 } from "@/lib/productEditRequests";
-import { ProductEditRequest } from "@/types";
+import { ProductEditRequest, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 
 export default function AdminProductEditsPage() {
@@ -49,8 +49,8 @@ export default function AdminProductEditsPage() {
           <Pencil className="text-accent" size={22} /> Заявки на редактирование товаров
         </h1>
         <p className="text-sm text-white/40">
-          Продавцы могут предложить изменить название/описание/цену/фото своего товара — до 3 раз на товар.
-          Одобрение сразу применяет изменения.
+          Продавцы могут предложить изменить описание/цену/категорию/редкость/оплату Stars своего товара — до 3 раз на
+          товар. Название и фото менять нельзя. Одобрение сразу применяет изменения.
         </p>
       </div>
 
@@ -62,15 +62,23 @@ export default function AdminProductEditsPage() {
         <div className="space-y-3">
           {pending.map((r) => (
             <div key={r.id} className="card p-4">
-              <p className="text-sm text-white/40 mb-2">Было: «{r.productName}»</p>
+              <p className="text-sm text-white/40 mb-2">Правки для «{r.productName}» (название и фото без изменений)</p>
               <div className="grid sm:grid-cols-2 gap-3 text-sm mb-3">
-                <div>
-                  <p className="text-white/40 text-xs mb-0.5">Новое название</p>
-                  <p>{r.proposedName}</p>
-                </div>
                 <div>
                   <p className="text-white/40 text-xs mb-0.5">Новая цена</p>
                   <p>{r.proposedPrice} ₽</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs mb-0.5">Оплата Stars</p>
+                  <p>{r.proposedStarsPrice ? `${r.proposedStarsPrice} ⭐` : "выключена"}</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs mb-0.5">Категория</p>
+                  <p>{r.proposedCategory || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs mb-0.5">Редкость</p>
+                  <p>{RARITY_LABEL[r.proposedRarity]}</p>
                 </div>
                 <div className="sm:col-span-2">
                   <p className="text-white/40 text-xs mb-0.5">Новое описание</p>
@@ -96,7 +104,7 @@ export default function AdminProductEditsPage() {
           <div className="space-y-2">
             {resolved.map((r) => (
               <div key={r.id} className="card p-3 text-sm flex items-center justify-between">
-                <span>«{r.productName}» → «{r.proposedName}»</span>
+                <span>«{r.productName}» — {r.proposedPrice} ₽{r.proposedStarsPrice ? `, ${r.proposedStarsPrice} ⭐` : ""}</span>
                 <span className={r.status === "approved" ? "text-green-400" : "text-red-400"}>
                   {r.status === "approved" ? "Одобрено" : "Отклонено"}
                 </span>

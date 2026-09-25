@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, Star } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { getProducts, getGameBySlug } from "@/lib/products";
 import { Product, Rarity, RARITY_LABEL } from "@/types";
@@ -23,6 +23,11 @@ function CatalogInner() {
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState<"newest" | "price_asc" | "price_desc">("newest");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  // "Оплата звёздами" — отдельный раздел/фильтр каталога: показывает только товары, для которых
+  // продавец указал цену в Telegram Stars (см. profile/my-products и api/products/stars-price).
+  // Поддерживает ?stars=1 в ссылке — так же, как ?new=1 для новинок — чтобы можно было прислать
+  // прямую ссылку на этот раздел.
+  const [onlyStars, setOnlyStars] = useState(params.get("stars") === "1");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
@@ -62,15 +67,16 @@ function CatalogInner() {
         if (onlyNew && !p.isNew) return false;
         if (rarity && p.rarity !== rarity) return false;
         if (onlyAvailable && p.stock <= 0) return false;
+        if (onlyStars && !p.starsPrice) return false;
         if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
         return true;
       })
       .sort((a, b) => boostRank(b) - boostRank(a));
-  }, [products, gameSlug, category, onlyNew, rarity, onlyAvailable, search]);
+  }, [products, gameSlug, category, onlyNew, rarity, onlyAvailable, onlyStars, search]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl md:text-3xl font-bold">
           {gameSlug ? `Каталог — ${gameSlug.replace(/-/g, " ")}` : "Каталог товаров"}
         </h1>
@@ -78,6 +84,17 @@ function CatalogInner() {
           <SlidersHorizontal size={18} />
         </button>
       </div>
+
+      {/* Виден всегда (не спрятан за кнопкой фильтров на мобильных) — отдельный быстрый вход
+          в раздел "Оплата звёздами", а не только галочка в сайдбаре ниже. */}
+      <button
+        onClick={() => setOnlyStars((v) => !v)}
+        className={`mb-6 inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-full transition-colors ${
+          onlyStars ? "bg-accent text-black shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/70 hover:bg-white/10"
+        }`}
+      >
+        <Star size={13} className={onlyStars ? "" : "fill-accent text-accent"} /> Оплата звёздами
+      </button>
 
       <div className="grid md:grid-cols-[240px_1fr] gap-8">
         {/* Filters */}
@@ -162,6 +179,14 @@ function CatalogInner() {
             <input
             autoComplete="off" type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
             Только в наличии
+          </label>
+
+          {/* Раздел "Оплата звёздами" — товары, у которых продавец включил оплату Telegram Stars. */}
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input autoComplete="off" type="checkbox" checked={onlyStars} onChange={(e) => setOnlyStars(e.target.checked)} />
+            <span className="flex items-center gap-1">
+              Оплата звёздами <Star size={13} className="text-accent fill-accent" />
+            </span>
           </label>
         </aside>
 

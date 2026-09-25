@@ -25,6 +25,9 @@ export async function approveProductEditRequest(request: ProductEditRequest) {
     description: request.proposedDescription,
     price: request.proposedPrice,
     image: request.proposedImage,
+    category: request.proposedCategory,
+    rarity: request.proposedRarity,
+    starsPrice: request.proposedStarsPrice,
     editCount: increment(1),
   });
   await updateDoc(doc(db, "productEditRequests", request.id), { status: "approved" });

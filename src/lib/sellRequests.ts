@@ -54,6 +54,7 @@ export async function approveSellRequest(request: SellRequest): Promise<string> 
     stock: request.stock ?? 1,
     deliveryMethod: request.deliveryMethod ?? "seller",
     ...(request.category ? { category: request.category } : {}),
+    ...(request.starsPrice ? { starsPrice: request.starsPrice } : {}),
     ...(request.discountPercent && !request.auctionEnabled ? { discountPercent: request.discountPercent } : {}),
     ...(request.auctionEnabled
       ? {

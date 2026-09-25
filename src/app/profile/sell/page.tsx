@@ -40,6 +40,11 @@ export default function SellPage() {
   const [auctionMinStep, setAuctionMinStep] = useState("10");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Способ оплаты выбирается один раз здесь же, при создании — либо обычные рубли (как раньше),
+  // либо Stars: тогда рублёвая цена и скидка скрыты от продавца и не важны покупателю, платёж
+  // целиком проходит через Telegram Stars (см. Product.starsPrice и api/telegram/stars/invoice).
+  const [paymentMethod, setPaymentMethod] = useState<"rub" | "stars">("rub");
+  const [starsPrice, setStarsPrice] = useState("");
 
   useEffect(() => {
     getGames()
@@ -53,6 +58,7 @@ export default function SellPage() {
   }, []);
 
   const priceNum = Number(price) || 0;
+  const starsPriceNum = Number(starsPrice) || 0;
   const discountNum = Math.min(90, Math.max(0, Number(discountPercent) || 0));
   const discountedPrice = discountNum > 0 ? +(priceNum * (1 - discountNum / 100)).toFixed(2) : priceNum;
   // Комиссия и выплата считаются от цены, которую реально платит покупатель (то есть уже со
@@ -102,7 +108,12 @@ export default function SellPage() {
       toast("warning", "Войдите в аккаунт, чтобы продавать предметы");
       return;
     }
-    if (priceNum < minSellPrice) {
+    if (paymentMethod === "stars") {
+      if (!Number.isInteger(starsPriceNum) || starsPriceNum < 15) {
+        toast("warning", "Цена в Stars — целое число, минимум 15");
+        return;
+      }
+    } else if (priceNum < minSellPrice) {
       toast("warning", `Минимальная цена — ${minSellPrice} ₽`);
       return;
     }
@@ -121,14 +132,18 @@ export default function SellPage() {
         gameName: selectedGame!.name,
         ...(category ? { category } : {}),
         imageUrl,
-        price: priceNum,
-        ...(discountNum > 0 && !auctionEnabled ? { discountPercent: discountNum } : {}),
+        // При оплате Stars рублёвая цена продавцу не важна и покупателя не касается — ставим
+        // минимально допустимую платформой, чтобы не ломать внутренние механизмы (комиссия,
+        // отчётность), которые всегда считают в ₽. Реальная цена для покупателя — starsPrice ниже.
+        price: paymentMethod === "stars" ? minSellPrice : priceNum,
+        ...(paymentMethod === "stars" ? { starsPrice: starsPriceNum } : {}),
+        ...(paymentMethod === "rub" && discountNum > 0 && !auctionEnabled ? { discountPercent: discountNum } : {}),
         commissionPercent,
         description: description.trim(),
         stock: stockNum,
         rarity,
         deliveryMethod,
-        ...(auctionEnabled
+        ...(paymentMethod === "rub" && auctionEnabled
           ? { auctionEnabled: true, auctionStartPrice: priceNum, auctionMinStep: Number(auctionMinStep) || 10 }
           : {}),
       });
@@ -137,7 +152,12 @@ export default function SellPage() {
       fetch("/api/admin/notify-sell-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemName, game: selectedGame!.name, price: priceNum, userNick: profile.displayName }),
+        body: JSON.stringify({
+          itemName,
+          game: selectedGame!.name,
+          price: paymentMethod === "stars" ? `${starsPriceNum} ⭐` : priceNum,
+          userNick: profile.displayName,
+        }),
       }).catch((err) => console.error("Не удалось уведомить админа:", err));
 
       toast("success", "Заявка на продажу отправлена. Администратор проверит её и свяжется с тобой.");
@@ -154,6 +174,8 @@ export default function SellPage() {
       setAuctionEnabled(false);
       setAuctionMinStep("10");
       setDescription("");
+      setPaymentMethod("rub");
+      setStarsPrice("");
     } catch (err: any) {
       if (err?.code === "permission-denied") {
         toast("error", "Нет доступа к базе данных. Проверь, что правила Firestore опубликованы.");
@@ -358,6 +380,8 @@ export default function SellPage() {
                       setAuctionEnabled(true);
                       setStock("1");
                       setDiscountPercent("");
+                      // Аукцион всегда в ₽ — если до этого выбрали оплату Stars, сбрасываем обратно.
+                      setPaymentMethod("rub");
                     }}
                     className={`flex-1 py-2.5 rounded-btn text-sm border transition-all ${
                       auctionEnabled ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
@@ -386,83 +410,164 @@ export default function SellPage() {
 
           {step === 3 && (
             <div className="space-y-5">
+              {/* Способ оплаты — выбирается один раз здесь, при создании. Либо обычные рубли (как
+                  было раньше), либо Telegram Stars: тогда рублёвая цена/скидка скрыты, а платёж
+                  целиком идёт через бота в Stars. Аукцион и Stars несовместимы — аукцион всегда в ₽. */}
               <div>
-                <input
-                  autoComplete="off"
-                  required
-                  type="number"
-                  min={minSellPrice}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder={auctionEnabled ? `Стартовая цена аукциона, ₽ (минимум ${minSellPrice} ₽)` : `Желаемая цена, ₽ (минимум ${minSellPrice} ₽)`}
-                  className="input-field py-2.5"
-                />
+                <p className="text-sm font-medium mb-2">Способ оплаты</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("rub")}
+                    className={`flex-1 py-2.5 rounded-btn text-sm border transition-all ${
+                      paymentMethod === "rub" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+                    }`}
+                  >
+                    💰 За рубли
+                  </button>
+                  <button
+                    type="button"
+                    disabled={auctionEnabled}
+                    onClick={() => {
+                      setPaymentMethod("stars");
+                      setDiscountPercent("");
+                    }}
+                    title={auctionEnabled ? "Аукцион доступен только за рубли" : undefined}
+                    className={`flex-1 py-2.5 rounded-btn text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      paymentMethod === "stars" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+                    }`}
+                  >
+                    ⭐ За Stars
+                  </button>
+                </div>
+                <p className="text-xs text-white/30 mt-2">
+                  {paymentMethod === "stars"
+                    ? "Покупатель платит прямо в Telegram-боте в Stars, без баланса на сайте. Комиссия платформы к оплате Stars не применяется."
+                    : "Обычная оплата с баланса сайта."}
+                </p>
               </div>
 
-              {auctionEnabled ? (
+              {paymentMethod === "stars" ? (
                 <div>
                   <input
                     autoComplete="off"
                     required
                     type="number"
-                    min={1}
-                    value={auctionMinStep}
-                    onChange={(e) => setAuctionMinStep(e.target.value)}
-                    placeholder="Минимальный шаг ставки, ₽"
+                    min={15}
+                    step={1}
+                    value={starsPrice}
+                    onChange={(e) => setStarsPrice(e.target.value)}
+                    placeholder="Цена в Stars (целое число, минимум 15)"
                     className="input-field py-2.5"
                   />
-                  <p className="text-xs text-white/40 mt-2">
-                    Каждая следующая ставка должна быть выше предыдущей минимум на эту сумму. Комиссия платформы{" "}
-                    {commissionPercent}% удержится с финальной цены, когда аукцион завершится.
-                  </p>
                 </div>
               ) : (
-                <input
-                  autoComplete="off"
-                  type="number"
-                  min={0}
-                  max={90}
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(e.target.value)}
-                  placeholder="Скидка на товар, % (необязательно, до 90%)"
-                  className="input-field py-2.5"
-                />
+                <div>
+                  <input
+                    autoComplete="off"
+                    required
+                    type="number"
+                    min={minSellPrice}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder={auctionEnabled ? `Стартовая цена аукциона, ₽ (минимум ${minSellPrice} ₽)` : `Желаемая цена, ₽ (минимум ${minSellPrice} ₽)`}
+                    className="input-field py-2.5"
+                  />
+                </div>
               )}
 
-              {priceNum > 0 && (
-                <div className="rounded-btn bg-surface p-4 space-y-3">
-                  <p className="text-xs uppercase tracking-wide text-white/30 flex items-center gap-1.5">
-                    <Sparkles size={12} /> Предпросмотр заявки
-                  </p>
-                  <div className="flex items-center gap-3">
-                    {imageUrl && (
-                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/30 shrink-0">
-                        <Image src={safeImageSrc(imageUrl)} alt={itemName} fill className="object-cover" sizes="48px" />
+              {paymentMethod === "rub" &&
+                (auctionEnabled ? (
+                  <div>
+                    <input
+                      autoComplete="off"
+                      required
+                      type="number"
+                      min={1}
+                      value={auctionMinStep}
+                      onChange={(e) => setAuctionMinStep(e.target.value)}
+                      placeholder="Минимальный шаг ставки, ₽"
+                      className="input-field py-2.5"
+                    />
+                    <p className="text-xs text-white/40 mt-2">
+                      Каждая следующая ставка должна быть выше предыдущей минимум на эту сумму. Комиссия платформы{" "}
+                      {commissionPercent}% удержится с финальной цены, когда аукцион завершится.
+                    </p>
+                  </div>
+                ) : (
+                  <input
+                    autoComplete="off"
+                    type="number"
+                    min={0}
+                    max={90}
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(e.target.value)}
+                    placeholder="Скидка на товар, % (необязательно, до 90%)"
+                    className="input-field py-2.5"
+                  />
+                ))}
+
+              {paymentMethod === "stars" ? (
+                starsPriceNum > 0 && (
+                  <div className="rounded-btn bg-surface p-4 space-y-3">
+                    <p className="text-xs uppercase tracking-wide text-white/30 flex items-center gap-1.5">
+                      <Sparkles size={12} /> Предпросмотр заявки
+                    </p>
+                    <div className="flex items-center gap-3">
+                      {imageUrl && (
+                        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/30 shrink-0">
+                          <Image src={safeImageSrc(imageUrl)} alt={itemName} fill className="object-cover" sizes="48px" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{itemName || "Без названия"}</p>
+                        <p className="text-xs text-white/40">
+                          {selectedGame?.name} · {RARITY_LABEL[rarity]}
+                          {category ? ` · ${category}` : ""}
+                        </p>
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{itemName || "Без названия"}</p>
-                      <p className="text-xs text-white/40">
-                        {selectedGame?.name} · {RARITY_LABEL[rarity]}
-                        {category ? ` · ${category}` : ""}
-                      </p>
+                    </div>
+                    <div className="text-sm">
+                      Цена: <span className="text-accent font-medium">{starsPriceNum} ⭐</span>
                     </div>
                   </div>
-                  <div className="text-sm">
-                    {discountNum > 0 && !auctionEnabled ? (
-                      <>
-                        Цена для покупателя: <span className="line-through text-white/40">{priceNum} ₽</span>{" "}
-                        <span className="text-accent font-medium">{discountedPrice} ₽</span> (скидка {discountNum}%)
-                      </>
-                    ) : (
-                      <>{auctionEnabled ? "Стартовая цена" : "Цена"}: {priceNum} ₽</>
-                    )}
+                )
+              ) : (
+                priceNum > 0 && (
+                  <div className="rounded-btn bg-surface p-4 space-y-3">
+                    <p className="text-xs uppercase tracking-wide text-white/30 flex items-center gap-1.5">
+                      <Sparkles size={12} /> Предпросмотр заявки
+                    </p>
+                    <div className="flex items-center gap-3">
+                      {imageUrl && (
+                        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/30 shrink-0">
+                          <Image src={safeImageSrc(imageUrl)} alt={itemName} fill className="object-cover" sizes="48px" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{itemName || "Без названия"}</p>
+                        <p className="text-xs text-white/40">
+                          {selectedGame?.name} · {RARITY_LABEL[rarity]}
+                          {category ? ` · ${category}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      {discountNum > 0 && !auctionEnabled ? (
+                        <>
+                          Цена для покупателя: <span className="line-through text-white/40">{priceNum} ₽</span>{" "}
+                          <span className="text-accent font-medium">{discountedPrice} ₽</span> (скидка {discountNum}%)
+                        </>
+                      ) : (
+                        <>{auctionEnabled ? "Стартовая цена" : "Цена"}: {priceNum} ₽</>
+                      )}
+                    </div>
+                    <p className="text-xs text-white/40">
+                      Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈{" "}
+                      <span className="text-accent font-medium">{payout} ₽</span>
+                    </p>
                   </div>
-                  <p className="text-xs text-white/40">
-                    Комиссия платформы {commissionPercent}%: −{commission} ₽ → тебе с продажи ≈{" "}
-                    <span className="text-accent font-medium">{payout} ₽</span>
-                  </p>
-                </div>
+                )
               )}
             </div>
           )}
