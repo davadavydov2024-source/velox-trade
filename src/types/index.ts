@@ -788,3 +788,41 @@ export interface StarsInvoice {
   paidAt?: number;
   orderId?: string; // заполняется после успешной выдачи заказа
 }
+
+// ---- Кейсы (открываются за баланс сайта, шанс/выигрыш настраивает админ) ----
+// Публичная страница со списком — /case, открытие конкретного кейса — /case/{id}.
+// Механика сознательно устроена как у Колеса Фортуны (см. WheelPrize/api/wheel/spin) — тот же
+// принцип "вес = относительный шанс", просто здесь открытие платное (списывается price) и можно
+// открывать сколько угодно раз подряд, без промокода и без cooldown.
+export interface CaseItem {
+  id: string; // короткий id внутри кейса (не документ Firestore) — генерируется на клиенте при добавлении
+  name: string;
+  image: string;
+  value: number; // сумма ₽, которая зачисляется на баланс при выигрыше этого предмета
+  weight: number; // "вес" — относительный шанс выпадения среди предметов этого же кейса
+}
+
+export interface CaseData {
+  id: string;
+  name: string;
+  image: string;
+  price: number; // стоимость одного открытия, ₽
+  items: CaseItem[];
+  active: boolean; // скрытые (active: false) кейсы не показываются на /case, но старые открытия не трогаются
+  createdAt: number;
+}
+
+// История открытий — своя, приватная (видит только сам открывший и админ), пишет только сервер
+// (см. api/cases/open) — нужна и для истории пользователя, и как антиспуфинг-журнал результатов.
+export interface CaseOpening {
+  id: string;
+  caseId: string;
+  caseName: string;
+  userId: string;
+  wonItemId: string;
+  wonItemName: string;
+  wonItemImage: string;
+  wonValue: number;
+  pricePaid: number;
+  createdAt: number;
+}

@@ -441,6 +441,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+     match /cases/{caseId} {
+  allow read: if true;
+  allow write: if isAdmin();
+}
+match /caseOpenings/{openingId} {
+  allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+  allow write: if false;
+}
     // --- Telegram Stars: покупка товара и вывод накопленных Stars продавцом ---
     // Оба процесса полностью серверные (создание счёта/зачисление/раздача подарками — только
     // через Admin SDK в api/telegram/stars/invoice, lib/starsOrders.ts, lib/telegramAdminPanel.ts),
