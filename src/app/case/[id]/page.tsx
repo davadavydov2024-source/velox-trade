@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, X } from "lucide-react";
 import { getCaseById } from "@/lib/cases";
@@ -10,32 +10,43 @@ import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { CaseData, CaseItem } from "@/types";
 
+const CELL_WIDTH = 96; // px — ширина одной ячейки рулетки, включая отступ
+const STRIP_LENGTH = 40; // сколько ячеек показываем прокруткой
+const TARGET_INDEX = 34; // на каком по счёту месте в ленте стоит реальный выигрыш
+const SPIN_DURATION_MS = 4200;
+
+function pickRandomCosmetic(items: CaseItem[]): CaseItem {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
 export default function CaseOpenPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
 
   const [caseData, setCaseData] = useState<CaseData | null | undefined>(undefined);
   const [opening, setOpening] = useState(false);
+  const [spinning, setSpinning] = useState(false);
   const [wonItem, setWonItem] = useState<CaseItem | null>(null);
+  const [strip, setStrip] = useState<CaseItem[]>([]);
+  const [translateX, setTranslateX] = useState(0);
+  const [transitionOn, setTransitionOn] = useState(false);
+  const trackWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getCaseById(id).then(setCaseData);
   }, [id]);
 
   async function handleOpen() {
-    if (!user) {
-      toast("warning", "Сначала войди в аккаунт");
-      return;
-    }
-    if (!caseData) return;
-    if ((profile?.balance ?? 0) < caseData.price) {
-      toast("warning", "Недостаточно средств на балансе");
-      return;
-    }
+    if (!user) return toast("warning", "Сначала войди в аккаунт");
+    if (!caseData || caseData.items.length === 0) return;
+    if ((profile?.balance ?? 0) < caseData.price) return toast("warning", "Недостаточно средств на балансе");
+
     setOpening(true);
     try {
+      // Результат честно определяется сервером ДО того, как на экране что-то закрутится —
+      // анимация ниже только откладывает показ уже готового результата ради саспенса, она не
+      // влияет на исход и не может быть "подкручена" на клиенте.
       const idToken = await user.getIdToken();
       const res = await fetch("/api/cases/open", {
         method: "POST",
@@ -45,13 +56,41 @@ export default function CaseOpenPage() {
       const data = await res.json();
       if (!res.ok) {
         toast("error", data.error || "Не удалось открыть кейс");
+        setOpening(false);
         return;
       }
-      setWonItem(data.item);
       await refreshProfile();
+
+      const won: CaseItem = data.item;
+      const items = caseData.items;
+      const built: CaseItem[] = Array.from({ length: STRIP_LENGTH }, (_, i) => (i === TARGET_INDEX ? won : pickRandomCosmetic(items)));
+      setStrip(built);
+      setTransitionOn(false);
+      setTranslateX(0);
+      setSpinning(true);
+
+      // Двойной requestAnimationFrame — даём браузеру отрисовать ленту в стартовой позиции
+      // (translateX: 0) ДО того, как включим CSS-transition, иначе он может "слипнуться" со
+      // сбросом и рулетка либо не поедет, либо дёрнется без анимации.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const containerWidth = trackWrapRef.current?.clientWidth ?? 0;
+          // Небольшой случайный сдвиг внутри ячейки — чтобы указатель не всегда останавливался
+          // ровно по центру предмета, как в настоящих рулетках кейсов.
+          const jitter = (Math.random() - 0.5) * (CELL_WIDTH * 0.5);
+          const target = TARGET_INDEX * CELL_WIDTH + CELL_WIDTH / 2 - containerWidth / 2 + jitter;
+          setTransitionOn(true);
+          setTranslateX(-target);
+        });
+      });
+
+      setTimeout(() => {
+        setSpinning(false);
+        setOpening(false);
+        setWonItem(won);
+      }, SPIN_DURATION_MS);
     } catch {
       toast("error", "Не удалось открыть кейс");
-    } finally {
       setOpening(false);
     }
   }
@@ -80,9 +119,30 @@ export default function CaseOpenPage() {
       </Link>
 
       <div className="card p-6 text-center mb-6">
-        <img src={safeImageSrc(caseData.image)} alt={caseData.name} className="w-32 h-32 rounded-btn object-cover bg-black/30 mx-auto mb-3" />
+        <img src={safeImageSrc(caseData.image)} alt={caseData.name} className="w-24 h-24 rounded-btn object-cover bg-black/30 mx-auto mb-3" />
         <h1 className="text-xl font-bold mb-1">{caseData.name}</h1>
         <p className="text-accent font-bold text-lg mb-4">{caseData.price} ₽</p>
+
+        {spinning && (
+          <div ref={trackWrapRef} className="relative h-24 overflow-hidden rounded-btn bg-black/30 mb-4">
+            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-accent z-10 -translate-x-1/2" />
+            <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-black/60 to-transparent z-10" />
+            <div className="absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-black/60 to-transparent z-10" />
+            <div
+              className="flex h-full items-center"
+              style={{
+                transform: `translateX(${translateX}px)`,
+                transition: transitionOn ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.1, 0, 0.15, 1)` : "none",
+              }}
+            >
+              {strip.map((it, i) => (
+                <div key={i} className="shrink-0 flex flex-col items-center justify-center" style={{ width: CELL_WIDTH }}>
+                  <img src={safeImageSrc(it.image)} alt="" className="w-14 h-14 rounded-btn object-cover bg-black/30" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleOpen}
@@ -91,7 +151,7 @@ export default function CaseOpenPage() {
         >
           {opening ? (
             <>
-              <Loader2 size={16} className="animate-spin" /> Открываем...
+              <Loader2 size={16} className="animate-spin" /> {spinning ? "Крутим..." : "Открываем..."}
             </>
           ) : !user ? (
             "Войди, чтобы открыть"

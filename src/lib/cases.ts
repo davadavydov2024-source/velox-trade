@@ -1,6 +1,6 @@
-import { collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, where } from "firebase/firestore";
 import { db } from "./firebase";
-import { CaseData, CaseItem } from "@/types";
+import { CaseData, CaseItem, CaseOpening } from "@/types";
 
 const casesCol = collection(db, "cases");
 
@@ -37,4 +37,15 @@ export async function deleteCase(id: string) {
  * немного (пара-десяток на кейс), а так админке достаточно одного чтения/записи на весь список. */
 export async function setCaseItems(caseId: string, items: CaseItem[]) {
   return updateDoc(doc(db, "cases", caseId), { items });
+}
+
+/** История открытий конкретного пользователя — для /profile/case-history. Сортируем на клиенте,
+ * а не через Firestore orderBy, чтобы не заводить составной индекс (userId + createdAt) ради
+ * одного простого списка — то же решение, что и в getActiveWheelProductIds выше по смыслу. */
+export async function getMyCaseOpenings(uid: string, max = 100): Promise<CaseOpening[]> {
+  const snap = await getDocs(query(collection(db, "caseOpenings"), where("userId", "==", uid)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as CaseOpening)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, max);
 }

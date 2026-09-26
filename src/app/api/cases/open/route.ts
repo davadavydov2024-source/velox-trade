@@ -4,6 +4,11 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 
+// Небольшой антиспам-кулдаун — не защита от читерства (баланс и так защищён транзакцией),
+// а просто щит от скриптованного заваливания сервера запросами быстрее, чем реально успевает
+// отыграть анимация рулетки на клиенте (~2.5–4с).
+const COOLDOWN_MS = 1500;
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -37,6 +42,9 @@ export async function POST(req: NextRequest) {
       const balance: number = userSnap.data()?.balance ?? 0;
       if (balance < caseData.price) throw new Error("insufficient-balance");
 
+      const lastOpenAt: number = userSnap.data()?.lastCaseOpenAt ?? 0;
+      if (Date.now() - lastOpenAt < COOLDOWN_MS) throw new Error("cooldown");
+
       const totalWeight = caseData.items.reduce((s, it) => s + Math.max(0, it.weight), 0);
       if (totalWeight <= 0) throw new Error("case-misconfigured");
 
@@ -54,7 +62,7 @@ export async function POST(req: NextRequest) {
       // как одно суммарное изменение баланса, чтобы не было промежуточного состояния "деньги
       // списаны, а приз ещё не начислен" при сбое между двумя отдельными update.
       const netChange = chosen.value - caseData.price;
-      tx.update(userRef, { balance: FieldValue.increment(netChange) });
+      tx.update(userRef, { balance: FieldValue.increment(netChange), lastCaseOpenAt: Date.now() });
 
       const openingRef = db.collection("caseOpenings").doc();
       tx.set(openingRef, {
@@ -80,6 +88,7 @@ export async function POST(req: NextRequest) {
       "case-empty": { message: "В этом кейсе пока нет предметов", status: 400 },
       "user-not-found": { message: "Профиль не найден", status: 404 },
       "insufficient-balance": { message: "Недостаточно средств на балансе", status: 400 },
+      "cooldown": { message: "Слишком часто — подожди секунду и попробуй снова", status: 429 },
       "case-misconfigured": { message: "Кейс сейчас неправильно настроен — сообщи администратору", status: 400 },
     };
     const known = map[err?.message];
