@@ -1,0 +1,22 @@
+// ДОБАВИТЬ этот блок в свой firestore.rules (внутри match /databases/{database}/documents { ... }),
+// рядом с остальными match-блоками для коллекций. Не заменяет файл целиком — просто вставить.
+//
+// Если у тебя helper-функции isAdmin()/isSignedIn() называются иначе — поправь имена вызовов ниже
+// под свои (в этом проекте раньше уже встречались похожие проверки для orderChats/directConversations).
+
+match /cases/{caseId} {
+  // Публичная страница /case и /case/{id} читают кейсы без авторизации — открывать список товаров
+  // может кто угодно, даже не залогиненный.
+  allow read: if true;
+  // Создавать/редактировать кейсы и предметы внутри них может только админ (см. /admin/cases).
+  allow write: if isAdmin();
+}
+
+match /caseOpenings/{openingId} {
+  // Историю открытий видит либо сам открывший (для /profile/case-history), либо админ.
+  allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+  // Пишет ТОЛЬКО сервер через Firebase Admin SDK (см. api/cases/open) — Admin SDK обходит
+  // Security Rules полностью, так что allow write: if false тут не мешает серверной записи,
+  // а просто гарантированно запрещает подделку результатов открытия напрямую с клиента.
+  allow write: if false;
+}
