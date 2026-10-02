@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -9,7 +9,7 @@ import { RARITY_COLOR } from "@/lib/rarityColors";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { CaseData, CaseItem, RARITY_LABEL } from "@/types";
+import { CaseData, CaseItem, Rarity, RARITY_LABEL } from "@/types";
 import { WheelConfetti } from "@/components/WheelConfetti";
 
 const CELL_WIDTH = 96; // px — ширина одной ячейки рулетки, включая отступ
@@ -35,7 +35,7 @@ export default function CaseOpenPage() {
   const [strip, setStrip] = useState<CaseItem[]>([]);
   const [translateX, setTranslateX] = useState(0);
   const [transitionOn, setTransitionOn] = useState(false);
-  const [landedRarity, setLandedRarity] = useState<string | null>(null);
+  const [landedRarity, setLandedRarity] = useState<Rarity | null>(null);
   const trackWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -257,3 +257,4 @@ export default function CaseOpenPage() {
     </div>
   );
 }
+
