@@ -1,442 +1,259 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import Image from "next/image";
-import { useSearchParams } from "next/navigation";
-import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle, Search } from "lucide-react";
-import { useAuth } from "@/lib/authContext";
-import { getUserOrderChats } from "@/lib/orderChats";
-import { getUserProfile, getOrderById, isAdminUid } from "@/lib/users";
-import { getProductById } from "@/lib/products";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Loader2, X, Ticket } from "lucide-react";
+import { getCaseById, getCaseItemRarity } from "@/lib/cases";
+import { RARITY_COLOR } from "@/lib/rarityColors";
 import { safeImageSrc } from "@/lib/safeImage";
-import { SupportPanel } from "@/components/SupportPanel";
-import { NewsPanel } from "@/components/NewsPanel";
-import { OrderChatThread } from "@/components/OrderChatThread";
-import { DmThread } from "@/components/DmThread";
-import { subscribeUserConversations, conversationId as buildConversationId } from "@/lib/directMessages";
-import { DirectConversation, Order } from "@/types";
-import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
+import { useAuth } from "@/lib/authContext";
+import { useToast } from "@/lib/toastContext";
+import { CaseData, CaseItem, Rarity, RARITY_LABEL } from "@/types";
+import { WheelConfetti } from "@/components/WheelConfetti";
 
-type ChatView =
-  | { kind: "support" }
-  | { kind: "news" }
-  | { kind: "order"; orderId: string; counterpartName: string }
-  | { kind: "dm"; peerUid: string; peerName: string; peerPhoto: string | null };
+const CELL_WIDTH = 96; // px — ширина одной ячейки рулетки, включая отступ
+const STRIP_LENGTH = 40; // сколько ячеек показываем прокруткой
+const TARGET_INDEX = 34; // на каком по счёту месте в ленте стоит реальный выигрыш
+const SPIN_DURATION_MS = 4200;
 
-type ListTab = "all" | "deals" | "personal";
+type WonResult = { item: { id: string; name: string; image: string }; orderId: string };
 
-interface ChatListItem {
-  orderId: string;
-  counterpartName: string;
-  lastMessage: string;
-  updatedAt: number;
-  itemImage: string | null;
-  orderStatus: Order["status"] | null;
+function pickRandomCosmetic(items: CaseItem[]): CaseItem {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
-const AVATAR_COLORS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8", "#f87171"];
+export default function CaseOpenPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user, profile, refreshProfile } = useAuth();
+  const { toast } = useToast();
 
-// Цвет точки-статуса поверх аватара сделки — тот же язык цвета, что и в OrderChatThread
-// (STATUS_LABEL), чтобы по одному взгляду на список было видно, где что горит.
-const STATUS_DOT: Record<Order["status"], string> = {
-  pending_confirmation: "#ff9800",
-  confirmed: "#4caf50",
-  disputed: "#f44336",
-  cancelled: "#6b7280",
-};
-
-function avatarColor(name: string) {
-  const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
-  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("");
-}
-
-function formatWhen(ts: number) {
-  const d = new Date(ts);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return "вчера";
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
-}
-
-function itemClasses(active: boolean) {
-  return `relative w-full flex items-center gap-3 p-2.5 rounded-btn text-left transition-colors ${
-    active ? "bg-gradient-to-r from-accent/10 to-transparent" : "hover:bg-white/[0.04] active:bg-white/[0.06]"
-  }`;
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="px-2.5 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-white/25">{children}</p>;
-}
-
-function ChatsInner() {
-  const params = useSearchParams();
-  const { user } = useAuth();
-  const [view, setView] = useState<ChatView | null>(null);
-  const [items, setItems] = useState<ChatListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<ListTab>("all");
+  const [caseData, setCaseData] = useState<CaseData | null | undefined>(undefined);
+  const [opening, setOpening] = useState(false);
+  const [spinning, setSpinning] = useState(false);
+  const [won, setWon] = useState<WonResult | null>(null);
+  const [strip, setStrip] = useState<CaseItem[]>([]);
+  const [translateX, setTranslateX] = useState(0);
+  const [transitionOn, setTransitionOn] = useState(false);
+  const [landedRarity, setLandedRarity] = useState<Rarity | null>(null);
+  const trackWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (params.get("tab") === "support") setView({ kind: "support" });
-  }, [params]);
+    getCaseById(id).then(setCaseData);
+  }, [id]);
 
-  // Пришли по ссылке "Написать" с профиля продавца (?dm=<uid>&name=<имя>&photo=<url>) — открываем
-  // личную переписку с этим человеком сразу, не дожидаясь клика в списке.
-  useEffect(() => {
-    const dmUid = params.get("dm");
-    if (!dmUid || !user) return;
-    const name = params.get("name") || "Пользователь";
-    const photo = params.get("photo") || null;
-    setView({ kind: "dm", peerUid: dmUid, peerName: name, peerPhoto: photo });
-  }, [params, user]);
+  const totalWeight = caseData ? caseData.items.reduce((s, it) => s + it.weight, 0) : 0;
 
-  useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeUserConversations(user.uid, setDmConversations);
-    return unsub;
-  }, [user]);
+  async function handleOpen() {
+    if (!user) return toast("warning", "Сначала войди в аккаунт");
+    if (!caseData || caseData.items.length === 0) return;
+    if ((profile?.ticketBalance ?? 0) < caseData.priceTickets) return toast("warning", "Недостаточно тикетов");
 
-  // Пришли сразу после покупки/выигрыша с конкретным ?order= — открываем этот чат, как только
-  // список чатов подгрузится (имя собеседника берём уже из готового списка, не запрашиваем отдельно).
-  useEffect(() => {
-    const orderId = params.get("order");
-    if (!orderId || loading) return;
-    const match = items.find((i) => i.orderId === orderId);
-    if (match) setView({ kind: "order", orderId, counterpartName: match.counterpartName });
-  }, [params, items, loading]);
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    getUserOrderChats(user.uid)
-      .then(async (chats) => {
-        const enriched = await Promise.all(
-          chats.map(async (chat) => {
-            const counterpartId = chat.buyerId === user.uid ? chat.sellerId : chat.buyerId;
-            let counterpartName = "Пользователь";
-            if (counterpartId === "store") {
-              counterpartName = "Магазин";
-            } else {
-              try {
-                const p = await getUserProfile(counterpartId);
-                if (p) counterpartName = p.displayName;
-              } catch {
-                // профиль недоступен — оставляем название по умолчанию
-              }
-            }
-            let itemImage: string | null = null;
-            let orderStatus: Order["status"] | null = null;
-            try {
-              const order = await getOrderById(chat.orderId);
-              orderStatus = order?.status ?? null;
-              const productId = order?.items[0]?.productId;
-              if (productId) {
-                const product = await getProductById(productId);
-                itemImage = product?.image ?? null;
-              }
-            } catch {
-              // товар/заказ недоступен — покажем аватар-заглушку вместо фото, без статус-точки
-            }
-            const last = chat.messages[chat.messages.length - 1];
-            return {
-              orderId: chat.orderId,
-              counterpartName,
-              lastMessage: last ? last.text : "Сообщений пока нет",
-              updatedAt: chat.updatedAt,
-              itemImage,
-              orderStatus,
-            } as ChatListItem;
-          })
-        );
-        if (!cancelled) setItems(enriched.sort((a, b) => b.updatedAt - a.updatedAt));
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+    setOpening(true);
+    setLandedRarity(null);
+    try {
+      // Результат честно определяется сервером ДО того, как на экране что-то закрутится —
+      // анимация ниже только откладывает показ уже готового результата ради саспенса, она не
+      // влияет на исход и не может быть "подкручена" на клиенте.
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/cases/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ caseId: id }),
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+      const data = await res.json();
+      if (!res.ok) {
+        toast("error", data.error || "Не удалось открыть кейс");
+        setOpening(false);
+        return;
+      }
+      await refreshProfile();
 
-  const q = search.trim().toLowerCase();
-  const filteredItems = q ? items.filter((i) => (i.counterpartName + " " + i.lastMessage).toLowerCase().includes(q)) : items;
-  const filteredDm = q
-    ? dmConversations.filter((c) => {
-        const peerUid = c.participants.find((p) => p !== user?.uid) ?? "";
-        const peerName = c.participantNames[peerUid] ?? "";
-        return (peerName + " " + c.lastMessage).toLowerCase().includes(q);
-      })
-    : dmConversations;
+      const wonPrizeStub: CaseItem = { id: data.item.id, productId: "", name: data.item.name, image: data.item.image, weight: 0 };
+      const items = caseData.items;
+      const built: CaseItem[] = Array.from({ length: STRIP_LENGTH }, (_, i) => (i === TARGET_INDEX ? wonPrizeStub : pickRandomCosmetic(items)));
+      setStrip(built);
+      setTransitionOn(false);
+      setTranslateX(0);
+      setSpinning(true);
 
-  const showPinned = tab === "all" && !q;
-  const showDeals = tab === "all" || tab === "deals";
-  const showPersonal = tab === "all" || tab === "personal";
+      // Двойной requestAnimationFrame — даём браузеру отрисовать ленту в стартовой позиции
+      // ДО того, как включим CSS-transition, иначе рулетка либо не поедет, либо дёрнется рывком.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const containerWidth = trackWrapRef.current?.clientWidth ?? 0;
+          const jitter = (Math.random() - 0.5) * (CELL_WIDTH * 0.5);
+          const target = TARGET_INDEX * CELL_WIDTH + CELL_WIDTH / 2 - containerWidth / 2 + jitter;
+          setTransitionOn(true);
+          setTranslateX(-target);
+        });
+      });
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-      <h1 className="text-2xl font-bold mb-6 hidden sm:block">Чаты</h1>
-      <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
-      <div className="grid md:grid-cols-[340px_1fr] gap-5">
-        <div className={`card p-2 md:max-h-[75vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
-          {/* Поиск — фильтрует и сделки, и личные сообщения ниже по имени/тексту последнего
-              сообщения. Закреплённые Поддержка/Новости при поиске уходят из виду, чтобы не мешать. */}
-          <label className="flex items-center gap-2 bg-black/20 border border-border rounded-full px-3.5 py-2 mx-1 mt-1 mb-2">
-            <Search size={14} className="text-white/30 shrink-0" />
-            <input
-              autoComplete="off"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по чатам"
-              className="bg-transparent outline-none text-sm placeholder:text-white/30 flex-1 min-w-0"
-            />
-          </label>
+      setTimeout(() => {
+        setSpinning(false);
+        setOpening(false);
+        setWon({ item: data.item, orderId: data.orderId });
+        const originalItem = caseData.items.find((it) => it.id === data.item.id);
+        if (originalItem) setLandedRarity(getCaseItemRarity(originalItem.weight, totalWeight));
+      }, SPIN_DURATION_MS);
+    } catch {
+      toast("error", "Не удалось открыть кейс");
+      setOpening(false);
+    }
+  }
 
-          {/* Табы просто скрывают/показывают группы ниже — своего отдельного состояния данных
-              не заводим, вся логика загрузки чатов остаётся как была. */}
-          <div className="flex items-center gap-1 px-1 mb-2 border-b border-border">
-            {(
-              [
-                ["all", "Все"],
-                ["deals", `Сделки${items.length ? ` (${items.length})` : ""}`],
-                ["personal", "Личные"],
-              ] as [ListTab, string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`relative px-3 py-2 text-sm font-medium transition-colors ${tab === key ? "text-white" : "text-white/40 hover:text-white/70"}`}
-              >
-                {label}
-                {tab === key && <span className="absolute left-2.5 right-2.5 -bottom-px h-0.5 rounded-full bg-accent" />}
-              </button>
-            ))}
-          </div>
-
-          {showPinned && (
-            <>
-              <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
-                {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
-                <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
-                  <LifeBuoy size={19} className="text-accent" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <p className="font-medium text-sm truncate">Поддержка</p>
-                    <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
-                  </div>
-                  <p className="text-xs text-white/40 truncate">Мы поможем с любым вопросом</p>
-                </div>
-              </button>
-
-              <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
-                {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
-                <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
-                  <Megaphone size={19} className="text-accent" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <p className="font-medium text-sm truncate">Velox Trade Новости</p>
-                    <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
-                  </div>
-                  <p className="text-xs text-white/40 truncate">Официальный канал</p>
-                </div>
-              </button>
-
-              <div className="border-t border-border my-2" />
-            </>
-          )}
-
-          {showDeals && (
-            <>
-              {tab === "all" && (items.length > 0 || loading) && <SectionLabel>Сделки</SectionLabel>}
-              {!user ? (
-                <p className="text-xs text-white/30 text-center py-6 px-2">
-                  Войдите в аккаунт, чтобы увидеть чаты по своим сделкам.
-                </p>
-              ) : loading ? (
-                <div className="space-y-2 px-1">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
-                      <div className="w-12 h-12 rounded-full bg-white/5 shrink-0" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-2.5 bg-white/5 rounded w-2/3" />
-                        <div className="h-2 bg-white/5 rounded w-4/5" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : items.length === 0 ? (
-                <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
-              ) : filteredItems.length === 0 ? (
-                <p className="text-xs text-white/30 text-center py-6 px-2">Ничего не найдено.</p>
-              ) : (
-                filteredItems.map((item) => {
-                  const active = view?.kind === "order" && view.orderId === item.orderId;
-                  return (
-                    <button
-                      key={item.orderId}
-                      onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName })}
-                      className={itemClasses(active)}
-                    >
-                      {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
-                      <div className="relative shrink-0">
-                        {item.itemImage ? (
-                          <div className="relative w-12 h-12 rounded-btn overflow-hidden bg-black/30">
-                            <Image src={safeImageSrc(item.itemImage)} alt="" fill className="object-cover" sizes="48px" />
-                          </div>
-                        ) : (
-                          <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-semibold"
-                            style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
-                          >
-                            {initials(item.counterpartName) || "?"}
-                          </div>
-                        )}
-                        {item.orderStatus && (
-                          <span
-                            className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-surface"
-                            style={{ background: STATUS_DOT[item.orderStatus] }}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-sm truncate">{item.counterpartName}</p>
-                          <span className="text-[10px] text-white/30 shrink-0">{formatWhen(item.updatedAt)}</span>
-                        </div>
-                        <p className={`text-xs truncate ${item.orderStatus === "disputed" ? "text-red-400/80" : "text-white/40"}`}>
-                          {item.lastMessage}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </>
-          )}
-
-          {showPersonal && user && dmConversations.length > 0 && (
-            <>
-              {tab === "all" && <div className="border-t border-border my-2" />}
-              <SectionLabel>Личные</SectionLabel>
-              {tab === "personal" && (
-                <p className="px-2.5 pb-2 text-[11px] text-white/25">
-                  Сюда попадают только сообщения от администрации — пользователи не могут писать друг другу напрямую, только в чатах по сделкам.
-                </p>
-              )}
-              {filteredDm.length === 0 ? (
-                <p className="text-xs text-white/30 text-center py-6 px-2">Ничего не найдено.</p>
-              ) : (
-                filteredDm.map((conv) => {
-                  const peerUid = conv.participants.find((p) => p !== user.uid)!;
-                  const peerName = conv.participantNames[peerUid] ?? "Пользователь";
-                  const peerPhoto = conv.participantPhotos[peerUid] ?? null;
-                  const active = view?.kind === "dm" && view.peerUid === peerUid;
-                  return (
-                    <button key={conv.id} onClick={() => setView({ kind: "dm", peerUid, peerName, peerPhoto })} className={itemClasses(active)}>
-                      {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />}
-                      <div
-                        className="relative w-12 h-12 rounded-full overflow-hidden bg-black/30 shrink-0 flex items-center justify-center text-xs font-semibold"
-                        style={!peerPhoto ? { background: `${avatarColor(peerName)}22`, color: avatarColor(peerName) } : undefined}
-                      >
-                        {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
-                        {isAdminUid(peerUid) && (
-                          <span className="absolute -bottom-1 -right-1 text-[8px] font-bold px-1 py-0.5 rounded-full text-black bg-accent">
-                            ADM
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-sm truncate">{peerName}</p>
-                          <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
-                        </div>
-                        <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </>
-          )}
-
-          {showPersonal && tab === "personal" && user && dmConversations.length === 0 && (
-            <p className="text-xs text-white/30 text-center py-6 px-2">
-              Личных сообщений пока нет — сюда попадают только сообщения от администрации.
-            </p>
-          )}
-        </div>
-
-        {/* На мобильных открытый чат — отдельный полноэкранный слой (как в мессенджерах), а не
-           card с ограниченной высотой; на десктопе — обычная правая колонка макета.
-           z-[60] — специально ВЫШЕ, чем z-40 у MobileTabBar (см. components/MobileTabBar.tsx):
-           раньше был тот же z-40, и при равном z-index шторка (рендерится позже в layout.tsx)
-           перекрывала низ экрана чата, включая поле ввода — из-за этого не получалось писать
-           в чатах на телефонах. Теперь чат полностью накрывает шторку, пока открыт. */}
-        <div
-          className={`card md:p-5 flex flex-col ${
-            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-[60] md:static md:z-auto rounded-none md:rounded-card md:h-[75vh]"
-          }`}
-        >
-          {!view ? (
-            <div className="text-center text-white/30 py-24 m-auto">
-              <MessageCircle className="mx-auto mb-2" size={28} />
-              Выберите чат слева
-            </div>
-          ) : (
-            <>
-              <button
-                onClick={() => setView(null)}
-                className="md:hidden flex items-center gap-2 text-sm text-white/60 hover:text-white px-4 py-3.5 border-b border-border shrink-0 sticky top-0 bg-bg z-10"
-                style={{ paddingTop: "calc(0.875rem + env(safe-area-inset-top))" }}
-              >
-                <ChevronLeft size={18} /> Ко всем чатам
-              </button>
-              <div className="flex-1 min-h-0 flex flex-col p-4 md:p-0 overflow-hidden">
-                {view.kind === "support" && <SupportPanel />}
-                {view.kind === "news" && <NewsPanel />}
-                {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} />}
-                {view.kind === "dm" && user && (
-                  <DmThread
-                    conversationId={buildConversationId(user.uid, view.peerUid)}
-                    peerUid={view.peerUid}
-                    peerName={view.peerName}
-                    peerPhoto={view.peerPhoto}
-                  />
-                )}
-              </div>
-            </>
-          )}
-        </div>
+  if (caseData === undefined) {
+    return <div className="max-w-2xl mx-auto px-4 py-10 text-center text-white/40">Загрузка...</div>;
+  }
+  if (caseData === null) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-10 text-center">
+        <p className="text-white/40 mb-4">Кейс не найден.</p>
+        <Link href="/case" className="btn-secondary px-4 py-2 inline-flex items-center gap-2">
+          <ArrowLeft size={16} /> Ко всем кейсам
+        </Link>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-export default function ChatsPage() {
+  const canAfford = (profile?.ticketBalance ?? 0) >= caseData.priceTickets;
+  const sortedItems = [...caseData.items].sort((a, b) => a.weight - b.weight); // редкие (маленький вес) — первыми
+
   return (
-    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>}>
-      <ChatsInner />
-    </Suspense>
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <Link href="/case" className="text-sm text-white/40 hover:text-white flex items-center gap-1.5 mb-4">
+        <ArrowLeft size={14} /> Ко всем кейсам
+      </Link>
+
+      <div className="card p-6 text-center mb-6 relative overflow-hidden">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(circle at 50% 20%, rgba(255,152,0,0.12), transparent 60%)" }}
+        />
+        <div className="relative w-28 h-28 mx-auto mb-3">
+          <div className="absolute inset-0 rounded-full blur-2xl opacity-50" style={{ background: "var(--color-accent)" }} />
+          <img src={safeImageSrc(caseData.image)} alt={caseData.name} className="relative w-full h-full rounded-btn object-cover" />
+        </div>
+        <h1 className="text-xl font-bold mb-1 relative">{caseData.name}</h1>
+        <p className="text-accent font-bold text-lg mb-4 relative flex items-center justify-center gap-1.5">
+          {caseData.priceTickets} <Ticket size={18} />
+        </p>
+
+        {spinning && (
+          <div ref={trackWrapRef} className="relative h-24 overflow-hidden rounded-btn bg-black/30 mb-4">
+            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-accent z-10 -translate-x-1/2 shadow-[0_0_12px_var(--color-accent)]" />
+            <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-black/70 to-transparent z-10" />
+            <div className="absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-black/70 to-transparent z-10" />
+            <div
+              className="flex h-full items-center"
+              style={{
+                transform: `translateX(${translateX}px)`,
+                transition: transitionOn ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.1, 0, 0.15, 1)` : "none",
+              }}
+            >
+              {strip.map((it, i) => {
+                const original = caseData.items.find((ci) => ci.id === it.id);
+                const rarity = original ? getCaseItemRarity(original.weight, totalWeight) : "legendary";
+                return (
+                  <div key={i} className="shrink-0 flex flex-col items-center justify-center" style={{ width: CELL_WIDTH }}>
+                    <div className="w-14 h-14 rounded-btn overflow-hidden bg-black/30" style={{ boxShadow: `0 2px 0 0 ${RARITY_COLOR[rarity]}` }}>
+                      <img src={safeImageSrc(it.image)} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={handleOpen}
+          disabled={opening || caseData.items.length === 0 || !user || !canAfford}
+          className="relative btn-primary px-8 py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
+        >
+          {opening ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> {spinning ? "Крутим..." : "Открываем..."}
+            </>
+          ) : !user ? (
+            "Войди, чтобы открыть"
+          ) : !canAfford ? (
+            "Недостаточно тикетов"
+          ) : (
+            <>Открыть за {caseData.priceTickets} 🎫</>
+          )}
+        </button>
+        {user && (
+          <p className="text-xs text-white/30 mt-2 relative">
+            Баланс: {(profile?.ticketBalance ?? 0).toFixed(0)} 🎫 ·{" "}
+            <Link href="/profile/tickets" className="underline hover:text-white/50">
+              получить ещё
+            </Link>
+          </p>
+        )}
+      </div>
+
+      <p className="text-sm font-medium mb-2">Что можно выбить</p>
+      {caseData.items.length === 0 ? (
+        <p className="text-sm text-white/30">Призы ещё не добавлены.</p>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {sortedItems.map((it) => {
+            const rarity = getCaseItemRarity(it.weight, totalWeight);
+            return (
+              <div key={it.id} className="card p-3 text-center" style={{ borderTop: `2px solid ${RARITY_COLOR[rarity]}` }}>
+                <img src={safeImageSrc(it.image)} alt={it.name} className="w-14 h-14 rounded-btn object-cover bg-black/30 mx-auto mb-2" />
+                <p className="text-xs font-medium truncate">{it.name}</p>
+                <p className="text-[11px] font-medium" style={{ color: RARITY_COLOR[rarity] }}>
+                  {RARITY_LABEL[rarity]}
+                </p>
+                <p className="text-[10px] text-white/30">~{totalWeight > 0 ? ((it.weight / totalWeight) * 100).toFixed(1) : "0"}%</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {won && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setWon(null)}>
+          <div className="card p-6 max-w-xs w-full text-center relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {landedRarity && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: `radial-gradient(circle at 50% 30%, ${RARITY_COLOR[landedRarity]}33, transparent 65%)` }}
+              />
+            )}
+            <WheelConfetti key={won.item.id} />
+            <button onClick={() => setWon(null)} className="absolute top-3 right-3 text-white/40 hover:text-white z-10">
+              <X size={18} />
+            </button>
+            <p className="text-sm text-white/40 mb-3 relative">Тебе выпало:</p>
+            <img src={safeImageSrc(won.item.image)} alt={won.item.name} className="w-28 h-28 rounded-btn object-cover bg-black/30 mx-auto mb-3 relative" />
+            <p className="font-bold mb-1 relative">{won.item.name}</p>
+            {landedRarity && (
+              <p className="text-sm font-semibold mb-4 relative" style={{ color: RARITY_COLOR[landedRarity] }}>
+                {RARITY_LABEL[landedRarity]}
+              </p>
+            )}
+            <p className="text-xs text-white/40 mb-4 relative">Заказ оформлен — заберёшь в «Мои заказы», как обычную покупку.</p>
+            <div className="flex gap-2 relative">
+              <Link href="/profile/orders" className="btn-secondary flex-1 py-2.5 text-sm">
+                Мои заказы
+              </Link>
+              <button
+                onClick={() => {
+                  setWon(null);
+                  handleOpen();
+                }}
+                disabled={!canAfford}
+                className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-40"
+              >
+                Открыть ещё
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
