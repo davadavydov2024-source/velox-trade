@@ -9,6 +9,7 @@ import {
 } from "@/lib/productEditRequests";
 import { ProductEditRequest, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
 
 export default function AdminProductEditsPage() {
   const { toast } = useToast();
@@ -62,7 +63,9 @@ export default function AdminProductEditsPage() {
         <div className="space-y-3">
           {pending.map((r) => (
             <div key={r.id} className="card p-4">
-              <p className="text-sm text-white/40 mb-2">Правки для «{r.productName}» (название и фото без изменений)</p>
+              <p className="text-sm text-white/40 mb-2 flex items-center gap-2 flex-wrap">
+                Правки для «{r.productName}» (название и фото без изменений) <AdminUserLinkButton uid={r.sellerId} label="Продавец" />
+              </p>
               <div className="grid sm:grid-cols-2 gap-3 text-sm mb-3">
                 <div>
                   <p className="text-white/40 text-xs mb-0.5">Новая цена</p>

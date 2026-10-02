@@ -7,6 +7,7 @@ import { cancelAllPendingPayments } from "@/lib/payments";
 import { notifyTelegram } from "@/lib/telegramNotify";
 import { TopUpRequest } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
 
 export default function AdminTopUpsPage() {
   const [requests, setRequests] = useState<TopUpRequest[]>([]);
@@ -106,6 +107,7 @@ export default function AdminTopUpsPage() {
                     </p>
                   )}
                   {r.comment && <p className="text-xs text-white/50 mt-0.5">Комментарий: {r.comment}</p>}
+                  <AdminUserLinkButton uid={r.userId} />
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleApprove(r)} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">

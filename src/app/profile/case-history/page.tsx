@@ -34,29 +34,18 @@ export default function CaseHistoryPage() {
         <div className="card p-10 text-center text-white/40">Ты ещё не открывал(а) кейсы.</div>
       ) : (
         <div className="space-y-2">
-          {openings.map((o) => {
-            const profit = o.wonValue - o.pricePaid;
-            return (
-              <div key={o.id} className="card p-3 flex items-center gap-3">
-                <img src={safeImageSrc(o.wonItemImage)} alt={o.wonItemName} className="w-11 h-11 rounded-btn object-cover bg-black/30 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{o.wonItemName}</p>
-                  <p className="text-xs text-white/40">
-                    Кейс «{o.caseName}» · {new Date(o.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className={`text-sm font-semibold ${profit >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {profit >= 0 ? "+" : ""}
-                    {profit.toFixed(2)} ₽
-                  </p>
-                  <p className="text-[11px] text-white/30">
-                    выигрыш {o.wonValue} ₽ · цена {o.pricePaid} ₽
-                  </p>
-                </div>
+          {openings.map((o) => (
+            <Link key={o.id} href="/profile/orders" className="card p-3 flex items-center gap-3 hover:bg-white/[0.03] transition-colors">
+              <img src={safeImageSrc(o.wonItemImage)} alt={o.wonItemName} className="w-11 h-11 rounded-btn object-cover bg-black/30 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{o.wonItemName}</p>
+                <p className="text-xs text-white/40">
+                  Кейс «{o.caseName}» · {new Date(o.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </p>
               </div>
-            );
-          })}
+              <p className="text-xs text-white/30 shrink-0">−{o.pricePaidTickets} 🎫</p>
+            </Link>
+          ))}
         </div>
       )}
     </div>

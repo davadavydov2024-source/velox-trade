@@ -5,6 +5,7 @@ import { Search, AlertTriangle, Copy } from "lucide-react";
 import { getRegistrationLog, getAllUsers } from "@/lib/users";
 import { UserProfile } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
 
 interface LogEntry {
   uid: string;
@@ -128,6 +129,7 @@ export default function AdminRegistrationsPage() {
                     </span>
                   )}
                   <span className="text-white/30 whitespace-nowrap">{new Date(e.createdAt).toLocaleString("ru")}</span>
+                  <AdminUserLinkButton uid={e.uid} />
                 </div>
               </div>
             );

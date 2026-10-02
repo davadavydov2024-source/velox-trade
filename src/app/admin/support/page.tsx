@@ -5,6 +5,7 @@ import { MessageSquare, Send, CheckCircle2 } from "lucide-react";
 import { getAllTickets, addTicketMessage, setTicketStatus } from "@/lib/tickets";
 import { SupportTicket } from "@/types";
 import { useToast } from "@/lib/toastContext";
+import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
 
 const STATUS_LABEL: Record<SupportTicket["status"], { text: string; color: string }> = {
   open: { text: "Ожидает ответа", color: "#ff9800" },
@@ -118,7 +119,9 @@ export default function AdminSupportPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="font-bold">{active.subject}</p>
-                  <p className="text-xs text-white/40">{active.userName} · {active.userEmail}</p>
+                  <p className="text-xs text-white/40 flex items-center gap-2 flex-wrap">
+                    {active.userName} · {active.userEmail} <AdminUserLinkButton uid={active.userId} />
+                  </p>
                 </div>
                 {active.status !== "closed" && (
                   <button onClick={() => handleClose(active.id)} className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5">

@@ -320,3 +320,10 @@ export function isAdminUid(uid: string | null | undefined): boolean {
   const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   return list.includes(uid);
 }
+
+/** Первый uid из списка админов — используется как адресат ЛС там, где нужно открыть переписку
+ * "с администрацией" (сделки по тикетам, см. lib/ticketRequests.ts), не выбирая конкретного. */
+export function getPrimaryAdminUid(): string | null {
+  const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return list[0] ?? null;
+}

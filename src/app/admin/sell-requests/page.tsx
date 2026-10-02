@@ -7,6 +7,7 @@ import { getAllSellRequests, setSellRequestStatus, approveSellRequest } from "@/
 import { SellRequest, RARITY_LABEL } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
+import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
 
 // Старые заявки (поданные до обновления формы) могли не иметь gameName/imageUrl/commissionPercent —
 // эти геттеры аккуратно показывают то, что есть, вместо NaN/пустоты.
@@ -82,7 +83,9 @@ export default function AdminSellRequestsPage() {
                       </p>
                       <p className="text-xs text-white/30 shrink-0">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>
                     </div>
-                    <p className="text-sm text-white/60 mb-1">От: {r.userNick}</p>
+                    <p className="text-sm text-white/60 mb-1 flex items-center gap-2 flex-wrap">
+                      От: {r.userNick} <AdminUserLinkButton uid={r.userId} />
+                    </p>
                     {r.discountPercent ? (
                       <p className="text-sm text-white/60 mb-1">
                         Цена: <span className="line-through text-white/30">{r.price} ₽</span>{" "}

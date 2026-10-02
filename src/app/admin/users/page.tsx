@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Ban, CheckCircle, Edit3, Tag, X, PowerOff, Palette, MessageCircle } from "lucide-react";
 import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole, adminUpdateNickname } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL } from "@/types";
@@ -27,7 +27,7 @@ const ALL_BADGES: UserBadge[] = [
   "checkmark_grey",
 ];
 
-export default function AdminUsersPage() {
+function AdminUsersInner() {
   const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState("");
@@ -40,6 +40,18 @@ export default function AdminUsersPage() {
   const [savingNick, setSavingNick] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Переход по кнопке "Профиль" из других разделов админки (поддержка, жалобы, заявки и т.п.) —
+  // см. AdminUserLinkButton. Ищем сразу по точному uid (а не подстрокой по имени), чтобы найти
+  // человека, даже если он потом сменил ник, и подсвечиваем его строку в таблице.
+  const highlightUid = searchParams.get("uid");
+  const highlightRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    if (highlightUid && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightUid, loading]);
 
   useEffect(() => {
     getAllUsers()
@@ -47,11 +59,13 @@ export default function AdminUsersPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = users.filter(
-    (u) =>
-      u.displayName.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = highlightUid
+    ? users.filter((u) => u.uid === highlightUid)
+    : users.filter(
+        (u) =>
+          u.displayName.toLowerCase().includes(search.toLowerCase()) ||
+          u.email.toLowerCase().includes(search.toLowerCase())
+      );
 
   async function handleEditBalance(u: UserProfile) {
     const input = prompt(`Новый баланс для ${u.displayName} (текущий: ${u.balance})`, u.balance.toString());
@@ -184,6 +198,15 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
+      {highlightUid && (
+        <div className="flex items-center justify-between p-3 rounded-btn bg-accent/10 border border-accent/20 text-sm">
+          <span className="text-white/60">Показан конкретный пользователь по ссылке из другого раздела</span>
+          <button onClick={() => router.push("/admin/users")} className="text-accent hover:underline flex items-center gap-1">
+            <X size={13} /> Показать всех
+          </button>
+        </div>
+      )}
+
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -214,7 +237,11 @@ export default function AdminUsersPage() {
               </tr>
             ) : (
               filtered.map((u) => (
-                <tr key={u.uid} className="border-b border-border/50 hover:bg-white/[0.02]">
+                <tr
+                  key={u.uid}
+                  ref={u.uid === highlightUid ? highlightRef : undefined}
+                  className={`border-b border-border/50 hover:bg-white/[0.02] ${u.uid === highlightUid ? "bg-accent/[0.06] ring-1 ring-inset ring-accent/30" : ""}`}
+                >
                   <td className="p-3 font-medium">
                     <span className="inline-flex items-center gap-1.5">
                       <span
@@ -434,5 +461,13 @@ export default function AdminUsersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-white/40">Загрузка...</div>}>
+      <AdminUsersInner />
+    </Suspense>
   );
 }

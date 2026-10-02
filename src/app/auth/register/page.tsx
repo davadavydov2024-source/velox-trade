@@ -41,7 +41,7 @@ function translateAuthError(code?: string) {
 // 0 — язык + способ регистрации; 1..4 — только для способа "пароль" (имя → email → возраст →
 // пароль); путь "телеграм" со своего step 1 показывает одну форму (имя+email+возраст) и дальше сам
 // управляет внутренними состояниями (ссылка на бота / ожидание / подтверждено).
-type Step = 0 | 1 | 2 | 3 | 4;
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 const MIN_AGE = 6;
 const MAX_AGE = 120;
 
@@ -72,7 +72,7 @@ function RegisterInner() {
 
   function goNext() {
     setDir(1);
-    setStep((s) => Math.min(4, s + 1) as Step);
+    setStep((s) => Math.min(5, s + 1) as Step);
   }
   function goBack() {
     setDir(-1);
@@ -86,6 +86,12 @@ function RegisterInner() {
   const [password, setPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // --- обязательное подтверждение через Telegram-бота (шаг 5 пути "пароль") ---
+  const [tgvToken, setTgvToken] = useState<string | null>(null);
+  const [tgvUrl, setTgvUrl] = useState<string | null>(null);
+  const [tgvSent, setTgvSent] = useState(false);
+  const [tgvCode, setTgvCode] = useState("");
 
   // --- регистрация через Telegram ---
   const [tgName, setTgName] = useState("");
@@ -102,6 +108,22 @@ function RegisterInner() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Ждём, пока человек откроет бота и нажмёт Start — как только бот отправил код в Telegram,
+  // показываем поле для его ввода.
+  useEffect(() => {
+    if (step !== 5 || !tgvToken || tgvSent) return;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/auth/tg-verify/status?token=${tgvToken}`);
+        const data = await res.json();
+        if (data.sent) setTgvSent(true);
+      } catch {
+        // сеть моргнула — попробуем на следующем тике
+      }
+    }, 2500);
+    return () => clearInterval(id);
+  }, [step, tgvToken, tgvSent]);
 
   function handleNameNext(e: React.FormEvent) {
     e.preventDefault();
@@ -131,6 +153,7 @@ function RegisterInner() {
     goNext();
   }
 
+  // Шаг 4 -> 5: пароль принят, запускаем обязательное подтверждение через Telegram-бота.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password.length < 6) {
@@ -139,7 +162,60 @@ function RegisterInner() {
     }
     setLoading(true);
     try {
+      const res = await fetch("/api/auth/tg-verify/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast("error", data.error || "Не удалось начать подтверждение");
+        return;
+      }
+      setTgvToken(data.token);
+      setTgvUrl(data.botUrl);
+      setTgvSent(false);
+      setTgvCode("");
+      goNext();
+    } catch {
+      toast("error", "Не удалось начать подтверждение");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Шаг 5: код из Telegram введён — проверяем, создаём аккаунт и привязываем этот же Telegram.
+  async function handleConfirmTelegramCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tgvToken) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/tg-verify/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: tgvToken, code: tgvCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast("error", data.error || "Не удалось проверить код");
+        return;
+      }
+
       await register(email, password, name, language, Number(age));
+
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (idToken) {
+          const fin = await fetch("/api/auth/tg-verify/finalize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+            body: JSON.stringify({ token: tgvToken }),
+          });
+          if (!fin.ok) toast("warning", "Аккаунт создан, но Telegram привязать не удалось — сделай это в профиле → «Безопасность»");
+        }
+      } catch {
+        toast("warning", "Аккаунт создан, но Telegram привязать не удалось — сделай это в профиле → «Безопасность»");
+      }
 
       if (refCode) {
         try {
@@ -155,7 +231,7 @@ function RegisterInner() {
           // Реферальный бонус не критичен для регистрации — молча игнорируем ошибку.
         }
       }
-      toast("success", "Аккаунт создан! Письмо для подтверждения email отправлено.");
+      toast("success", "Аккаунт создан, Telegram подключён!");
       celebrate("register");
       router.push("/profile");
     } catch (err: any) {
@@ -228,7 +304,7 @@ function RegisterInner() {
   }
 
   const usesSteps = mode === "password" && flags.registrationEnabled;
-  const totalSteps = 5; // 0..4 — только для пути "пароль"; для телеграма степпер не показываем
+  const totalSteps = 6; // 0..5 — только для пути "пароль"; для телеграма степпер не показываем
   const animClass = dir === 1 ? "auth-step-forward" : "auth-step-back";
 
   return (
@@ -437,9 +513,54 @@ function RegisterInner() {
                   disabled={loading || !agreed}
                   className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
                 >
-                  {loading ? t("auth_submit_creating") : t("auth_submit_register")}
+                  {loading ? "Готовим Telegram..." : "Далее — подтвердить в Telegram"}
                 </button>
               </form>
+            )}
+
+            {step === 5 && mode === "password" && (
+              <div className="space-y-4 text-center">
+                <MessageCircle size={28} className="mx-auto text-accent" />
+                <p className="text-sm text-white/60">
+                  Последний шаг — подтверди регистрацию через Telegram-бота. Код придёт туда, а не на почту.
+                </p>
+                {tgvUrl && (
+                  <a
+                    href={tgvUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary px-6 py-3 text-sm inline-flex items-center gap-2 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
+                  >
+                    Открыть Telegram-бота <ExternalLink size={14} />
+                  </a>
+                )}
+                {!tgvSent ? (
+                  <div className="flex items-center justify-center gap-2 text-xs text-white/40 pt-1">
+                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Нажми «Start» в боте — ждём...
+                  </div>
+                ) : (
+                  <form onSubmit={handleConfirmTelegramCode} className="space-y-3 text-left">
+                    <p className="text-xs text-green-400 text-center">Код отправлен в Telegram — введи его ниже</p>
+                    <input
+                      autoFocus
+                      required
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={tgvCode}
+                      onChange={(e) => setTgvCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="6-значный код"
+                      className="input-field text-center text-lg tracking-[6px] focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    />
+                    <button
+                      disabled={loading || tgvCode.length !== 6}
+                      className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
+                    >
+                      {loading ? t("auth_submit_creating") : t("auth_submit_register")}
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
 
             {step >= 1 && mode === "telegram" && (

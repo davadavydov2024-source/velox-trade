@@ -7,6 +7,7 @@ import { getAllDisputes, resolveDispute } from "@/lib/disputes";
 import { Dispute } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { OrderChatThread } from "@/components/OrderChatThread";
+import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
 
 export default function AdminDisputesPage() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -61,6 +62,10 @@ export default function AdminDisputesPage() {
                     Заказ #{d.orderId.slice(0, 8)} — от {d.buyerName}
                   </p>
                   <p className="text-xs text-white/30">{new Date(d.createdAt).toLocaleString("ru-RU")}</p>
+                </div>
+                <div className="flex items-center gap-3 mb-1">
+                  <AdminUserLinkButton uid={d.buyerId} label="Покупатель" />
+                  <AdminUserLinkButton uid={d.sellerId} label="Продавец" />
                 </div>
                 <p className="text-sm text-white/60 mb-3">{d.reason}</p>
                 <div className="flex gap-2">

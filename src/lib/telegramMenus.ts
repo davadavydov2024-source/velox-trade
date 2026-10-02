@@ -1,15 +1,21 @@
 import { InlineButton } from "./telegramBot";
 
 const SITE_NAME = "Velox Trade";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://velox-trade-zeta.vercel.app";
 const CHANNEL_URL = process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL;
 
 export function mainMenuText(firstName: string, username: string | null): string {
   const uname = username ? `@${username}` : "без юзернейма";
-  return `Приветствуем ${firstName} (${uname}) в ${SITE_NAME}! Выберите действие, что вам нужно:`;
+  return (
+    `👋 Привет, ${firstName} (${uname})!\n\n` +
+    `Это бот ${SITE_NAME} — отсюда удобно следить за балансом, заказами и получать уведомления, ` +
+    `не заходя каждый раз на сайт. А сам каталог, кейсы и покупки — на сайте, кнопка ниже 👇`
+  );
 }
 
 export function mainMenuButtons(isAdmin: boolean = false): InlineButton[][] {
   const rows: InlineButton[][] = [
+    [{ text: "🌐 Перейти на сайт", url: SITE_URL }],
     [
       { text: "💰 Баланс", callback_data: "cmd_balance" },
       { text: "📦 Мои заказы", callback_data: "cmd_orders" },

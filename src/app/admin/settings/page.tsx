@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { RotateCcw, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { RotateCcw, Save, Send } from "lucide-react";
 import { useTheme } from "@/lib/themeContext";
 import { useToast } from "@/lib/toastContext";
 import { DEFAULT_SITE_SETTINGS } from "@/types";
+import { getTelegramBotSettings, saveTelegramWelcomeImage } from "@/lib/telegramBotSettings";
+import { ImageUploadField } from "@/components/ImageUploadField";
 
 const PRESET_COLORS = ["#ff9800", "#f44336", "#9c27b0", "#2196f3", "#4caf50", "#e91e63", "#00bcd4"];
 
@@ -13,6 +15,24 @@ export default function AdminSettingsPage() {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [siteName, setSiteName] = useState(settings.siteName);
+  const [welcomeImage, setWelcomeImage] = useState("");
+  const [savingBotPhoto, setSavingBotPhoto] = useState(false);
+
+  useEffect(() => {
+    getTelegramBotSettings().then((s) => setWelcomeImage(s.welcomeImage));
+  }, []);
+
+  async function handleSaveBotPhoto() {
+    setSavingBotPhoto(true);
+    try {
+      await saveTelegramWelcomeImage(welcomeImage);
+      toast("success", welcomeImage ? "Фото приветствия бота сохранено" : "Фото убрано — бот снова шлёт /start обычным текстом");
+    } catch {
+      toast("error", "Не удалось сохранить");
+    } finally {
+      setSavingBotPhoto(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -130,6 +150,22 @@ export default function AdminSettingsPage() {
           </div>
           <p className="text-xs text-white/30 mt-1.5">Рекомендуем оставлять тёмным — сайт спроектирован под тёмную тему.</p>
         </div>
+      </div>
+
+      <div className="card p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Фото приветствия в Telegram-боте</p>
+            <p className="text-xs text-white/40 mt-0.5">
+              Если задано — команда /start у бота приходит картинкой с подписью вместо обычного текста. Оставь пустым,
+              чтобы вернуть обычный текст.
+            </p>
+          </div>
+          <button onClick={handleSaveBotPhoto} disabled={savingBotPhoto} className="btn-primary px-4 py-2 text-sm flex items-center gap-2 shrink-0 disabled:opacity-50">
+            <Send size={14} /> {savingBotPhoto ? "Сохраняем..." : "Сохранить"}
+          </button>
+        </div>
+        <ImageUploadField value={welcomeImage} onChange={setWelcomeImage} folder="broadcasts" label="Баннер (рекомендуем широкий, например 1280×640)" />
       </div>
 
       <div className="card p-5">

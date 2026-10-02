@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import {
   sendTelegramMessage,
+  sendTelegramPhoto,
   editTelegramMessage,
   answerCallbackQuery,
   answerPreCheckoutQuery,
@@ -78,6 +79,25 @@ function isAdminChat(chatId: number): boolean {
   return ADMIN_CHAT_ID !== null && chatId === ADMIN_CHAT_ID;
 }
 
+/**
+ * Показывает главное меню — фото с подписью, если админ загрузил баннер в /admin/settings
+ * (settings/telegramBot → welcomeImage), иначе обычным текстом, как раньше. Используется на
+ * /start и при возврате в главное меню из нераспознанного сообщения.
+ */
+async function sendMainMenu(chatId: number, firstName: string, username: string | null) {
+  const text = mainMenuText(firstName, username);
+  const buttons = mainMenuButtons(isAdminChat(chatId));
+  const settingsSnap = await adminDb().collection("settings").doc("telegramBot").get();
+  const welcomeImage = (settingsSnap.data() as { welcomeImage?: string } | undefined)?.welcomeImage;
+  if (welcomeImage) {
+    const sent = await sendTelegramPhoto(chatId, welcomeImage, text, buttons);
+    if (sent) return;
+    // Если Telegram не принял картинку (битая ссылка, слишком большой файл и т.п.) — не оставляем
+    // человека без меню вообще, просто падаем обратно на текст.
+  }
+  await sendTelegramMessage(chatId, text, buttons);
+}
+
 async function forwardToAdmin(kind: ForwardKind, chatId: number, firstName: string, userTag: string, text: string) {
   if (!ADMIN_CHAT_ID) return;
   const body = `${KIND_ICON[kind]} ${KIND_LABEL[kind]} от ${firstName} (${userTag}):\n\n${text}\n\n↩️ Чтобы ответить человеку — сделай Reply прямо на это сообщение.`;
@@ -89,6 +109,28 @@ async function forwardToAdmin(kind: ForwardKind, chatId: number, firstName: stri
 
 async function handleAccountLinking(code: string, chatId: number, telegramUsername: string | null): Promise<boolean> {
   const db = adminDb();
+
+  // Подтверждение регистрации по паролю через бота (см. api/auth/tg-verify/*): человек открыл
+  // ссылку start=verify_<token> — запоминаем его chatId в заявке и присылаем 6-значный код сюда,
+  // в Telegram (раньше код уходил на почту). Дальше он вводит его на странице регистрации.
+  if (code.startsWith("verify_")) {
+    const verifyRef = db.collection("tgVerifyRequests").doc(code.slice("verify_".length));
+    const verifySnap = await verifyRef.get();
+    if (!verifySnap.exists) {
+      await sendTelegramMessage(chatId, "Эта ссылка уже не действует. Вернись на сайт и начни регистрацию заново.");
+      return true;
+    }
+    const v = verifySnap.data() as { code: string; createdAt: number; status: string };
+    if (Date.now() - v.createdAt > 10 * 60 * 1000) {
+      await sendTelegramMessage(chatId, "Ссылка устарела (прошло больше 10 минут). Вернись на сайт и начни регистрацию заново.");
+      return true;
+    }
+    if (v.status !== "verified") {
+      await verifyRef.update({ status: "sent", chatId, telegramUsername });
+    }
+    await sendTelegramMessage(chatId, `Твой код подтверждения регистрации на ${SITE_NAME}: ${v.code}\n\nВведи его на сайте. Код действует 10 минут. Если ты не регистрировался(-ась) — просто проигнорируй это сообщение.`);
+    return true;
+  }
 
   const linkReqRef = db.collection("telegramLinkRequests").doc(code);
   const linkReqSnap = await linkReqRef.get();
@@ -116,27 +158,18 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
       const existing = await auth.getUserByEmail(email);
       uid = existing.uid;
     } catch {
-      // Та же проверка, что и для обычной регистрации по паролю (см. /api/auth/email-code/*) —
-      // почта должна быть подтверждена кодом до того, как аккаунт реально создастся.
-      const codeRef = db.collection("emailVerificationCodes").doc(email);
-      const codeSnap = await codeRef.get();
-      const codeData = codeSnap.exists ? (codeSnap.data() as { verified?: boolean; verifiedAt?: number }) : null;
-      const isEmailVerified = !!codeData?.verified && !!codeData.verifiedAt && Date.now() - codeData.verifiedAt < 30 * 60 * 1000;
-      if (!isEmailVerified) {
-        await sendTelegramMessage(chatId, "Почта не подтверждена кодом — вернись на сайт, подтверди email и попробуй снова.");
-        return true;
-      }
-
-      const created = await auth.createUser({ email, displayName, emailVerified: true });
+      // Владение аккаунтом здесь уже подтверждено самим фактом открытия бота (Telegram — и есть
+      // подтверждение), поэтому отдельный код на почту не требуем — почта у нас не настроена, и
+      // именно из-за него регистрация падала. Почту при этом честно НЕ считаем подтверждённой.
+      const created = await auth.createUser({ email, displayName, emailVerified: false });
       uid = created.uid;
-      await codeRef.delete();
       await db.collection("users").doc(uid).set({
         email,
         displayName,
         photoURL: null,
         balance: 0,
         badges: ["user"],
-        emailVerified: true,
+        emailVerified: false,
         banned: false,
         createdAt: Date.now(),
         lastLoginAt: Date.now(),
@@ -403,7 +436,7 @@ export async function POST(req: NextRequest) {
       const handled = code ? await handleAccountLinking(code, chatId, telegramUsername) : false;
       if (!handled) {
         await setBotState(chatId, null);
-        await sendTelegramMessage(chatId, mainMenuText(firstName, telegramUsername), mainMenuButtons(isAdminChat(chatId)));
+        await sendMainMenu(chatId, firstName, telegramUsername);
       }
       return NextResponse.json({ ok: true });
     }
@@ -471,7 +504,7 @@ export async function POST(req: NextRequest) {
       await sendTelegramMessage(chatId, "Заявка на сотрудничество отправлена. Ожидай ответа администратора.", backOnlyButtons("menu_back"));
       await setBotState(chatId, null);
     } else {
-      await sendTelegramMessage(chatId, mainMenuText(firstName, telegramUsername), mainMenuButtons(isAdminChat(chatId)));
+      await sendMainMenu(chatId, firstName, telegramUsername);
     }
 
     return NextResponse.json({ ok: true });
