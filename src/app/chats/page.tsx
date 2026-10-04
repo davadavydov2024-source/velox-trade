@@ -6,7 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { getUserOrderChats } from "@/lib/orderChats";
-import { getUserProfile, getOrderById } from "@/lib/users";
+import { getOrderById } from "@/lib/users";
+import { getPublicProfileCached } from "@/lib/sellerCache";
 import { getProductById } from "@/lib/products";
 import { safeImageSrc } from "@/lib/safeImage";
 import { SupportPanel } from "@/components/SupportPanel";
@@ -20,12 +21,13 @@ import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 type ChatView =
   | { kind: "support" }
   | { kind: "news" }
-  | { kind: "order"; orderId: string; counterpartName: string }
+  | { kind: "order"; orderId: string; counterpartName: string; counterpartUsername: string | null }
   | { kind: "dm"; peerUid: string; peerName: string; peerPhoto: string | null };
 
 interface ChatListItem {
   orderId: string;
   counterpartName: string;
+  counterpartUsername: string | null;
   lastMessage: string;
   updatedAt: number;
   itemImage: string | null;
@@ -98,7 +100,7 @@ function ChatsInner() {
     const orderId = params.get("order");
     if (!orderId || loading) return;
     const match = items.find((i) => i.orderId === orderId);
-    if (match) setView({ kind: "order", orderId, counterpartName: match.counterpartName });
+    if (match) setView({ kind: "order", orderId, counterpartName: match.counterpartName, counterpartUsername: match.counterpartUsername });
   }, [params, items, loading]);
 
   useEffect(() => {
@@ -113,12 +115,19 @@ function ChatsInner() {
           chats.map(async (chat) => {
             const counterpartId = chat.buyerId === user.uid ? chat.sellerId : chat.buyerId;
             let counterpartName = "Пользователь";
+            let counterpartUsername: string | null = null;
             if (counterpartId === "store") {
               counterpartName = "Магазин";
             } else {
               try {
-                const p = await getUserProfile(counterpartId);
-                if (p) counterpartName = p.displayName;
+                // Через серверный кэш, а не прямое чтение users/{uid}: правила Firestore разрешают
+                // читать чужой профиль только админу, поэтому раньше здесь у обычных пользователей
+                // молча подставлялось "Пользователь" вместо настоящего ника.
+                const p = await getPublicProfileCached(counterpartId);
+                if (p) {
+                  counterpartName = p.displayName;
+                  counterpartUsername = p.username;
+                }
               } catch {
                 // профиль недоступен — оставляем название по умолчанию
               }
@@ -138,6 +147,7 @@ function ChatsInner() {
             return {
               orderId: chat.orderId,
               counterpartName,
+              counterpartUsername,
               lastMessage: last ? last.text : "Сообщений пока нет",
               updatedAt: chat.updatedAt,
               itemImage,
@@ -217,7 +227,7 @@ function ChatsInner() {
               return (
                 <button
                   key={item.orderId}
-                  onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName })}
+                  onClick={() => setView({ kind: "order", orderId: item.orderId, counterpartName: item.counterpartName, counterpartUsername: item.counterpartUsername })}
                   className={itemClasses(active)}
                 >
                   {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
@@ -289,9 +299,17 @@ function ChatsInner() {
           }`}
         >
           {!view ? (
-            <div className="text-center text-white/30 py-24 m-auto">
-              <MessageCircle className="mx-auto mb-2" size={28} />
-              Выберите чат слева
+            <div className="text-center py-24 m-auto px-6">
+              <div className="relative w-16 h-16 mx-auto mb-4">
+                <div className="absolute inset-0 rounded-full blur-xl opacity-40 bg-accent" />
+                <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center border border-accent/30 bg-accent/10">
+                  <MessageCircle className="text-accent" size={26} />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-white/70 mb-1">Выберите чат слева</p>
+              <p className="text-xs text-white/30 max-w-[220px] mx-auto">
+                Переписки по сделкам, личные сообщения и поддержка — всё в одном месте.
+              </p>
             </div>
           ) : (
             <>
@@ -305,7 +323,7 @@ function ChatsInner() {
               <div className="flex-1 min-h-0 flex flex-col p-4 md:p-0 overflow-hidden">
                 {view.kind === "support" && <SupportPanel />}
                 {view.kind === "news" && <NewsPanel />}
-                {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} />}
+                {view.kind === "order" && <OrderChatThread orderId={view.orderId} counterpartName={view.counterpartName} counterpartUsername={view.counterpartUsername} />}
                 {view.kind === "dm" && user && (
                   <DmThread
                     conversationId={buildConversationId(user.uid, view.peerUid)}

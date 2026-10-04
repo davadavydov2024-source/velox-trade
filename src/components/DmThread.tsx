@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Send, ImagePlus, Loader2, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
@@ -9,9 +10,22 @@ import { subscribeConversation, sendDirectMessage } from "@/lib/directMessages";
 import { DirectMessage } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
+import { PhotoAnnotator } from "@/components/PhotoAnnotator";
+import { getPublicProfileCached } from "@/lib/sellerCache";
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateLabel(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return "Сегодня";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
 export function DmThread({
@@ -31,8 +45,23 @@ export function DmThread({
   const [text, setText] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const [peerUsername, setPeerUsername] = useState<string | null>(null);
+  const [peerOnline, setPeerOnline] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPublicProfileCached(peerUid).then((p) => {
+      if (cancelled || !p) return;
+      setPeerUsername(p.username);
+      setPeerOnline(p.isOnline);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [peerUid]);
 
   useEffect(() => {
     const unsub = subscribeConversation(conversationId, (conv) => setMessages(conv?.messages ?? []));
@@ -72,6 +101,19 @@ export function DmThread({
 
   return (
     <div className="flex flex-col h-full">
+      <PhotoAnnotator
+        file={pendingPhoto}
+        sending={uploadingPhoto}
+        onCancel={() => {
+          setPendingPhoto(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
+        onSend={(f) => {
+          setPendingPhoto(null);
+          handlePhotoPick(f);
+        }}
+      />
+
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
           <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={() => setLightbox(null)}>
@@ -81,12 +123,19 @@ export function DmThread({
         </div>
       )}
 
-      <div className="flex items-center gap-2.5 mb-3 shrink-0">
+      <Link
+        href={peerUsername ? `/seller/${peerUsername}` : "#"}
+        className={`flex items-center gap-2.5 mb-3 shrink-0 ${peerUsername ? "hover:opacity-80" : "pointer-events-none"} transition-opacity`}
+      >
         <div className="relative w-9 h-9 rounded-full overflow-hidden bg-black/30 shrink-0">
           {peerPhoto && <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="36px" />}
+          {peerOnline && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-400 ring-2 ring-[#0d1017]" />}
         </div>
-        <p className="font-bold text-sm">{peerName}</p>
-      </div>
+        <div>
+          <p className="font-bold text-sm leading-tight">{peerName}</p>
+          <p className="text-[11px] text-white/35 leading-tight">{peerOnline ? "в сети" : "\u00A0"}</p>
+        </div>
+      </Link>
 
       <div ref={scrollRef} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
         {messages.length === 0 ? (
@@ -95,8 +144,15 @@ export function DmThread({
           messages.map((m, i) => {
             const isMine = m.from === user?.uid;
             const prevSame = i > 0 && messages[i - 1].from === m.from;
+            const showDateSeparator = i === 0 || new Date(messages[i - 1].createdAt).toDateString() !== new Date(m.createdAt).toDateString();
             return (
-              <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSame ? "mt-0.5" : "mt-2.5"}`}>
+              <div key={i}>
+                {showDateSeparator && (
+                  <div className="flex items-center justify-center my-3">
+                    <span className="text-[10px] font-medium text-white/30 bg-white/[0.04] px-2.5 py-1 rounded-full">{formatDateLabel(m.createdAt)}</span>
+                  </div>
+                )}
+                <div className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSame && !showDateSeparator ? "mt-0.5" : "mt-2.5"}`}>
                 <div
                   className={`max-w-[85%] sm:max-w-[75%] shadow-sm ${
                     isMine ? "bg-gradient-to-br from-accent to-accent-dark text-black" : "bg-surface border border-white/[0.04] text-white/80"
@@ -110,6 +166,7 @@ export function DmThread({
                   {m.text && <p className={m.imageUrl ? "px-1.5 pt-1.5" : ""}>{m.text}</p>}
                   <p className={`text-[9px] opacity-50 text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"}`}>{formatTime(m.createdAt)}</p>
                 </div>
+                </div>
               </div>
             );
           })
@@ -117,7 +174,14 @@ export function DmThread({
       </div>
 
       <form onSubmit={handleSend} className="flex gap-2 items-end shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <input autoComplete="off" ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoPick(e.target.files?.[0])} />
+        <input
+          autoComplete="off"
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && setPendingPhoto(e.target.files[0])}
+        />
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}

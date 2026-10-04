@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Send,
   CheckCircle2,
@@ -30,6 +31,7 @@ import { safeImageSrc } from "@/lib/safeImage";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { auth } from "@/lib/firebase";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
+import { PhotoAnnotator } from "@/components/PhotoAnnotator";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ожидает подтверждения", color: "#ff9800" },
@@ -56,6 +58,16 @@ function initials(name: string) {
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateLabel(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Сегодня";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
 const ADMIN_COMMANDS = [
@@ -270,10 +282,13 @@ function DealSheet({
 export function OrderChatThread({
   orderId,
   counterpartName,
+  counterpartUsername = null,
   asAdmin = false,
 }: {
   orderId: string;
   counterpartName: string;
+  /** Юзернейм собеседника — если задан, имя в шапке становится ссылкой на его профиль. */
+  counterpartUsername?: string | null;
   asAdmin?: boolean;
 }) {
   const { user, profile } = useAuth();
@@ -292,6 +307,7 @@ export function OrderChatThread({
   const [delivery, setDelivery] = useState<Delivery | null | undefined>(undefined);
   const [dealOpen, setDealOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [disputeOpen, setDisputeOpen] = useState(false);
@@ -528,6 +544,19 @@ export function OrderChatThread({
 
   return (
     <div className="flex flex-col h-full">
+      <PhotoAnnotator
+        file={pendingPhoto}
+        sending={uploadingPhoto}
+        onCancel={() => {
+          setPendingPhoto(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
+        onSend={(f) => {
+          setPendingPhoto(null);
+          handlePhotoPick(f);
+        }}
+      />
+
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
           <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={() => setLightbox(null)}>
@@ -541,7 +570,13 @@ export function OrderChatThread({
         <div className="flex items-center gap-2 mb-3">
           <div>
             <p className="font-bold flex items-center gap-1.5">
-              {counterpartName}
+              {counterpartUsername ? (
+                <Link href={`/seller/${counterpartUsername}`} className="hover:text-accent hover:underline transition-colors">
+                  {counterpartName}
+                </Link>
+              ) : (
+                counterpartName
+              )}
               {isAdminViewer && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent flex items-center gap-1">
                   <ShieldCheck size={11} /> Режим админа
@@ -608,11 +643,19 @@ export function OrderChatThread({
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
         ) : (
           messages.map((m, i) => {
+            const showDateSeparator = i === 0 || new Date(messages[i - 1].createdAt).toDateString() !== new Date(m.createdAt).toDateString();
+            const dateSeparator = showDateSeparator ? (
+              <div className="flex items-center justify-center my-3">
+                <span className="text-[10px] font-medium text-white/30 bg-white/[0.04] px-2.5 py-1 rounded-full">{formatDateLabel(m.createdAt)}</span>
+              </div>
+            ) : null;
+
             if (m.from === "system") {
               return (
-                <p key={i} className="text-xs text-center text-white/40 italic py-1.5">
-                  {m.text}
-                </p>
+                <Fragment key={i}>
+                  {dateSeparator}
+                  <p className="text-xs text-center text-white/40 italic py-1.5">{m.text}</p>
+                </Fragment>
               );
             }
 
@@ -622,7 +665,9 @@ export function OrderChatThread({
             const isWarning = m.from === "admin" && m.text.startsWith("⚠️ Предупреждение");
 
             return (
-              <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSameSender ? "mt-0.5" : "mt-2.5"}`}>
+              <Fragment key={i}>
+              {dateSeparator}
+              <div className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSameSender && !showDateSeparator ? "mt-0.5" : "mt-2.5"}`}>
                 {!isMine && !prevSameSender && (
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
@@ -660,6 +705,7 @@ export function OrderChatThread({
                   <p className={`text-[9px] opacity-50 text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"}`}>{formatTime(m.createdAt)}</p>
                 </div>
               </div>
+              </Fragment>
             );
           })
         )}
@@ -757,7 +803,7 @@ export function OrderChatThread({
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => handlePhotoPick(e.target.files?.[0])}
+              onChange={(e) => e.target.files?.[0] && setPendingPhoto(e.target.files[0])}
             />
             <button
               type="button"
