@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles, ChevronLeft, KeyRound, CalendarDays } from "lucide-react";
+import { Mail, Lock, User, ExternalLink, MessageCircle, CheckCircle2, Sparkles, ChevronLeft, CalendarDays, Eye, EyeOff, Check } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/lib/toastContext";
@@ -41,9 +41,24 @@ function translateAuthError(code?: string) {
 // 0 — язык + способ регистрации; 1..4 — только для способа "пароль" (имя → email → возраст →
 // пароль); путь "телеграм" со своего step 1 показывает одну форму (имя+email+возраст) и дальше сам
 // управляет внутренними состояниями (ссылка на бота / ожидание / подтверждено).
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2;
 const MIN_AGE = 6;
 const MAX_AGE = 120;
+
+function passwordStrength(pw: string): { score: number; label: string; color: string } {
+  if (!pw) return { score: 0, label: "", color: "transparent" };
+  let score = 0;
+  if (pw.length >= 6) score++;
+  if (pw.length >= 10) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) score++;
+  const labels = ["Слишком короткий", "Слабый", "Средний", "Хороший", "Надёжный"];
+  const colors = ["#f87171", "#f87171", "#fbbf24", "#a3e635", "#4ade80"];
+  if (pw.length < 6) return { score: 0, label: labels[0], color: colors[0] };
+  return { score, label: labels[score], color: colors[score] };
+}
+
+const STEP_LABELS = ["Старт", "Данные", "Telegram"];
 
 function RegisterInner() {
   const { register } = useAuth();
@@ -72,7 +87,7 @@ function RegisterInner() {
 
   function goNext() {
     setDir(1);
-    setStep((s) => Math.min(5, s + 1) as Step);
+    setStep((s) => Math.min(2, s + 1) as Step);
   }
   function goBack() {
     setDir(-1);
@@ -85,9 +100,11 @@ function RegisterInner() {
   const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // --- обязательное подтверждение через Telegram-бота (шаг 5 пути "пароль") ---
+  // --- обязательное подтверждение через Telegram-бота (шаг 2 пути "пароль") ---
   const [tgvToken, setTgvToken] = useState<string | null>(null);
   const [tgvUrl, setTgvUrl] = useState<string | null>(null);
   const [tgvSent, setTgvSent] = useState(false);
@@ -112,7 +129,7 @@ function RegisterInner() {
   // Ждём, пока человек откроет бота и нажмёт Start — как только бот отправил код в Telegram,
   // показываем поле для его ввода.
   useEffect(() => {
-    if (step !== 5 || !tgvToken || tgvSent) return;
+    if (step !== 2 || !tgvToken || tgvSent) return;
     const id = setInterval(async () => {
       try {
         const res = await fetch(`/api/auth/tg-verify/status?token=${tgvToken}`);
@@ -125,37 +142,23 @@ function RegisterInner() {
     return () => clearInterval(id);
   }, [step, tgvToken, tgvSent]);
 
-  function handleNameNext(e: React.FormEvent) {
+  // Шаг 1 -> 2: все данные введены одной формой — проверяем и запускаем обязательное
+  // подтверждение через Telegram-бота.
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) {
       toast("warning", "Введи имя");
       return;
     }
-    goNext();
-  }
-
-  function handleEmailNext(e: React.FormEvent) {
-    e.preventDefault();
     if (!EMAIL_RE.test(email.trim())) {
       toast("warning", "Введи корректный email");
       return;
     }
-    goNext();
-  }
-
-  function handleAgeNext(e: React.FormEvent) {
-    e.preventDefault();
-    const value = Number(age);
-    if (!Number.isInteger(value) || value < MIN_AGE || value > MAX_AGE) {
+    const ageValue = Number(age);
+    if (!Number.isInteger(ageValue) || ageValue < MIN_AGE || ageValue > MAX_AGE) {
       toast("warning", `Укажи реальный возраст (от ${MIN_AGE} до ${MAX_AGE})`);
       return;
     }
-    goNext();
-  }
-
-  // Шаг 4 -> 5: пароль принят, запускаем обязательное подтверждение через Telegram-бота.
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
     if (password.length < 6) {
       toast("warning", "Пароль должен быть не короче 6 символов");
       return;
@@ -303,8 +306,9 @@ function RegisterInner() {
     );
   }
 
+  const pwStrength = passwordStrength(password);
   const usesSteps = mode === "password" && flags.registrationEnabled;
-  const totalSteps = 6; // 0..5 — только для пути "пароль"; для телеграма степпер не показываем
+  const totalSteps = 3; // 0 старт, 1 данные, 2 Telegram — только для пути "пароль"; для телеграма степпер не показываем
   const animClass = dir === 1 ? "auth-step-forward" : "auth-step-back";
 
   return (
@@ -339,11 +343,29 @@ function RegisterInner() {
           </div>
           <p className="text-white/40 text-sm mb-5">{t("auth_register_subtitle")}</p>
 
-          {/* Степпер — виден только на пути "пароль", у телеграм-пути своя внутренняя логика статусов */}
+          {/* Степпер с подписями — виден только на пути "пароль", у телеграм-пути своя внутренняя логика статусов */}
           {usesSteps && (
-            <div className="flex items-center gap-1.5 mb-6">
-              {Array.from({ length: totalSteps }).map((_, i) => (
-                <div key={i} className={`h-1 flex-1 rounded-full transition-colors duration-300 ${i <= step ? "bg-accent" : "bg-white/10"}`} />
+            <div className="flex items-center mb-7">
+              {STEP_LABELS.map((label, i) => (
+                <div key={label} className="flex items-center flex-1 last:flex-none">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                        i < step
+                          ? "bg-accent text-black"
+                          : i === step
+                          ? "bg-accent/15 text-accent ring-2 ring-accent"
+                          : "bg-white/5 text-white/30"
+                      }`}
+                    >
+                      {i < step ? <Check size={14} strokeWidth={3} /> : i + 1}
+                    </div>
+                    <span className={`text-[10px] font-medium ${i <= step ? "text-white/70" : "text-white/25"}`}>{label}</span>
+                  </div>
+                  {i < STEP_LABELS.length - 1 && (
+                    <div className={`flex-1 h-px mx-2 mb-4 transition-colors duration-300 ${i < step ? "bg-accent" : "bg-white/10"}`} />
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -406,93 +428,105 @@ function RegisterInner() {
             )}
 
             {step === 1 && mode === "password" && (
-              <form onSubmit={handleNameNext} className="space-y-4">
-                <div className="text-center mb-2">
-                  <User size={28} className="mx-auto text-accent mb-2" />
-                  <p className="text-sm text-white/50">Как тебя зовут?</p>
-                </div>
+              <form onSubmit={handleSubmit} className="space-y-3.5">
                 <div className="relative group">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
                   <input
                     autoFocus
                     required
                     autoComplete="name"
+                    enterKeyHint="next"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t("auth_name_placeholder")}
                     className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
                   />
                 </div>
-                <button className="btn-primary w-full py-3 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow">Далее</button>
-              </form>
-            )}
 
-            {step === 2 && mode === "password" && (
-              <form onSubmit={handleEmailNext} className="space-y-4">
-                <div className="text-center mb-2">
-                  <Mail size={28} className="mx-auto text-accent mb-2" />
-                  <p className="text-sm text-white/50">Приятно познакомиться, {name || "друг"}! Твой email?</p>
+                <div>
+                  <div className="relative group">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      enterKeyHint="next"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setEmailTouched(true)}
+                      placeholder={t("auth_email_placeholder")}
+                      className={`input-field pl-10 pr-10 focus:ring-2 transition-shadow ${
+                        emailTouched && email && !EMAIL_RE.test(email.trim()) ? "border-red-400/60 focus:ring-red-400/20" : "focus:ring-accent/30"
+                      }`}
+                    />
+                    {EMAIL_RE.test(email.trim()) && <Check size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400" />}
+                  </div>
+                  {emailTouched && email && !EMAIL_RE.test(email.trim()) && (
+                    <p className="text-[11px] text-red-400/80 mt-1 ml-1">Проверь адрес — похоже, в нём ошибка</p>
+                  )}
                 </div>
-                <div className="relative group">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                  <input
-                    autoFocus
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t("auth_email_placeholder")}
-                    className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                  />
-                </div>
-                <button className="btn-primary w-full py-3 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow">Далее</button>
-              </form>
-            )}
 
-            {step === 3 && mode === "password" && (
-              <form onSubmit={handleAgeNext} className="space-y-4">
-                <div className="text-center mb-2">
-                  <CalendarDays size={28} className="mx-auto text-accent mb-2" />
-                  <p className="text-sm text-white/50">Сколько тебе лет?</p>
+                <div>
+                  <div className="relative group">
+                    <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
+                    <input
+                      required
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_AGE}
+                      max={MAX_AGE}
+                      enterKeyHint="next"
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                      placeholder="Возраст"
+                      className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    />
+                  </div>
+                  <p className="text-[11px] text-white/25 mt-1 ml-1">Видно только администрации, нигде на сайте не показывается.</p>
                 </div>
-                <input
-                  autoFocus
-                  required
-                  type="number"
-                  min={MIN_AGE}
-                  max={MAX_AGE}
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  placeholder="Возраст"
-                  className="input-field text-center focus:ring-2 focus:ring-accent/30 transition-shadow"
-                />
-                <p className="text-xs text-white/25 text-center">Видно только администрации, нигде на сайте не показывается.</p>
-                <button className="btn-primary w-full py-3 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow">Далее</button>
-              </form>
-            )}
 
-            {step === 4 && mode === "password" && (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="text-center mb-2">
-                  <KeyRound size={28} className="mx-auto text-accent mb-2" />
-                  <p className="text-sm text-white/50">Последний шаг — придумай пароль</p>
+                <div>
+                  <div className="relative group">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={t("auth_password_placeholder")}
+                      className="input-field pl-10 pr-11 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors"
+                      aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                  {password && (
+                    <div className="mt-2">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4].map((n) => (
+                          <div
+                            key={n}
+                            className="h-1 flex-1 rounded-full transition-colors duration-300"
+                            style={{ background: n <= pwStrength.score ? pwStrength.color : "rgba(255,255,255,0.08)" }}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-[11px] mt-1 ml-0.5" style={{ color: pwStrength.color }}>
+                        {pwStrength.label}
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <div className="relative group">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
-                  <input
-                    autoFocus
-                    type="password"
-                    required
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={t("auth_password_placeholder")}
-                    className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
-                  />
-                </div>
-                <label className="flex items-start gap-2 text-xs text-white/50">
-                  <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5" />
+
+                <label className="flex items-start gap-2.5 text-xs text-white/50 pt-1 cursor-pointer">
+                  <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 accent-[#ff9800]" />
                   <span>
                     Я согласен с{" "}
                     <Link href="/rules" target="_blank" className="text-accent hover:underline">
@@ -509,6 +543,7 @@ function RegisterInner() {
                     .
                   </span>
                 </label>
+
                 <button
                   disabled={loading || !agreed}
                   className="btn-primary w-full py-3 disabled:opacity-50 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
@@ -518,28 +553,48 @@ function RegisterInner() {
               </form>
             )}
 
-            {step === 5 && mode === "password" && (
-              <div className="space-y-4 text-center">
-                <MessageCircle size={28} className="mx-auto text-accent" />
-                <p className="text-sm text-white/60">
-                  Последний шаг — подтверди регистрацию через Telegram-бота. Код придёт туда, а не на почту.
+            {step === 2 && mode === "password" && (
+              <div className="space-y-5">
+                <p className="text-sm text-white/55 text-center">
+                  Подтверди регистрацию через Telegram-бота — код придёт туда, а не на почту.
                 </p>
+
+                <ol className="space-y-2.5">
+                  {[
+                    { n: 1, text: "Открой бота по кнопке ниже", done: !!tgvUrl && tgvSent },
+                    { n: 2, text: "Нажми «Start» — бот пришлёт код", done: tgvSent },
+                    { n: 3, text: "Введи 6 цифр кода здесь", done: false },
+                  ].map((row) => (
+                    <li key={row.n} className="flex items-center gap-3 text-sm">
+                      <span
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors ${
+                          row.done ? "bg-green-500/20 text-green-400" : "bg-white/5 text-white/40"
+                        }`}
+                      >
+                        {row.done ? <Check size={13} strokeWidth={3} /> : row.n}
+                      </span>
+                      <span className={row.done ? "text-white/40 line-through decoration-white/20" : "text-white/70"}>{row.text}</span>
+                    </li>
+                  ))}
+                </ol>
+
                 {tgvUrl && (
                   <a
                     href={tgvUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-primary px-6 py-3 text-sm inline-flex items-center gap-2 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
+                    className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2 hover:shadow-[0_0_24px_-4px_var(--color-accent)] transition-shadow"
                   >
-                    Открыть Telegram-бота <ExternalLink size={14} />
+                    <MessageCircle size={16} /> Открыть Telegram-бота <ExternalLink size={14} />
                   </a>
                 )}
+
                 {!tgvSent ? (
-                  <div className="flex items-center justify-center gap-2 text-xs text-white/40 pt-1">
-                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Нажми «Start» в боте — ждём...
+                  <div className="flex items-center justify-center gap-2 text-xs text-white/40">
+                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Ждём, пока ты нажмёшь «Start»...
                   </div>
                 ) : (
-                  <form onSubmit={handleConfirmTelegramCode} className="space-y-3 text-left">
+                  <form onSubmit={handleConfirmTelegramCode} className="space-y-3">
                     <p className="text-xs text-green-400 text-center">Код отправлен в Telegram — введи его ниже</p>
                     <input
                       autoFocus
@@ -549,8 +604,8 @@ function RegisterInner() {
                       maxLength={6}
                       value={tgvCode}
                       onChange={(e) => setTgvCode(e.target.value.replace(/\D/g, ""))}
-                      placeholder="6-значный код"
-                      className="input-field text-center text-lg tracking-[6px] focus:ring-2 focus:ring-accent/30 transition-shadow"
+                      placeholder="• • • • • •"
+                      className="input-field text-center text-xl tracking-[10px] font-mono focus:ring-2 focus:ring-accent/30 transition-shadow"
                     />
                     <button
                       disabled={loading || tgvCode.length !== 6}

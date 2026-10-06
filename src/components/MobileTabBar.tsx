@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Plus, MessageSquare, User as UserIcon, PackageOpen } from "lucide-react";
+import { LayoutGrid, Plus, MessageSquare, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 
 const TABS = [
   { href: "/catalog", label: "Каталог", icon: LayoutGrid },
-  { href: "/case", label: "Кейсы", icon: PackageOpen },
   { href: "/profile/sell", label: "Продать", icon: Plus },
   { href: "/chats", label: "Чаты", icon: MessageSquare },
 ];

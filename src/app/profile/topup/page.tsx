@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   XCircle,
   CreditCard,
+  Wallet,
+  ChevronDown,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
@@ -53,6 +56,7 @@ function TopUpPageInner() {
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
+  const [showTerms, setShowTerms] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [flagsLoaded, setFlagsLoaded] = useState(false);
   const [closedScreen, setClosedScreen] = useState<SiteScreen | null>(null);
@@ -248,7 +252,23 @@ function TopUpPageInner() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <h1 className="text-xl font-bold">Пополнение и вывод баланса</h1>
+      <div className="card p-5 relative overflow-hidden">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(circle at 85% 0%, rgba(255,152,0,0.16), transparent 60%)" }}
+        />
+        <div className="relative flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-white/40 mb-1">Ваш баланс</p>
+            <p className="text-3xl font-extrabold text-accent leading-none">
+              {(profile?.balance ?? 0).toFixed(2)} <span className="text-xl font-bold">₽</span>
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/25 flex items-center justify-center shrink-0">
+            <Wallet size={22} className="text-accent" />
+          </div>
+        </div>
+      </div>
 
       {closedScreen ? (
         <SiteScreenView screen={closedScreen} />
@@ -267,12 +287,16 @@ function TopUpPageInner() {
         </div>
       ) : (
         <>
-          <div className="flex gap-2">
+          <div className="relative flex bg-surface rounded-btn p-1">
+            <div
+              className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-btn bg-accent transition-transform duration-300 ease-out"
+              style={{ transform: tab === "deposit" ? "translateX(0)" : "translateX(calc(100% + 8px))" }}
+            />
             <button
               type="button"
               onClick={() => setTab("deposit")}
-              className={`flex-1 py-2.5 rounded-btn text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
-                tab === "deposit" ? "bg-accent text-black" : "bg-surface text-white/60"
+              className={`relative z-10 flex-1 py-2.5 rounded-btn text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200 ${
+                tab === "deposit" ? "text-black" : "text-white/55"
               }`}
             >
               <ArrowDownCircle size={16} /> Пополнить
@@ -280,8 +304,8 @@ function TopUpPageInner() {
             <button
               type="button"
               onClick={() => setTab("withdraw")}
-              className={`flex-1 py-2.5 rounded-btn text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
-                tab === "withdraw" ? "bg-accent text-black" : "bg-surface text-white/60"
+              className={`relative z-10 flex-1 py-2.5 rounded-btn text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200 ${
+                tab === "withdraw" ? "text-black" : "text-white/55"
               }`}
             >
               <ArrowUpCircle size={16} /> Вывести
@@ -290,17 +314,32 @@ function TopUpPageInner() {
 
           {tab === "deposit" ? (
             <>
-              <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5">
-                <p className="text-sm text-white/70 leading-relaxed">
-                  Оплата принимается через платёжную систему{" "}
-                  <a href="https://rollypay.io" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                    RollyPay
-                  </a>{" "}
-                  (СБП, карты, крипта). Нажимая «Оплатить», вы соглашаетесь с тем, что за проведение платежа (в том
-                  числе за сроки зачисления, работу выбранного способа оплаты и возможные технические сбои) отвечает
-                  сама платёжная система rollypay.io, а не Velox Trade. Баланс зачисляется автоматически после
-                  подтверждения оплаты.
-                </p>
+              <div className="card p-4 border border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowTerms((v) => !v)}
+                  className="w-full flex items-center gap-3 text-left"
+                >
+                  <ShieldCheck size={18} className="text-accent shrink-0" />
+                  <span className="flex-1 text-sm text-white/70">
+                    Оплата через RollyPay — СБП, карты, крипта. Баланс зачисляется автоматически.
+                  </span>
+                  <span className="text-xs text-white/35 flex items-center gap-1 shrink-0">
+                    Условия <ChevronDown size={14} className={`transition-transform duration-200 ${showTerms ? "rotate-180" : ""}`} />
+                  </span>
+                </button>
+                {showTerms && (
+                  <p className="text-xs text-white/50 leading-relaxed mt-3 pt-3 border-t border-white/[0.06]">
+                    Оплата принимается через платёжную систему{" "}
+                    <a href="https://rollypay.io" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                      RollyPay
+                    </a>{" "}
+                    (СБП, карты, крипта). Нажимая «Оплатить», вы соглашаетесь с тем, что за проведение платежа (в том
+                    числе за сроки зачисления, работу выбранного способа оплаты и возможные технические сбои) отвечает
+                    сама платёжная система rollypay.io, а не Velox Trade. Баланс зачисляется автоматически после
+                    подтверждения оплаты.
+                  </p>
+                )}
               </div>
 
               {pendingOrderId && (
@@ -326,19 +365,32 @@ function TopUpPageInner() {
                       className="input-field py-2.5 mb-2"
                       required
                     />
-                    <div className="flex flex-wrap gap-2">
-                      {QUICK_AMOUNTS.map((a) => (
-                        <button
-                          key={a}
-                          type="button"
-                          onClick={() => setDepositAmount(String(a))}
-                          className="px-3 py-1.5 rounded-btn text-xs bg-surface text-white/60 hover:bg-accent/15 hover:text-accent transition-colors"
-                        >
-                          {a} ₽
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-3 gap-2">
+                      {QUICK_AMOUNTS.map((a) => {
+                        const selected = depositAmount === String(a);
+                        return (
+                          <button
+                            key={a}
+                            type="button"
+                            onClick={() => setDepositAmount(String(a))}
+                            className={`py-2.5 rounded-btn text-sm font-semibold border transition-all duration-150 active:scale-95 ${
+                              selected
+                                ? "bg-accent/15 text-accent border-accent/50"
+                                : "bg-surface text-white/60 border-transparent hover:border-white/15 hover:text-white/85"
+                            }`}
+                          >
+                            {a} ₽
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+                  {Number(depositAmount) >= minTopup && (
+                    <div className="flex items-center justify-between text-sm px-3.5 py-2.5 rounded-btn bg-accent/[0.07] border border-accent/15">
+                      <span className="text-white/50">Будет зачислено</span>
+                      <span className="font-bold text-accent">{Number(depositAmount)} ₽</span>
+                    </div>
+                  )}
                   <button disabled={payingNow} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
                     <CreditCard size={16} /> {payingNow ? "Переходим к оплате..." : "Оплатить картой / СБП"}
                   </button>
@@ -357,7 +409,7 @@ function TopUpPageInner() {
                       const s = PAYMENT_STATUS_LABEL[p.status];
                       const StatusIcon = s.icon;
                       return (
-                        <div key={p.id} className="card p-3.5 flex items-center justify-between gap-3">
+                        <div key={p.id} className="card p-3.5 flex items-center justify-between gap-3" style={{ borderLeft: `3px solid ${s.color}` }}>
                           <div>
                             <p className="text-sm font-medium">{p.amount} ₽</p>
                             <p className="text-xs text-white/30">{new Date(p.createdAt).toLocaleString("ru-RU")}</p>
@@ -385,7 +437,7 @@ function TopUpPageInner() {
             </>
           ) : (
             <>
-              <div className="card p-5 border border-yellow-500/20 bg-yellow-500/5">
+              <div className="card p-4 border border-white/[0.06]">
                 <p className="text-sm text-white/70 leading-relaxed">
                   Вывод обрабатывается <strong>вручную администратором</strong> — после отправки жди, пока статус
                   изменится на «Одобрена». Администратор свяжется с тобой для уточнения реквизитов.
@@ -414,7 +466,20 @@ function TopUpPageInner() {
                       className="input-field py-2.5"
                       required
                     />
-                    {profile && <p className="text-xs text-white/30 mt-1.5">Доступно для вывода: {profile.balance.toFixed(2)} ₽</p>}
+                    {profile && (
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-xs text-white/35">Доступно для вывода: {profile.balance.toFixed(2)} ₽</p>
+                        {profile.balance > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setWithdrawAmount(String(Math.floor(profile.balance)))}
+                            className="text-xs text-accent hover:underline"
+                          >
+                            Вывести всё
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -468,7 +533,7 @@ function TopUpPageInner() {
                       const s = TOPUP_STATUS_LABEL[r.status];
                       const StatusIcon = s.icon;
                       return (
-                        <div key={r.id} className="card p-3.5 flex items-center justify-between">
+                        <div key={r.id} className="card p-3.5 flex items-center justify-between" style={{ borderLeft: `3px solid ${s.color}` }}>
                           <div>
                             <p className="text-sm font-medium">Вывод {r.amount} ₽</p>
                             <p className="text-xs text-white/30">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>

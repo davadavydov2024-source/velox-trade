@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight, PackageOpen, Ticket } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight, Plus } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
@@ -16,9 +16,18 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
 
+  const chipsRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!loading && !user) router.push("/auth/login");
   }, [loading, user, router]);
+
+  // На телефоне пункты меню — горизонтальная лента: при смене раздела подводим активный чип в центр,
+  // чтобы человек всегда видел, где он находится, а не искал его в обрезанной ленте.
+  useEffect(() => {
+    const el = chipsRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [pathname]);
 
   if (loading || !user || !profile) {
     return <div className="max-w-5xl mx-auto px-4 py-20 text-center text-white/40">{t("common_loading")}</div>;
@@ -42,8 +51,6 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
       links: [
         { href: "/profile/promos", label: t("profile_nav_promos"), icon: Gift },
         { href: "/profile/wheel", label: "Колесо Фортуны", icon: Disc3 },
-        { href: "/profile/tickets", label: "Тикеты", icon: Ticket },
-        { href: "/profile/case-history", label: "История кейсов", icon: PackageOpen },
         { href: "/profile/achievements", label: "Достижения", icon: Trophy },
       ],
     },
@@ -57,12 +64,72 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
     },
   ];
 
+  const allLinks = linkGroups.flatMap((g) => g.links);
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 grid md:grid-cols-[250px_1fr] gap-8">
-      <aside className="space-y-1">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 md:py-10 grid md:grid-cols-[250px_1fr] gap-5 md:gap-8">
+      {/* Мобильная навигация: компактная шапка + горизонтальная лента разделов вместо длинного списка */}
+      <div className="md:hidden space-y-3 min-w-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold truncate leading-tight">{profile.displayName}</p>
+            <p className="text-[11px] text-white/35 truncate">{profile.email}</p>
+          </div>
+          <Link href="/profile/topup" className="shrink-0 flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-accent/10 border border-accent/25 text-sm">
+            <span className="font-bold text-accent">{profile.balance.toFixed(0)} ₽</span>
+            <span className="w-5 h-5 rounded-full bg-accent text-black flex items-center justify-center">
+              <Plus size={13} strokeWidth={3} />
+            </span>
+          </Link>
+        </div>
+        <AccountSwitcher />
+        <div ref={chipsRef} className="-mx-4 px-4 flex gap-2 overflow-x-auto scrollbar-none pb-1">
+          {allLinks.map((l) => {
+            const Icon = l.icon;
+            const active = pathname === l.href;
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                data-active={active}
+                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
+                  active ? "bg-accent text-black" : "bg-white/5 text-white/60 active:bg-white/10"
+                }`}
+              >
+                <Icon size={14} /> {l.label}
+              </Link>
+            );
+          })}
+          {isAdminUid(user.uid) && (
+            <Link href="/admin" className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-medium whitespace-nowrap bg-accent/10 text-accent">
+              <LayoutDashboard size={14} /> {t("profile_nav_admin")}
+            </Link>
+          )}
+          <button
+            onClick={() => logout()}
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-medium whitespace-nowrap bg-red-400/10 text-red-400"
+          >
+            <LogOut size={14} /> {t("profile_nav_logout")}
+          </button>
+        </div>
+      </div>
+
+      <aside className="hidden md:block space-y-1">
         <div className="card p-4 mb-4">
           <p className="font-medium truncate">{profile.displayName}</p>
-          <p className="text-xs text-white/40 truncate mb-2">{profile.email}</p>
+          <p className="text-xs text-white/40 truncate mb-3">{profile.email}</p>
+          <Link
+            href="/profile/topup"
+            className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-btn bg-accent/10 border border-accent/20 hover:bg-accent/15 transition-colors mb-3"
+          >
+            <span>
+              <span className="block text-[10px] text-white/40 leading-none mb-1">Баланс</span>
+              <span className="block text-lg font-bold text-accent leading-none">{profile.balance.toFixed(0)} ₽</span>
+            </span>
+            <span className="w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center shrink-0">
+              <Plus size={15} strokeWidth={3} />
+            </span>
+          </Link>
           <div className="flex flex-wrap gap-1">
             {profile.badges.map((b) => (
               <span

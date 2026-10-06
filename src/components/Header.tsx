@@ -56,9 +56,6 @@ export function Header() {
           <Link href="/chats" className="hover:text-white transition-colors">
             {t("nav_chats")}
           </Link>
-          <Link href="/case" className="hover:text-white transition-colors">
-            {t("nav_cases")}
-          </Link>
         </nav>
 
         <form

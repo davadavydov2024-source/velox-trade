@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Lock, Send, MessageCircle, QrCode, Sparkles } from "lucide-react";
+import { Mail, Lock, Send, MessageCircle, QrCode, Sparkles, Eye, EyeOff, RotateCw, Info } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
@@ -46,6 +46,7 @@ function LoginInner() {
   // --- вход по паролю ---
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // --- вход по коду из Telegram ---
@@ -54,6 +55,15 @@ function LoginInner() {
   const [codeSent, setCodeSent] = useState(false);
   const [tgSending, setTgSending] = useState(false);
   const [tgVerifying, setTgVerifying] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  // Таймер до следующей отправки кода — чтобы не заваливали бота повторными запросами и было понятно,
+  // когда можно запросить код ещё раз.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setTimeout(() => setResendIn((n) => n - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendIn]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,8 +96,12 @@ function LoginInner() {
     }
   }
 
-  async function handleRequestCode(e: React.FormEvent) {
+  function handleRequestCode(e: React.FormEvent) {
     e.preventDefault();
+    return requestCode();
+  }
+
+  async function requestCode() {
     setTgSending(true);
     try {
       const res = await fetch("/api/auth/request-code", {
@@ -101,6 +115,8 @@ function LoginInner() {
         return;
       }
       setCodeSent(true);
+      setTgCode("");
+      setResendIn(30);
       toast("success", "Код отправлен в Telegram. Проверь бота.");
     } catch {
       toast("error", "Не удалось связаться с сервером. Проверь подключение к интернету.");
@@ -109,14 +125,19 @@ function LoginInner() {
     }
   }
 
-  async function handleVerifyCode(e: React.FormEvent) {
+  function handleVerifyCode(e: React.FormEvent) {
     e.preventDefault();
+    return verifyCode(tgCode);
+  }
+
+  async function verifyCode(code: string) {
+    if (tgVerifying) return;
     setTgVerifying(true);
     try {
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: tgEmail, code: tgCode }),
+        body: JSON.stringify({ email: tgEmail, code }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -219,14 +240,23 @@ function LoginInner() {
                 <div className="relative group">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Пароль"
-                    className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    className="input-field pl-10 pr-11 focus:ring-2 focus:ring-accent/30 transition-shadow"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors"
+                    aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
                 </div>
                 <div className="text-right">
                   <Link href="/auth/reset" className="text-xs text-accent hover:underline">
@@ -250,7 +280,13 @@ function LoginInner() {
                   </div>
 
                   <div className="space-y-2">
-                    <button onClick={handleGoogle} className="btn-secondary w-full py-3">
+                    <button onClick={handleGoogle} className="btn-secondary w-full py-3 flex items-center justify-center gap-2.5">
+                      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                        <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/>
+                        <path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/>
+                        <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
+                      </svg>
                       Войти через Google
                     </button>
                   </div>
@@ -259,10 +295,13 @@ function LoginInner() {
             </>
           ) : (
             <div className="space-y-4">
-              <p className="text-xs text-white/40">
-                Работает только если Telegram уже привязан к аккаунту (Профиль → Безопасность на устройстве, где ты уже
-                вошёл).
-              </p>
+              <div className="flex gap-2.5 p-3 rounded-btn bg-accent/[0.06] border border-accent/15">
+                <Info size={15} className="text-accent shrink-0 mt-0.5" />
+                <p className="text-xs text-white/55 leading-relaxed">
+                  Работает, если Telegram уже привязан к аккаунту. Привязать его можно при регистрации или в «Профиль →
+                  Безопасность».
+                </p>
+              </div>
               {!codeSent ? (
                 <form onSubmit={handleRequestCode} className="space-y-4">
                   <div className="relative group">
@@ -286,25 +325,46 @@ function LoginInner() {
                 </form>
               ) : (
                 <form onSubmit={handleVerifyCode} className="space-y-4">
+                  <p className="text-xs text-white/40 text-center">
+                    Код отправлен для <span className="text-white/70">{tgEmail}</span>
+                  </p>
                   <input
+                    autoFocus
                     required
+                    inputMode="numeric"
                     autoComplete="one-time-code"
                     value={tgCode}
-                    onChange={(e) => setTgCode(e.target.value)}
-                    placeholder="Код из Telegram (6 цифр)"
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+                      setTgCode(digits);
+                      // Шесть цифр введено (или вставлено целиком из Telegram) — входим сразу, без лишнего клика
+                      if (digits.length === 6) verifyCode(digits);
+                    }}
+                    placeholder="• • • • • •"
                     maxLength={6}
-                    className="input-field text-center tracking-[0.3em] font-mono text-lg focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    className="input-field text-center tracking-[0.4em] font-mono text-xl focus:ring-2 focus:ring-accent/30 transition-shadow"
                   />
-                  <button disabled={tgVerifying} className="btn-primary w-full py-3 disabled:opacity-50">
+                  <button disabled={tgVerifying || tgCode.length !== 6} className="btn-primary w-full py-3 disabled:opacity-50">
                     {tgVerifying ? "Проверяем..." : "Войти"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCodeSent(false)}
-                    className="text-xs text-white/40 hover:text-white/70 w-full text-center"
-                  >
-                    Ввести другой email
-                  </button>
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setCodeSent(false)}
+                      className="text-white/40 hover:text-white/70 transition-colors"
+                    >
+                      Другой email
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resendIn > 0 || tgSending}
+                      onClick={requestCode}
+                      className="flex items-center gap-1.5 text-accent disabled:text-white/25 hover:underline disabled:no-underline transition-colors"
+                    >
+                      <RotateCw size={12} className={tgSending ? "animate-spin" : ""} />
+                      {resendIn > 0 ? `Отправить ещё раз (${resendIn} с)` : "Отправить ещё раз"}
+                    </button>
+                  </div>
                 </form>
               )}
             </div>

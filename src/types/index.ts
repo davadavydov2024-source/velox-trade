@@ -336,11 +336,6 @@ export interface UserProfile {
   // зачисляются сразу при оплате (starsOrders.ts → fulfillStarsInvoice), выводятся через бота
   // от 15 ⭐ (см. telegramStarsWithdrawals.ts). Отдельно от обычного рублёвого balance.
   starsBalance?: number;
-  // Тикеры — отдельная валюта для открытия кейсов (см. CaseData/CaseItem ниже). Пополняется либо
-  // напрямую (см. /profile/topup, тот же способ, что и обычный баланс — но зачисляется сюда), либо
-  // сдачей предмета админу за тикеты (см. TicketRequest ниже). НЕ конвертируется в ₽ и не тратится
-  // ни на что, кроме открытия кейсов.
-  ticketBalance?: number;
 }
 
 export type StarsWithdrawalStatus = "pending" | "approved" | "rejected";
@@ -792,64 +787,4 @@ export interface StarsInvoice {
   createdAt: number;
   paidAt?: number;
   orderId?: string; // заполняется после успешной выдачи заказа
-}
-
-// ---- Кейсы (открываются за тикеты, шанс/призы настраивает админ) ----
-// Публичная страница со списком — /case, открытие конкретного кейса — /case/{id}.
-// Приз — это настоящий товар из каталога (как у product-призов Колеса Фортуны, см.
-// api/wheel/spin): выигрыш создаёт реальный заказ с ценой 0 и обычную выдачу через
-// бота-посредника или продавца, а не зачисление денег — то же самое "получаешь предмет", а не
-// баланс. Цена открытия — в тикетах (отдельная валюта, см. UserProfile.ticketBalance).
-export interface CaseItem {
-  id: string; // короткий id внутри кейса (не документ Firestore) — генерируется на клиенте при добавлении
-  productId: string; // реальный товар из каталога — именно он будет выдан при выигрыше
-  name: string; // снимок названия товара на момент добавления в кейс (на случай переименования/удаления)
-  image: string; // снимок картинки товара на момент добавления
-  weight: number; // "вес" — относительный шанс выпадения среди предметов этого же кейса
-}
-
-export interface CaseData {
-  id: string;
-  name: string;
-  image: string;
-  priceTickets: number; // стоимость одного открытия, в тикетах
-  items: CaseItem[];
-  active: boolean; // скрытые (active: false) кейсы не показываются на /case, но старые открытия не трогаются
-  createdAt: number;
-}
-
-// История открытий — своя, приватная (видит только сам открывший и админ), пишет только сервер
-// (см. api/cases/open) — нужна и для истории пользователя, и как антиспуфинг-журнал результатов.
-export interface CaseOpening {
-  id: string;
-  caseId: string;
-  caseName: string;
-  userId: string;
-  wonItemId: string; // id предмета внутри кейса (CaseItem.id), НЕ id заказа
-  wonItemName: string;
-  wonItemImage: string;
-  wonOrderId: string; // созданный заказ на выдачу приза — см. /profile/orders
-  pricePaidTickets: number;
-  createdAt: number;
-}
-
-export type TicketRequestStatus = "pending" | "offered" | "accepted" | "declined" | "completed" | "rejected";
-
-// ---- Заявка "сдать предмет за тикеты" (см. /profile/tickets) ----
-// Пользователь присылает фото своего предмета — админ смотрит и сам решает, сколько тикетов
-// предложить (offeredTickets), пользователь соглашается или отказывается. После согласия сделка
-// обсуждается в личных сообщениях с админом (см. dmConversationId — обычная ЛС-переписка,
-// см. lib/directMessages.ts), и когда админ фактически получает предмет в игре, он вручную
-// отмечает заявку "completed" — только в этот момент тикеты зачисляются на баланс.
-export interface TicketRequest {
-  id: string;
-  userId: string;
-  userNick: string;
-  photoUrl: string;
-  description: string;
-  status: TicketRequestStatus;
-  offeredTickets?: number; // выставляет админ
-  dmConversationId?: string; // id переписки в directConversations — появляется после "accepted"
-  createdAt: number;
-  resolvedAt?: number;
 }

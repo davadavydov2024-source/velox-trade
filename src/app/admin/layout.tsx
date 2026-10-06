@@ -30,8 +30,6 @@ import {
   ArrowLeftRight,
   Shield,
   Trophy,
-  PackageOpen,
-  Ticket,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
@@ -49,8 +47,6 @@ const NAV = [
   { href: "/admin/promocodes", label: "Промокоды", icon: Gift },
   { href: "/admin/events", label: "Ивенты", icon: PartyPopper },
   { href: "/admin/wheel", label: "Колесо Фортуны", icon: Disc3 },
-  { href: "/admin/cases", label: "Кейсы", icon: PackageOpen },
-  { href: "/admin/ticket-requests", label: "Заявки на тикеты", icon: Ticket },
   { href: "/admin/bot-accounts", label: "Боты-посредники", icon: Bot },
   { href: "/admin/deliveries", label: "Выдача товаров", icon: PackageCheck },
   { href: "/admin/trades", label: "Обмены", icon: ArrowLeftRight },

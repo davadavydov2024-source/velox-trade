@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/lib/authContext";
-import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, AlertCircle } from "lucide-react";
+import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, MessageCircle, CheckCircle2, Plus, Tag } from "lucide-react";
 import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
+import { getTelegramLink } from "@/lib/telegramLink";
 import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
 import { useToast } from "@/lib/toastContext";
 import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
@@ -33,6 +34,14 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState(profile?.photoURL ?? "");
   const [saving, setSaving] = useState(false);
   const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
+  const [tgLinked, setTgLinked] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getTelegramLink(user.uid)
+      .then((l) => setTgLinked(!!l))
+      .catch(() => setTgLinked(null));
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -49,6 +58,13 @@ export default function ProfilePage() {
   const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
   const otherBadges = profile.badges.filter((b) => !CHECKMARK_BADGES.includes(b));
   const memberSince = new Date(profile.createdAt).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  // Кнопка "Сохранить" активна только когда что-то реально изменилось — раньше она была всегда
+  // нажата и непонятно было, есть ли что сохранять.
+  const dirty =
+    name.trim() !== profile.displayName ||
+    username.trim().toLowerCase() !== (profile.username ?? "") ||
+    avatarUrl !== (profile.photoURL ?? "") ||
+    bio !== (profile.bio ?? "");
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -189,9 +205,9 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid grid-cols-3 gap-3 mt-5">
-          <div className="glass rounded-card p-3 text-center">
+          <div className="rounded-card p-3 text-center bg-accent/10 border border-accent/25">
             <Wallet size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold">{profile.balance.toFixed(0)} ₽</p>
+            <p className="text-base font-bold text-accent">{profile.balance.toFixed(0)} ₽</p>
             <p className="text-[10px] text-white/40">Баланс</p>
           </div>
           <div className="glass rounded-card p-3 text-center">
@@ -206,15 +222,36 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {!profile.emailVerified && (
-          <p className="text-xs text-yellow-400/80 flex items-center gap-1.5 mt-4">
-            <AlertCircle size={13} /> Email {profile.email} не подтверждён — проверьте почту в разделе «Безопасность».
-          </p>
+        {tgLinked !== null && (
+          <Link
+            href="/profile/security"
+            className={`mt-4 flex items-center gap-2.5 px-3.5 py-2.5 rounded-btn text-xs transition-colors ${
+              tgLinked
+                ? "bg-green-500/[0.07] border border-green-500/20 text-green-400/90 hover:bg-green-500/10"
+                : "bg-yellow-500/[0.07] border border-yellow-500/25 text-yellow-300/90 hover:bg-yellow-500/10"
+            }`}
+          >
+            {tgLinked ? <CheckCircle2 size={15} className="shrink-0" /> : <MessageCircle size={15} className="shrink-0" />}
+            <span className="flex-1">
+              {tgLinked
+                ? "Telegram подключён — уведомления и вход по коду работают"
+                : "Telegram не подключён — подключи, чтобы получать уведомления о сделках и входить по коду"}
+            </span>
+            {!tgLinked && <span className="font-semibold shrink-0">Подключить →</span>}
+          </Link>
         )}
 
-        <Link href="/profile/topup" className="btn-primary inline-block mt-5 px-5 py-2.5 text-sm">
-          Пополнить баланс
-        </Link>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          <Link href="/profile/topup" className="btn-primary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+            <Plus size={15} strokeWidth={3} /> Пополнить
+          </Link>
+          <Link href="/profile/orders" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+            <ShoppingBag size={15} /> Заказы
+          </Link>
+          <Link href="/profile/sell" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+            <Tag size={15} /> Продать
+          </Link>
+        </div>
         </div>
       </div>
 
@@ -284,8 +321,8 @@ export default function ProfilePage() {
           <p className="text-sm text-white/60">{profile.email}</p>
         </div>
 
-        <button disabled={saving} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50">
-          <Save size={15} /> {saving ? "Сохраняем..." : "Сохранить"}
+        <button disabled={saving || !dirty} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+          <Save size={15} /> {saving ? "Сохраняем..." : dirty ? "Сохранить" : "Нет изменений"}
         </button>
       </form>
     </div>
