@@ -8,7 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { getProducts, boostProduct, deleteProduct } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { createProductEditRequest, MAX_PRODUCT_EDITS } from "@/lib/productEditRequests";
-import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags, Rarity, RARITY_LABEL } from "@/types";
+import { Product, DEFAULT_FEATURE_FLAGS, FeatureFlags, Rarity, RARITY_LABEL, PaymentMode, getPaymentMode } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useLanguage } from "@/lib/languageStore";
 import { tf, rarityLabel } from "@/lib/i18n";
@@ -43,20 +43,23 @@ function ProductBoostCard({
     category: product.category ?? "",
     rarity: product.rarity,
     starsPrice: product.starsPrice ? String(product.starsPrice) : "",
+    paymentMode: getPaymentMode(product) as PaymentMode,
   });
 
   const editCount = product.editCount ?? 0;
   const editsLeft = MAX_PRODUCT_EDITS - editCount;
 
   async function handleSubmitEdit() {
-    if (!editForm.description.trim() || editForm.price <= 0) {
+    if (!editForm.description.trim() || (editForm.paymentMode !== "stars" && editForm.price <= 0)) {
       toast("warning", "Заполни все поля корректно");
       return;
     }
+    const mode = editForm.paymentMode;
     const starsTrimmed = editForm.starsPrice.trim();
-    const starsValue = starsTrimmed === "" ? null : Number(starsTrimmed);
-    if (starsValue !== null && (!Number.isInteger(starsValue) || starsValue < 15)) {
-      toast("warning", "Цена в Stars — целое число, минимум 15 (или оставь поле пустым, чтобы отключить)");
+    // Для «рубли» Stars-цена не нужна вообще; для «только Stars» / «оба» — обязательна.
+    const starsValue = mode === "rub" || starsTrimmed === "" ? null : Number(starsTrimmed);
+    if (mode !== "rub" && (starsValue === null || !Number.isInteger(starsValue) || starsValue < 15)) {
+      toast("warning", "Цена в Stars — целое число, минимум 15");
       return;
     }
     setSubmittingEdit(true);
@@ -73,6 +76,7 @@ function ProductBoostCard({
         proposedCategory: editForm.category,
         proposedRarity: editForm.rarity,
         proposedStarsPrice: starsValue,
+        proposedPaymentMode: starsValue === null ? "rub" : mode,
       });
       toast("success", "Заявка на редактирование отправлена админу");
       setEditing(false);
@@ -128,8 +132,9 @@ function ProductBoostCard({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">{product.name}</p>
           <p className="text-xs text-white/40">
-            {rarityLabel(language, product.rarity)} · {product.price} ₽
-            {product.starsPrice ? ` · ${product.starsPrice} ⭐` : ""} · {tf(language, "my_products_stock", { n: product.stock })}
+            {rarityLabel(language, product.rarity)} ·{" "}
+            {getPaymentMode(product) === "stars" ? `${product.starsPrice} ⭐ (только Stars)` : `${product.price} ₽`}
+            {getPaymentMode(product) === "both" ? ` · ${product.starsPrice} ⭐` : ""} · {tf(language, "my_products_stock", { n: product.stock })}
           </p>
           {isActive && (
             <p className="text-xs text-accent mt-1 flex items-center gap-1">
@@ -189,15 +194,17 @@ function ProductBoostCard({
             placeholder="Описание"
             className="input-field py-2 text-sm w-full min-h-[70px]"
           />
-          <input
-            autoComplete="off"
-            type="number"
-            min={1}
-            value={editForm.price || ""}
-            onChange={(e) => setEditForm((f) => ({ ...f, price: Number(e.target.value) }))}
-            placeholder="Цена, ₽"
-            className="input-field py-2 text-sm w-full"
-          />
+          {editForm.paymentMode !== "stars" && (
+            <input
+              autoComplete="off"
+              type="number"
+              min={1}
+              value={editForm.price || ""}
+              onChange={(e) => setEditForm((f) => ({ ...f, price: Number(e.target.value) }))}
+              placeholder="Цена, ₽"
+              className="input-field py-2 text-sm w-full"
+            />
+          )}
           <input
             autoComplete="off"
             value={editForm.category}
@@ -217,17 +224,44 @@ function ProductBoostCard({
             ))}
           </select>
           <div>
-            <p className="text-xs text-white/40 mb-1">Оплата Telegram Stars ⭐ (целое число, минимум 15 — оставь пустым, чтобы отключить)</p>
-            <input
-              autoComplete="off"
-              type="number"
-              min={15}
-              step={1}
-              value={editForm.starsPrice}
-              onChange={(e) => setEditForm((f) => ({ ...f, starsPrice: e.target.value }))}
-              placeholder="Например, 50"
-              className="input-field py-2 text-sm w-full"
-            />
+            <p className="text-xs text-white/40 mb-1">Способ оплаты</p>
+            <div className="flex gap-2">
+              {([
+                ["rub", "💰 Рубли"],
+                ["stars", "⭐ Только Stars"],
+                ["both", "💰⭐ Оба"],
+              ] as [PaymentMode, string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  disabled={product.auctionEnabled && val !== "rub"}
+                  onClick={() => setEditForm((f) => ({ ...f, paymentMode: val }))}
+                  className={`flex-1 py-2 rounded-btn text-xs border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                    editForm.paymentMode === val ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {editForm.paymentMode !== "rub" && (
+              <>
+                <p className="text-xs text-white/40 mt-2 mb-1">
+                  Цена в Telegram Stars ⭐ (целое число, минимум 15)
+                  {editForm.paymentMode === "stars" ? " — за рубли этот товар купить будет нельзя" : ""}
+                </p>
+                <input
+                  autoComplete="off"
+                  type="number"
+                  min={15}
+                  step={1}
+                  value={editForm.starsPrice}
+                  onChange={(e) => setEditForm((f) => ({ ...f, starsPrice: e.target.value }))}
+                  placeholder="Например, 50"
+                  className="input-field py-2 text-sm w-full"
+                />
+              </>
+            )}
           </div>
           <div className="flex gap-2">
             <button onClick={handleSubmitEdit} disabled={submittingEdit} className="btn-primary flex-1 py-2 text-xs disabled:opacity-50">

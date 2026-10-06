@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal, Star } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { getProducts, getGameBySlug } from "@/lib/products";
-import { Product, Rarity, RARITY_LABEL } from "@/types";
+import { Product, Rarity, RARITY_LABEL, getPaymentMode } from "@/types";
 
 const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
@@ -67,7 +67,7 @@ function CatalogInner() {
         if (onlyNew && !p.isNew) return false;
         if (rarity && p.rarity !== rarity) return false;
         if (onlyAvailable && p.stock <= 0) return false;
-        if (onlyStars && !p.starsPrice) return false;
+        if (onlyStars && getPaymentMode(p) === "rub") return false;
         if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
         return true;
       })

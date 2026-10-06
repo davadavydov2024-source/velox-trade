@@ -73,7 +73,11 @@ export default function AdminProductEditsPage() {
                 </div>
                 <div>
                   <p className="text-white/40 text-xs mb-0.5">Оплата Stars</p>
-                  <p>{r.proposedStarsPrice ? `${r.proposedStarsPrice} ⭐` : "выключена"}</p>
+                  <p>
+                    {r.proposedStarsPrice
+                      ? `${r.proposedStarsPrice} ⭐ (${r.proposedPaymentMode === "stars" ? "только Stars" : "рубли или Stars"})`
+                      : "выключена"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-white/40 text-xs mb-0.5">Категория</p>

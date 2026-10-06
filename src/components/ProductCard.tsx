@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart, Star } from "lucide-react";
-import { Product, RARITY_LABEL } from "@/types";
+import { Product, RARITY_LABEL, getPaymentMode } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
@@ -39,6 +39,8 @@ export function ProductCard({ product }: { product: Product }) {
     ? +(product.price * (1 - product.discountPercent / 100)).toFixed(2)
     : product.price;
 
+  const paymentMode = getPaymentMode(product);
+  const starsOnly = paymentMode === "stars";
   const isBoosted = (product.boostUntil ?? 0) > Date.now();
   const avgRating = seller?.ratingCount ? (seller.ratingSum ?? 0) / seller.ratingCount : null;
 
@@ -67,7 +69,7 @@ export function ProductCard({ product }: { product: Product }) {
             -{product.discountPercent}%
           </span>
         )}
-        {!!product.starsPrice && (
+        {paymentMode !== "rub" && !!product.starsPrice && (
           <span
             className={`absolute right-2 bg-[#1d9bf0] text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-0.5 ${
               product.discountPercent ? "top-9" : "top-2"
@@ -112,11 +114,23 @@ export function ProductCard({ product }: { product: Product }) {
 
       <div className="flex items-center justify-between">
         <div>
-          {!!product.discountPercent && (
-            <span className="text-xs text-white/40 line-through mr-1">{product.price} ₽</span>
+          {starsOnly ? (
+            <span className="font-bold text-accent">{product.starsPrice} ⭐</span>
+          ) : (
+            <>
+              {!!product.discountPercent && (
+                <span className="text-xs text-white/40 line-through mr-1">{product.price} ₽</span>
+              )}
+              <span className="font-bold text-accent">{finalPrice} ₽</span>
+            </>
           )}
-          <span className="font-bold text-accent">{finalPrice} ₽</span>
         </div>
+        {starsOnly ? (
+          // Только Stars — в корзину нельзя, ведём на страницу товара, где есть кнопка оплаты Stars.
+          <Link href={`/product/${product.id}`} className="btn-primary py-2 px-3 text-xs" aria-label="Открыть товар">
+            Купить
+          </Link>
+        ) : (
         <button
           disabled={product.stock <= 0}
           onClick={() => {
@@ -128,6 +142,7 @@ export function ProductCard({ product }: { product: Product }) {
         >
           <ShoppingCart size={16} />
         </button>
+        )}
       </div>
       {product.stock <= 0 && <p className="text-xs text-red-400 mt-1">Нет в наличии</p>}
     </div>

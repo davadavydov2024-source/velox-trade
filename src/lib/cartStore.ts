@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Product } from "@/types";
+import { Product, getPaymentMode } from "@/types";
 
 interface CartLine {
   product: Product;
@@ -29,6 +29,8 @@ export const useCart = create<CartState>()(
       lines: [],
       add: (product, qty = 1) =>
         set((state) => {
+          // Товар «только за Stars» в рублёвую корзину не попадает (его нельзя оплатить балансом).
+          if (getPaymentMode(product) === "stars") return state;
           const existing = state.lines.find((l) => l.product.id === product.id);
           if (existing) {
             return {

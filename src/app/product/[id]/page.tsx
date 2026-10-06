@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight, Send } from "lucide-react";
 import { getProducts, getGameBySlug, getPurchasableProductById } from "@/lib/products";
-import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
+import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES, getPaymentMode } from "@/types";
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
@@ -79,6 +79,8 @@ export default function ProductPage() {
     return <div className="max-w-7xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>;
   }
 
+  const paymentMode = getPaymentMode(product);
+  const starsOnly = paymentMode === "stars";
   const finalPrice = product.discountPercent
     ? +(product.price * (1 - product.discountPercent / 100)).toFixed(2)
     : product.price;
@@ -171,8 +173,15 @@ export default function ProductPage() {
           <p className="text-white/50 mb-6">{product.description}</p>
 
           <div className="flex items-baseline gap-3 mb-6">
-            {!!product.discountPercent && <span className="text-white/40 line-through">{product.price} ₽</span>}
-            <span className="text-3xl font-extrabold text-accent">{finalPrice} ₽</span>
+            {starsOnly ? (
+              <span className="text-3xl font-extrabold text-accent">{product.starsPrice} ⭐</span>
+            ) : (
+              <>
+                {!!product.discountPercent && <span className="text-white/40 line-through">{product.price} ₽</span>}
+                <span className="text-3xl font-extrabold text-accent">{finalPrice} ₽</span>
+                {paymentMode === "both" && <span className="text-lg text-white/50">или {product.starsPrice} ⭐</span>}
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2 mb-6">
@@ -195,23 +204,29 @@ export default function ProductPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href="/cart"
-              onClick={() => add(product, qty)}
-              className="btn-primary px-6 py-3 flex items-center gap-2"
-            >
-              <Zap size={18} /> Купить сейчас
-            </Link>
-            <button
-              onClick={() => {
-                add(product, qty);
-                toast("success", `${product.name} ×${qty} добавлен в корзину`);
-              }}
-              className="btn-secondary px-6 py-3 flex items-center gap-2"
-              disabled={product.stock <= 0}
-            >
-              <ShoppingCart size={18} /> В корзину
-            </button>
+            {/* Товар «только за Stars» нельзя положить в корзину и оплатить рублями —
+                оплата идёт только кнопкой «Купить за ⭐» ниже. */}
+            {!starsOnly && (
+              <>
+                <Link
+                  href="/cart"
+                  onClick={() => add(product, qty)}
+                  className="btn-primary px-6 py-3 flex items-center gap-2"
+                >
+                  <Zap size={18} /> Купить сейчас
+                </Link>
+                <button
+                  onClick={() => {
+                    add(product, qty);
+                    toast("success", `${product.name} ×${qty} добавлен в корзину`);
+                  }}
+                  className="btn-secondary px-6 py-3 flex items-center gap-2"
+                  disabled={product.stock <= 0}
+                >
+                  <ShoppingCart size={18} /> В корзину
+                </button>
+              </>
+            )}
             <FavoriteButton
               productId={product.id}
               className="btn-secondary px-4 py-3 flex items-center gap-2"
@@ -227,7 +242,7 @@ export default function ProductPage() {
             )}
           </div>
 
-          {user && product.sellerId !== "store" && product.sellerId !== user.uid && !!product.starsPrice && seller?.badges?.some((b) => CHECKMARK_BADGES.includes(b)) && (
+          {user && product.sellerId !== "store" && product.sellerId !== user.uid && paymentMode !== "rub" && !!product.starsPrice && (
             <button
               onClick={async () => {
                 if (starsLoading || product.stock <= 0) return;
@@ -241,7 +256,7 @@ export default function ProductPage() {
                 }
               }}
               disabled={starsLoading || product.stock <= 0}
-              className="btn-secondary px-6 py-3 flex items-center gap-2 mt-3 w-full sm:w-auto border-accent/40"
+              className={`${starsOnly ? "btn-primary" : "btn-secondary border-accent/40"} px-6 py-3 flex items-center gap-2 ${starsOnly ? "" : "mt-3"} w-full sm:w-auto`}
               title="Оплата напрямую в Telegram — продавец получит Stars сразу после оплаты"
             >
               <Send size={18} /> {starsLoading ? "Отправляем счёт..." : `Купить за ${product.starsPrice * qty} ⭐`}
@@ -249,6 +264,15 @@ export default function ProductPage() {
           )}
         </div>
       </div>
+
+      {starsOnly && !user && (
+        <p className="text-sm text-white/50 mt-3 max-w-7xl mx-auto px-4">
+          Этот товар продаётся только за ⭐ Stars — <Link href="/auth/login" className="text-accent hover:underline">войди в аккаунт</Link>, чтобы купить.
+        </p>
+      )}
+      {starsOnly && user && product.sellerId === user.uid && (
+        <p className="text-sm text-white/40 mt-3 max-w-7xl mx-auto px-4">Это твой товар — покупка недоступна.</p>
+      )}
 
       {tradeModalOpen && product && <TradeOfferModal targetProduct={product} onClose={() => setTradeModalOpen(false)} />}
 

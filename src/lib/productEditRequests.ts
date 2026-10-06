@@ -28,6 +28,8 @@ export async function approveProductEditRequest(request: ProductEditRequest) {
     category: request.proposedCategory,
     rarity: request.proposedRarity,
     starsPrice: request.proposedStarsPrice,
+    // Без Stars-цены режим всегда "rub"; у старых заявок поля нет — выводим из цены.
+    paymentMode: request.proposedStarsPrice ? (request.proposedPaymentMode ?? "both") : "rub",
     editCount: increment(1),
   });
   await updateDoc(doc(db, "productEditRequests", request.id), { status: "approved" });

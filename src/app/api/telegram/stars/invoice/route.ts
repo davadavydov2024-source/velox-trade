@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { sendInvoice } from "@/lib/telegramBot";
-import { CHECKMARK_BADGES } from "@/types";
+import { getPaymentMode } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
       stock: number;
       sellerId: string;
       starsPrice?: number;
+      paymentMode?: "rub" | "stars" | "both";
     };
     if (product.stock < qty) {
       return NextResponse.json({ error: `В наличии всего ${product.stock} шт.` }, { status: 400 });
@@ -49,16 +50,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Продавец не установил цену в Stars для этого товара" }, { status: 400 });
     }
 
-    // Оплата Stars — только у продавцов с галочкой верификации (checkmark_blue / checkmark_grey).
-    // Проверяем на сервере, а не доверяем кнопке на клиенте — иначе можно было бы получить счёт
-    // в обход этого ограничения прямым запросом к API. Дополнительно эта же проверка стоит и в
-    // api/products/stars-price (нельзя выставить цену не будучи верифицированным), но статус
-    // продавца мог измениться (например, галочку сняли) уже после того, как цена была задана —
-    // поэтому проверяем ещё раз здесь, на момент самой покупки.
-    const sellerSnap = await db.collection("users").doc(product.sellerId).get();
-    const sellerBadges: string[] = sellerSnap.exists ? (sellerSnap.data()?.badges ?? []) : [];
-    if (!sellerBadges.some((b) => CHECKMARK_BADGES.includes(b as any))) {
-      return NextResponse.json({ error: "Продавец не верифицирован" }, { status: 400 });
+    // Оплата Stars доступна ЛЮБОМУ продавцу — верификация (галочка) больше не требуется.
+    // Единственное условие: продавец не выбрал «только рубли».
+    if (getPaymentMode(product) === "rub") {
+      return NextResponse.json({ error: "Этот товар продаётся только за рубли" }, { status: 400 });
     }
 
     const amountStars = product.starsPrice * qty;

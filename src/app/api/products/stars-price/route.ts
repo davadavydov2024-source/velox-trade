@@ -29,7 +29,11 @@ export async function POST(req: NextRequest) {
 
     // null/0 — отключить оплату Stars для товара, это разрешено всегда без проверки верификации.
     if (starsPrice === null || starsPrice === 0) {
-      await productRef.update({ starsPrice: null });
+      // У товара «только Stars» отключить Stars нельзя — его вообще нельзя будет купить.
+      if (productSnap.data()?.paymentMode === "stars") {
+        return NextResponse.json({ error: "Товар продаётся только за Stars — сначала смени способ оплаты" }, { status: 400 });
+      }
+      await productRef.update({ starsPrice: null, paymentMode: "rub" });
       return NextResponse.json({ ok: true, starsPrice: null });
     }
 

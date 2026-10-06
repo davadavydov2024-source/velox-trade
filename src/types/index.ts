@@ -161,12 +161,28 @@ export interface Product {
   auctionBidCount?: number;
   auctionEndedAt?: number;
   // Фиксированная цена товара в Telegram Stars, которую сам продавец указывает при создании/
-  // редактировании товара (см. /profile/my-products, api/products/stars-price). Кнопка "Купить за
-  // Stars" на карточке товара показывается только когда это поле задано (>0) И продавец
-  // верифицирован (см. CHECKMARK_BADGES) — см. api/telegram/stars/invoice. Отсутствует/0 = оплата
-  // Stars для этого товара недоступна.
+  // редактировании товара (см. /profile/my-products). Доступно ЛЮБОМУ продавцу (верификация не
+  // нужна). Отсутствует/0 = оплата Stars для этого товара недоступна.
   starsPrice?: number;
+  // Способ оплаты, который выбрал продавец:
+  //  "rub"   — только рубли (баланс сайта);
+  //  "stars" — ТОЛЬКО Telegram Stars: корзина/баланс для этого товара закрыты, price в ₽ служебный;
+  //  "both"  — покупатель сам выбирает (рубли или Stars).
+  // Если поля нет (старые товары): есть starsPrice → "both", иначе "rub". Всегда читай через
+  // getPaymentMode(), а не напрямую.
+  paymentMode?: PaymentMode;
   createdAt: number;
+}
+
+export type PaymentMode = "rub" | "stars" | "both";
+
+/** Эффективный способ оплаты товара с учётом старых товаров без поля paymentMode. */
+export function getPaymentMode(p: { paymentMode?: PaymentMode; starsPrice?: number | null }): PaymentMode {
+  const hasStars = !!p.starsPrice && p.starsPrice > 0;
+  if (p.paymentMode === "stars") return hasStars ? "stars" : "rub";
+  if (p.paymentMode === "both") return hasStars ? "both" : "rub";
+  if (p.paymentMode === "rub") return "rub";
+  return hasStars ? "both" : "rub";
 }
 
 export interface AuctionBid {
@@ -201,6 +217,9 @@ export interface ProductEditRequest {
   // null — оплата Stars отключена для этого товара. Ноль сюда не кладём (см. api/products/stars-price
   // для той же логики) — только конкретное число ⩾15 или null.
   proposedStarsPrice: number | null;
+  // Способ оплаты после правки (см. Product.paymentMode). У старых заявок поля нет — тогда
+  // режим выводится из proposedStarsPrice.
+  proposedPaymentMode?: PaymentMode;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
 }
@@ -677,6 +696,7 @@ export interface SellRequest {
   // нужен для внутренних механизмов (комиссия/аукцион/отчётность), которые всегда работают в ₽,
   // но покупателю рублёвая цена в этом случае не показывается и не участвует в покупке.
   starsPrice?: number;
+  paymentMode?: PaymentMode; // см. Product.paymentMode — переносится на товар при одобрении
   discountPercent?: number; // необязательная скидка от самого продавца — переносится на товар при одобрении
   commissionPercent: number; // комиссия платформы на момент подачи заявки (снимок текущей настройки, чтобы не менялась задним числом)
   description: string;

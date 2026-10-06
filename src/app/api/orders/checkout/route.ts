@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
 import { maskNickname } from "@/lib/maskNickname";
+import { getPaymentMode } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,14 @@ export async function POST(req: NextRequest) {
       const stock = snap.data()?.stock ?? 0;
       if (stock < lines[i].quantity) {
         return NextResponse.json({ error: `«${snap.data()?.name}» — в наличии всего ${stock} шт.` }, { status: 400 });
+      }
+      // Продавец выбрал оплату ТОЛЬКО Stars — рублями с баланса такой товар купить нельзя
+      // (проверка на сервере, чтобы нельзя было обойти скрытую на клиенте кнопку).
+      if (getPaymentMode(snap.data() as any) === "stars") {
+        return NextResponse.json(
+          { error: `«${snap.data()?.name}» продаётся только за Telegram Stars — оплати его кнопкой «Купить за ⭐» на странице товара` },
+          { status: 400 }
+        );
       }
     }
 
@@ -109,6 +118,7 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < freshProductSnaps.length; i++) {
         const stock = freshProductSnaps[i].data()?.stock ?? 0;
         if (stock < lines[i].quantity) throw new Error(`insufficient-stock:${products[i].name}`);
+        if (getPaymentMode(freshProductSnaps[i].data() as any) === "stars") throw new Error(`stars-only:${products[i].name}`);
       }
       const freshBalance = freshUserSnap.data()?.balance ?? 0;
       if (freshBalance < finalTotal) throw new Error("insufficient-balance");
@@ -184,6 +194,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     if (typeof err?.message === "string" && err.message.startsWith("insufficient-stock:")) {
       return NextResponse.json({ error: `Товара «${err.message.split(":")[1]}» уже не хватает на складе` }, { status: 409 });
+    }
+    if (typeof err?.message === "string" && err.message.startsWith("stars-only:")) {
+      return NextResponse.json({ error: `«${err.message.split(":")[1]}» продаётся только за Telegram Stars` }, { status: 409 });
     }
     if (err?.message === "insufficient-balance") {
       return NextResponse.json({ error: "Недостаточно средств на балансе" }, { status: 400 });
