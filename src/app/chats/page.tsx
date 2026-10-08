@@ -200,38 +200,55 @@ function ChatsInner() {
       </div>
       <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
       <div className="grid md:grid-cols-[340px_1fr] gap-5">
-        <div className={`card p-2 md:max-h-[75vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
-          <div className="sticky top-0 z-10 -mx-2 -mt-2 px-3 pt-3 pb-2 mb-1 bg-surface/95 backdrop-blur border-b border-white/[0.05]">
-            <div className="relative mb-2.5">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+        {/* Левая колонка: фиксированная шапка (поиск + вкладки) и ОТДЕЛЬНО прокручиваемый список.
+            Раньше шапка была sticky с отрицательными отступами внутри скруглённой карточки — углы
+            торчали наружу, а блок «плыл» при прокрутке. */}
+        <div className={`card overflow-hidden md:flex md:flex-col md:h-[75vh] ${view ? "hidden" : ""}`}>
+          <div className="shrink-0 p-3 space-y-2.5 border-b border-white/[0.06]">
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
                 autoComplete="off"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Поиск по чатам"
-                className="input-field py-2 pl-9 pr-8 text-sm rounded-full"
+                className="input-field h-10 !py-0 pl-10 pr-9 text-sm rounded-full"
               />
               {query && (
-                <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white" aria-label="Очистить поиск">
-                  <X size={14} />
+                <button
+                  onClick={() => setQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full text-white/40 hover:text-white hover:bg-white/10"
+                  aria-label="Очистить поиск"
+                >
+                  <X size={13} />
                 </button>
               )}
             </div>
-            <div className="flex gap-1 p-1 rounded-full bg-black/25">
-              {FILTERS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilter(f.id)}
-                  className={`flex-1 py-1.5 rounded-full text-xs font-medium transition-all ${
-                    filter === f.id ? "bg-accent text-black shadow-[0_2px_10px_-2px_var(--color-accent)]" : "text-white/50 hover:text-white/80"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-full bg-black/30">
+              {FILTERS.map((f) => {
+                const count = f.id === "deals" ? items.length : f.id === "dm" ? dmConversations.length : 0;
+                const active = filter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => setFilter(f.id)}
+                    className={`h-8 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                      active ? "bg-accent text-black shadow-[0_2px_10px_-2px_var(--color-accent)]" : "text-white/55 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    {f.label}
+                    {count > 0 && (
+                      <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] leading-[18px] text-center font-semibold ${active ? "bg-black/20 text-black" : "bg-white/10 text-white/60"}`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
+          <div className="p-2 md:flex-1 md:min-h-0 md:overflow-y-auto">
           {showOfficial && filter !== "deals" && filter !== "dm" && (
             <>
           <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
@@ -352,6 +369,7 @@ function ChatsInner() {
               })}
             </>
           )}
+          </div>
         </div>
 
         {/* На мобильных открытый чат — отдельный полноэкранный слой (как в мессенджерах), а не
