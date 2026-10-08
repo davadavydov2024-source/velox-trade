@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, query, where, orderBy } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { DirectConversation, DirectMessage } from "@/types";
 import { notifyTelegram } from "./telegramNotify";
@@ -18,8 +18,22 @@ export function subscribeConversation(id: string, cb: (conv: DirectConversation 
 
 /** Список диалогов пользователя, живой (обновляется сам при новом сообщении) — для /messages. */
 export function subscribeUserConversations(uid: string, cb: (list: DirectConversation[]) => void) {
-  const q = query(collection(db, "directConversations"), where("participants", "array-contains", uid), orderBy("updatedAt", "desc"));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as DirectConversation)));
+  // Без orderBy в запросе: array-contains + orderBy по другому полю требует составной индекс Firestore
+  // (без него слушатель падал с failed-precondition и список личных сообщений не загружался).
+  // Сортируем на клиенте — у человека диалогов немного, разницы нет.
+  const q = query(collection(db, "directConversations"), where("participants", "array-contains", uid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as DirectConversation);
+      list.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+      cb(list);
+    },
+    (err) => {
+      console.error("subscribeUserConversations:", err);
+      cb([]);
+    }
+  );
 }
 
 export async function sendDirectMessage(
