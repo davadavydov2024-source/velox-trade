@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Product, getPaymentMode } from "@/types";
+import { slotStorageSuffix } from "./accountSlots";
 
 interface CartLine {
   product: Product;
@@ -51,6 +52,8 @@ export const useCart = create<CartState>()(
       total: () => get().lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0),
       count: () => get().lines.reduce((sum, l) => sum + l.quantity, 0),
     }),
-    { name: "velox-trade-cart" }
+    // Ключ зависит от аккаунта: иначе корзина одного аккаунта «переезжала» в другой при переключении
+    // (и CartSync записывал её в чужой carts/<uid>).
+    { name: `velox-trade-cart${slotStorageSuffix()}` }
   )
 );

@@ -567,9 +567,15 @@ export function OrderChatThread({
       )}
 
       <div className="shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          <div>
-            <p className="font-bold flex items-center gap-1.5">
+        <div className="flex items-center gap-3 mb-3 p-3 rounded-2xl bg-gradient-to-r from-accent/12 via-accent/[0.04] to-transparent border border-white/[0.06]">
+          <div
+            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-sm font-bold ring-2 ring-accent/30"
+            style={{ background: `${avatarColor(counterpartName)}22`, color: avatarColor(counterpartName) }}
+          >
+            {initials(counterpartName) || "?"}
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-[15px] flex items-center gap-1.5 flex-wrap">
               {counterpartUsername ? (
                 <Link href={`/seller/${counterpartUsername}`} className="hover:text-accent hover:underline transition-colors">
                   {counterpartName}
@@ -683,9 +689,9 @@ export function OrderChatThread({
                     isWarning
                       ? "bg-amber-500/15 border border-amber-500/30 text-amber-200"
                       : isMine
-                      ? "bg-gradient-to-br from-accent to-accent-dark text-black"
-                      : "bg-surface border border-white/[0.04] text-white/80"
-                  } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2.5"} text-[13.5px] leading-snug rounded-2xl ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
+                      ? "bg-gradient-to-br from-accent to-accent-dark text-black shadow-[0_6px_18px_-8px_var(--color-accent)]"
+                      : "bg-white/[0.06] border border-white/[0.07] text-white/85 backdrop-blur-sm"
+                  } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2"} text-[14px] leading-snug rounded-[20px] ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
                 >
                   {!isMine && !prevSameSender && (
                     <p className={`text-[10px] mb-0.5 ${m.imageUrl ? "px-1.5 pt-1" : ""} text-white/30`}>{senderLabel}</p>
@@ -796,7 +802,11 @@ export function OrderChatThread({
             </div>
           )}
 
-          <form onSubmit={handleSend} className="flex gap-2 items-end" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <form
+            onSubmit={handleSend}
+            className="flex gap-1.5 items-center p-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20 transition-all"
+            style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+          >
             <input
               autoComplete="off"
               ref={fileInputRef}
@@ -810,7 +820,7 @@ export function OrderChatThread({
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPhoto}
               title="Отправить фото"
-              className="btn-secondary px-3 py-2.5 shrink-0 disabled:opacity-50"
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white/50 hover:text-accent hover:bg-white/5 disabled:opacity-50 transition-colors"
             >
               {uploadingPhoto ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
             </button>
@@ -819,10 +829,15 @@ export function OrderChatThread({
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={isAdminViewer ? "Сообщение или команда (/help)..." : "Написать сообщение..."}
-              className="input-field py-2.5 text-sm flex-1 rounded-full"
+              className="input-field py-2 text-sm flex-1 rounded-full"
+              style={{ background: "transparent", border: "none", boxShadow: "none" }}
             />
-            <button className="btn-primary w-10 h-10 shrink-0 rounded-full flex items-center justify-center p-0">
-              <Send size={16} />
+            <button
+              disabled={!text.trim()}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center bg-gradient-to-br from-accent to-accent-dark text-black shadow-[0_4px_14px_-4px_var(--color-accent)] disabled:opacity-30 disabled:shadow-none hover:scale-105 active:scale-95 transition-all"
+              aria-label="Отправить"
+            >
+              <Send size={15} />
             </button>
           </form>
         </div>

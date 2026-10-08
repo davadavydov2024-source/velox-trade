@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp, FirebaseOptions } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getActiveSlotId, getSavedAccounts, PRIMARY_SLOT } from "./accountSlots";
+import { getLoadedSlotId, PRIMARY_SLOT } from "./accountSlots";
 
 export const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -25,10 +25,9 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
  * (см. lib/multiAccount.ts) — так что здесь достаточно решить это один раз при старте.
  */
 function resolveActiveApp() {
-  const activeSlot = getActiveSlotId();
+  // getLoadedSlotId сам откатывается на primary, если слот потерян, и чинит указатель в localStorage.
+  const activeSlot = getLoadedSlotId();
   if (activeSlot === PRIMARY_SLOT) return firebaseApp;
-  const saved = getSavedAccounts().find((a) => a.slotId === activeSlot);
-  if (!saved) return firebaseApp; // слот потерялся/удалён — откатываемся на primary
   const appName = `vt-${activeSlot}`;
   return getApps().find((a) => a.name === appName) ?? initializeApp(firebaseConfig, appName);
 }

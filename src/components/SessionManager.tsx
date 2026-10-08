@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { getDeviceId, registerSession } from "@/lib/sessions";
+import { popSwitchNotice } from "@/lib/accountSlots";
 
 /**
  * Привязан к текущему устройству/браузеру:
@@ -18,6 +19,14 @@ export function SessionManager() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const registeredFor = useRef<string | null>(null);
+
+  // Если нас только что автоматически переключило на другой аккаунт (сессия предыдущего истекла) —
+  // объясняем, что произошло. Читаем один раз при старте страницы.
+  useEffect(() => {
+    const notice = popSwitchNotice();
+    if (notice) toast("warning", notice);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!user) {

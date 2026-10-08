@@ -1,7 +1,7 @@
 "use client";
 
 import { initializeApp, deleteApp, getApps } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, signInWithPopup, signOut, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, signInWithPopup, signOut, GoogleAuthProvider, Auth } from "firebase/auth";
 import { firebaseConfig, firebaseApp } from "./firebase";
 import {
   SavedAccount,
@@ -11,9 +11,11 @@ import {
   removeSavedAccountBySlot,
   getActiveSlotId,
   setActiveSlotId,
+  getLoadedSlotId,
+  markIntentionalSignOut,
 } from "./accountSlots";
 
-export { getSavedAccounts, getActiveSlotId, PRIMARY_SLOT } from "./accountSlots";
+export { getSavedAccounts, getActiveSlotId, getLoadedSlotId, PRIMARY_SLOT } from "./accountSlots";
 export type { SavedAccount } from "./accountSlots";
 
 function randomSlotId(): string {
@@ -23,29 +25,37 @@ function randomSlotId(): string {
 /** Уже есть 5 аккаунтов — больше не даём добавлять, чтобы не плодить лишние Firebase App-инстансы в браузере. */
 export const MAX_ACCOUNTS = 5;
 
-/**
- * Логинит НОВЫЙ аккаунт в отдельном изолированном Firebase App (не трогая текущую активную
- * сессию), сохраняет его в список и делает активным. После успеха страницу нужно перезагрузить
- * (см. вызовы в UI) — так все real-time подписки сайта переинициализируются уже на новый аккаунт.
- */
-export async function addAccountByEmail(email: string, password: string): Promise<SavedAccount> {
+function authForSlot(slotId: string): Auth {
+  if (slotId === PRIMARY_SLOT) return getAuth(firebaseApp);
+  const name = `vt-${slotId}`;
+  return getAuth(getApps().find((a) => a.name === name) ?? initializeApp(firebaseConfig, name));
+}
+
+/** Общая часть «добавить аккаунт»: логин в отдельном изолированном Firebase App (не трогая текущую
+ * активную сессию), проверка дубля/лимита, сохранение в список и выбор активным. После успеха страницу
+ * нужно перезагрузить (см. вызовы в UI) — так все real-time подписки сайта переинициализируются. */
+async function addAccount(signIn: (a: Auth) => ReturnType<typeof signInWithEmailAndPassword>, fallbackEmail: string): Promise<SavedAccount> {
+  if (getSavedAccounts().length >= MAX_ACCOUNTS) {
+    throw new Error(`Можно добавить не больше ${MAX_ACCOUNTS} аккаунтов`);
+  }
   const slotId = randomSlotId();
-  const appName = `vt-${slotId}`;
-  const app = initializeApp(firebaseConfig, appName);
+  const app = initializeApp(firebaseConfig, `vt-${slotId}`);
   try {
-    const authInst = getAuth(app);
-    const cred = await signInWithEmailAndPassword(authInst, email, password);
+    const cred = await signIn(getAuth(app));
+    const existing = getSavedAccounts().find((a) => a.uid === cred.user.uid);
+    if (existing) {
+      // Этот человек уже в списке — временный App выбрасываем и подсказываем, куда переключиться.
+      await signOut(getAuth(app)).catch(() => {});
+      await deleteApp(app).catch(() => {});
+      throw new Error("Этот аккаунт уже добавлен — выбери его в списке");
+    }
     const acc: SavedAccount = {
       slotId,
       uid: cred.user.uid,
-      email: cred.user.email ?? email,
+      email: cred.user.email ?? fallbackEmail,
       displayName: cred.user.displayName ?? cred.user.email ?? "Игрок",
       photoURL: cred.user.photoURL ?? undefined,
     };
-    if (getSavedAccounts().some((a) => a.uid === acc.uid)) {
-      await deleteApp(app);
-      throw new Error("Этот аккаунт уже добавлен");
-    }
     upsertSavedAccount(acc);
     setActiveSlotId(slotId);
     return acc;
@@ -55,31 +65,12 @@ export async function addAccountByEmail(email: string, password: string): Promis
   }
 }
 
-export async function addAccountByGoogle(): Promise<SavedAccount> {
-  const slotId = randomSlotId();
-  const appName = `vt-${slotId}`;
-  const app = initializeApp(firebaseConfig, appName);
-  try {
-    const authInst = getAuth(app);
-    const cred = await signInWithPopup(authInst, new GoogleAuthProvider());
-    const acc: SavedAccount = {
-      slotId,
-      uid: cred.user.uid,
-      email: cred.user.email ?? "",
-      displayName: cred.user.displayName ?? cred.user.email ?? "Игрок",
-      photoURL: cred.user.photoURL ?? undefined,
-    };
-    if (getSavedAccounts().some((a) => a.uid === acc.uid)) {
-      await deleteApp(app);
-      throw new Error("Этот аккаунт уже добавлен");
-    }
-    upsertSavedAccount(acc);
-    setActiveSlotId(slotId);
-    return acc;
-  } catch (err) {
-    await deleteApp(app).catch(() => {});
-    throw err;
-  }
+export function addAccountByEmail(email: string, password: string): Promise<SavedAccount> {
+  return addAccount((a) => signInWithEmailAndPassword(a, email, password), email);
+}
+
+export function addAccountByGoogle(): Promise<SavedAccount> {
+  return addAccount((a) => signInWithPopup(a, new GoogleAuthProvider()) as any, "");
 }
 
 /** Регистрирует уже вошедшего пользователя (обычный логин/регистрация на "primary") в списке переключателя. */
@@ -88,25 +79,34 @@ export function registerPrimaryAccount(acc: Omit<SavedAccount, "slotId">) {
 }
 
 /** Переключение всегда идёт через полную перезагрузку страницы — так безопаснее для всех real-time подписок сайта. */
-export function switchAccount(slotId: string) {
-  if (slotId === getActiveSlotId()) return;
+export function switchAccount(slotId: string, to = "/profile") {
+  if (slotId === getLoadedSlotId()) return;
+  if (!getSavedAccounts().some((a) => a.slotId === slotId)) return; // слот уже удалён (например в другой вкладке)
   setActiveSlotId(slotId);
-  window.location.href = "/profile";
+  window.location.assign(to);
 }
 
+/**
+ * Выход из аккаунта в слоте (или удаление неактивного из списка). Для АКТИВНОГО слота дальше:
+ *  • есть другие аккаунты — переключаемся на первый из них;
+ *  • других нет и слот был не "primary" — перезагружаемся на primary (иначе сайт остался бы
+ *    привязан к опустевшему слоту, и следующий вход «пропал бы» после перезагрузки);
+ *  • других нет и это primary — просто остаёмся разлогиненными.
+ */
 export async function removeAccount(slotId: string) {
-  const authInst =
-    slotId === PRIMARY_SLOT
-      ? getAuth(firebaseApp)
-      : getAuth(getApps().find((a) => a.name === `vt-${slotId}`) ?? initializeApp(firebaseConfig, `vt-${slotId}`));
-  await signOut(authInst).catch(() => {});
+  const loaded = getLoadedSlotId();
+  if (slotId === loaded) markIntentionalSignOut();
+  await signOut(authForSlot(slotId)).catch(() => {});
   removeSavedAccountBySlot(slotId);
 
-  const wasActive = getActiveSlotId() === slotId;
-  if (!wasActive) return;
+  if (slotId !== loaded) return;
 
-  const remaining = getSavedAccounts();
-  const next = remaining[0]?.slotId ?? PRIMARY_SLOT;
-  setActiveSlotId(next);
-  window.location.href = "/profile";
+  const next = getSavedAccounts()[0];
+  if (next) {
+    setActiveSlotId(next.slotId);
+    window.location.assign("/profile");
+    return;
+  }
+  setActiveSlotId(PRIMARY_SLOT);
+  if (loaded !== PRIMARY_SLOT) window.location.assign("/auth/login");
 }

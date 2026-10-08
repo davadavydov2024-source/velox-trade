@@ -355,6 +355,9 @@ export interface UserProfile {
   // зачисляются сразу при оплате (starsOrders.ts → fulfillStarsInvoice), выводятся через бота
   // от 15 ⭐ (см. telegramStarsWithdrawals.ts). Отдельно от обычного рублёвого balance.
   starsBalance?: number;
+  // Баннер (обложка) профиля — может ставить ТОЛЬКО администратор и только себе
+  // (см. api/profile/banner, components/ProfileBanner). Видно всем на публичной странице профиля.
+  bannerURL?: string | null;
 }
 
 export type StarsWithdrawalStatus = "pending" | "approved" | "rejected";

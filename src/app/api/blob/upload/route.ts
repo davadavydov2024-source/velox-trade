@@ -9,7 +9,7 @@ const MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4 МБ — с запасом под �
 
 // Эти папки может загружать только админ — там лежат изображения товаров/игр/рекламы,
 // которые видит весь сайт. "avatars" может загружать любой залогиненный пользователь.
-const ADMIN_ONLY_FOLDERS = ["products", "games", "ads", "broadcasts"];
+const ADMIN_ONLY_FOLDERS = ["products", "games", "ads", "broadcasts", "banners"];
 
 function isAdminUid(uid: string): boolean {
   const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);

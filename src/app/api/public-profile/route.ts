@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
         isOnline: Date.now() - lastActiveAt < ONLINE_THRESHOLD_MS,
         nameColor: data.nameColor ?? undefined,
         nameFont: data.nameFont ?? undefined,
+        bannerURL: data.bannerURL ?? null,
       },
     });
   } catch (err) {

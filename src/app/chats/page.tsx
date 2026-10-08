@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle } from "lucide-react";
+import { LifeBuoy, Megaphone, ShieldCheck, ChevronLeft, MessageCircle, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { getUserOrderChats } from "@/lib/orderChats";
 import { getOrderById } from "@/lib/users";
@@ -61,10 +61,19 @@ function formatWhen(ts: number) {
 }
 
 function itemClasses(active: boolean) {
-  return `relative w-full flex items-center gap-3 p-3 rounded-btn text-left transition-colors ${
-    active ? "bg-accent/10" : "hover:bg-white/5 active:bg-white/10"
+  return `relative w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-all duration-150 ${
+    active
+      ? "bg-gradient-to-r from-accent/20 to-accent/[0.04] ring-1 ring-accent/25"
+      : "hover:bg-white/[0.05] active:bg-white/10"
   }`;
 }
+
+type ChatFilter = "all" | "deals" | "dm";
+const FILTERS: { id: ChatFilter; label: string }[] = [
+  { id: "all", label: "Все" },
+  { id: "deals", label: "Сделки" },
+  { id: "dm", label: "Личные" },
+];
 
 function ChatsInner() {
   const params = useSearchParams();
@@ -73,6 +82,8 @@ function ChatsInner() {
   const [items, setItems] = useState<ChatListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<ChatFilter>("all");
 
   useEffect(() => {
     if (params.get("tab") === "support") setView({ kind: "support" });
@@ -167,15 +178,65 @@ function ChatsInner() {
     };
   }, [user]);
 
+  const q = query.trim().toLowerCase();
+  const shownItems = filter === "dm" ? [] : items.filter((i) => !q || i.counterpartName.toLowerCase().includes(q) || i.lastMessage.toLowerCase().includes(q));
+  const shownDms =
+    filter === "deals"
+      ? []
+      : dmConversations.filter((conv) => {
+          if (!user || !q) return true;
+          const peerUid = conv.participants.find((p) => p !== user.uid)!;
+          return (conv.participantNames[peerUid] ?? "").toLowerCase().includes(q) || conv.lastMessage.toLowerCase().includes(q);
+        });
+  const showOfficial = !q || "поддержка velox trade новости".includes(q);
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-      <h1 className="text-2xl font-bold mb-6 hidden sm:block">Чаты</h1>
+      <div className="mb-6 hidden sm:flex items-end justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight">Чаты</h1>
+          <p className="text-sm text-white/40 mt-1">Сделки, личные сообщения и поддержка — в одном месте</p>
+        </div>
+      </div>
       <NotifyConnectBanner context="новые сообщения в чатах" storageKey="notifyBannerDismissed_chats" />
       <div className="grid md:grid-cols-[340px_1fr] gap-5">
         <div className={`card p-2 md:max-h-[75vh] md:overflow-y-auto ${view ? "hidden md:block" : ""}`}>
+          <div className="sticky top-0 z-10 -mx-2 -mt-2 px-3 pt-3 pb-2 mb-1 bg-surface/95 backdrop-blur border-b border-white/[0.05]">
+            <div className="relative mb-2.5">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <input
+                autoComplete="off"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Поиск по чатам"
+                className="input-field py-2 pl-9 pr-8 text-sm rounded-full"
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white" aria-label="Очистить поиск">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1 p-1 rounded-full bg-black/25">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`flex-1 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    filter === f.id ? "bg-accent text-black shadow-[0_2px_10px_-2px_var(--color-accent)]" : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {showOfficial && filter !== "deals" && filter !== "dm" && (
+            <>
           <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
             {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center shrink-0">
               <LifeBuoy size={19} className="text-accent" />
             </div>
             <div className="flex-1 min-w-0">
@@ -189,7 +250,7 @@ function ChatsInner() {
 
           <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
             {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-            <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1d9bf0]/30 to-[#1d9bf0]/10 flex items-center justify-center shrink-0">
               <Megaphone size={19} className="text-accent" />
             </div>
             <div className="flex-1 min-w-0">
@@ -200,8 +261,10 @@ function ChatsInner() {
               <p className="text-xs text-white/40 truncate">Официальный канал</p>
             </div>
           </button>
+            </>
+          )}
 
-          <div className="border-t border-border my-2" />
+          {showOfficial && filter === "all" && <div className="border-t border-border my-2" />}
 
           {!user ? (
             <p className="text-xs text-white/30 text-center py-6 px-2">
@@ -219,10 +282,10 @@ function ChatsInner() {
                 </div>
               ))}
             </div>
-          ) : items.length === 0 ? (
-            <p className="text-xs text-white/30 text-center py-6 px-2">Чатов по сделкам пока нет.</p>
+          ) : filter === "dm" ? null : shownItems.length === 0 ? (
+            <p className="text-xs text-white/30 text-center py-6 px-2">{q ? "Ничего не найдено." : "Чатов по сделкам пока нет."}</p>
           ) : (
-            items.map((item) => {
+            shownItems.map((item) => {
               const active = view?.kind === "order" && view.orderId === item.orderId;
               return (
                 <button
@@ -237,7 +300,7 @@ function ChatsInner() {
                     </div>
                   ) : (
                     <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-sm font-bold"
                       style={{ background: `${avatarColor(item.counterpartName)}22`, color: avatarColor(item.counterpartName) }}
                     >
                       {initials(item.counterpartName) || "?"}
@@ -255,11 +318,15 @@ function ChatsInner() {
             })
           )}
 
-          {user && dmConversations.length > 0 && (
+          {user && filter === "dm" && shownDms.length === 0 && (
+            <p className="text-xs text-white/30 text-center py-6 px-2">{q ? "Ничего не найдено." : "Личных сообщений пока нет."}</p>
+          )}
+
+          {user && shownDms.length > 0 && (
             <>
-              <div className="border-t border-border my-2" />
+              {filter === "all" && <div className="border-t border-border my-2" />}
               <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">Личные сообщения</p>
-              {dmConversations.map((conv) => {
+              {shownDms.map((conv) => {
                 const peerUid = conv.participants.find((p) => p !== user.uid)!;
                 const peerName = conv.participantNames[peerUid] ?? "Пользователь";
                 const peerPhoto = conv.participantPhotos[peerUid] ?? null;
@@ -300,10 +367,10 @@ function ChatsInner() {
         >
           {!view ? (
             <div className="text-center py-24 m-auto px-6">
-              <div className="relative w-16 h-16 mx-auto mb-4">
-                <div className="absolute inset-0 rounded-full blur-xl opacity-40 bg-accent" />
-                <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center border border-accent/30 bg-accent/10">
-                  <MessageCircle className="text-accent" size={26} />
+              <div className="relative w-20 h-20 mx-auto mb-5">
+                <div className="absolute inset-0 rounded-full blur-2xl opacity-50 bg-accent animate-pulse" />
+                <div className="relative w-20 h-20 rounded-3xl flex items-center justify-center border border-accent/30 bg-gradient-to-br from-accent/25 to-accent/5 rotate-3">
+                  <MessageCircle className="text-accent -rotate-3" size={32} />
                 </div>
               </div>
               <p className="text-sm font-medium text-white/70 mb-1">Выберите чат слева</p>

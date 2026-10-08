@@ -11,6 +11,7 @@ export interface PublicProfile {
   isOnline: boolean;
   nameColor?: string;
   nameFont?: string;
+  bannerURL?: string | null;
 }
 
 const cache = new Map<string, Promise<PublicProfile | null>>();

@@ -3,18 +3,21 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { UserPlus, X, Check, Loader2, Trash2 } from "lucide-react";
+import { UserPlus, X, Loader2, Trash2, ChevronRight, Users } from "lucide-react";
 import {
   SavedAccount,
   getSavedAccounts,
-  getActiveSlotId,
+  getLoadedSlotId,
   switchAccount,
   removeAccount,
   addAccountByEmail,
   addAccountByGoogle,
   MAX_ACCOUNTS,
 } from "@/lib/multiAccount";
+import { subscribeAccounts } from "@/lib/accountSlots";
+import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
+import { safeImageSrc } from "@/lib/safeImage";
 
 function initialsOf(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "?";
@@ -36,7 +39,14 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
       toast("success", "Аккаунт добавлен, переключаемся...");
       window.location.href = "/profile";
     } catch (err: any) {
-      setError(err?.message?.includes("invalid-credential") || err?.code === "auth/invalid-credential" ? "Неверный email или пароль" : err?.message || "Не удалось войти");
+      const code = err?.code as string | undefined;
+      setError(
+        code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"
+          ? "Неверный email или пароль"
+          : code === "auth/too-many-requests"
+            ? "Слишком много попыток — попробуй позже"
+            : err?.message || "Не удалось войти"
+      );
       setBusy(null);
     }
   }
@@ -49,7 +59,9 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
       toast("success", "Аккаунт добавлен, переключаемся...");
       window.location.href = "/profile";
     } catch (err: any) {
-      setError(err?.message || "Не удалось войти через Google");
+      const code = err?.code as string | undefined;
+      // Человек сам закрыл окно Google — это не ошибка, молча возвращаемся к форме.
+      setError(code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" ? null : err?.message || "Не удалось войти через Google");
       setBusy(null);
     }
   }
@@ -125,84 +137,133 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
 }
 
 export function AccountSwitcher() {
+  const { user, profile } = useAuth();
   const [accounts, setAccounts] = useState<SavedAccount[]>([]);
-  const [activeSlot, setActiveSlot] = useState<string>("primary");
+  const [loadedSlot, setLoadedSlot] = useState<string>("primary");
   const [showAdd, setShowAdd] = useState(false);
-  const [removingSlot, setRemovingSlot] = useState<string | null>(null);
+  const [busySlot, setBusySlot] = useState<string | null>(null);
+  const [confirmSlot, setConfirmSlot] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoadedSlot(getLoadedSlotId());
     setAccounts(getSavedAccounts());
-    setActiveSlot(getActiveSlotId());
+    // Список обновляется сам (новый вход, смена ника/аватара, правки из другой вкладки).
+    return subscribeAccounts(() => setAccounts(getSavedAccounts()));
   }, []);
 
-  if (accounts.length === 0) return null; // до первой загрузки профиля список ещё пуст
+  // Активный аккаунт показываем по живому профилю, даже если в сохранённом списке его ещё нет.
+  const list: SavedAccount[] = (() => {
+    const base = accounts.map((a) =>
+      a.slotId === loadedSlot && user && profile
+        ? { ...a, displayName: profile.displayName, photoURL: profile.photoURL ?? a.photoURL }
+        : a
+    );
+    if (user && profile && !base.some((a) => a.slotId === loadedSlot)) {
+      base.unshift({ slotId: loadedSlot, uid: user.uid, email: user.email ?? profile.email, displayName: profile.displayName, photoURL: profile.photoURL ?? undefined });
+    }
+    return base;
+  })();
+
+  if (!user) return null;
 
   async function handleRemove(slotId: string) {
-    setRemovingSlot(slotId);
+    setBusySlot(slotId);
     try {
-      await removeAccount(slotId); // сам сделает reload, если удаляли активный
+      await removeAccount(slotId);
       setAccounts(getSavedAccounts());
     } finally {
-      setRemovingSlot(null);
+      setBusySlot(null);
+      setConfirmSlot(null);
     }
   }
 
+  function handleSwitch(slotId: string) {
+    setBusySlot(slotId);
+    switchAccount(slotId); // перезагрузка страницы — спиннер остаётся до неё
+  }
+
   return (
-    <div className="space-y-1.5">
-      <p className="text-[11px] text-white/30 uppercase tracking-wide px-1">Аккаунты</p>
-      {accounts.map((acc) => {
-        const isActive = acc.slotId === activeSlot;
+    <div className="rounded-card border border-white/[0.06] bg-white/[0.02] p-2 space-y-1">
+      <div className="flex items-center justify-between px-2 pt-1 pb-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30 flex items-center gap-1.5">
+          <Users size={11} /> Аккаунты
+        </p>
+        <span className="text-[10px] text-white/25">
+          {list.length}/{MAX_ACCOUNTS}
+        </span>
+      </div>
+
+      {list.map((acc) => {
+        const isActive = acc.slotId === loadedSlot;
+        const busy = busySlot === acc.slotId;
+        const confirming = confirmSlot === acc.slotId;
         return (
           <div
             key={acc.slotId}
-            className={`relative flex items-center gap-2.5 px-3 py-2 rounded-btn text-sm transition-colors duration-150 ${
-              isActive ? "bg-accent/15" : "hover:bg-white/5"
+            className={`group relative flex items-center gap-2.5 pl-2.5 pr-2 py-2 rounded-btn transition-all duration-150 ${
+              isActive ? "bg-accent/12 ring-1 ring-accent/30" : "hover:bg-white/[0.04]"
             }`}
           >
-            {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-accent" />}
             <button
               type="button"
-              onClick={() => !isActive && switchAccount(acc.slotId)}
-              disabled={isActive}
+              onClick={() => !isActive && !busy && handleSwitch(acc.slotId)}
+              disabled={isActive || busySlot !== null}
               className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:cursor-default"
             >
               <div
-                className={`relative w-7 h-7 rounded-full overflow-hidden bg-accent/20 flex-none flex items-center justify-center text-xs font-semibold text-accent transition-all ${
-                  isActive ? "ring-2 ring-accent" : ""
+                className={`relative w-9 h-9 rounded-full overflow-hidden flex-none flex items-center justify-center text-sm font-bold transition-all ${
+                  isActive ? "ring-2 ring-accent shadow-[0_0_14px_-2px_var(--color-accent)]" : "ring-1 ring-white/10 group-hover:ring-white/25"
                 }`}
+                style={!acc.photoURL ? { background: "linear-gradient(135deg, var(--color-accent), #4a6cf7)", color: "#000" } : undefined}
               >
-                {acc.photoURL ? <Image src={acc.photoURL} alt="" fill className="object-cover" sizes="28px" /> : initialsOf(acc.displayName)}
+                {acc.photoURL ? <Image src={safeImageSrc(acc.photoURL)} alt="" fill className="object-cover" sizes="36px" /> : initialsOf(acc.displayName)}
               </div>
-              <div className="min-w-0">
-                <p className="truncate leading-tight">{acc.displayName}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium leading-tight">{acc.displayName}</p>
                 <p className="text-[11px] text-white/40 truncate leading-tight">{acc.email}</p>
               </div>
+              {isActive ? (
+                <span className="flex-none text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent text-black">Сейчас</span>
+              ) : busy ? (
+                <Loader2 size={15} className="animate-spin text-accent flex-none" />
+              ) : (
+                <ChevronRight size={15} className="text-white/20 group-hover:text-white/60 flex-none transition-colors" />
+              )}
             </button>
-            {isActive ? (
-              <Check size={15} className="text-accent flex-none" />
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleRemove(acc.slotId)}
-                disabled={removingSlot === acc.slotId}
-                className="text-white/25 hover:text-red-400 flex-none p-1 disabled:opacity-40"
-                aria-label="Убрать аккаунт из списка"
-              >
-                {removingSlot === acc.slotId ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
-            )}
+
+            {!isActive &&
+              (confirming ? (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(acc.slotId)}
+                  disabled={busySlot !== null}
+                  className="flex-none text-[11px] font-semibold px-2 py-1 rounded-md bg-red-500/15 text-red-400 hover:bg-red-500/25 disabled:opacity-40"
+                >
+                  Убрать?
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmSlot(acc.slotId)}
+                  disabled={busySlot !== null}
+                  className="flex-none p-1.5 rounded-md text-white/20 hover:text-red-400 hover:bg-red-400/10 disabled:opacity-40 transition-colors"
+                  aria-label="Убрать аккаунт из списка"
+                >
+                  <Trash2 size={14} />
+                </button>
+              ))}
           </div>
         );
       })}
 
-      {accounts.length < MAX_ACCOUNTS && (
+      {list.length < MAX_ACCOUNTS && (
         <button
           type="button"
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-btn text-sm text-white/50 hover:bg-white/5 hover:text-white w-full"
+          className="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-sm text-white/50 hover:bg-white/[0.04] hover:text-white w-full transition-colors"
         >
-          <div className="w-7 h-7 rounded-full border border-dashed border-white/20 flex items-center justify-center flex-none">
-            <UserPlus size={14} />
+          <div className="w-9 h-9 rounded-full border border-dashed border-white/20 flex items-center justify-center flex-none">
+            <UserPlus size={15} />
           </div>
           Добавить аккаунт
         </button>

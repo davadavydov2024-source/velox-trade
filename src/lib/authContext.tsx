@@ -7,7 +7,6 @@ import {
   signInWithCustomToken,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  signOut as fbSignOut,
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile,
@@ -16,7 +15,19 @@ import {
 import { auth, googleProvider } from "./firebase";
 import { ensureUserProfile, getUserProfile, syncEmailVerified } from "./users";
 import { UserProfile } from "@/types";
-import { getActiveSlotId, upsertSavedAccount } from "./accountSlots";
+import {
+  ACTIVE_KEY,
+  PRIMARY_SLOT,
+  getLoadedSlotId,
+  getSavedAccounts,
+  isIntentionalSignOut,
+  removeSavedAccountBySlot,
+  resetIntentionalSignOut,
+  setActiveSlotId,
+  setSwitchNotice,
+  upsertSavedAccount,
+} from "./accountSlots";
+import { removeAccount } from "./multiAccount";
 
 /** Бан считается действующим, если banned=true и (until не задан/"forever", либо ещё не истёк). */
 export function isEffectivelyBanned(profile: UserProfile | null): boolean {
@@ -45,6 +56,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /** Держим запись в переключателе актуальной: ник и аватар берём из профиля на сайте (его человек
+   * меняет в /profile), а не из Firebase Auth — там они остаются теми, с которыми регистрировались. */
+  function syncSavedAccount(u: User, p: UserProfile | null) {
+    upsertSavedAccount({
+      slotId: getLoadedSlotId(),
+      uid: u.uid,
+      email: u.email ?? p?.email ?? "",
+      displayName: p?.displayName || u.displayName || u.email || "Игрок",
+      photoURL: p?.photoURL ?? u.photoURL ?? undefined,
+    });
+  }
+
+  /** Сессия этого слота умерла сама (токен отозван, пароль сменили, аккаунт удалён): убираем слот из
+   * списка и переходим на другой аккаунт, а не оставляем человека «разлогиненным» без объяснений. */
+  function handleLostSession() {
+    if (isIntentionalSignOut()) return;
+    const slot = getLoadedSlotId();
+    if (!getSavedAccounts().some((a) => a.slotId === slot)) return; // обычный гость — ничего не потеряно
+    removeSavedAccountBySlot(slot);
+    const next = getSavedAccounts()[0];
+    if (next) {
+      setSwitchNotice(`Сессия предыдущего аккаунта истекла — открыт «${next.displayName}»`);
+      setActiveSlotId(next.slotId);
+      window.location.replace("/profile");
+    } else if (slot !== PRIMARY_SLOT) {
+      setActiveSlotId(PRIMARY_SLOT);
+      window.location.replace("/auth/login");
+    }
+  }
+
+  // Активный аккаунт общий на весь браузер: если его сменили в другой вкладке, эта вкладка тоже
+  // перезагружается на него — иначе здесь продолжали бы работать под старым аккаунтом, а
+  // переключатель показывал бы новый.
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key !== ACTIVE_KEY) return;
+      const now = e.newValue || PRIMARY_SLOT;
+      if (now !== getLoadedSlotId()) window.location.reload();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   async function refreshProfile() {
     if (!auth.currentUser) {
       setProfile(null);
@@ -58,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const p = await getUserProfile(auth.currentUser.uid);
     setProfile(p);
+    if (p) syncSavedAccount(auth.currentUser, p);
     return p;
   }
 
@@ -65,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        resetIntentionalSignOut(); // новый вход — снова следим за потерей сессии
         try {
           await u.reload();
         } catch {
@@ -78,15 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(p);
         // Держим список аккаунтов в переключателе актуальным — чем бы человек ни вошёл
         // (обычным логином на "primary" или переключением на добавленный аккаунт).
-        upsertSavedAccount({
-          slotId: getActiveSlotId(),
-          uid: u.uid,
-          email: u.email ?? "",
-          displayName: u.displayName ?? u.email ?? "Игрок",
-          photoURL: u.photoURL ?? undefined,
-        });
+        syncSavedAccount(u, p);
       } else {
         setProfile(null);
+        handleLostSession();
       }
       setLoading(false);
     });
@@ -118,7 +169,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await fbSignOut(auth);
+    // Выходим из ТЕКУЩЕГО аккаунта и убираем его из списка переключателя (раньше он оставался там
+    // «призраком»: клик по нему открывал разлогиненный сайт). Если есть другие аккаунты — сразу
+    // переключаемся на следующий.
+    await removeAccount(getLoadedSlotId());
   }
 
   async function resetPassword(email: string) {

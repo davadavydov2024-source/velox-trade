@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/lib/authContext";
-import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, MessageCircle, CheckCircle2, Plus, Tag } from "lucide-react";
+import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, MessageCircle, CheckCircle2, Plus, Tag, Crown, Sparkles } from "lucide-react";
 import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
 import { getTelegramLink } from "@/lib/telegramLink";
 import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
@@ -14,6 +14,8 @@ import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } f
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { StyledNickname } from "@/components/StyledNickname";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { isAdminUid } from "@/lib/users";
 
 function cooldownLeft(lastChangeAt?: number): number {
   if (!lastChangeAt) return 0;
@@ -55,6 +57,8 @@ export default function ProfilePage() {
   const nameCooldown = cooldownLeft(profile.lastNameChangeAt);
   const avatarCooldown = cooldownLeft(profile.lastAvatarChangeAt);
   const avgRating = profile.ratingCount ? (profile.ratingSum ?? 0) / profile.ratingCount : null;
+  const isAdmin = isAdminUid(user.uid);
+  const hasStars = (profile.starsBalance ?? 0) > 0;
   const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
   const otherBadges = profile.badges.filter((b) => !CHECKMARK_BADGES.includes(b));
   const memberSince = new Date(profile.createdAt).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
@@ -140,45 +144,52 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <OnboardingChecklist />
       <div className="card overflow-hidden">
-        <div
-          className="h-16 sm:h-20"
-          style={{ background: "linear-gradient(120deg, var(--color-accent) 0%, #4a6cf7 60%, #22c55e 100%)", opacity: 0.25 }}
+        {/* Обложка. Админ видит на ней кнопки «Добавить/Сменить баннер» — остальным она просто красивый фон. */}
+        <ProfileBanner
+          url={profile.bannerURL}
+          editable={isAdmin}
+          onChange={() => refreshProfile()}
+          className="h-32 sm:h-44"
         />
-        <div className="p-6 -mt-10 sm:-mt-12">
-        <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
-          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-4 ring-bg shadow-[0_0_0_2px_var(--color-accent)]">
-            <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
-          </div>
-          <div className="flex-1 min-w-0 pt-2 sm:pt-8">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h1 className="text-xl font-bold"><StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} /></h1>
-              {checkmarks.map((b) => (
-                <ShieldCheck key={b} size={17} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
-              ))}
+
+        <div className="px-5 sm:px-6 pb-6 -mt-12 sm:-mt-14 relative">
+          <div className="flex items-end gap-4 flex-wrap sm:flex-nowrap">
+            <div className="relative shrink-0">
+              {/* Мягкое свечение в цвет акцента за аватаром */}
+              <div className="absolute inset-0 rounded-full bg-accent/40 blur-xl scale-110" />
+              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-surface ring-4 ring-bg shadow-[0_0_0_2px_var(--color-accent)]">
+                <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="112px" />
+              </div>
+              <span className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-green-400 border-[3px] border-bg" title="В сети" />
             </div>
-            <p className="text-white/40 text-sm mb-1.5">{profile.username ? `@${profile.username}` : "Юзернейм не задан"}</p>
-            <div className="flex items-center gap-3 flex-wrap mb-2">
-              <span className="flex items-center gap-1 text-xs text-white/40">
-                <CalendarDays size={13} /> На сайте с {memberSince}
-              </span>
-              {otherBadges.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {otherBadges.map((b) => (
-                    <span
-                      key={b}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b] }}
-                    >
-                      {BADGE_LABEL[b]}
-                    </span>
-                  ))}
-                </div>
-              )}
+
+            <div className="flex-1 min-w-0 pb-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="text-2xl font-extrabold leading-tight">
+                  <StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} />
+                </h1>
+                {checkmarks.map((b) => (
+                  <ShieldCheck key={b} size={19} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
+                ))}
+                {isAdmin && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400/20 to-accent/20 text-amber-300 border border-amber-400/30">
+                    <Crown size={11} /> Админ
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <span className="text-sm text-white/45">{profile.username ? `@${profile.username}` : "Юзернейм не задан"}</span>
+                <span className="text-white/15">•</span>
+                <span className="flex items-center gap-1 text-xs text-white/40">
+                  <CalendarDays size={12} /> с {memberSince}
+                </span>
+              </div>
             </div>
+
             {profile.username && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <Link href={`/seller/${profile.username}`} className="text-xs text-accent hover:underline">
-                  Как видят другие →
+              <div className="flex items-center gap-2 sm:pb-1 w-full sm:w-auto">
+                <Link href={`/seller/${profile.username}`} className="btn-secondary px-3.5 py-2 text-xs flex-1 sm:flex-none text-center">
+                  Как видят другие
                 </Link>
                 <button
                   type="button"
@@ -195,63 +206,86 @@ export default function ProfilePage() {
                       toast("success", "Ссылка на профиль скопирована");
                     }
                   }}
-                  className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
+                  className="btn-secondary px-3 py-2 text-xs flex items-center gap-1.5"
+                  aria-label="Поделиться профилем"
                 >
-                  <Copy size={12} /> Поделиться профилем
+                  <Copy size={13} /> <span className="hidden sm:inline">Поделиться</span>
                 </button>
               </div>
             )}
           </div>
-        </div>
 
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          <div className="rounded-card p-3 text-center bg-accent/10 border border-accent/25">
-            <Wallet size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold text-accent">{profile.balance.toFixed(0)} ₽</p>
-            <p className="text-[10px] text-white/40">Баланс</p>
-          </div>
-          <div className="glass rounded-card p-3 text-center">
-            <ShoppingBag size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold">{purchaseCount ?? "—"}</p>
-            <p className="text-[10px] text-white/40">Покупок</p>
-          </div>
-          <div className="glass rounded-card p-3 text-center">
-            <Star size={16} className="text-accent mx-auto mb-1" />
-            <p className="text-base font-bold">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
-            <p className="text-[10px] text-white/40">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
-          </div>
-        </div>
+          {profile.bio && <p className="text-sm text-white/60 mt-4 leading-relaxed">{profile.bio}</p>}
 
-        {tgLinked !== null && (
-          <Link
-            href="/profile/security"
-            className={`mt-4 flex items-center gap-2.5 px-3.5 py-2.5 rounded-btn text-xs transition-colors ${
-              tgLinked
-                ? "bg-green-500/[0.07] border border-green-500/20 text-green-400/90 hover:bg-green-500/10"
-                : "bg-yellow-500/[0.07] border border-yellow-500/25 text-yellow-300/90 hover:bg-yellow-500/10"
-            }`}
-          >
-            {tgLinked ? <CheckCircle2 size={15} className="shrink-0" /> : <MessageCircle size={15} className="shrink-0" />}
-            <span className="flex-1">
-              {tgLinked
-                ? "Telegram подключён — уведомления и вход по коду работают"
-                : "Telegram не подключён — подключи, чтобы получать уведомления о сделках и входить по коду"}
-            </span>
-            {!tgLinked && <span className="font-semibold shrink-0">Подключить →</span>}
-          </Link>
-        )}
+          {otherBadges.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {otherBadges.map((b) => (
+                <span
+                  key={b}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                  style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b], boxShadow: `inset 0 0 0 1px ${BADGE_COLOR[b]}33` }}
+                >
+                  {BADGE_LABEL[b]}
+                </span>
+              ))}
+            </div>
+          )}
 
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <Link href="/profile/topup" className="btn-primary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
-            <Plus size={15} strokeWidth={3} /> Пополнить
-          </Link>
-          <Link href="/profile/orders" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
-            <ShoppingBag size={15} /> Заказы
-          </Link>
-          <Link href="/profile/sell" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
-            <Tag size={15} /> Продать
-          </Link>
-        </div>
+          <div className={`grid gap-3 mt-5 ${hasStars ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+            <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30">
+              <Wallet size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold text-accent leading-none">{profile.balance.toFixed(0)} ₽</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Баланс</p>
+            </div>
+            {hasStars && (
+              <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/15 to-yellow-400/[0.03] border border-yellow-400/25">
+                <Sparkles size={15} className="text-yellow-300 mb-2" />
+                <p className="text-xl font-extrabold text-yellow-300 leading-none">{profile.starsBalance} ⭐</p>
+                <p className="text-[11px] text-white/45 mt-1.5">Stars с продаж</p>
+              </div>
+            )}
+            <div className="rounded-card p-3.5 bg-white/[0.03] border border-white/[0.06]">
+              <ShoppingBag size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold leading-none">{purchaseCount ?? "—"}</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Покупок</p>
+            </div>
+            <div className="rounded-card p-3.5 bg-white/[0.03] border border-white/[0.06]">
+              <Star size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold leading-none">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
+            </div>
+          </div>
+
+          {tgLinked !== null && (
+            <Link
+              href="/profile/security"
+              className={`mt-4 flex items-center gap-2.5 px-3.5 py-2.5 rounded-btn text-xs transition-colors ${
+                tgLinked
+                  ? "bg-green-500/[0.07] border border-green-500/20 text-green-400/90 hover:bg-green-500/10"
+                  : "bg-yellow-500/[0.07] border border-yellow-500/25 text-yellow-300/90 hover:bg-yellow-500/10"
+              }`}
+            >
+              {tgLinked ? <CheckCircle2 size={15} className="shrink-0" /> : <MessageCircle size={15} className="shrink-0" />}
+              <span className="flex-1">
+                {tgLinked
+                  ? "Telegram подключён — уведомления и вход по коду работают"
+                  : "Telegram не подключён — подключи, чтобы получать уведомления о сделках и входить по коду"}
+              </span>
+              {!tgLinked && <span className="font-semibold shrink-0">Подключить →</span>}
+            </Link>
+          )}
+
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <Link href="/profile/topup" className="btn-primary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+              <Plus size={15} strokeWidth={3} /> Пополнить
+            </Link>
+            <Link href="/profile/orders" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+              <ShoppingBag size={15} /> Заказы
+            </Link>
+            <Link href="/profile/sell" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+              <Tag size={15} /> Продать
+            </Link>
+          </div>
         </div>
       </div>
 

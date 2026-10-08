@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight, Plus } from "lucide-react";
@@ -9,6 +10,8 @@ import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
 import { useLanguage } from "@/lib/languageStore";
 import { AccountSwitcher } from "@/components/AccountSwitcher";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { safeImageSrc } from "@/lib/safeImage";
 
 export default function ProfileLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout } = useAuth();
@@ -71,9 +74,14 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
       {/* Мобильная навигация: компактная шапка + горизонтальная лента разделов вместо длинного списка */}
       <div className="md:hidden space-y-3 min-w-0">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-semibold truncate leading-tight">{profile.displayName}</p>
-            <p className="text-[11px] text-white/35 truncate">{profile.email}</p>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative w-10 h-10 rounded-full overflow-hidden bg-surface shrink-0 ring-2 ring-accent/60">
+              <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="40px" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold truncate leading-tight">{profile.displayName}</p>
+              <p className="text-[11px] text-white/35 truncate">{profile.email}</p>
+            </div>
           </div>
           <Link href="/profile/topup" className="shrink-0 flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-accent/10 border border-accent/25 text-sm">
             <span className="font-bold text-accent">{profile.balance.toFixed(0)} ₽</span>
@@ -115,8 +123,13 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
       </div>
 
       <aside className="hidden md:block space-y-1">
-        <div className="card p-4 mb-4">
-          <p className="font-medium truncate">{profile.displayName}</p>
+        <div className="card overflow-hidden mb-4">
+          <ProfileBanner url={profile.bannerURL} className="h-16" />
+          <div className="p-4 pt-0">
+          <div className="relative w-14 h-14 -mt-7 mb-2 rounded-full overflow-hidden bg-surface ring-4 ring-surface shadow-[0_0_0_2px_var(--color-accent)]">
+            <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="56px" />
+          </div>
+          <p className="font-semibold truncate">{profile.displayName}</p>
           <p className="text-xs text-white/40 truncate mb-3">{profile.email}</p>
           <Link
             href="/profile/topup"
@@ -140,6 +153,7 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
                 {BADGE_LABEL[b]}
               </span>
             ))}
+          </div>
           </div>
         </div>
         <AccountSwitcher />

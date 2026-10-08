@@ -11,6 +11,7 @@ import { getProducts } from "@/lib/products";
 import { Review, Product, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
 import { StyledNickname } from "@/components/StyledNickname";
+import { ProfileBanner } from "@/components/ProfileBanner";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useAuth } from "@/lib/authContext";
 
@@ -53,14 +54,16 @@ export default function SellerProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
-      <div className="card p-6 flex items-start gap-5">
-        <div className="relative w-20 h-20 rounded-full overflow-hidden bg-black/30 shrink-0 ring-2 ring-accent/30">
-          <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="80px" />
+      <div className="card overflow-hidden">
+      <ProfileBanner url={profile.bannerURL} className="h-28 sm:h-40" />
+      <div className="p-6 pt-0 -mt-10 flex items-start gap-5">
+        <div className="relative w-24 h-24 rounded-full overflow-hidden bg-surface shrink-0 ring-4 ring-surface shadow-[0_0_0_2px_var(--color-accent)]">
+          <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="96px" />
           {profile.isOnline && (
             <span className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-surface" />
           )}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 pt-11">
           <div className="flex items-center gap-1.5 flex-wrap">
             <h1 className="text-xl font-bold"><StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} /></h1>
             {checkmarks.map((b) => (
@@ -102,6 +105,7 @@ export default function SellerProfilePage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <div>
