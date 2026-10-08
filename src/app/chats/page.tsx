@@ -15,6 +15,7 @@ import { NewsPanel } from "@/components/NewsPanel";
 import { OrderChatThread } from "@/components/OrderChatThread";
 import { DmThread } from "@/components/DmThread";
 import { subscribeUserConversations, conversationId as buildConversationId } from "@/lib/directMessages";
+import { useUnread } from "@/lib/unreadContext";
 import { DirectConversation } from "@/types";
 import { NotifyConnectBanner } from "@/components/NotifyConnectBanner";
 
@@ -68,6 +69,16 @@ function itemClasses(active: boolean) {
   }`;
 }
 
+/** Счётчик непрочитанных — акцентная «пилюля»; 99+ вместо длинных чисел. */
+function UnreadBadge({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-black text-[11px] font-bold leading-5 text-center shadow-[0_0_10px_-1px_var(--color-accent)]">
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
+
 type ChatFilter = "all" | "deals" | "dm";
 const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "all", label: "Все" },
@@ -84,6 +95,7 @@ function ChatsInner() {
   const [dmConversations, setDmConversations] = useState<DirectConversation[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ChatFilter>("all");
+  const unread = useUnread();
 
   useEffect(() => {
     if (params.get("tab") === "support") setView({ kind: "support" });
@@ -178,8 +190,25 @@ function ChatsInner() {
     };
   }, [user]);
 
+  // Список сделок загружается один раз (с именами и фото), а «живые» данные — последнее сообщение и время —
+  // накладываем поверх из общей подписки: новое сообщение сразу поднимает чат наверх и подсвечивает его.
+  const liveItems = items
+    .map((i) => {
+      const live = unread.orderChats.find((c) => c.orderId === i.orderId);
+      if (!live) return i;
+      const last = live.messages[live.messages.length - 1];
+      return {
+        ...i,
+        updatedAt: live.updatedAt,
+        lastMessage: last ? (last.imageUrl && !last.text ? "📷 Фото" : last.text) : i.lastMessage,
+      };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const unreadDeals = Object.values<number>(unread.byOrder).reduce((a, b) => a + b, 0);
+  const unreadDms = Object.values<number>(unread.byDm).reduce((a, b) => a + b, 0);
+
   const q = query.trim().toLowerCase();
-  const shownItems = filter === "dm" ? [] : items.filter((i) => !q || i.counterpartName.toLowerCase().includes(q) || i.lastMessage.toLowerCase().includes(q));
+  const shownItems = filter === "dm" ? [] : liveItems.filter((i) => !q || i.counterpartName.toLowerCase().includes(q) || i.lastMessage.toLowerCase().includes(q));
   const shownDms =
     filter === "deals"
       ? []
@@ -227,6 +256,7 @@ function ChatsInner() {
             <div className="grid grid-cols-3 gap-1 p-1 rounded-full bg-black/30">
               {FILTERS.map((f) => {
                 const count = f.id === "deals" ? items.length : f.id === "dm" ? dmConversations.length : 0;
+                const unreadCount = f.id === "deals" ? unreadDeals : f.id === "dm" ? unreadDms : unread.total;
                 const active = filter === f.id;
                 return (
                   <button
@@ -237,7 +267,11 @@ function ChatsInner() {
                     }`}
                   >
                     {f.label}
-                    {count > 0 && (
+                    {unreadCount > 0 ? (
+                      <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] leading-[18px] text-center font-bold ${active ? "bg-black text-accent" : "bg-accent text-black"}`}>
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    ) : count > 0 && (
                       <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] leading-[18px] text-center font-semibold ${active ? "bg-black/20 text-black" : "bg-white/10 text-white/60"}`}>
                         {count}
                       </span>
@@ -258,11 +292,14 @@ function ChatsInner() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
-                <p className="font-medium text-sm truncate">Поддержка</p>
+                <p className={`text-sm truncate ${unread.support > 0 ? "font-bold" : "font-medium"}`}>Поддержка</p>
                 <ShieldCheck size={14} className="text-[#1d9bf0] shrink-0" aria-label="Официальный чат" />
               </div>
-              <p className="text-xs text-white/40 truncate">Мы поможем с любым вопросом</p>
+              <p className={`text-xs truncate ${unread.support > 0 ? "text-white/80" : "text-white/40"}`}>
+                {unread.support > 0 ? "Новый ответ от поддержки" : "Мы поможем с любым вопросом"}
+              </p>
             </div>
+            <UnreadBadge n={unread.support} />
           </button>
 
           <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
@@ -324,11 +361,21 @@ function ChatsInner() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-sm truncate">{item.counterpartName}</p>
-                      <span className="text-[10px] text-white/30 shrink-0">{formatWhen(item.updatedAt)}</span>
-                    </div>
-                    <p className="text-xs text-white/40 truncate">{item.lastMessage}</p>
+                    {(() => {
+                      const n = unread.byOrder[item.orderId] ?? 0;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={`text-sm truncate ${n > 0 ? "font-bold" : "font-medium"}`}>{item.counterpartName}</p>
+                            <span className={`text-[10px] shrink-0 ${n > 0 ? "text-accent" : "text-white/30"}`}>{formatWhen(item.updatedAt)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={`text-xs truncate ${n > 0 ? "text-white/85" : "text-white/40"}`}>{item.lastMessage}</p>
+                            <UnreadBadge n={n} />
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </button>
               );
@@ -358,11 +405,21 @@ function ChatsInner() {
                       {peerPhoto ? <Image src={safeImageSrc(peerPhoto)} alt="" fill className="object-cover" sizes="48px" /> : initials(peerName) || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-sm truncate">{peerName}</p>
-                        <span className="text-[10px] text-white/30 shrink-0">{formatWhen(conv.updatedAt)}</span>
-                      </div>
-                      <p className="text-xs text-white/40 truncate">{conv.lastMessage}</p>
+                      {(() => {
+                        const n = unread.byDm[peerUid] ?? 0;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className={`text-sm truncate ${n > 0 ? "font-bold" : "font-medium"}`}>{peerName}</p>
+                              <span className={`text-[10px] shrink-0 ${n > 0 ? "text-accent" : "text-white/30"}`}>{formatWhen(conv.updatedAt)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className={`text-xs truncate ${n > 0 ? "text-white/85" : "text-white/40"}`}>{conv.lastMessage}</p>
+                              <UnreadBadge n={n} />
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </button>
                 );

@@ -20,6 +20,7 @@ import { MascotCelebration } from "@/components/MascotCelebration";
 import { IosInstallPrompt } from "@/components/IosInstallPrompt";
 import { EnableNotificationsPrompt } from "@/components/EnableNotificationsPrompt";
 import { TwoFactorGate } from "@/components/TwoFactorGate";
+import { UnreadProvider } from "@/lib/unreadContext";
 import { VpnGate } from "@/components/VpnGate";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: ReactNode }) {
             <FavoritesSync />
             <CartSync />
             <EventBanner />
+            <UnreadProvider>
             <GlobalMessageListener />
             <MascotCelebration />
             <IosInstallPrompt />
@@ -47,6 +49,7 @@ export function Providers({ children }: { children: ReactNode }) {
                 </TwoFactorGate>
               </VpnGate>
             </BanGate>
+            </UnreadProvider>
           </MascotProvider>
         </ToastProvider>
       </AuthProvider>

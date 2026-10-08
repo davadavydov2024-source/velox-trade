@@ -123,6 +123,9 @@ export interface DirectConversation {
   messages: DirectMessage[];
   updatedAt: number;
   lastMessage: string;
+  // uid -> время (мс), до которого этот человек прочитал диалог. Нужен для бейджей «непрочитано»
+  // и отметки «Прочитано» у отправителя (см. lib/chatRead.ts).
+  readBy?: Record<string, number>;
 }
 
 export interface Product {
@@ -429,6 +432,8 @@ export interface OrderChat {
   sellerId: string;
   messages: OrderChatMessage[];
   updatedAt: number;
+  // uid -> время (мс) последнего прочтения чата этим участником (см. lib/chatRead.ts).
+  readBy?: Record<string, number>;
 }
 
 export type TradeOfferStatus = "pending" | "accepted" | "rejected" | "cancelled";
@@ -596,6 +601,8 @@ export interface SupportTicket {
   messages: TicketMessage[];
   createdAt: number;
   updatedAt: number;
+  // Ключи: uid пользователя (прочитал ответ поддержки) и "admin" (поддержка прочитала сообщения пользователя).
+  readBy?: Record<string, number>;
 }
 
 export interface FeatureFlags {

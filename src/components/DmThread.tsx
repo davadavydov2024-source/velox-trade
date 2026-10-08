@@ -13,6 +13,8 @@ import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { PhotoAnnotator } from "@/components/PhotoAnnotator";
 import { getPublicProfileCached } from "@/lib/sellerCache";
 import { isValidImageSrc } from "@/lib/safeImage";
+import { markChatRead, peerReadAt, UNREAD_TRACKING_START } from "@/lib/chatRead";
+import { MessageTicks, ReadLabel, UploadingPhotoBubble } from "@/components/ChatStatus";
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -50,6 +52,11 @@ export function DmThread({
   const [peerUsername, setPeerUsername] = useState<string | null>(null);
   const [peerOnline, setPeerOnline] = useState(false);
   const [peerBanner, setPeerBanner] = useState<string | null>(null);
+  const [readBy, setReadBy] = useState<Record<string, number> | undefined>(undefined);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  // Счётчик, который растёт, когда вкладка снова становится видимой — чтобы отметить прочитанным то,
+  // что пришло, пока человек был в другой вкладке (в скрытой вкладке сообщение прочитанным не считаем).
+  const [visibleTick, setVisibleTick] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -67,13 +74,41 @@ export function DmThread({
   }, [peerUid]);
 
   useEffect(() => {
-    const unsub = subscribeConversation(conversationId, (conv) => setMessages(conv?.messages ?? []));
+    const unsub = subscribeConversation(conversationId, (conv) => {
+      setMessages(conv?.messages ?? []);
+      setReadBy(conv?.readBy);
+    });
     return unsub;
   }, [conversationId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, uploadPreview]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setVisibleTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
+
+  // Отмечаем диалог прочитанным, пока он открыт и вкладка на виду — отсюда у собеседника «Прочитано»,
+  // а у нас пропадает бейдж «непрочитано».
+  useEffect(() => {
+    if (!user || messages.length === 0 || document.visibilityState !== "visible") return;
+    const lastOther = [...messages].reverse().find((m) => m.from !== user.uid);
+    if (!lastOther || lastOther.createdAt <= UNREAD_TRACKING_START) return;
+    if (lastOther.createdAt <= (readBy?.[user.uid] ?? 0)) return;
+    markChatRead("directConversations", conversationId, user.uid, lastOther.createdAt);
+  }, [messages, readBy, user, conversationId, visibleTick]);
+
+  const peerRead = peerReadAt(readBy, [peerUid]);
+  const lastMineIdx = user ? messages.map((m) => m.from === user.uid).lastIndexOf(true) : -1;
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -91,6 +126,8 @@ export function DmThread({
   async function handlePhotoPick(file: File | undefined) {
     if (!file || !user || !profile) return;
     setUploadingPhoto(true);
+    const preview = URL.createObjectURL(file);
+    setUploadPreview(preview);
     try {
       const url = await uploadImage(file, "dm-photos");
       await sendDirectMessage(user.uid, profile.displayName, profile.photoURL ?? null, peerUid, peerName, peerPhoto, "", url);
@@ -99,6 +136,12 @@ export function DmThread({
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      // Небольшая пауза, чтобы настоящее сообщение успело прилететь по подписке и пузырь «отправка»
+      // сменился им без мигания.
+      setTimeout(() => {
+        setUploadPreview(null);
+        URL.revokeObjectURL(preview);
+      }, 500);
     }
   }
 
@@ -178,13 +221,18 @@ export function DmThread({
                     </button>
                   )}
                   {m.text && <p className={m.imageUrl ? "px-1.5 pt-1.5" : ""}>{m.text}</p>}
-                  <p className={`text-[9px] opacity-50 text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"}`}>{formatTime(m.createdAt)}</p>
+                  <p className={`text-[9px] text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"} ${isMine ? "text-black/60" : "opacity-50"}`}>
+                    {formatTime(m.createdAt)}
+                    {isMine && <MessageTicks read={m.createdAt <= peerRead} />}
+                  </p>
                 </div>
                 </div>
+                {isMine && i === lastMineIdx && !uploadPreview && <ReadLabel read={m.createdAt <= peerRead} />}
               </div>
             );
           })
         )}
+        {uploadPreview && <UploadingPhotoBubble src={uploadPreview} />}
       </div>
 
       <form

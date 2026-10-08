@@ -382,3 +382,34 @@ body {
 
 
 
+
+/* Эффект отправки фото в чате (см. components/ChatStatus.tsx → UploadingPhotoBubble) */
+@keyframes upload-sweep {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+@keyframes upload-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.upload-sweep {
+  animation: upload-sweep 1.6s ease-in-out infinite;
+}
+.upload-breathe {
+  animation: upload-breathe 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .upload-sweep,
+  .upload-breathe {
+    animation: none;
+  }
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useUnread } from "@/lib/unreadContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +14,7 @@ export function Header() {
   const cartCount = useCart((s) => s.count());
   const { user, profile } = useAuth();
   const { t } = useLanguage();
+  const { total: unreadTotal } = useUnread();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -53,8 +55,13 @@ export function Header() {
           <Link href="/catalog?new=1" className="hover:text-white transition-colors">
             {t("nav_new")}
           </Link>
-          <Link href="/chats" className="hover:text-white transition-colors">
+          <Link href="/chats" className="hover:text-white transition-colors relative">
             {t("nav_chats")}
+            {unreadTotal > 0 && (
+              <span className="absolute -top-2 -right-4 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[17px] text-center">
+                {unreadTotal > 99 ? "99+" : unreadTotal}
+              </span>
+            )}
           </Link>
         </nav>
 

@@ -21,6 +21,8 @@ import {
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { subscribeOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
+import { markChatRead, peerReadAt, UNREAD_TRACKING_START } from "@/lib/chatRead";
+import { MessageTicks, ReadLabel, UploadingPhotoBubble } from "@/components/ChatStatus";
 import { getOrderById, confirmOrderReceipt, cancelOrderBySeller, getUserProfile, isAdminUid } from "@/lib/users";
 import { getProductById } from "@/lib/products";
 import { createDispute, getDispute, resolveDispute } from "@/lib/disputes";
@@ -296,6 +298,9 @@ export function OrderChatThread({
   const [order, setOrder] = useState<Order | null>(null);
   const [itemImage, setItemImage] = useState<string | null>(null);
   const [messages, setMessages] = useState<OrderChatMessage[]>([]);
+  const [readBy, setReadBy] = useState<Record<string, number> | undefined>(undefined);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [visibleTick, setVisibleTick] = useState(0);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -334,7 +339,10 @@ export function OrderChatThread({
       })
       .finally(() => setLoading(false));
 
-    const unsub = subscribeOrderChat(orderId, (chat) => setMessages(chat?.messages ?? []));
+    const unsub = subscribeOrderChat(orderId, (chat) => {
+      setMessages(chat?.messages ?? []);
+      setReadBy(chat?.readBy);
+    });
     const unsubDelivery = subscribeDelivery(orderId, setDelivery);
     return () => {
       unsub();
@@ -348,11 +356,43 @@ export function OrderChatThread({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, uploadPreview]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setVisibleTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
 
   const isBuyer = !asAdmin && !!(user && order && order.userId === user.uid);
   const isSeller = !asAdmin && !!(user && order && order.sellerId === user.uid);
   const isAdminViewer = asAdmin && isAdminUid(user?.uid);
+
+  // Моё ли сообщение — одно определение и для пузырей, и для отметок прочтения.
+  const isMineMsg = (m: OrderChatMessage) =>
+    isAdminViewer ? m.from === "admin" : (isBuyer && m.from === "buyer") || (isSeller && m.from === "seller");
+
+  // Отмечаем чат прочитанным, пока он открыт и вкладка на виду (системные сообщения не в счёт).
+  useEffect(() => {
+    if (!user || !order || messages.length === 0 || document.visibilityState !== "visible") return;
+    const lastOther = [...messages].reverse().find((m) => m.from !== "system" && !isMineMsg(m));
+    if (!lastOther || lastOther.createdAt <= UNREAD_TRACKING_START) return;
+    if (lastOther.createdAt <= (readBy?.[user.uid] ?? 0)) return;
+    markChatRead("orderChats", orderId, user.uid, lastOther.createdAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, readBy, user, order, orderId, visibleTick, isBuyer, isSeller, isAdminViewer]);
+
+  // Кто из собеседников должен прочитать МОИ сообщения: покупатель ↔ продавец, админ — любой из двоих.
+  const peerRead = order
+    ? peerReadAt(readBy, isAdminViewer ? [order.userId, order.sellerId] : isBuyer ? [order.sellerId] : [order.userId])
+    : 0;
+  const lastMineIdx = messages.map((m) => isMineMsg(m)).lastIndexOf(true);
 
   const canConfirm = delivery === undefined || !!delivery?.buyerNickname;
 
@@ -436,6 +476,8 @@ export function OrderChatThread({
   async function handlePhotoPick(file: File | undefined) {
     if (!file || !user || !order) return;
     setUploadingPhoto(true);
+    const preview = URL.createObjectURL(file);
+    setUploadPreview(preview);
     try {
       const url = await uploadImage(file, "chat-photos");
       const from: OrderChatMessage["from"] = isAdminViewer ? "admin" : isBuyer ? "buyer" : "seller";
@@ -445,6 +487,10 @@ export function OrderChatThread({
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      setTimeout(() => {
+        setUploadPreview(null);
+        URL.revokeObjectURL(preview);
+      }, 500);
     }
   }
 
@@ -665,7 +711,7 @@ export function OrderChatThread({
               );
             }
 
-            const isMine = isAdminViewer ? m.from === "admin" : (isBuyer && m.from === "buyer") || (isSeller && m.from === "seller");
+            const isMine = isMineMsg(m);
             const senderLabel = m.from === "admin" ? "Админ" : asAdmin ? (m.from === "buyer" ? buyerName : sellerName) : counterpartName;
             const prevSameSender = i > 0 && messages[i - 1].from === m.from;
             const isWarning = m.from === "admin" && m.text.startsWith("⚠️ Предупреждение");
@@ -708,13 +754,18 @@ export function OrderChatThread({
                     </button>
                   )}
                   {m.text && <p className={m.imageUrl ? "px-1.5 pt-1.5" : ""}>{m.text}</p>}
-                  <p className={`text-[9px] opacity-50 text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"}`}>{formatTime(m.createdAt)}</p>
+                  <p className={`text-[9px] text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"} ${isMine ? "text-black/60" : "opacity-50"}`}>
+                    {formatTime(m.createdAt)}
+                    {isMine && <MessageTicks read={m.createdAt <= peerRead} />}
+                  </p>
                 </div>
               </div>
+              {isMine && i === lastMineIdx && !uploadPreview && <ReadLabel read={m.createdAt <= peerRead} />}
               </Fragment>
             );
           })
         )}
+        {uploadPreview && <UploadingPhotoBubble src={uploadPreview} />}
       </div>
 
       <div className="shrink-0">

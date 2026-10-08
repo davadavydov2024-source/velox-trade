@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, Plus, MessageSquare, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { safeImageSrc } from "@/lib/safeImage";
+import { useUnread } from "@/lib/unreadContext";
 
 const SELL_HREF = "/profile/sell";
 
@@ -17,6 +18,7 @@ const SELL_HREF = "/profile/sell";
 export function MobileTabBar() {
   const pathname = usePathname();
   const { user, profile } = useAuth();
+  const { total: unreadTotal } = useUnread();
 
   if (pathname.startsWith("/admin")) return null;
 
@@ -61,6 +63,11 @@ export function MobileTabBar() {
             </span>
           ) : (
             <Icon size={22} strokeWidth={active ? 2.4 : 1.9} className={`transition-colors ${active ? "text-accent" : "text-white/45"}`} />
+          )}
+          {href === "/chats" && unreadTotal > 0 && (
+            <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[17px] text-center ring-2 ring-surface animate-pulse">
+              {unreadTotal > 99 ? "99+" : unreadTotal}
+            </span>
           )}
         </span>
         <span className={`relative text-[10.5px] leading-none font-medium transition-colors ${active ? "text-accent" : "text-white/40"}`}>{label}</span>

@@ -8,6 +8,8 @@ import { useToast } from "@/lib/toastContext";
 import { createTicket, subscribeUserTickets, addTicketMessage } from "@/lib/tickets";
 import { sendSupportAutoReply } from "@/lib/emailjs";
 import { SupportTicket, SiteScreen } from "@/types";
+import { markChatRead, peerReadAt, UNREAD_TRACKING_START } from "@/lib/chatRead";
+import { MessageTicks, ReadLabel } from "@/components/ChatStatus";
 import { getSiteScreen } from "@/lib/siteScreens";
 import { SiteScreenView } from "@/components/SiteScreenView";
 
@@ -40,6 +42,14 @@ export function SupportPanel() {
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const activeTicket = tickets.find((t) => t.id === activeTicketId) ?? null;
   const [showNewForm, setShowNewForm] = useState(false);
+  // Открытое обращение помечаем прочитанным (пропадает бейдж, а поддержка видит «прочитано»)
+  useEffect(() => {
+    if (!user || !activeTicket) return;
+    const lastAdmin = [...activeTicket.messages].reverse().find((m) => m.from === "admin");
+    if (!lastAdmin || lastAdmin.createdAt <= UNREAD_TRACKING_START) return;
+    if (lastAdmin.createdAt <= (activeTicket.readBy?.[user.uid] ?? 0)) return;
+    markChatRead("tickets", activeTicket.id, user.uid, lastAdmin.createdAt);
+  }, [user, activeTicket]);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
@@ -194,18 +204,30 @@ export function SupportPanel() {
                   </span>
                 </div>
                 <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
-                  {activeTicket.messages.map((m, i) => (
-                    <div key={i} className={`flex ${m.from === "admin" ? "justify-start" : "justify-end"}`}>
-                      <div
-                        className={`max-w-[80%] rounded-btn px-3 py-2 text-sm ${
-                          m.from === "admin" ? "bg-accent/15 text-white" : "bg-surface text-white/80"
-                        }`}
-                      >
-                        <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? "Поддержка" : "Вы"}</p>
-                        {m.text}
+                  {activeTicket.messages.map((m, i, arr) => {
+                    const supportRead = peerReadAt(activeTicket.readBy, ["admin"]);
+                    const lastUserIdx = arr.map((x) => x.from === "user").lastIndexOf(true);
+                    return (
+                      <div key={i}>
+                        <div className={`flex ${m.from === "admin" ? "justify-start" : "justify-end"}`}>
+                          <div
+                            className={`max-w-[80%] rounded-btn px-3 py-2 text-sm ${
+                              m.from === "admin" ? "bg-accent/15 text-white" : "bg-surface text-white/80"
+                            }`}
+                          >
+                            <p className="text-[10px] text-white/30 mb-0.5">{m.from === "admin" ? "Поддержка" : "Вы"}</p>
+                            {m.text}
+                            {m.from === "user" && (
+                              <span className="block text-right -mb-0.5">
+                                <MessageTicks read={m.createdAt <= supportRead} tone="light" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {m.from === "user" && i === lastUserIdx && <ReadLabel read={m.createdAt <= supportRead} />}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {activeTicket.status !== "closed" && (
                   <form onSubmit={handleReply} className="flex gap-2">

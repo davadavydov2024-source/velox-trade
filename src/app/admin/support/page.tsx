@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, Send, CheckCircle2 } from "lucide-react";
 import { getAllTickets, addTicketMessage, setTicketStatus } from "@/lib/tickets";
+import { markChatRead, UNREAD_TRACKING_START } from "@/lib/chatRead";
 import { SupportTicket } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { AdminUserLinkButton } from "@/components/AdminUserLinkButton";
@@ -40,6 +41,16 @@ export default function AdminSupportPage() {
   }
 
   const active = tickets.find((t) => t.id === activeId) ?? null;
+
+  // Открыли обращение — пользователь увидит у своих сообщений «Прочитано».
+  useEffect(() => {
+    if (!active) return;
+    const lastUser = [...active.messages].reverse().find((m) => m.from === "user");
+    if (!lastUser || lastUser.createdAt <= UNREAD_TRACKING_START) return;
+    if (lastUser.createdAt <= (active.readBy?.admin ?? 0)) return;
+    markChatRead("tickets", active.id, "admin", lastUser.createdAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id, active?.messages.length]);
   const filtered = filter === "all" ? tickets : tickets.filter((t) => t.status === filter);
 
   async function handleReply(e: React.FormEvent) {

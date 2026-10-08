@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, Send, CheckCircle2 } from "lucide-react";
 import { getAllTickets, addTicketMessage, setTicketStatus } from "@/lib/tickets";
+import { markChatRead, UNREAD_TRACKING_START } from "@/lib/chatRead";
 import { SupportTicket } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
@@ -49,6 +50,7 @@ export default function StaffSupportPage() {
   }
 
   const active = tickets.find((t) => t.id === activeId) ?? null;
+
   const filtered = filter === "all" ? tickets : tickets.filter((t) => t.status === filter);
 
   async function handleReply(e: React.FormEvent) {
@@ -105,7 +107,14 @@ export default function StaffSupportPage() {
             filtered.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setActiveId(t.id)}
+                onClick={() => {
+                  setActiveId(t.id);
+                  // Открыли обращение — пользователь увидит у своих сообщений «Прочитано».
+                  const lastUser = [...t.messages].reverse().find((m) => m.from === "user");
+                  if (lastUser && lastUser.createdAt > UNREAD_TRACKING_START && lastUser.createdAt > (t.readBy?.admin ?? 0)) {
+                    markChatRead("tickets", t.id, "admin", lastUser.createdAt);
+                  }
+                }}
                 className={`w-full text-left p-3 rounded-btn mb-1 transition-colors ${
                   activeId === t.id ? "bg-accent/15" : "hover:bg-white/5"
                 }`}
