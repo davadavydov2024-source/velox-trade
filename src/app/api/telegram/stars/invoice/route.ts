@@ -43,6 +43,10 @@ export async function POST(req: NextRequest) {
     if (!product.sellerId || product.sellerId === "store") {
       return NextResponse.json({ error: "Оплата Stars доступна только для товаров продавцов" }, { status: 400 });
     }
+    // Покупка своего товара за Stars позволяла бы накручивать «продажи» и активность — запрещаем на сервере.
+    if (product.sellerId === uid) {
+      return NextResponse.json({ error: "Нельзя купить свой собственный товар" }, { status: 400 });
+    }
     // Цена задаётся самим продавцом при создании/редактировании товара (см. profile/my-products) —
     // никакого автоматического курса ₽→⭐ тут больше нет, продавец сам решает, сколько Stars хочет
     // получить за товар.

@@ -26,7 +26,7 @@ import { getProductById } from "@/lib/products";
 import { createDispute, getDispute, resolveDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
 import { subscribeDelivery } from "@/lib/deliveries";
-import { OrderChatMessage, Order, Dispute, Delivery } from "@/types";
+import { OrderChatMessage, Order, Dispute, Delivery, formatOrderTotal } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { auth } from "@/lib/firebase";
@@ -243,7 +243,7 @@ function DealSheet({
           </div>
           <div className="flex items-center justify-between mb-6">
             <span className="text-xs text-white/40">Количество: {order.items.reduce((s, i) => s + i.quantity, 0)}</span>
-            <span className="font-bold text-accent">{order.total.toFixed(2)} ₽</span>
+            <span className="font-bold text-accent">{formatOrderTotal(order)}</span>
           </div>
 
           <OrderDealTimeline order={order} delivery={delivery} />
@@ -406,7 +406,7 @@ export function OrderChatThread({
         setDispute({ ...d, status: cmd === "/approve" ? "approved" : "rejected" });
         toast("success", cmd === "/approve" ? "Спор одобрен" : "Спор отклонён");
       } else if (cmd === "/refund") {
-        if (!confirm(`Вернуть ${order.total} ₽ покупателю и отменить заказ?`)) return;
+        if (!confirm(`Вернуть ${formatOrderTotal(order)} покупателю и отменить заказ?`)) return;
         const idToken = await auth.currentUser?.getIdToken();
         const res = await fetch("/api/admin/orders/refund", {
           method: "POST",
@@ -604,7 +604,7 @@ export function OrderChatThread({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">{order.items.map((i) => i.name).join(", ")}</p>
-                <p className="text-accent text-sm font-semibold">{order.total.toFixed(2)} ₽</p>
+                <p className="text-accent text-sm font-semibold">{formatOrderTotal(order)}</p>
               </div>
               <span
                 className="text-[10px] font-semibold px-2 py-1 rounded-md shrink-0"

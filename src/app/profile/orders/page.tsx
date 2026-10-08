@@ -6,7 +6,7 @@ import { getOrdersForUser, confirmOrderReceipt } from "@/lib/users";
 import { getOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
 import { createDispute, getDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
-import { Order, OrderChatMessage, Dispute } from "@/types";
+import { Order, OrderChatMessage, Dispute, formatOrderTotal } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { MessageCircle, CheckCircle2, AlertTriangle, Star, Send } from "lucide-react";
 
@@ -147,7 +147,7 @@ function OrderCard({ order, buyerName }: { order: Order; buyerName: string }) {
       </div>
       <div className="flex justify-between font-bold mt-2 pt-2 border-t border-border">
         <span>Итого</span>
-        <span className="text-accent">{order.total.toFixed(2)} ₽</span>
+        <span className="text-accent">{formatOrderTotal(order)}</span>
       </div>
 
       {status === "disputed" && dispute && (

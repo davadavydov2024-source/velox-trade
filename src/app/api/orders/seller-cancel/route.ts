@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendTelegramMessage } from "@/lib/telegramBot";
+import { refundStarsOrder } from "@/lib/starsOrders";
 
 export const runtime = "nodejs";
 
@@ -28,8 +29,11 @@ export async function POST(req: NextRequest) {
       userId: string;
       total: number;
       status: string;
+      paymentMethod?: string;
+      starsAmount?: number;
       items: { productId: string; quantity: number }[];
     };
+    const isStars = order.paymentMethod === "telegram_stars";
 
     if (order.sellerId !== uid) return NextResponse.json({ error: "Это не твой заказ" }, { status: 403 });
     if (order.status !== "pending_confirmation") {
@@ -38,13 +42,21 @@ export async function POST(req: NextRequest) {
 
     const buyerRef = db.collection("users").doc(order.userId);
 
+    // Заказ за Stars: звёзды возвращаются покупателю через Telegram (и списываются с Stars-баланса
+    // продавца). Делаем это ДО отмены: если Telegram откажет, заказ остаётся как был, а не «отменён без возврата».
+    if (isStars) {
+      const refund = await refundStarsOrder(orderId);
+      if (!refund.ok) return NextResponse.json({ error: (refund as { error: string }).error }, { status: 400 });
+    }
+    const moneyText = isStars ? `${order.starsAmount ?? 0} ⭐` : `${order.total} ₽`;
+
     await db.runTransaction(async (tx) => {
       const freshOrderSnap = await tx.get(orderRef);
       if (freshOrderSnap.data()?.status !== "pending_confirmation") {
         throw new Error("already-resolved");
       }
       tx.update(orderRef, { status: "cancelled", cancelledAt: Date.now(), cancelReason: reason ?? null });
-      tx.update(buyerRef, { balance: FieldValue.increment(order.total) });
+      if (!isStars) tx.update(buyerRef, { balance: FieldValue.increment(order.total) });
       for (const item of order.items) {
         tx.update(db.collection("products").doc(item.productId), { stock: FieldValue.increment(item.quantity) });
       }
@@ -53,7 +65,7 @@ export async function POST(req: NextRequest) {
       const chatSnap = await tx.get(chatRef);
       const message = {
         from: "system",
-        text: `❌ Продавец отменил заказ. Деньги (${order.total} ₽) возвращены покупателю.${reason ? ` Причина: ${reason}` : ""}`,
+        text: `❌ Продавец отменил заказ. ${isStars ? "Звёзды" : "Деньги"} (${moneyText}) возвращены покупателю.${reason ? ` Причина: ${reason}` : ""}`,
         createdAt: Date.now(),
       };
       if (chatSnap.exists) {
@@ -66,7 +78,7 @@ export async function POST(req: NextRequest) {
     const linkSnap = await db.collection("telegramLinks").doc(order.userId).get();
     if (linkSnap.exists) {
       const { chatId } = linkSnap.data() as { chatId: number };
-      await sendTelegramMessage(chatId, `❌ Продавец отменил твой заказ на ${order.total} ₽ — деньги возвращены на баланс.`);
+      await sendTelegramMessage(chatId, isStars ? `❌ Продавец отменил твой заказ (${moneyText}) — звёзды возвращены тебе в Telegram.` : `❌ Продавец отменил твой заказ на ${order.total} ₽ — деньги возвращены на баланс.`);
     }
 
     return NextResponse.json({ ok: true });

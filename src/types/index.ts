@@ -240,9 +240,18 @@ export interface Order {
   // до появления Stars, поэтому старые заказы этого поля не имеют).
   paymentMethod?: "balance" | "telegram_stars";
   starsAmount?: number; // сумма в Stars, если paymentMethod === "telegram_stars"
+  // Для заказов за Stars: id счёта (starsInvoices) — по нему делается возврат звёзд через Telegram.
+  starsInvoiceId?: string;
   reviewSubmitted?: boolean;
   createdAt: number;
   confirmedAt?: number;
+}
+
+/** Сумма заказа для показа людям: у заказов за Stars total в рублях = 0 (рублёвых денег там нет,
+ * звёзды сразу идут на starsBalance продавца), поэтому показываем сумму в ⭐. */
+export function formatOrderTotal(o: { total: number; paymentMethod?: "balance" | "telegram_stars"; starsAmount?: number }): string {
+  if (o.paymentMethod === "telegram_stars") return `${o.starsAmount ?? 0} ⭐`;
+  return `${o.total.toFixed(2)} ₽`;
 }
 
 export type UserBadge =
@@ -778,6 +787,7 @@ export interface PublicActivityItem {
   productName: string;
   image?: string | null;
   price: number;
+  stars?: number; // покупка за Telegram Stars — показываем «N ⭐» вместо рублей
   type: "purchase" | "wheel";
   createdAt: number;
 }

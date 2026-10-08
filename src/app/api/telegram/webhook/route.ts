@@ -44,7 +44,7 @@ import {
 } from "@/lib/telegramAdminPanel";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
-import { fulfillStarsInvoice } from "@/lib/starsOrders";
+import { fulfillStarsInvoice, validateStarsPreCheckout, logStarsIssue } from "@/lib/starsOrders";
 import { getStarsBalanceMessage, requestStarsWithdrawal, MIN_STARS_WITHDRAWAL } from "@/lib/telegramStarsWithdrawals";
 import {
   contestMenuButtons,
@@ -213,7 +213,16 @@ export async function POST(req: NextRequest) {
 
     const preCheckout = update?.pre_checkout_query;
     if (preCheckout) {
-      await answerPreCheckoutQuery(preCheckout.id, true);
+      // Telegram ждёт ответ ~10 секунд, иначе оплата сорвётся. Проверяем счёт (наличие, цена, срок) и
+      // отказываем с понятным текстом, ПОКА звёзды ещё не списаны. Если сама проверка упала — не
+      // блокируем оплату (лучше оформить заказ позже, чем потерять платёж), ошибку пишем в лог.
+      let verdict: { ok: boolean; message?: string } = { ok: true };
+      try {
+        verdict = await validateStarsPreCheckout(preCheckout.invoice_payload ?? "", preCheckout.total_amount ?? 0);
+      } catch (err) {
+        console.error("validateStarsPreCheckout error:", err);
+      }
+      await answerPreCheckoutQuery(preCheckout.id, verdict.ok, verdict.ok ? undefined : verdict.message);
       return NextResponse.json({ ok: true });
     }
 
@@ -363,9 +372,22 @@ export async function POST(req: NextRequest) {
       if (payload.startsWith("stars_")) {
         const invoiceId = payload.slice("stars_".length);
         try {
-          const replyText = await fulfillStarsInvoice(invoiceId, totalAmount);
+          const replyText = await fulfillStarsInvoice(invoiceId, totalAmount, {
+            chargeId: message.successful_payment.telegram_payment_charge_id,
+            payerTgId: message.from?.id,
+          });
           await sendTelegramMessage(chatId, replyText);
         } catch (err) {
+          // Платёж не потерян: запись в starsPaymentIssues (там есть charge id для ручного возврата),
+          // а Telegram-вебхук повторит update — fulfillStarsInvoice идемпотентна.
+          await logStarsIssue({
+            type: "fulfill-exception",
+            invoiceId,
+            starsAmount: totalAmount,
+            chargeId: message.successful_payment.telegram_payment_charge_id ?? null,
+            payerTgId: message.from?.id ?? null,
+            error: String((err as any)?.message ?? err),
+          });
           // Деньги Telegram уже списал — молчать нельзя ни при какой ошибке, иначе покупатель
           // заплатил, а заказа не увидит и не поймёт, что случилось.
           console.error("fulfillStarsInvoice error:", err);

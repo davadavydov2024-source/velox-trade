@@ -6,7 +6,7 @@ import { getOrdersForSeller, cancelOrderBySeller } from "@/lib/users";
 import { getOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
 import { createDispute, getDispute } from "@/lib/disputes";
 import { getPublicProfileCached } from "@/lib/sellerCache";
-import { Order, OrderChatMessage, Dispute } from "@/types";
+import { Order, OrderChatMessage, Dispute, formatOrderTotal } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { MessageCircle, AlertTriangle, Ban } from "lucide-react";
 import { SalesChart } from "@/components/SalesChart";
@@ -127,7 +127,7 @@ function SaleCard({ order }: { order: Order }) {
       </div>
       <div className="flex justify-between font-bold mt-2 pt-2 border-t border-border">
         <span>Итого</span>
-        <span className="text-accent">{order.total.toFixed(2)} ₽</span>
+        <span className="text-accent">{formatOrderTotal(order)}</span>
       </div>
 
       {status === "disputed" && dispute && (

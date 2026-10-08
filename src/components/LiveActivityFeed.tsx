@@ -44,7 +44,7 @@ function ActivityCard({ item }: { item: PublicActivityItem }) {
         </p>
         <p className="text-sm font-medium truncate">{item.productName}</p>
         <p className="text-[11px] text-accent">
-          {item.price > 0 ? `${item.price} ₽` : "приз"} · {timeAgo(item.createdAt)}
+          {item.stars ? `${item.stars} ⭐` : item.price > 0 ? `${item.price} ₽` : "приз"} · {timeAgo(item.createdAt)}
         </p>
       </div>
     </div>

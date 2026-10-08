@@ -31,7 +31,7 @@ export async function getRecentOrdersMessage(uid: string): Promise<string> {
 
   const lines = orders.map((o) => {
     const items = o.items.map((i) => `${i.name} ×${i.quantity}`).join(", ");
-    return `📦 ${items}\n${o.total} ₽ — ${STATUS_LABEL[o.status] ?? o.status}`;
+    return `📦 ${items}\n${o.paymentMethod === "telegram_stars" ? `${o.starsAmount ?? 0} ⭐` : `${o.total} ₽`} — ${STATUS_LABEL[o.status] ?? o.status}`;
   });
   return `Последние заказы:\n\n${lines.join("\n\n")}`;
 }

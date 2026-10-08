@@ -3,6 +3,7 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendTelegramMessage } from "@/lib/telegramBot";
 import { isAdminUid } from "@/lib/users";
+import { refundStarsOrder } from "@/lib/starsOrders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,8 +35,11 @@ export async function POST(req: NextRequest) {
       userId: string;
       total: number;
       status: string;
+      paymentMethod?: string;
+      starsAmount?: number;
       items: { productId: string; quantity: number }[];
     };
+    const isStars = order.paymentMethod === "telegram_stars";
 
     if (order.status !== "pending_confirmation" && order.status !== "disputed") {
       return NextResponse.json({ error: "Вернуть можно только неподтверждённый заказ или заказ в споре" }, { status: 400 });
@@ -43,13 +47,20 @@ export async function POST(req: NextRequest) {
 
     const buyerRef = db.collection("users").doc(order.userId);
 
+    // Stars-заказ: возврат звёзд через Telegram (с Stars-баланса продавца), а не рублей на баланс.
+    if (isStars) {
+      const refund = await refundStarsOrder(orderId);
+      if (!refund.ok) return NextResponse.json({ error: (refund as { error: string }).error }, { status: 400 });
+    }
+    const moneyText = isStars ? `${order.starsAmount ?? 0} ⭐` : `${order.total} ₽`;
+
     await db.runTransaction(async (tx) => {
       const freshOrderSnap = await tx.get(orderRef);
       const freshStatus = freshOrderSnap.data()?.status;
       if (freshStatus !== "pending_confirmation" && freshStatus !== "disputed") throw new Error("already-resolved");
 
       tx.update(orderRef, { status: "cancelled", cancelledAt: Date.now(), cancelReason: reason ?? "Возврат администратором" });
-      tx.update(buyerRef, { balance: FieldValue.increment(order.total) });
+      if (!isStars) tx.update(buyerRef, { balance: FieldValue.increment(order.total) });
       for (const item of order.items) {
         tx.update(db.collection("products").doc(item.productId), { stock: FieldValue.increment(item.quantity) });
       }
@@ -58,7 +69,7 @@ export async function POST(req: NextRequest) {
       const chatSnap = await tx.get(chatRef);
       const message = {
         from: "system",
-        text: `↩️ Администратор вернул деньги покупателю (${order.total} ₽).${reason ? ` Причина: ${reason}` : ""}`,
+        text: `↩️ Администратор вернул ${isStars ? "звёзды" : "деньги"} покупателю (${moneyText}).${reason ? ` Причина: ${reason}` : ""}`,
         createdAt: Date.now(),
       };
       if (chatSnap.exists) {
@@ -71,7 +82,7 @@ export async function POST(req: NextRequest) {
     const linkSnap = await db.collection("telegramLinks").doc(order.userId).get();
     if (linkSnap.exists) {
       const { chatId } = linkSnap.data() as { chatId: number };
-      await sendTelegramMessage(chatId, `↩️ Администратор вернул тебе ${order.total} ₽ по заказу — деньги на балансе.`);
+      await sendTelegramMessage(chatId, isStars ? `↩️ Администратор вернул тебе ${moneyText} по заказу — звёзды возвращены в Telegram.` : `↩️ Администратор вернул тебе ${order.total} ₽ по заказу — деньги на балансе.`);
     }
 
     return NextResponse.json({ ok: true });

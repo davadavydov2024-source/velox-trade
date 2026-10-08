@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Image from "next/image";
 import { X, CheckCircle2, AlertTriangle } from "lucide-react";
-import { Order, Delivery } from "@/types";
+import { Order, Delivery, formatOrderTotal } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { OrderDealTimeline } from "@/components/OrderDealTimeline";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
@@ -76,7 +76,7 @@ export function DealSheet({
           </div>
           <div className="flex items-center justify-between mb-6">
             <span className="text-xs text-white/40">Количество: {order.items.reduce((s, i) => s + i.quantity, 0)}</span>
-            <span className="font-bold text-accent">{order.total.toFixed(2)} ₽</span>
+            <span className="font-bold text-accent">{formatOrderTotal(order)}</span>
           </div>
 
           <OrderDealTimeline order={order} delivery={delivery} />

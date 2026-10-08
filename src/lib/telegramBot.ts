@@ -96,6 +96,13 @@ export async function sendInvoice(chatId: number, title: string, description: st
   return result !== null;
 }
 
+/** Возврат Stars покупателю (Bot API refundStarPayment). Нужен telegram_payment_charge_id из
+ * successful_payment — мы сохраняем его в starsInvoices. true = Telegram подтвердил возврат. */
+export async function refundStarPayment(userId: number, telegramPaymentChargeId: string): Promise<boolean> {
+  const result = await tgCall("refundStarPayment", { user_id: userId, telegram_payment_charge_id: telegramPaymentChargeId });
+  return result !== null;
+}
+
 export async function answerPreCheckoutQuery(preCheckoutQueryId: string, ok: boolean, errorMessage?: string): Promise<boolean> {
   const result = await tgCall("answerPreCheckoutQuery", { pre_checkout_query_id: preCheckoutQueryId, ok, error_message: errorMessage });
   return result !== null;

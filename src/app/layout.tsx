@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthBackground variant="ambient" />
         <Providers>
           <Header />
-          <main className="flex-1 pb-16 lg:pb-0">{children}</main>
+          <main className="flex-1 pb-28 lg:pb-0">{children}</main>
           <Footer />
           <MobileTabBar />
         </Providers>

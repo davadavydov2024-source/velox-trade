@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
       const now = Date.now();
       tx.update(orderRef, { status: "confirmed", confirmedAt: now });
 
+      // Заказ за Stars: звёзды продавец получил СРАЗУ при оплате (starsBalance, см. lib/starsOrders.ts).
+      // Рублёвую выплату тут создавать нельзя — иначе продавец получал бы и Stars, и рубли сверху.
+      if (order.paymentMethod === "telegram_stars") {
+        return { sellerId: order.sellerId as string, total: 0, stars: (order.starsAmount ?? 0) as number };
+      }
+
       const payoutRef = db.collection("pendingPayouts").doc(orderId);
       tx.set(payoutRef, {
         id: orderId,
@@ -53,9 +59,14 @@ export async function POST(req: NextRequest) {
         releaseAt: now + HOLD_DURATION_MS,
       });
 
-      return { sellerId: order.sellerId as string, total: order.total as number };
+      return { sellerId: order.sellerId as string, total: order.total as number, stars: 0 };
     });
 
+    if (result.stars > 0) {
+      notifyTelegramServer(result.sellerId, `✅ Покупатель подтвердил получение заказа (${result.stars} ⭐). Звёзды уже на твоём Stars-балансе в боте.`);
+      sendWebPush(result.sellerId, { title: "Получение подтверждено", body: `${result.stars} ⭐ уже на балансе`, url: "/profile/orders" }, "purchases");
+      return NextResponse.json({ ok: true });
+    }
     notifyTelegramServer(result.sellerId, `✅ Покупатель подтвердил получение заказа на ${result.total} ₽. Деньги поступят на баланс через 48 часов.`);
     sendWebPush(result.sellerId, { title: "Получение подтверждено", body: `${result.total} ₽ — деньги придут через 48ч`, url: "/profile/orders" }, "purchases");
 

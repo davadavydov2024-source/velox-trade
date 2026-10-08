@@ -200,7 +200,7 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 export async function confirmOrderReceipt(order: Order, buyerName: string) {
   await updateDoc(doc(db, "orders", order.id), { status: "confirmed", confirmedAt: Date.now() });
   await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.`);
-  notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.total} ₽.`);
+  notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.paymentMethod === "telegram_stars" ? `${order.starsAmount ?? 0} ⭐` : `${order.total} ₽`}.`);
   // Проверка достижений (например бейдж "buyer" за первую покупку) — не критично для основного
   // действия, поэтому не ждём и не роняем подтверждение заказа, если это не сработает.
   auth.currentUser
