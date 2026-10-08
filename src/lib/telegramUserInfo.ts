@@ -23,7 +23,7 @@ export async function getBalanceMessage(uid: string): Promise<string> {
 export async function getRecentOrdersMessage(uid: string): Promise<string> {
   const snap = await adminDb().collection("orders").where("userId", "==", uid).get();
   const orders = snap.docs
-    .map((d) => d.data() as { items: { name: string; quantity: number }[]; total: number; status: string; createdAt: number })
+    .map((d) => d.data() as { items: { name: string; quantity: number }[]; total: number; status: string; createdAt: number; paymentMethod?: string; starsAmount?: number })
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 5);
 
