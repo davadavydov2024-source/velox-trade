@@ -147,7 +147,16 @@ function ProductBoostCard({
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-2 mt-3">
+      {product.banned && (
+        <div className="mt-3 rounded-btn border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm">
+          <p className="font-semibold text-red-400">🚫 Товар заблокирован модерацией</p>
+          <p className="text-xs text-white/60 mt-0.5">
+            Причина: {product.bannedReason || "не указана"}. В каталоге его нет, купить его нельзя. Если считаешь, что это ошибка, — напиши в поддержку.
+          </p>
+        </div>
+      )}
+
+      <div className={`grid sm:grid-cols-2 gap-2 mt-3 ${product.banned ? "hidden" : ""}`}>
         <div className="rounded-btn border border-border p-3">
           <p className="text-sm font-medium flex items-center gap-1.5">
             <Rocket size={14} className="text-accent" /> {t("my_products_boost_game_title")}
@@ -276,7 +285,7 @@ function ProductBoostCard({
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
           <button
             onClick={() => setEditing(true)}
-            disabled={editsLeft <= 0}
+            disabled={editsLeft <= 0 || !!product.banned}
             className="text-xs text-white/40 hover:text-accent flex items-center gap-1.5 disabled:opacity-40 disabled:hover:text-white/40"
           >
             <Pencil size={13} /> {editsLeft > 0 ? `Редактировать (осталось ${editsLeft} из ${MAX_PRODUCT_EDITS})` : "Лимит правок исчерпан (3/3)"}
@@ -299,7 +308,7 @@ export default function MyProductsPage() {
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([getProducts({ sellerId: user.uid }), getFeatureFlags()])
+    Promise.all([getProducts({ sellerId: user.uid, includeBanned: true }), getFeatureFlags()])
       .then(([p, f]) => {
         setProducts(p);
         setFlags(f);

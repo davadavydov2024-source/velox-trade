@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Tag, Check, ChevronLeft, ChevronRight, ImagePlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { createSellRequest } from "@/lib/sellRequests";
+import { createSellRequest, requestAiModeration } from "@/lib/sellRequests";
 import { getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { Game, DEFAULT_FEATURE_FLAGS, Rarity, RARITY_LABEL, DeliveryMethod } from "@/types";
@@ -125,7 +125,7 @@ export default function SellPage() {
 
     setSubmitting(true);
     try {
-      await createSellRequest({
+      const created = await createSellRequest({
         userId: user.uid,
         userNick: profile.displayName,
         itemName: itemName.trim(),
@@ -150,24 +150,32 @@ export default function SellPage() {
           : {}),
       });
 
-      // Уведомление админу в Telegram не должно блокировать создание заявки, если бот недоступен.
-      fetch("/api/admin/notify-sell-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemName,
-          game: selectedGame!.name,
-          price:
-            paymentMethod === "stars"
-              ? `${starsPriceNum} ⭐`
-              : paymentMethod === "both"
-                ? `${priceNum} ₽ / ${starsPriceNum} ⭐`
-                : priceNum,
-          userNick: profile.displayName,
-        }),
-      }).catch((err) => console.error("Не удалось уведомить админа:", err));
-
-      toast("success", "Заявка на продажу отправлена. Администратор проверит её и свяжется с тобой.");
+      // ИИ-модерация: обычно ответ приходит за пару секунд. Одобрено — товар сразу в каталоге,
+      // отклонено — покажем причину и оставим форму заполненной, чтобы можно было поправить и отправить снова.
+      toast("info", "ИИ проверяет объявление…");
+      const outcome = await requestAiModeration(created.id);
+      if (!outcome) {
+        // Сервер модерации недоступен — заявка всё равно создана, админ проверит вручную.
+        fetch("/api/admin/notify-sell-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemName,
+            game: selectedGame!.name,
+            price: paymentMethod === "stars" ? `${starsPriceNum} ⭐` : paymentMethod === "both" ? `${priceNum} ₽ / ${starsPriceNum} ⭐` : priceNum,
+            userNick: profile.displayName,
+          }),
+        }).catch(() => {});
+      }
+      if (outcome?.status === "rejected") {
+        toast("error", `Объявление отклонено: ${outcome.reason ?? "нарушение правил площадки"}. Исправь и отправь снова.`);
+        return;
+      }
+      if (outcome?.status === "approved") {
+        toast("success", "Товар прошёл проверку и уже опубликован в каталоге!");
+      } else {
+        toast("success", "Заявка отправлена. Администратор проверит её и свяжется с тобой.");
+      }
       setStep(0);
       setSelectedGame(null);
       setCategory("");

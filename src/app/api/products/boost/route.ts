@@ -57,7 +57,10 @@ export async function POST(req: NextRequest) {
     if (!productSnap.exists) {
       return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
     }
-    const productData = productSnap.data() as { sellerId: string; boostTier?: string; boostUntil?: number };
+    const productData = productSnap.data() as { sellerId: string; boostTier?: string; boostUntil?: number; banned?: boolean };
+    if (productData.banned) {
+      return NextResponse.json({ error: "Товар заблокирован модерацией — продвигать его нельзя" }, { status: 400 });
+    }
     if (productData.sellerId !== uid) {
       return NextResponse.json({ error: "Это не твой товар" }, { status: 403 });
     }

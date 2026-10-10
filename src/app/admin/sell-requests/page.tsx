@@ -106,6 +106,11 @@ export default function AdminSellRequestsPage() {
                       <p className="text-sm text-white/60 mb-1">Цена: {r.price} ₽</p>
                     )}
                     {r.description && <p className="text-sm text-white/40 mb-1">{r.description}</p>}
+                    {r.aiReason && (
+                      <p className="text-xs mb-1 px-2 py-1 rounded-md bg-yellow-500/10 text-yellow-300/90 inline-block">
+                        🤖 Нужна твоя проверка: {r.aiReason}
+                      </p>
+                    )}
                     <p className="text-xs text-white/40 mb-3">
                       Кол-во: {r.stock ?? 1} шт. · Редкость: {RARITY_LABEL[r.rarity] ?? "Обычный"}
                     </p>
@@ -138,6 +143,7 @@ export default function AdminSellRequestsPage() {
                   <th className="p-3">Цена</th>
                   <th className="p-3">К выплате</th>
                   <th className="p-3">Статус</th>
+                  <th className="p-3">Проверил</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,7 +170,9 @@ export default function AdminSellRequestsPage() {
                         <span className={r.status === "approved" ? "text-green-400" : "text-red-400"}>
                           {r.status === "approved" ? "Одобрена" : "Отклонена"}
                         </span>
+                        {r.status === "rejected" && r.rejectReason && <p className="text-xs text-white/40 mt-0.5 max-w-[220px]">{r.rejectReason}</p>}
                       </td>
+                      <td className="p-3 text-white/50">{r.aiVerdict === "approve" || r.aiVerdict === "reject" ? "🤖 ИИ" : "Админ"}</td>
                     </tr>
                   );
                 })}

@@ -44,6 +44,9 @@ export async function getProducts(opts?: {
    * профиль продавца), чтобы такие товары нельзя было купить в обход колеса. В админке и на
    * странице самого колеса оставляй false — там их обязательно нужно видеть. */
   excludeWheelLocked?: boolean;
+  /** По умолчанию false — заблокированные модерацией товары скрыты везде. true нужен только админке
+   * и странице «Мои товары» (продавец должен видеть, что его товар заблокирован, и почему). */
+  includeBanned?: boolean;
 }): Promise<Product[]> {
   const clauses = [];
   if (opts?.gameId) clauses.push(where("gameId", "==", opts.gameId));
@@ -57,6 +60,8 @@ export async function getProducts(opts?: {
   // так что сортировка в JS обходится дёшево и работает сразу без лишней настройки.
   const snap = await getDocs(query(productsCol, ...clauses));
   let products = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product);
+
+  if (!opts?.includeBanned) products = products.filter((p) => !p.banned);
 
   if (opts?.excludeWheelLocked) {
     const lockedIds = await getActiveWheelProductIds();
@@ -75,9 +80,12 @@ export async function getProducts(opts?: {
  * нельзя было открыть/купить напрямую по ссылке в обход колеса. Используй на покупательской
  * странице товара; для чата заказа и других служебных мест оставляй обычный getProductById.
  */
-export async function getPurchasableProductById(id: string): Promise<Product | null> {
+export async function getPurchasableProductById(id: string, opts?: { allowBanned?: boolean }): Promise<Product | null> {
   const [product, lockedIds] = await Promise.all([getProductById(id), getActiveWheelProductIds()]);
   if (!product || lockedIds.has(product.id)) return null;
+  // Заблокированный товар для «избранного», «недавно просмотренных» и т.п. — как несуществующий.
+  // Только страница товара просит allowBanned, чтобы показать «заблокирован» вместо «не найден».
+  if (product.banned && !opts?.allowBanned) return null;
   return product;
 }
 
@@ -109,6 +117,20 @@ export async function updateProduct(id: string, data: Partial<Product>) {
 
 export async function deleteProduct(id: string) {
   return deleteDoc(doc(db, "products", id));
+}
+
+/** Блокировка / разблокировка товара админом — идёт через сервер (см. api/admin/products/ban). */
+export async function setProductBanned(productId: string, banned: boolean, reason?: string): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Нужно войти в аккаунт");
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch("/api/admin/products/ban", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ productId, banned, reason }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Не удалось выполнить действие");
 }
 
 /** Покупка продвижения товара продавцом за баланс — идёт через сервер (см. api/products/boost). */

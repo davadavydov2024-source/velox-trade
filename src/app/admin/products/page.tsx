@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Plus, Trash2, Edit3 } from "lucide-react";
-import { getProducts, createProduct, updateProduct, deleteProduct, getGames } from "@/lib/products";
+import { Plus, Trash2, Edit3, Ban, ShieldCheck, Bot } from "lucide-react";
+import { getProducts, createProduct, updateProduct, deleteProduct, getGames, setProductBanned } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { Product, Rarity, RARITY_LABEL, Game } from "@/types";
 import { useToast } from "@/lib/toastContext";
@@ -43,7 +43,7 @@ export default function AdminProductsPage() {
   async function refresh() {
     setLoading(true);
     try {
-      setProducts(await getProducts());
+      setProducts(await getProducts({ includeBanned: true }));
     } finally {
       setLoading(false);
     }
@@ -111,6 +111,28 @@ export default function AdminProductsPage() {
         toast("error", "Ошибка сохранения товара");
       }
       console.error(err);
+    }
+  }
+
+  async function handleToggleBan(p: Product) {
+    try {
+      if (p.banned) {
+        await setProductBanned(p.id, false);
+        setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, banned: false, bannedReason: undefined } : x)));
+        toast("success", "Товар разблокирован");
+        return;
+      }
+      const reason = window.prompt(`Причина блокировки «${p.name}» — её увидит продавец:`);
+      if (reason === null) return;
+      if (!reason.trim()) {
+        toast("warning", "Укажи причину блокировки");
+        return;
+      }
+      await setProductBanned(p.id, true, reason.trim());
+      setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, banned: true, bannedReason: reason.trim() } : x)));
+      toast("success", "Товар заблокирован, продавец уведомлён");
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось выполнить действие");
     }
   }
 
@@ -259,7 +281,17 @@ export default function AdminProductsPage() {
                     <div className="relative w-9 h-9 rounded-lg bg-black/30 shrink-0">
                       {isValidImageSrc(p.image) && <Image src={safeImageSrc(p.image)} alt={p.name} fill className="object-contain p-1 rounded-lg" sizes="36px" />}
                     </div>
-                    {p.name}
+                    <span className={p.banned ? "text-white/40 line-through" : ""}>{p.name}</span>
+                    {p.banned && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400" title={p.bannedReason}>
+                        Заблокирован
+                      </span>
+                    )}
+                    {p.moderation?.by === "ai" && (
+                      <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent" title={p.moderation.note}>
+                        <Bot size={10} /> ИИ
+                      </span>
+                    )}
                   </td>
                   <td className="p-3 text-white/50">{p.gameId}</td>
                   <td className="p-3 text-white/40">{p.category ?? "—"}</td>
@@ -270,6 +302,13 @@ export default function AdminProductsPage() {
                     <div className="flex gap-2">
                       <button onClick={() => openEdit(p)} className="p-1.5 rounded-md hover:bg-white/10 text-white/60">
                         <Edit3 size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleBan(p)}
+                        className={`p-1.5 rounded-md hover:bg-white/10 ${p.banned ? "text-green-400" : "text-orange-400"}`}
+                        title={p.banned ? "Разблокировать" : "Заблокировать товар"}
+                      >
+                        {p.banned ? <ShieldCheck size={15} /> : <Ban size={15} />}
                       </button>
                       <button onClick={() => handleDelete(p)} className="p-1.5 rounded-md hover:bg-white/10 text-red-400">
                         <Trash2 size={15} />

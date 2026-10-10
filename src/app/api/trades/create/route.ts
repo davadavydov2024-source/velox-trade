@@ -69,6 +69,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Один из товаров сейчас недоступен для сделок (разыгрывается в колесе фортуны)" }, { status: 400 });
     }
 
+    if ((offered as any).banned || (requested as any).banned) {
+      return NextResponse.json({ error: "Один из товаров заблокирован модерацией" }, { status: 400 });
+    }
+
     // Товар «только за Stars» нельзя «докупить» рублями через обмен с доплатой.
     if (extra > 0 && ((requested as any).paymentMode === "stars")) {
       return NextResponse.json({ error: "Этот товар продаётся только за Stars — доплата рублями недоступна" }, { status: 400 });

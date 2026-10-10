@@ -174,6 +174,14 @@ export interface Product {
   // Если поля нет (старые товары): есть starsPrice → "both", иначе "rub". Всегда читай через
   // getPaymentMode(), а не напрямую.
   paymentMode?: PaymentMode;
+  // Блокировка товара модерацией (админ или ИИ после жалобы): в каталоге его нет, купить и открыть
+  // для покупки нельзя. Продавец видит причину в «Мои товары». См. api/admin/products/ban.
+  banned?: boolean;
+  bannedReason?: string;
+  bannedAt?: number;
+  bannedBy?: string; // uid админа
+  // Кто и когда пропустил товар в каталог: "ai" — автоматическая ИИ-модерация, "admin" — вручную.
+  moderation?: { by: "ai" | "admin"; at: number; note?: string };
   createdAt: number;
 }
 
@@ -224,6 +232,11 @@ export interface ProductEditRequest {
   // режим выводится из proposedStarsPrice.
   proposedPaymentMode?: PaymentMode;
   status: "pending" | "approved" | "rejected";
+  // Решение ИИ-модерации (см. lib/aiModeration.ts): approve — опубликовано автоматически,
+  // reject — отклонено с причиной (rejectReason), review — ИИ не уверен, ждёт проверки админа.
+  aiVerdict?: "approve" | "reject" | "review";
+  aiReason?: string;
+  rejectReason?: string; // причина отказа, которую увидит продавец
   createdAt: number;
 }
 
@@ -620,6 +633,7 @@ export interface FeatureFlags {
   boostGameDays: number;
   boostHomePriceRub: number; // цена продвижения "на главную" за период boostHomeDays (старший тир)
   boostHomeDays: number;
+  aiModerationEnabled: boolean; // ИИ сам проверяет и публикует новые товары; выключено — все заявки идут админу
   updatedAt: number;
 }
 
@@ -638,6 +652,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   boostGameDays: 3,
   boostHomePriceRub: 149,
   boostHomeDays: 3,
+  aiModerationEnabled: true,
   updatedAt: 0,
 };
 

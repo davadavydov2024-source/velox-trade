@@ -43,6 +43,7 @@ export async function validateStarsPreCheckout(payload: string, totalAmount: num
   const productSnap = await db.collection("products").doc(invoice.productId).get();
   if (!productSnap.exists) return { ok: false, message: "Товар удалён продавцом." };
   const product = productSnap.data() as { stock: number; sellerId: string; starsPrice?: number; paymentMode?: "rub" | "stars" | "both" };
+  if ((product as { banned?: boolean }).banned) return { ok: false, message: "Товар заблокирован модерацией." };
   if (getPaymentMode(product) === "rub") return { ok: false, message: "Продавец отключил оплату Stars для этого товара." };
   if ((product.stock ?? 0) < invoice.quantity) return { ok: false, message: "Товара уже нет в наличии." };
   if (product.sellerId !== invoice.sellerId) return { ok: false, message: "Товар изменился. Создай новый счёт." };

@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       if (!productSnap.exists) throw new Error("not-found");
       const product = productSnap.data()!;
       if (!product.auctionEnabled) throw new Error("not-auction");
+      if (product.banned) throw new Error("ended"); // заблокированный лот — торги закрыты
       if (product.auctionStatus !== "active") throw new Error("ended");
       if (product.sellerId === uid) throw new Error("own-item");
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { isAdminUid } from "@/lib/users";
 import { Minus, Plus, ShoppingCart, Zap, Star, ShieldCheck, ArrowLeftRight, Send } from "lucide-react";
 import { getProducts, getGameBySlug, getPurchasableProductById } from "@/lib/products";
 import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES, getPaymentMode } from "@/types";
@@ -47,7 +48,7 @@ export default function ProductPage() {
     // getPurchasableProductById (не обычный getProductById!) — если товар сейчас "заперт" под
     // колесо фортуны, страница должна вести себя как "товар не найден", а не давать купить его
     // напрямую по прямой ссылке в обход колеса.
-    getPurchasableProductById(id)
+    getPurchasableProductById(id, { allowBanned: true })
       .then((p) => {
         if (p) {
           setProduct(p);
@@ -77,6 +78,23 @@ export default function ProductPage() {
   }
   if (!product) {
     return <div className="max-w-7xl mx-auto px-4 py-20 text-center text-white/40">Загрузка...</div>;
+  }
+  // Заблокированный модерацией товар — без цены и кнопок покупки. Причину видят только продавец и админ.
+  if (product.banned) {
+    const canSeeReason = !!user && (user.uid === product.sellerId || isAdminUid(user.uid));
+    return (
+      <div className="max-w-xl mx-auto px-4 py-20 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-3xl">🚫</div>
+        <h1 className="text-xl font-bold mb-2">Товар заблокирован модерацией</h1>
+        <p className="text-sm text-white/50 mb-5">
+          Этот товар нарушает правила площадки и недоступен для покупки.
+          {canSeeReason && product.bannedReason ? ` Причина: ${product.bannedReason}.` : ""}
+        </p>
+        <Link href="/catalog" className="btn-primary px-6 py-2.5 text-sm inline-block">
+          В каталог
+        </Link>
+      </div>
+    );
   }
 
   const paymentMode = getPaymentMode(product);

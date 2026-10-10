@@ -14,6 +14,11 @@ const ROWS: { key: keyof Omit<FeatureFlags, "updatedAt">; label: string; hint: s
   { key: "telegramRegisterEnabled", label: "Регистрация через Telegram", hint: "Вкладка «через Telegram» на странице регистрации" },
   { key: "balanceTopupEnabled", label: "Пополнение баланса", hint: "Форма заявки на пополнение/вывод в личном кабинете" },
   { key: "referralEnabled", label: "Реферальная система", hint: "Ссылка «Пригласи друга» в профиле и начисление бонуса за регистрацию по ней" },
+  {
+    key: "aiModerationEnabled",
+    label: "ИИ-модерация товаров",
+    hint: "Новые товары проверяет ИИ и публикует сам, сомнительные отправляет тебе. Выключено — все заявки идут на ручную проверку. Бесплатный ИИ — ключ GEMINI_API_KEY на сервере (или платный ANTHROPIC_API_KEY). Без ключей работают только простые правила",
+  },
 ];
 
 export default function AdminFeaturesPage() {

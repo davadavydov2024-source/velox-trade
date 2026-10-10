@@ -3,15 +3,45 @@ import { db } from "./firebase";
 import { stripUndefined } from "./stripUndefined";
 import { SellRequest } from "@/types";
 import { createProduct } from "./products";
-import { notifyTelegram, notifyAdminTelegram, notifyEmail } from "./telegramNotify";
+import { notifyTelegram, notifyEmail } from "./telegramNotify";
+import { auth } from "./firebase";
 import { notifyPush } from "./webPushNotify";
 
 const sellRequestsCol = collection(db, "sellRequests");
 
 export async function createSellRequest(data: Omit<SellRequest, "id" | "createdAt" | "status">) {
+  // Админу в Telegram больше не пишем отсюда на каждую заявку: теперь большинство проходит ИИ-модерацию
+  // само, а о тех, что требуют ручной проверки, админа уведомляет сервер (api/sell-requests/moderate).
   const ref = await addDoc(sellRequestsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
-  notifyAdminTelegram(`🏷️ Новая заявка на продажу: «${data.itemName}» от ${data.userNick} — ${data.price} ₽`);
   return ref;
+}
+
+export interface AiModerationOutcome {
+  status: "approved" | "rejected" | "pending";
+  verdict: "approve" | "reject" | "review" | null;
+  reason?: string;
+  productId?: string;
+}
+
+/**
+ * Просит сервер проверить только что созданную заявку ИИ-модерацией. Одобрено — товар уже в каталоге,
+ * отклонено — есть причина для продавца, иначе заявка ждёт админа. null — сервер недоступен
+ * (заявка при этом создана и останется в очереди у админа).
+ */
+export async function requestAiModeration(requestId: string): Promise<AiModerationOutcome | null> {
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return null;
+    const res = await fetch("/api/sell-requests/moderate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ requestId }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AiModerationOutcome;
+  } catch {
+    return null;
+  }
 }
 
 export async function getAllSellRequests(): Promise<SellRequest[]> {

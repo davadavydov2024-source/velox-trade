@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
     if (product.stock < qty) {
       return NextResponse.json({ error: `В наличии всего ${product.stock} шт.` }, { status: 400 });
     }
+    if ((product as { banned?: boolean }).banned) {
+      return NextResponse.json({ error: "Товар заблокирован модерацией" }, { status: 400 });
+    }
     if (!product.sellerId || product.sellerId === "store") {
       return NextResponse.json({ error: "Оплата Stars доступна только для товаров продавцов" }, { status: 400 });
     }

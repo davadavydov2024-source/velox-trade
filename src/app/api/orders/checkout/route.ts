@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
       if (stock < lines[i].quantity) {
         return NextResponse.json({ error: `«${snap.data()?.name}» — в наличии всего ${stock} шт.` }, { status: 400 });
       }
+      if (snap.data()?.banned) {
+        return NextResponse.json({ error: `«${snap.data()?.name}» заблокирован модерацией и недоступен для покупки` }, { status: 400 });
+      }
       // Продавец выбрал оплату ТОЛЬКО Stars — рублями с баланса такой товар купить нельзя
       // (проверка на сервере, чтобы нельзя было обойти скрытую на клиенте кнопку).
       if (getPaymentMode(snap.data() as any) === "stars") {
@@ -119,6 +122,7 @@ export async function POST(req: NextRequest) {
         const stock = freshProductSnaps[i].data()?.stock ?? 0;
         if (stock < lines[i].quantity) throw new Error(`insufficient-stock:${products[i].name}`);
         if (getPaymentMode(freshProductSnaps[i].data() as any) === "stars") throw new Error(`stars-only:${products[i].name}`);
+        if (freshProductSnaps[i].data()?.banned) throw new Error(`banned:${products[i].name}`);
       }
       const freshBalance = freshUserSnap.data()?.balance ?? 0;
       if (freshBalance < finalTotal) throw new Error("insufficient-balance");
@@ -194,6 +198,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     if (typeof err?.message === "string" && err.message.startsWith("insufficient-stock:")) {
       return NextResponse.json({ error: `Товара «${err.message.split(":")[1]}» уже не хватает на складе` }, { status: 409 });
+    }
+    if (typeof err?.message === "string" && err.message.startsWith("banned:")) {
+      return NextResponse.json({ error: `«${err.message.split(":")[1]}» заблокирован модерацией` }, { status: 409 });
     }
     if (typeof err?.message === "string" && err.message.startsWith("stars-only:")) {
       return NextResponse.json({ error: `«${err.message.split(":")[1]}» продаётся только за Telegram Stars` }, { status: 409 });
