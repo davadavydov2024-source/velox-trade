@@ -135,6 +135,15 @@ function OrderCard({ order, buyerName }: { order: Order; buyerName: string }) {
         </span>
       </div>
 
+      {order.paymentMethod !== "telegram_stars" && status === "pending_confirmation" && (
+        <p className="text-xs text-yellow-300/80 bg-yellow-400/[0.07] rounded-md px-2.5 py-1.5 mb-2">
+          🔒 Деньги списаны и заморожены: продавец получит их только после твоего подтверждения. Если заказ отменят — вернём сразу.
+        </p>
+      )}
+      {order.paymentMethod !== "telegram_stars" && status === "cancelled" && (
+        <p className="text-xs text-white/50 bg-white/[0.04] rounded-md px-2.5 py-1.5 mb-2">↩️ Заказ отменён — деньги возвращены на твой баланс.</p>
+      )}
+
       <div className="space-y-1 text-sm text-white/70">
         {order.items.map((item, i) => (
           <div key={i} className="flex justify-between">

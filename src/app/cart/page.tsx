@@ -169,6 +169,10 @@ export default function CartPage() {
             ссылке и т.п.). Если что-то смущает — сначала напишите в поддержку.
           </p>
 
+          <p className="text-[11px] text-white/40 leading-relaxed mb-3">
+            🔒 Безопасная сделка: деньги списываются с баланса сразу, но продавец получит их только после того, как ты подтвердишь
+            получение. Если заказ отменят — деньги вернутся на баланс мгновенно.
+          </p>
           <button onClick={checkout} disabled={placing} className="btn-primary w-full py-3 disabled:opacity-50">
             {placing ? "Оформляем..." : "Оплатить с баланса"}
           </button>

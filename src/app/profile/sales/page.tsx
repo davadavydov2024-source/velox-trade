@@ -11,6 +11,8 @@ import { useToast } from "@/lib/toastContext";
 import { MessageCircle, AlertTriangle, Ban } from "lucide-react";
 import { SalesChart } from "@/components/SalesChart";
 import { useMascot } from "@/lib/mascotContext";
+import { PayoutHoldCard } from "@/components/PayoutHoldCard";
+import { useMyPayouts, formatTimeLeft } from "@/lib/payoutsClient";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ждёт подтверждения", color: "#ff9800" },
@@ -19,7 +21,7 @@ const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   cancelled: { text: "Отменён", color: "#9aa3b2" },
 };
 
-function SaleCard({ order }: { order: Order }) {
+function SaleCard({ order, releaseAt }: { order: Order; releaseAt?: number }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(order.status);
@@ -116,6 +118,17 @@ function SaleCard({ order }: { order: Order }) {
           {STATUS_LABEL[status].text}
         </span>
       </div>
+
+      {order.paymentMethod !== "telegram_stars" && status === "pending_confirmation" && (
+        <p className="text-xs text-yellow-300/80 bg-yellow-400/[0.07] rounded-md px-2.5 py-1.5 mb-2">
+          🔒 Деньги покупателя заморожены. Ты получишь их через 48 часов после того, как он подтвердит получение.
+        </p>
+      )}
+      {status === "confirmed" && releaseAt && (
+        <p className="text-xs text-green-300/80 bg-green-400/[0.07] rounded-md px-2.5 py-1.5 mb-2">
+          ⏳ Покупатель подтвердил — выплата на баланс {formatTimeLeft(releaseAt)}.
+        </p>
+      )}
 
       <div className="space-y-1 text-sm text-white/70">
         {order.items.map((item, i) => (
@@ -234,6 +247,7 @@ export default function SalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const { celebrate } = useMascot();
+  const payouts = useMyPayouts();
 
   useEffect(() => {
     if (!user) return;
@@ -266,9 +280,10 @@ export default function SalesPage() {
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-bold mb-2">Мои продажи</h1>
+      <PayoutHoldCard data={payouts} />
       <SalesChart orders={orders} />
       {orders.map((order) => (
-        <SaleCard key={order.id} order={order} />
+        <SaleCard key={order.id} order={order} releaseAt={payouts?.holdingItems.find((i) => i.orderId === order.id)?.releaseAt} />
       ))}
     </div>
   );

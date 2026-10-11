@@ -15,6 +15,8 @@ import { ImageUploadField } from "@/components/ImageUploadField";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { StyledNickname } from "@/components/StyledNickname";
 import { ProfileBanner } from "@/components/ProfileBanner";
+import { PayoutHoldCard } from "@/components/PayoutHoldCard";
+import { useMyPayouts } from "@/lib/payoutsClient";
 import { isAdminUid } from "@/lib/users";
 
 function cooldownLeft(lastChangeAt?: number): number {
@@ -29,6 +31,7 @@ function formatDays(ms: number): string {
 
 export default function ProfilePage() {
   const { profile, user, refreshProfile } = useAuth();
+  const payouts = useMyPayouts();
   const { toast } = useToast();
   const [name, setName] = useState(profile?.displayName ?? "");
   const [username, setUsername] = useState(profile?.username ?? "");
@@ -255,6 +258,12 @@ export default function ProfilePage() {
               <p className="text-[11px] text-white/45 mt-1.5">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
             </div>
           </div>
+
+          {payouts && (payouts.escrowTotal > 0 || payouts.holdingTotal > 0) && (
+            <div className="mt-4">
+              <PayoutHoldCard data={payouts} />
+            </div>
+          )}
 
           {tgLinked !== null && (
             <Link

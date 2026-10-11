@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
+import { HOLD_DURATION_MS } from "@/lib/payouts";
 
 export const runtime = "nodejs";
 
-const HOLD_DURATION_MS = 48 * 60 * 60 * 1000;
 
 /**
  * Покупатель подтверждает получение товара. Раньше это был чисто клиентский updateDoc (см.

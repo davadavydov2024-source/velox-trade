@@ -198,9 +198,22 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 
 /** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв. */
 export async function confirmOrderReceipt(order: Order, buyerName: string) {
-  await updateDoc(doc(db, "orders", order.id), { status: "confirmed", confirmedAt: Date.now() });
-  await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.`);
-  notifyTelegram(order.sellerId, `✅ Покупатель подтвердил получение заказа на ${order.paymentMethod === "telegram_stars" ? `${order.starsAmount ?? 0} ⭐` : `${order.total} ₽`}.`);
+  // ВАЖНО: подтверждение должно идти через сервер (api/orders/confirm-receipt). Раньше тут был прямой
+  // updateDoc статуса — заказ становился «подтверждённым», но выплата продавцу (холд 48 ч) не создавалась,
+  // и продавец не получал деньги вообще. Сервер в одной транзакции ставит статус и создаёт выплату.
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Нужно войти в аккаунт");
+  const res = await fetch("/api/orders/confirm-receipt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ orderId: order.id }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Не удалось подтвердить получение");
+
+  // Уведомление продавцу (Telegram + пуш) уже отправил сервер.
+  const holdNote = order.paymentMethod === "telegram_stars" ? "" : " Деньги будут зачислены продавцу через 48 часов.";
+  await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.${holdNote}`);
   // Проверка достижений (например бейдж "buyer" за первую покупку) — не критично для основного
   // действия, поэтому не ждём и не роняем подтверждение заказа, если это не сработает.
   auth.currentUser
