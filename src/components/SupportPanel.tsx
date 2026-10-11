@@ -43,13 +43,18 @@ export function SupportPanel() {
   const activeTicket = tickets.find((t) => t.id === activeTicketId) ?? null;
   const [showNewForm, setShowNewForm] = useState(false);
   // Открытое обращение помечаем прочитанным (пропадает бейдж, а поддержка видит «прочитано»)
+  // Счётчик «Поддержки» суммируется по ВСЕМ обращениям, поэтому, пока панель открыта, отмечаем прочитанными
+  // все обращения с новыми ответами (а не только то, что развёрнуто) — иначе цифра не пропадала бы,
+  // если человек просто открыл чат поддержки со списком обращений.
   useEffect(() => {
-    if (!user || !activeTicket) return;
-    const lastAdmin = [...activeTicket.messages].reverse().find((m) => m.from === "admin");
-    if (!lastAdmin || lastAdmin.createdAt <= UNREAD_TRACKING_START) return;
-    if (lastAdmin.createdAt <= (activeTicket.readBy?.[user.uid] ?? 0)) return;
-    markChatRead("tickets", activeTicket.id, user.uid, lastAdmin.createdAt);
-  }, [user, activeTicket]);
+    if (!user) return;
+    for (const t of tickets) {
+      const lastAdmin = [...t.messages].reverse().find((m) => m.from === "admin");
+      if (!lastAdmin || lastAdmin.createdAt <= UNREAD_TRACKING_START) continue;
+      if (lastAdmin.createdAt <= (t.readBy?.[user.uid] ?? 0)) continue;
+      markChatRead("tickets", t.id, user.uid, lastAdmin.createdAt);
+    }
+  }, [user, tickets]);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");

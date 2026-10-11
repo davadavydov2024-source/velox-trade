@@ -5,7 +5,7 @@ import { useAuth } from "./authContext";
 import { subscribeUserOrderChats } from "./orderChats";
 import { subscribeUserConversations } from "./directMessages";
 import { subscribeUserTickets } from "./tickets";
-import { countUnread } from "./chatRead";
+import { countUnread, getLocalReadAt, subscribeLocalReads } from "./chatRead";
 import { OrderChat, OrderChatMessage, DirectConversation, DirectMessage, SupportTicket, TicketMessage } from "@/types";
 
 export interface UnreadState {
@@ -28,6 +28,10 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   const [orderChats, setOrderChats] = useState<OrderChat[]>([]);
   const [dms, setDms] = useState<DirectConversation[]>([]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  // Растёт при каждой локальной отметке прочтения — заставляет пересчитать счётчики сразу, не дожидаясь сети.
+  const [localTick, setLocalTick] = useState(0);
+
+  useEffect(() => subscribeLocalReads(() => setLocalTick((n) => n + 1)), []);
 
   useEffect(() => {
     if (!user) {
@@ -54,7 +58,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       const n = countUnread<OrderChatMessage>(
         c.messages ?? [],
         (m) => m.from !== "system" && !((m.from === "buyer" && c.buyerId === me) || (m.from === "seller" && c.sellerId === me)),
-        c.readBy?.[me]
+        Math.max(c.readBy?.[me] ?? 0, getLocalReadAt(me, "orderChats", c.orderId))
       );
       if (n > 0) byOrder[c.orderId] = n;
     }
@@ -62,16 +66,26 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     for (const c of dms) {
       const peer = c.participants.find((p) => p !== me);
       if (!peer) continue;
-      const n = countUnread<DirectMessage>(c.messages ?? [], (m) => m.from !== me, c.readBy?.[me]);
+      const n = countUnread<DirectMessage>(
+        c.messages ?? [],
+        (m) => m.from !== me,
+        Math.max(c.readBy?.[me] ?? 0, getLocalReadAt(me, "directConversations", c.id))
+      );
       if (n > 0) byDm[peer] = n;
     }
     let support = 0;
-    for (const t of tickets) support += countUnread<TicketMessage>(t.messages ?? [], (m) => m.from === "admin", t.readBy?.[me]);
+    for (const t of tickets) {
+      support += countUnread<TicketMessage>(
+        t.messages ?? [],
+        (m) => m.from === "admin",
+        Math.max(t.readBy?.[me] ?? 0, getLocalReadAt(me, "tickets", t.id))
+      );
+    }
 
     const sum = (r: Record<string, number>) => Object.values(r).reduce((a: number, b: number) => a + b, 0);
     const total = sum(byOrder) + sum(byDm) + support;
     return { total, byOrder, byDm, support, orderChats };
-  }, [user, orderChats, dms, tickets]);
+  }, [user, orderChats, dms, tickets, localTick]);
 
   return <UnreadContext.Provider value={value}>{children}</UnreadContext.Provider>;
 }

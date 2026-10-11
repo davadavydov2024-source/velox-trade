@@ -30,16 +30,72 @@ export function peerReadAt(readBy: ReadBy, peerKeys: string[]): number {
 
 type ChatCollection = "orderChats" | "directConversations" | "tickets";
 
+// ───────── Локальная отметка прочтения (на этом устройстве) ─────────
+// Бейдж «непрочитано» должен пропадать СРАЗУ, как только человек открыл чат, и не зависеть от того,
+// дошла ли запись до Firestore (нет сети, правила базы не пускают поле readBy и т.п.). Поэтому время
+// последнего прочтения дублируется в localStorage, а счётчик берёт большее из двух значений.
+// В Firestore же отметка нужна только для того, чтобы у ОТПРАВИТЕЛЯ появилось «Прочитано».
+export const CHAT_READ_EVENT = "vt-chat-read";
+const LOCAL_PREFIX = "vt_chat_read:";
+
+export function getLocalReadAt(uid: string, col: ChatCollection, id: string): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    return Number(localStorage.getItem(`${LOCAL_PREFIX}${uid}:${col}:${id}`)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setLocalReadAt(uid: string, col: ChatCollection, id: string, ts: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const key = `${LOCAL_PREFIX}${uid}:${col}:${id}`;
+    if ((Number(localStorage.getItem(key)) || 0) >= ts) return; // отметка только растёт
+    localStorage.setItem(key, String(ts));
+    window.dispatchEvent(new Event(CHAT_READ_EVENT)); // счётчики пересчитываются мгновенно
+  } catch {
+    // localStorage недоступен — останется только серверная отметка
+  }
+}
+
+/** Подписка на локальные отметки (своя вкладка — событие, другие вкладки — storage). */
+export function subscribeLocalReads(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key.startsWith(LOCAL_PREFIX)) cb();
+  };
+  window.addEventListener(CHAT_READ_EVENT, cb);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(CHAT_READ_EVENT, cb);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+/** Что уже пытались записать в Firestore за эту сессию — чтобы не долбить базу одним и тем же при каждом рендере. */
+const attempted = new Set<string>();
+
 /**
- * Отмечает чат прочитанным до момента lastMessageAt. Берём max(сейчас, время сообщения): у людей
- * часы расходятся, и если часы читателя отстают от отправителя, одно «сейчас» оказалось бы раньше
- * сообщения — оно бы вечно оставалось непрочитанным. Ошибки глотаем: отметка прочтения — не
- * критичная функция, из-за неё нельзя ронять чат (например, если правила Firestore не пускают).
+ * Отмечает чат прочитанным ровно до сообщения lastMessageAt (время последнего чужого сообщения).
+ * Именно время сообщения, а не «сейчас»: часы людей расходятся, и «сейчас» с часов читателя могло бы
+ * накрыть новые сообщения собеседника, у которого часы отстают, — тогда они бы вообще не стали
+ * «непрочитанными». Сравнивая время сообщения с временем сообщения, мы всегда в одной системе отсчёта.
+ *
+ *  1. Сразу пишем локально → бейдж пропадает мгновенно и всегда.
+ *  2. Пытаемся записать в Firestore → у отправителя появится «Прочитано». Ошибку не роняем (отметка не
+ *     критична), но логируем в консоль: permission-denied значит, что правила Firestore не разрешают
+ *     участникам писать поле readBy в этой коллекции.
  */
 export async function markChatRead(col: ChatCollection, id: string, readerKey: string, lastMessageAt: number) {
+  setLocalReadAt(readerKey, col, id, lastMessageAt);
+
+  const key = `${col}:${id}:${readerKey}:${lastMessageAt}`;
+  if (attempted.has(key)) return;
+  attempted.add(key);
   try {
-    await updateDoc(doc(db, col, id), { [`readBy.${readerKey}`]: Math.max(Date.now(), lastMessageAt) });
-  } catch {
-    // нет прав / документа ещё нет — просто не отмечаем
+    await updateDoc(doc(db, col, id), { [`readBy.${readerKey}`]: lastMessageAt });
+  } catch (err: any) {
+    console.warn(`markChatRead(${col}) не записалась в Firestore:`, err?.code ?? err?.message);
   }
 }
