@@ -232,11 +232,6 @@ export interface ProductEditRequest {
   // режим выводится из proposedStarsPrice.
   proposedPaymentMode?: PaymentMode;
   status: "pending" | "approved" | "rejected";
-  // Решение ИИ-модерации (см. lib/aiModeration.ts): approve — опубликовано автоматически,
-  // reject — отклонено с причиной (rejectReason), review — ИИ не уверен, ждёт проверки админа.
-  aiVerdict?: "approve" | "reject" | "review";
-  aiReason?: string;
-  rejectReason?: string; // причина отказа, которую увидит продавец
   createdAt: number;
 }
 
@@ -746,6 +741,11 @@ export interface SellRequest {
   auctionStartPrice?: number;
   auctionMinStep?: number;
   status: "pending" | "approved" | "rejected";
+  // Решение ИИ-модерации (см. lib/aiModeration.ts): approve — опубликовано автоматически,
+  // reject — отклонено с причиной (rejectReason), review — ИИ не уверен, ждёт проверки админа.
+  aiVerdict?: "approve" | "reject" | "review";
+  aiReason?: string;
+  rejectReason?: string; // причина отказа, которую увидит продавец
   createdAt: number;
 }
 
