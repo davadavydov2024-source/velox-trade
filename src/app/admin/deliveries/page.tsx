@@ -16,7 +16,16 @@ const STATUS_LABEL: Record<DeliveryStatus, { text: string; color: string }> = {
   expired: { text: "Истекло", color: "#f44336" },
 };
 
-const CANCELLABLE_STATUSES: DeliveryStatus[] = ["awaiting_nickname", "awaiting_transfer", "received_by_bot"];
+const CANCELLABLE_STATUSES: DeliveryStatus[] = ["awaiting_nickname", "awaiting_transfer", "received_by_bot", "expired"];
+
+// Быстрые причины отмены — один клик вместо ввода текста; увидят обе стороны в чате заказа.
+const QUICK_REASONS = [
+  "Продавец не передал предмет",
+  "Покупатель не вышел на связь",
+  "Спор / жалоба",
+  "Подозрение на мошенничество",
+  "Ошибка в заказе",
+];
 
 function isEffectivelyExpired(d: Delivery): boolean {
   return (d.status === "awaiting_nickname" || d.status === "awaiting_transfer") && !!d.expiresAt && Date.now() > d.expiresAt;
@@ -46,6 +55,9 @@ export default function AdminDeliveriesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"active" | "all">("active");
   const [logsOpenId, setLogsOpenId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Delivery | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRefund, setCancelRefund] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -76,17 +88,21 @@ export default function AdminDeliveriesPage() {
     }
   }
 
-  async function cancelDelivery(d: Delivery) {
-    const reason = window.prompt(
-      `Отменить выдачу «${d.productName}» для ${d.buyerNickname ?? "покупателя"}?\n\nПричина (необязательно, увидят обе стороны в чате):`,
-      ""
-    );
-    if (reason === null) return; // нажал "Отмена" в самом prompt — ничего не делаем
+  function openCancel(d: Delivery) {
+    setCancelTarget(d);
+    setCancelReason("");
+    // Для призов колеса и обменов денег за них не платили — возвращать нечего.
+    setCancelRefund(false);
+  }
 
+  async function confirmCancel() {
+    const d = cancelTarget;
+    if (!d) return;
     setBusyId(d.id);
     try {
-      await adminUpdateDeliveryStatus(d.orderId, "cancelled", reason.trim() || undefined);
-      toast("success", "Выдача отменена");
+      await adminUpdateDeliveryStatus(d.orderId, "cancelled", cancelReason.trim() || undefined, cancelRefund);
+      toast("success", cancelRefund ? "Выдача отменена, деньги возвращены" : "Выдача отменена");
+      setCancelTarget(null);
       await refresh();
     } catch (err: any) {
       toast("error", err?.message || "Не удалось отменить выдачу");
@@ -191,9 +207,9 @@ export default function AdminDeliveriesPage() {
                   </div>
                 )}
 
-                {!expired && status !== "cancelled" && (
+                {d.status !== "cancelled" && d.status !== "delivered" && (
                   <div className="flex gap-2 flex-wrap">
-                    {d.status === "awaiting_transfer" && (
+                    {!expired && d.status === "awaiting_transfer" && (
                       <button
                         onClick={() => advance(d, "received_by_bot")}
                         disabled={busyId === d.id}
@@ -202,7 +218,7 @@ export default function AdminDeliveriesPage() {
                         ✅ Бот получил предмет от продавца
                       </button>
                     )}
-                    {d.status === "received_by_bot" && (
+                    {!expired && d.status === "received_by_bot" && (
                       <button
                         onClick={() => advance(d, "delivered")}
                         disabled={busyId === d.id}
@@ -213,7 +229,7 @@ export default function AdminDeliveriesPage() {
                     )}
                     {CANCELLABLE_STATUSES.includes(d.status) && (
                       <button
-                        onClick={() => cancelDelivery(d)}
+                        onClick={() => openCancel(d)}
                         disabled={busyId === d.id}
                         className="px-4 py-2 text-xs rounded-btn bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center gap-1.5"
                       >
@@ -257,6 +273,77 @@ export default function AdminDeliveriesPage() {
               </div>
             );
           })}
+        </div>
+      )}
+      {cancelTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => busyId === null && setCancelTarget(null)}
+        >
+          <div className="card p-5 w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 text-red-400 flex items-center justify-center shrink-0">
+                <XCircle size={20} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-bold">Отменить выдачу?</h2>
+                <p className="text-xs text-white/40 truncate">
+                  «{cancelTarget.productName}» · покупатель {cancelTarget.buyerNickname ?? "—"}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs text-white/40 mb-2">Причина (увидят обе стороны в чате):</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_REASONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setCancelReason(r)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                      cancelReason === r ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                maxLength={300}
+                placeholder="Или напиши свою причину (необязательно)"
+                className="input-field py-2 text-sm w-full mt-2"
+              />
+            </div>
+
+            {cancelTarget.source !== "wheel" && cancelTarget.source !== "trade" && (
+              <label className="flex items-start gap-2.5 p-3 rounded-btn bg-white/5 cursor-pointer text-sm">
+                <input type="checkbox" checked={cancelRefund} onChange={(e) => setCancelRefund(e.target.checked)} className="mt-0.5 accent-[var(--color-accent)]" />
+                <span>
+                  Вернуть деньги покупателю
+                  <span className="block text-[11px] text-white/35">
+                    Вернёт сумму заказа на баланс и товар на склад. Работает, пока заказ не подтверждён покупателем.
+                  </span>
+                </span>
+              </label>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setCancelTarget(null)} disabled={busyId !== null} className="btn-secondary px-4 py-2 text-sm">
+                Назад
+              </button>
+              <button
+                type="button"
+                onClick={confirmCancel}
+                disabled={busyId !== null}
+                className="px-4 py-2 text-sm rounded-btn bg-red-500 hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50"
+              >
+                {busyId !== null ? "Отменяем..." : "Отменить выдачу"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -22,6 +22,7 @@ import { EnableNotificationsPrompt } from "@/components/EnableNotificationsPromp
 import { TwoFactorGate } from "@/components/TwoFactorGate";
 import { UnreadProvider } from "@/lib/unreadContext";
 import { VpnGate } from "@/components/VpnGate";
+import { UsernameGate } from "@/components/UsernameGate";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -45,7 +46,9 @@ export function Providers({ children }: { children: ReactNode }) {
             <BanGate>
               <VpnGate>
                 <TwoFactorGate>
-                  <MaintenanceGate>{children}</MaintenanceGate>
+                  <UsernameGate>
+                    <MaintenanceGate>{children}</MaintenanceGate>
+                  </UsernameGate>
                 </TwoFactorGate>
               </VpnGate>
             </BanGate>

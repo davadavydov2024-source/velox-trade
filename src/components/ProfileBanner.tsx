@@ -13,9 +13,9 @@ import { ImageCropModal } from "./ImageCropModal";
 const BANNER_ASPECT = 3;
 
 /**
- * Обложка профиля. Для всех — просто красивая картинка/градиент. Если editable (админ на СВОЁМ
+ * Обложка профиля. Для посетителей — просто картинка/градиент. Если editable (владелец на СВОЁМ
  * профиле) — поверх появляются кнопки «Сменить» / «Убрать»: загрузка с обрезкой → папка "banners"
- * (на сервере только для админов) → api/profile/banner (тоже проверка админа на сервере).
+ * (/api/blob/upload) → api/profile/banner (сервер пишет bannerURL только в документ самого вошедшего).
  */
 export function ProfileBanner({
   url,

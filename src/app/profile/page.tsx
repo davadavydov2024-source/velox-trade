@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/authContext";
 import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, MessageCircle, CheckCircle2, Plus, Tag, Crown, Sparkles } from "lucide-react";
 import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
 import { getTelegramLink } from "@/lib/telegramLink";
-import { claimUsername, isUsernameAvailable, isValidUsernameFormat } from "@/lib/usernames";
+import { claimUsername, isUsernameAvailable, usernameFormatError } from "@/lib/usernames";
 import { useToast } from "@/lib/toastContext";
 import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
 import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
@@ -93,10 +93,16 @@ export default function ProfilePage() {
         return;
       }
 
+      if (profile!.username && !username.trim()) {
+        toast("warning", "Юзернейм обязателен — его можно изменить, но нельзя убрать");
+        setSaving(false);
+        return;
+      }
       const usernameChanged = username.trim().toLowerCase() !== (profile!.username ?? "");
       if (usernameChanged && username.trim()) {
-        if (!isValidUsernameFormat(username)) {
-          toast("warning", "Юзернейм: 3-20 символов, только латиница, цифры и подчёркивание");
+        const formatErr = usernameFormatError(username);
+        if (formatErr) {
+          toast("warning", formatErr);
           setSaving(false);
           return;
         }
@@ -147,10 +153,10 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <OnboardingChecklist />
       <div className="card overflow-hidden">
-        {/* Обложка. Админ видит на ней кнопки «Добавить/Сменить баннер» — остальным она просто красивый фон. */}
+        {/* Обложка. На своём профиле у каждого есть кнопки «Добавить/Сменить баннер». */}
         <ProfileBanner
           url={profile.bannerURL}
-          editable={isAdmin}
+          editable
           onChange={() => refreshProfile()}
           className="h-32 sm:h-44"
         />
