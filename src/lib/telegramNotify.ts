@@ -1,5 +1,3 @@
-import { postWithToken } from "@/lib/authFetch";
-
 /**
  * Шлёт пользователю уведомление в Telegram (если у него привязан аккаунт) — "не дождались",
  * fire-and-forget: если у человека Telegram не привязан или запрос не прошёл, ничего страшного
@@ -8,13 +6,25 @@ import { postWithToken } from "@/lib/authFetch";
  * написал в чат и т.п.), закроется или уйдёт со страницы сразу после клика.
  */
 export function notifyTelegram(uid: string, text: string): void {
-  postWithToken("/api/notify/telegram", { uid, text });
+  fetch("/api/notify/telegram", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, text }),
+    keepalive: true,
+  }).catch(() => {
+    // Намеренно игнорируем: уведомление не критично для основного действия.
+  });
 }
 
 /** Шлёт уведомление прямо админу (не привязано к конкретному пользователю) — для новых
  * пользователей, новых заявок и т.п., которые админ должен увидеть проактивно. */
 export function notifyAdminTelegram(text: string): void {
-  postWithToken("/api/notify/admin", { text });
+  fetch("/api/notify/admin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 /**
@@ -23,5 +33,12 @@ export function notifyAdminTelegram(text: string): void {
  * НЕ для личных сообщений и обменов, см. комментарий в api/notify/email/route.ts.
  */
 export function notifyEmail(uid: string, subject: string, html: string): void {
-  postWithToken("/api/notify/email", { uid, subject, html });
+  fetch("/api/notify/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, subject, html }),
+    keepalive: true,
+  }).catch(() => {
+    // Намеренно игнорируем: уведомление не критично для основного действия.
+  });
 }

@@ -50,8 +50,7 @@ export async function submitDeliveryNickname(orderId: string, nickname: string):
 export async function adminUpdateDeliveryStatus(
   orderId: string,
   status: Extract<DeliveryStatus, "received_by_bot" | "delivered" | "cancelled">,
-  cancelReason?: string,
-  refund?: boolean
+  cancelReason?: string
 ): Promise<void> {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Нужно войти в аккаунт");
@@ -59,7 +58,7 @@ export async function adminUpdateDeliveryStatus(
   const res = await fetch("/api/admin/deliveries/update-status", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ orderId, status, cancelReason, refund }),
+    body: JSON.stringify({ orderId, status, cancelReason }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Не удалось обновить статус");

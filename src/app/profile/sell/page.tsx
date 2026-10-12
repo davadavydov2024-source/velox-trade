@@ -1,12 +1,11 @@
 "use client";
-import { postWithToken } from "@/lib/authFetch";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Tag, Check, ChevronLeft, ChevronRight, ImagePlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { createSellRequest } from "@/lib/sellRequests";
+import { createSellRequest, requestAiModeration } from "@/lib/sellRequests";
 import { getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { Game, DEFAULT_FEATURE_FLAGS, Rarity, RARITY_LABEL, DeliveryMethod } from "@/types";
@@ -44,7 +43,7 @@ export default function SellPage() {
   // Способ оплаты выбирается один раз здесь же, при создании — либо обычные рубли (как раньше),
   // либо Stars: тогда рублёвая цена и скидка скрыты от продавца и не важны покупателю, платёж
   // целиком проходит через Telegram Stars (см. Product.starsPrice и api/telegram/stars/invoice).
-  const [paymentMethod, setPaymentMethod] = useState<"rub" | "stars">("rub");
+  const [paymentMethod, setPaymentMethod] = useState<"rub" | "stars" | "both">("rub");
   const [starsPrice, setStarsPrice] = useState("");
 
   useEffect(() => {
@@ -109,12 +108,13 @@ export default function SellPage() {
       toast("warning", "Войдите в аккаунт, чтобы продавать предметы");
       return;
     }
-    if (paymentMethod === "stars") {
+    if (paymentMethod !== "rub") {
       if (!Number.isInteger(starsPriceNum) || starsPriceNum < 15) {
         toast("warning", "Цена в Stars — целое число, минимум 15");
         return;
       }
-    } else if (priceNum < minSellPrice) {
+    }
+    if (paymentMethod !== "stars" && priceNum < minSellPrice) {
       toast("warning", `Минимальная цена — ${minSellPrice} ₽`);
       return;
     }
@@ -125,7 +125,7 @@ export default function SellPage() {
 
     setSubmitting(true);
     try {
-      await createSellRequest({
+      const created = await createSellRequest({
         userId: user.uid,
         userNick: profile.displayName,
         itemName: itemName.trim(),
@@ -137,27 +137,45 @@ export default function SellPage() {
         // минимально допустимую платформой, чтобы не ломать внутренние механизмы (комиссия,
         // отчётность), которые всегда считают в ₽. Реальная цена для покупателя — starsPrice ниже.
         price: paymentMethod === "stars" ? minSellPrice : priceNum,
-        ...(paymentMethod === "stars" ? { starsPrice: starsPriceNum } : {}),
-        ...(paymentMethod === "rub" && discountNum > 0 && !auctionEnabled ? { discountPercent: discountNum } : {}),
+        paymentMode: paymentMethod,
+        ...(paymentMethod !== "rub" ? { starsPrice: starsPriceNum } : {}),
+        ...(paymentMethod !== "stars" && discountNum > 0 && !auctionEnabled ? { discountPercent: discountNum } : {}),
         commissionPercent,
         description: description.trim(),
         stock: stockNum,
         rarity,
         deliveryMethod,
-        ...(paymentMethod === "rub" && auctionEnabled
+        ...(paymentMethod !== "stars" && auctionEnabled
           ? { auctionEnabled: true, auctionStartPrice: priceNum, auctionMinStep: Number(auctionMinStep) || 10 }
           : {}),
       });
 
-      // Уведомление админу в Telegram не должно блокировать создание заявки, если бот недоступен.
-      postWithToken("/api/admin/notify-sell-request", {
-        itemName,
-        game: selectedGame!.name,
-        price: paymentMethod === "stars" ? `${starsPriceNum} ⭐` : priceNum,
-        userNick: profile.displayName,
-      });
-
-      toast("success", "Заявка на продажу отправлена. Администратор проверит её и свяжется с тобой.");
+      // ИИ-модерация: обычно ответ приходит за пару секунд. Одобрено — товар сразу в каталоге,
+      // отклонено — покажем причину и оставим форму заполненной, чтобы можно было поправить и отправить снова.
+      toast("info", "ИИ проверяет объявление…");
+      const outcome = await requestAiModeration(created.id);
+      if (!outcome) {
+        // Сервер модерации недоступен — заявка всё равно создана, админ проверит вручную.
+        fetch("/api/admin/notify-sell-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemName,
+            game: selectedGame!.name,
+            price: paymentMethod === "stars" ? `${starsPriceNum} ⭐` : paymentMethod === "both" ? `${priceNum} ₽ / ${starsPriceNum} ⭐` : priceNum,
+            userNick: profile.displayName,
+          }),
+        }).catch(() => {});
+      }
+      if (outcome?.status === "rejected") {
+        toast("error", `Объявление отклонено: ${outcome.reason ?? "нарушение правил площадки"}. Исправь и отправь снова.`);
+        return;
+      }
+      if (outcome?.status === "approved") {
+        toast("success", "Товар прошёл проверку и уже опубликован в каталоге!");
+      } else {
+        toast("success", "Заявка отправлена. Администратор проверит её и свяжется с тобой.");
+      }
       setStep(0);
       setSelectedGame(null);
       setCategory("");
@@ -420,7 +438,7 @@ export default function SellPage() {
                       paymentMethod === "rub" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
                     }`}
                   >
-                    💰 За рубли
+                    💰 Рубли
                   </button>
                   <button
                     type="button"
@@ -434,17 +452,30 @@ export default function SellPage() {
                       paymentMethod === "stars" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
                     }`}
                   >
-                    ⭐ За Stars
+                    ⭐ Только Stars
+                  </button>
+                  <button
+                    type="button"
+                    disabled={auctionEnabled}
+                    onClick={() => setPaymentMethod("both")}
+                    title={auctionEnabled ? "Аукцион доступен только за рубли" : undefined}
+                    className={`flex-1 py-2.5 rounded-btn text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      paymentMethod === "both" ? "border-accent bg-accent/10 text-white" : "border-transparent bg-surface text-white/50"
+                    }`}
+                  >
+                    💰⭐ Оба
                   </button>
                 </div>
                 <p className="text-xs text-white/30 mt-2">
                   {paymentMethod === "stars"
-                    ? "Покупатель платит прямо в Telegram-боте в Stars, без баланса на сайте. Комиссия платформы к оплате Stars не применяется."
-                    : "Обычная оплата с баланса сайта."}
+                    ? "Только Stars: покупатель платит прямо в Telegram-боте, оплатить рублями с баланса этот товар нельзя. Комиссия платформы к оплате Stars не применяется."
+                    : paymentMethod === "both"
+                      ? "Покупатель сам выберет: рубли с баланса сайта или Stars через Telegram-бота. Укажи обе цены."
+                      : "Обычная оплата с баланса сайта."}
                 </p>
               </div>
 
-              {paymentMethod === "stars" ? (
+              {paymentMethod !== "rub" && (
                 <div>
                   <input
                     autoComplete="off"
@@ -458,7 +489,8 @@ export default function SellPage() {
                     className="input-field py-2.5"
                   />
                 </div>
-              ) : (
+              )}
+              {paymentMethod !== "stars" && (
                 <div>
                   <input
                     autoComplete="off"
@@ -473,7 +505,7 @@ export default function SellPage() {
                 </div>
               )}
 
-              {paymentMethod === "rub" &&
+              {paymentMethod !== "stars" &&
                 (auctionEnabled ? (
                   <div>
                     <input
@@ -557,6 +589,9 @@ export default function SellPage() {
                         </>
                       ) : (
                         <>{auctionEnabled ? "Стартовая цена" : "Цена"}: {priceNum} ₽</>
+                      )}
+                      {paymentMethod === "both" && starsPriceNum > 0 && (
+                        <span className="text-white/60"> · или <span className="text-accent font-medium">{starsPriceNum} ⭐</span></span>
                       )}
                     </div>
                     <p className="text-xs text-white/40">

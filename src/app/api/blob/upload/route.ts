@@ -8,9 +8,8 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "im
 const MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4 МБ — с запасом под лимит тела запроса на Vercel
 
 // Эти папки может загружать только админ — там лежат изображения товаров/игр/рекламы,
-// которые видит весь сайт. "avatars" и "banners" (баннер профиля) может загружать любой
-// залогиненный пользователь.
-const ADMIN_ONLY_FOLDERS = ["products", "games", "ads", "broadcasts"];
+// которые видит весь сайт. "avatars" может загружать любой залогиненный пользователь.
+const ADMIN_ONLY_FOLDERS = ["products", "games", "ads", "broadcasts", "banners"];
 
 function isAdminUid(uid: string): boolean {
   const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);

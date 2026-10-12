@@ -145,7 +145,7 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
   const regReqRef = db.collection("telegramRegisterRequests").doc(code);
   const regReqSnap = await regReqRef.get();
   if (regReqSnap.exists) {
-    const { email, displayName, status, age, username: wantedUsername } = regReqSnap.data() as { email: string; displayName: string; status: string; age?: number; username?: string };
+    const { email, displayName, status, age } = regReqSnap.data() as { email: string; displayName: string; status: string; age?: number };
 
     if (status === "done") {
       await sendTelegramMessage(chatId, "Этот аккаунт уже зарегистрирован. Просто открой сайт и войди по коду.");
@@ -177,18 +177,6 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
         // UserProfile.age в types/index.ts.
         ...(age !== undefined ? { age } : {}),
       });
-
-      // Юзернейм, выбранный при регистрации: занимаем его здесь, на сервере (create() падает, если
-      // имя уже занято — тогда просто оставляем без юзернейма, и сайт попросит придумать другой при
-      // первом входе, см. UsernameGate).
-      if (wantedUsername && /^[a-z0-9_]{3,20}$/.test(wantedUsername)) {
-        try {
-          await db.collection("usernames").doc(wantedUsername).create({ uid, createdAt: Date.now() });
-          await db.collection("users").doc(uid).update({ username: wantedUsername });
-        } catch {
-          // имя занято — не критично для регистрации
-        }
-      }
     }
 
     await db.collection("telegramLinks").doc(uid).set({ chatId, telegramUsername, linkedAt: Date.now() });

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/requireUser";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendMail } from "@/lib/mailer";
 
@@ -15,7 +14,6 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   try {
-    if (!(await requireUser(req))) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     const { uid, subject, html } = await req.json();
     if (!uid || !subject || !html) {
       return NextResponse.json({ ok: false, error: "uid, subject и html обязательны" }, { status: 400 });

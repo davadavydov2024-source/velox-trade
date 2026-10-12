@@ -18,8 +18,7 @@ const NEXT_STATUS: Record<string, string> = {
 
 // Отменить можно из любого незавершённого состояния (спор, ошибка, невозможность передачи и
 // т.п.) — но не то, что уже реально выдано или уже отменено/просрочено.
-// "expired" тоже можно отменить вручную — чтобы заявка с вышедшим временем не висела в очереди.
-const CANCELLABLE_STATUSES = new Set(["awaiting_nickname", "awaiting_transfer", "received_by_bot", "expired"]);
+const CANCELLABLE_STATUSES = new Set(["awaiting_nickname", "awaiting_transfer", "received_by_bot"]);
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
     const actorName: string = actorSnap.data()?.displayName ?? "Администратор";
 
-    const { orderId, status, cancelReason, refund } = await req.json();
+    const { orderId, status, cancelReason } = await req.json();
     if (typeof orderId !== "string" || !orderId) {
       return NextResponse.json({ error: "Не указан заказ" }, { status: 400 });
     }
@@ -56,9 +55,6 @@ export async function POST(req: NextRequest) {
     }
 
     const deliveryRef = db.collection("deliveries").doc(orderId);
-
-    const orderRef = db.collection("orders").doc(orderId);
-    const chatRef = db.collection("orderChats").doc(orderId);
 
     const info = await db.runTransaction(async (tx) => {
       const snap = await tx.get(deliveryRef);
@@ -84,30 +80,6 @@ export async function POST(req: NextRequest) {
           throw new Error(`wrong-order:${delivery.status}`);
         }
         const reason = typeof cancelReason === "string" ? cancelReason.trim().slice(0, 300) : "";
-
-        // ВСЕ чтения — до первой записи (требование транзакций Firestore). Раньше здесь был
-        // tx.update(orderChats/{orderId}) без проверки: для обмена (source "trade") и для выдачи,
-        // у которой покупатель ещё не вписал ник, документа чата нет — update падал с NOT_FOUND,
-        // и админ получал 500 "Не удалось обновить статус". Теперь существование чата проверяется.
-        const chatSnap = await tx.get(chatRef);
-        const wantRefund = refund === true && !isHelper;
-        let orderData:
-          | { userId: string; total: number; status: string; items: { productId: string; quantity: number }[] }
-          | null = null;
-        let existingProducts: string[] = [];
-        if (wantRefund) {
-          const orderSnap = await tx.get(orderRef);
-          if (orderSnap.exists) {
-            const o = orderSnap.data() as { userId: string; total: number; status: string; items?: { productId: string; quantity: number }[] };
-            if (o.status === "pending_confirmation" || o.status === "disputed") {
-              orderData = { userId: o.userId, total: o.total, status: o.status, items: o.items ?? [] };
-              const prodSnaps = await Promise.all(orderData.items.map((i) => tx.get(db.collection("products").doc(i.productId))));
-              existingProducts = orderData.items.filter((_, idx) => prodSnaps[idx].exists).map((i) => i.productId);
-            }
-          }
-        }
-        const refunded = !!orderData;
-
         tx.update(deliveryRef, {
           status: "cancelled",
           cancelledAt: Date.now(),
@@ -116,31 +88,18 @@ export async function POST(req: NextRequest) {
           logs: FieldValue.arrayUnion({
             at: Date.now(),
             actor: "admin",
-            action: `${actorName} отменил(а) выдачу${reason ? `. Причина: ${reason}` : ""}${refunded ? ". Деньги возвращены покупателю" : ""}`,
+            action: `${actorName} отменил(а) выдачу${reason ? `. Причина: ${reason}` : ""}`,
           }),
         });
-
-        if (orderData) {
-          tx.update(orderRef, { status: "cancelled", cancelledAt: Date.now(), cancelReason: reason || "Выдача отменена администратором" });
-          tx.update(db.collection("users").doc(orderData.userId), { balance: FieldValue.increment(orderData.total) });
-          for (const item of orderData.items) {
-            if (existingProducts.includes(item.productId)) {
-              tx.update(db.collection("products").doc(item.productId), { stock: FieldValue.increment(item.quantity) });
-            }
-          }
-        }
-
-        const message = {
-          from: "system",
-          text: `❌ Выдача отменена администрацией${reason ? `. Причина: ${reason}` : ""}.${refunded ? ` Деньги (${orderData!.total} ₽) возвращены покупателю на баланс.` : ""} Если это ошибка — напишите в поддержку.`,
-          createdAt: Date.now(),
-        };
-        if (chatSnap.exists) {
-          tx.update(chatRef, { messages: FieldValue.arrayUnion(message), updatedAt: Date.now() });
-        } else if (delivery.source !== "trade") {
-          tx.set(chatRef, { orderId, buyerId: delivery.buyerId, sellerId: delivery.sellerId, messages: [message], updatedAt: Date.now() });
-        }
-        return { buyerId: delivery.buyerId, sellerId: delivery.sellerId, productName: delivery.productName, status: "cancelled" as const, refundedAmount: refunded ? orderData!.total : 0 };
+        tx.update(db.collection("orderChats").doc(orderId), {
+          messages: FieldValue.arrayUnion({
+            from: "system",
+            text: `❌ Выдача отменена администрацией${reason ? `. Причина: ${reason}` : ""}. Если это ошибка — напишите в поддержку.`,
+            createdAt: Date.now(),
+          }),
+          updatedAt: Date.now(),
+        });
+        return { buyerId: delivery.buyerId, sellerId: delivery.sellerId, productName: delivery.productName, status: "cancelled" as const };
       }
 
       // Разрешаем идти только по цепочке awaiting_transfer → received_by_bot → delivered —
@@ -174,15 +133,12 @@ export async function POST(req: NextRequest) {
         updatedAt: Date.now(),
       });
 
-      return { buyerId: delivery.buyerId, sellerId: delivery.sellerId, productName: delivery.productName, status, refundedAmount: 0 };
+      return { buyerId: delivery.buyerId, sellerId: delivery.sellerId, productName: delivery.productName, status };
     });
 
     // Не блокируем ответ админу — уведомления шлём фоново.
     if (info.status === "cancelled") {
-      notifyTelegramServer(
-        info.buyerId,
-        `❌ Выдача товара «${info.productName}» отменена администрацией.${info.refundedAmount ? ` Деньги (${info.refundedAmount} ₽) возвращены на баланс.` : ""} Подробности — в чате заказа или в поддержке.`
-      );
+      notifyTelegramServer(info.buyerId, `❌ Выдача товара «${info.productName}» отменена администрацией. Подробности — в чате заказа или в поддержке.`);
       notifyTelegramServer(info.sellerId, `❌ Выдача товара «${info.productName}» отменена администрацией.`);
       sendWebPush(info.buyerId, { title: "Выдача отменена", body: info.productName, url: "/chats" }, "purchases");
     } else if (info.status === "received_by_bot") {
