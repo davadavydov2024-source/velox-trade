@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Plus, Trash2, Edit3, X, Tags, Sparkles } from "lucide-react";
+import { Plus, Trash2, Edit3, X, Tags, Sparkles, ShieldCheck } from "lucide-react";
 import { getGames, createGame, updateGame, deleteGame } from "@/lib/products";
 import { GAME_CATEGORY_TEMPLATES } from "@/lib/gameCategoryTemplates";
 import { Game } from "@/types";
@@ -10,7 +10,7 @@ import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { ImageUploadField } from "@/components/ImageUploadField";
 
-const EMPTY: Omit<Game, "id"> = { name: "", slug: "", image: "", categories: [] };
+const EMPTY: Omit<Game, "id"> = { name: "", slug: "", image: "", categories: [], aiAllowed: "", aiForbidden: "" };
 
 export default function AdminGamesPage() {
   const [games, setGames] = useState<Game[]>([]);
@@ -45,7 +45,7 @@ export default function AdminGamesPage() {
 
   function openEdit(g: Game) {
     setEditing(g);
-    setForm({ name: g.name, slug: g.slug, image: g.image, categories: g.categories ?? [] });
+    setForm({ name: g.name, slug: g.slug, image: g.image, categories: g.categories ?? [], aiAllowed: g.aiAllowed ?? "", aiForbidden: g.aiForbidden ?? "" });
     setCategoryInput("");
     setShowTemplates(false);
     setShowForm(true);
@@ -202,6 +202,31 @@ export default function AdminGamesPage() {
             </div>
           </div>
 
+          <div className="sm:col-span-2 space-y-2">
+            <p className="text-xs text-white/40 flex items-center gap-1.5">
+              <ShieldCheck size={13} /> Правила для ИИ-модерации этой игры (необязательно)
+            </p>
+            <textarea
+              value={form.aiAllowed ?? ""}
+              onChange={(e) => setForm({ ...form, aiAllowed: e.target.value })}
+              rows={3}
+              maxLength={600}
+              placeholder="Что МОЖНО продавать и пропускать (напр.: ножи, питомцы, внутриигровая валюта, услуги прокачки)"
+              className="input-field py-2 text-sm w-full"
+            />
+            <textarea
+              value={form.aiForbidden ?? ""}
+              onChange={(e) => setForm({ ...form, aiForbidden: e.target.value })}
+              rows={3}
+              maxLength={600}
+              placeholder="Что НЕЛЬЗЯ (напр.: аккаунты целиком, читы и скрипты, предметы из других игр)"
+              className="input-field py-2 text-sm w-full"
+            />
+            <p className="text-[11px] text-white/25">
+              ИИ видит эти правила и список всех игр сайта. «Нельзя» — отклоняет заявку, «Можно» — не даёт ИИ придираться к незнакомым предметам. Запреты на незаконное и обход площадки действуют всегда.
+            </p>
+          </div>
+
           <div className="sm:col-span-2 flex gap-3">
             <button className="btn-primary px-5 py-2.5 text-sm">{editing ? "Сохранить" : "Создать"}</button>
             <button type="button" onClick={() => setShowForm(false)} className="btn-secondary px-5 py-2.5 text-sm">
@@ -218,19 +243,20 @@ export default function AdminGamesPage() {
               <th className="p-3">Игра</th>
               <th className="p-3">Slug</th>
               <th className="p-3">Категории</th>
+              <th className="p-3">ИИ-правила</th>
               <th className="p-3">Действия</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="p-6 text-center text-white/40">
+                <td colSpan={5} className="p-6 text-center text-white/40">
                   Загрузка...
                 </td>
               </tr>
             ) : games.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-6 text-center text-white/40">
+                <td colSpan={5} className="p-6 text-center text-white/40">
                   Игры ещё не добавлены
                 </td>
               </tr>
@@ -246,6 +272,16 @@ export default function AdminGamesPage() {
                   <td className="p-3 text-white/50">{g.slug}</td>
                   <td className="p-3 text-white/40 max-w-[240px]">
                     {g.categories && g.categories.length > 0 ? g.categories.join(", ") : "—"}
+                  </td>
+                  <td className="p-3 text-xs">
+                    {g.aiAllowed || g.aiForbidden ? (
+                      <span className="text-accent">
+                        {g.aiAllowed ? "✓ можно " : ""}
+                        {g.aiForbidden ? "✕ нельзя" : ""}
+                      </span>
+                    ) : (
+                      <span className="text-white/25">—</span>
+                    )}
                   </td>
                   <td className="p-3">
                     <div className="flex gap-2">
