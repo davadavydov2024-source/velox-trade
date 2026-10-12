@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/requireUser";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendTelegramMessage } from "@/lib/telegramBot";
 
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireUser(req))) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     const { uid, text } = await req.json();
     if (!uid || !text) {
       return NextResponse.json({ ok: false, error: "uid и text обязательны" }, { status: 400 });

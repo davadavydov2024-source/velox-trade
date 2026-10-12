@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { sendInvoice } from "@/lib/telegramBot";
-import { getPaymentMode } from "@/types";
+import { CHECKMARK_BADGES } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,12 @@ export async function POST(req: NextRequest) {
 
     const { productId, quantity } = (await req.json()) as { productId: string; quantity?: number };
     if (!productId) return NextResponse.json({ error: "Не указан товар" }, { status: 400 });
-    const qty = Math.max(1, Math.min(99, Math.floor(quantity ?? 1)));
+    if (typeof productId !== "string") return NextResponse.json({ error: "Не указан товар" }, { status: 400 });
+    const rawQty = quantity ?? 1;
+    if (typeof rawQty !== "number" || !Number.isInteger(rawQty) || rawQty < 1 || rawQty > 99) {
+      return NextResponse.json({ error: "Некорректное количество" }, { status: 400 });
+    }
+    const qty = rawQty;
 
     const db = adminDb();
 
@@ -35,20 +40,12 @@ export async function POST(req: NextRequest) {
       stock: number;
       sellerId: string;
       starsPrice?: number;
-      paymentMode?: "rub" | "stars" | "both";
     };
     if (product.stock < qty) {
       return NextResponse.json({ error: `В наличии всего ${product.stock} шт.` }, { status: 400 });
     }
-    if ((product as { banned?: boolean }).banned) {
-      return NextResponse.json({ error: "Товар заблокирован модерацией" }, { status: 400 });
-    }
     if (!product.sellerId || product.sellerId === "store") {
       return NextResponse.json({ error: "Оплата Stars доступна только для товаров продавцов" }, { status: 400 });
-    }
-    // Покупка своего товара за Stars позволяла бы накручивать «продажи» и активность — запрещаем на сервере.
-    if (product.sellerId === uid) {
-      return NextResponse.json({ error: "Нельзя купить свой собственный товар" }, { status: 400 });
     }
     // Цена задаётся самим продавцом при создании/редактировании товара (см. profile/my-products) —
     // никакого автоматического курса ₽→⭐ тут больше нет, продавец сам решает, сколько Stars хочет
@@ -57,10 +54,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Продавец не установил цену в Stars для этого товара" }, { status: 400 });
     }
 
-    // Оплата Stars доступна ЛЮБОМУ продавцу — верификация (галочка) больше не требуется.
-    // Единственное условие: продавец не выбрал «только рубли».
-    if (getPaymentMode(product) === "rub") {
-      return NextResponse.json({ error: "Этот товар продаётся только за рубли" }, { status: 400 });
+    // Оплата Stars — только у продавцов с галочкой верификации (checkmark_blue / checkmark_grey).
+    // Проверяем на сервере, а не доверяем кнопке на клиенте — иначе можно было бы получить счёт
+    // в обход этого ограничения прямым запросом к API. Дополнительно эта же проверка стоит и в
+    // api/products/stars-price (нельзя выставить цену не будучи верифицированным), но статус
+    // продавца мог измениться (например, галочку сняли) уже после того, как цена была задана —
+    // поэтому проверяем ещё раз здесь, на момент самой покупки.
+    const sellerSnap = await db.collection("users").doc(product.sellerId).get();
+    const sellerBadges: string[] = sellerSnap.exists ? (sellerSnap.data()?.badges ?? []) : [];
+    if (!sellerBadges.some((b) => CHECKMARK_BADGES.includes(b as any))) {
+      return NextResponse.json({ error: "Продавец не верифицирован" }, { status: 400 });
     }
 
     const amountStars = product.starsPrice * qty;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/requireUser";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendTelegramMessage } from "@/lib/telegramBot";
 
@@ -10,6 +11,7 @@ function adminUids(): string[] {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireUser(req))) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     const { orderId, reason, buyerName } = await req.json();
     const db = adminDb();
 

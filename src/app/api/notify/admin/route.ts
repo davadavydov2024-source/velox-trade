@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/requireUser";
 import { sendTelegramMessage } from "@/lib/telegramBot";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TE
  * новых заявок и т.п., которые админ должен увидеть проактивно, а не только зайдя в /admin. */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireUser(req))) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     if (!ADMIN_CHAT_ID) return NextResponse.json({ ok: true, delivered: false });
 
     const { text } = await req.json();

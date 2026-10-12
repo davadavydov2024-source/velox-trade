@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 // сам "настраиваемый" минимум читается из Firestore ниже, чтобы никогда не разъезжаться
 // с тем, что видит пользователь на клиенте (тот же флаг, см. src/lib/featureFlags.ts).
 const FALLBACK_MIN_AMOUNT = 50;
+const MAX_AMOUNT = 100_000;
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,9 +42,12 @@ export async function POST(req: NextRequest) {
     const minAmount = (featuresSnap.data()?.minTopupAmountRub as number | undefined) ?? FALLBACK_MIN_AMOUNT;
 
     const { amount } = await req.json();
-    const num = Number(amount);
-    if (!num || num < minAmount) {
+    const num = typeof amount === "number" || typeof amount === "string" ? Number(amount) : NaN;
+    if (!Number.isFinite(num) || num <= 0 || num < minAmount) {
       return NextResponse.json({ error: `Минимальная сумма пополнения — ${minAmount} ₽` }, { status: 400 });
+    }
+    if (num > MAX_AMOUNT || Math.round(num * 100) !== num * 100) {
+      return NextResponse.json({ error: `Сумма — не больше ${MAX_AMOUNT} ₽, не более двух знаков после запятой` }, { status: 400 });
     }
 
     // Простая защита от спама запросами: не чаще одного нового платежа в 10 секунд на пользователя.

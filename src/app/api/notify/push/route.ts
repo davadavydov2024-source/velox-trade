@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/requireUser";
 import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
@@ -10,6 +11,7 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireUser(req))) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     const { uid, title, body, url, category } = await req.json();
     if (!uid || !title) return NextResponse.json({ error: "uid и title обязательны" }, { status: 400 });
     const validCategory = category === "purchases" || category === "reminders" || category === "news" ? category : "messages";

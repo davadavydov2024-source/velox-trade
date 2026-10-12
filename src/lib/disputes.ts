@@ -1,3 +1,4 @@
+import { postWithToken } from "@/lib/authFetch";
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, orderBy } from "firebase/firestore";
 import { db } from "./firebase";
 import { Dispute } from "@/types";
@@ -25,11 +26,7 @@ export async function createDispute(data: Omit<Dispute, "id" | "status" | "creat
   // Уведомляем админов в Telegram, если у них привязан бот — молча игнорируем ошибку,
   // жалоба всё равно появится в /admin/disputes даже если уведомление не дошло.
   try {
-    await fetch("/api/admin/notify-dispute", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: data.orderId, reason: data.reason, buyerName: data.buyerName, filedBy: data.filedBy }),
-    });
+    postWithToken("/api/admin/notify-dispute", { orderId: data.orderId, reason: data.reason, buyerName: data.buyerName, filedBy: data.filedBy });
   } catch {
     // не критично
   }

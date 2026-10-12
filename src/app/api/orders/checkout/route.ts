@@ -4,7 +4,6 @@ import { FieldValue } from "firebase-admin/firestore";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 import { sendWebPush } from "@/lib/webPushServer";
 import { maskNickname } from "@/lib/maskNickname";
-import { getPaymentMode } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -23,10 +22,26 @@ export async function POST(req: NextRequest) {
     if (!decoded) return NextResponse.json({ error: "Сессия истекла" }, { status: 401 });
     const uid = decoded.uid;
 
-    const { lines, promoCode } = (await req.json()) as { lines: CartLineIn[]; promoCode?: string };
-    if (!Array.isArray(lines) || lines.length === 0) {
+    const body = (await req.json()) as { lines: CartLineIn[]; promoCode?: unknown };
+    const promoCode = typeof body.promoCode === "string" ? body.promoCode : undefined;
+    if (!Array.isArray(body.lines) || body.lines.length === 0) {
       return NextResponse.json({ error: "Корзина пуста" }, { status: 400 });
     }
+    if (body.lines.length > 50) return NextResponse.json({ error: "Слишком много позиций" }, { status: 400 });
+    // Количество — только целое от 1 до 99; ноль, минус, дробь, NaN и строки отбрасываем до любых обращений к БД.
+    // Одинаковые товары склеиваем, чтобы две строки одного productId не обходили проверку склада.
+    const merged = new Map<string, number>();
+    for (const l of body.lines) {
+      if (!l || typeof l.productId !== "string" || !l.productId || l.productId.includes("/")) {
+        return NextResponse.json({ error: "Некорректный товар" }, { status: 400 });
+      }
+      if (typeof l.quantity !== "number" || !Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > 99) {
+        return NextResponse.json({ error: "Некорректное количество" }, { status: 400 });
+      }
+      merged.set(l.productId, (merged.get(l.productId) ?? 0) + l.quantity);
+    }
+    const lines: CartLineIn[] = [...merged].map(([productId, quantity]) => ({ productId, quantity }));
+    if (lines.some((l) => l.quantity > 99)) return NextResponse.json({ error: "Некорректное количество" }, { status: 400 });
 
     const db = adminDb();
 
@@ -43,17 +58,6 @@ export async function POST(req: NextRequest) {
       const stock = snap.data()?.stock ?? 0;
       if (stock < lines[i].quantity) {
         return NextResponse.json({ error: `«${snap.data()?.name}» — в наличии всего ${stock} шт.` }, { status: 400 });
-      }
-      if (snap.data()?.banned) {
-        return NextResponse.json({ error: `«${snap.data()?.name}» заблокирован модерацией и недоступен для покупки` }, { status: 400 });
-      }
-      // Продавец выбрал оплату ТОЛЬКО Stars — рублями с баланса такой товар купить нельзя
-      // (проверка на сервере, чтобы нельзя было обойти скрытую на клиенте кнопку).
-      if (getPaymentMode(snap.data() as any) === "stars") {
-        return NextResponse.json(
-          { error: `«${snap.data()?.name}» продаётся только за Telegram Stars — оплати его кнопкой «Купить за ⭐» на странице товара` },
-          { status: 400 }
-        );
       }
     }
 
@@ -94,6 +98,10 @@ export async function POST(req: NextRequest) {
     }
 
     const finalTotal = +(subtotal * (1 - discountPercent / 100)).toFixed(2);
+    // Заказ на ноль или меньше — это бесплатная выдача товара либо начисление денег. Не принимаем никогда.
+    if (!Number.isFinite(finalTotal) || finalTotal <= 0) {
+      return NextResponse.json({ error: "Некорректная сумма заказа" }, { status: 400 });
+    }
     const balance = userSnap.data()?.balance ?? 0;
     if (balance < finalTotal) {
       return NextResponse.json({ error: "Недостаточно средств на балансе" }, { status: 400 });
@@ -121,8 +129,6 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < freshProductSnaps.length; i++) {
         const stock = freshProductSnaps[i].data()?.stock ?? 0;
         if (stock < lines[i].quantity) throw new Error(`insufficient-stock:${products[i].name}`);
-        if (getPaymentMode(freshProductSnaps[i].data() as any) === "stars") throw new Error(`stars-only:${products[i].name}`);
-        if (freshProductSnaps[i].data()?.banned) throw new Error(`banned:${products[i].name}`);
       }
       const freshBalance = freshUserSnap.data()?.balance ?? 0;
       if (freshBalance < finalTotal) throw new Error("insufficient-balance");
@@ -198,12 +204,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     if (typeof err?.message === "string" && err.message.startsWith("insufficient-stock:")) {
       return NextResponse.json({ error: `Товара «${err.message.split(":")[1]}» уже не хватает на складе` }, { status: 409 });
-    }
-    if (typeof err?.message === "string" && err.message.startsWith("banned:")) {
-      return NextResponse.json({ error: `«${err.message.split(":")[1]}» заблокирован модерацией` }, { status: 409 });
-    }
-    if (typeof err?.message === "string" && err.message.startsWith("stars-only:")) {
-      return NextResponse.json({ error: `«${err.message.split(":")[1]}» продаётся только за Telegram Stars` }, { status: 409 });
     }
     if (err?.message === "insufficient-balance") {
       return NextResponse.json({ error: "Недостаточно средств на балансе" }, { status: 400 });
