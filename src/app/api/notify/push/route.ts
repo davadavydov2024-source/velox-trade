@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebaseAdmin";
 import { sendWebPush } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
@@ -10,10 +11,21 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
   try {
+    // Раньше роут был открыт всем: любой мог отправить push любому пользователю с любым текстом
+    // (спам и фишинг от имени сайта). Теперь нужен вход в аккаунт; ссылка — только на наш сайт
+    // (см. toAbsoluteLink в webPushServer), длина текста ограничена.
+    const authHeader = req.headers.get("authorization");
+    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!idToken) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
+    const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
+    if (!decoded) return NextResponse.json({ error: "Сессия истекла" }, { status: 401 });
+
     const { uid, title, body, url, category } = await req.json();
-    if (!uid || !title) return NextResponse.json({ error: "uid и title обязательны" }, { status: 400 });
+    if (typeof uid !== "string" || !uid || typeof title !== "string" || !title.trim()) {
+      return NextResponse.json({ error: "uid и title обязательны" }, { status: 400 });
+    }
     const validCategory = category === "purchases" || category === "reminders" || category === "news" ? category : "messages";
-    await sendWebPush(uid, { title, body: body ?? "", url }, validCategory);
+    await sendWebPush(uid, { title: title.trim().slice(0, 120), body: typeof body === "string" ? body.slice(0, 300) : "", url: typeof url === "string" ? url : undefined }, validCategory);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("notify/push error:", err);

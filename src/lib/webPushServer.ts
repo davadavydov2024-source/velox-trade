@@ -27,6 +27,44 @@ interface PushPayload {
   url?: string;
 }
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://velox-trade-zeta.vercel.app").replace(/\/+$/, "");
+
+/**
+ * FCM принимает в webpush.fcmOptions.link ТОЛЬКО абсолютный https-адрес. Раньше сюда уходили
+ * относительные пути вида "/chats" или "/product/123" — Firebase отвечал INVALID_ARGUMENT, и ни
+ * одно push-уведомление со ссылкой не доходило (а ссылка есть почти у всех). Здесь путь
+ * превращается в полный адрес сайта; чужие домены отбрасываются — в push нельзя вставить
+ * ссылку на посторонний сайт.
+ */
+export function toAbsoluteLink(url?: string): string | undefined {
+  if (!url || typeof url !== "string") return undefined;
+  const u = url.trim();
+  if (!u) return undefined;
+  if (u.startsWith("/") && !u.startsWith("//")) return `${SITE_URL}${u}`;
+  try {
+    const parsed = new URL(u);
+    if (parsed.origin === new URL(SITE_URL).origin) return parsed.toString();
+  } catch {
+    // не URL — игнорируем ссылку, само уведомление всё равно отправится
+  }
+  return undefined;
+}
+
+/** Единое тело сообщения для всех отправок: ссылка по клику, высокий приоритет и срок жизни сутки. */
+function buildMessage(token: string, payload: PushPayload) {
+  const link = toAbsoluteLink(payload.url);
+  return {
+    token,
+    notification: { title: payload.title.slice(0, 120), body: payload.body.slice(0, 300) },
+    data: link ? { url: link } : undefined,
+    webpush: {
+      headers: { Urgency: "high", TTL: "86400" },
+      notification: { icon: `${SITE_URL}/icons/icon-192.png` },
+      ...(link ? { fcmOptions: { link } } : {}),
+    },
+  };
+}
+
 /**
  * Рассылка ВСЕМ подписанным пользователям сразу — для админских рассылок (см. /admin/notifications).
  * Считается категорией "news" — уважает отключённую пользователем категорию "Новости и объявления".
@@ -59,11 +97,7 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
           return;
         }
         try {
-          await adminMessaging().send({
-            token: sub.token,
-            notification: { title: payload.title, body: payload.body },
-            webpush: payload.url ? { fcmOptions: { link: payload.url } } : undefined,
-          });
+          await adminMessaging().send(buildMessage(sub.token, payload));
           sent++;
         } catch (err: any) {
           console.error("sendWebPushBroadcast error:", err?.errorInfo?.code || err?.code, err?.message);
@@ -99,11 +133,7 @@ export async function sendWebPush(uid: string, payload: PushPayload, category: P
           return;
         }
         try {
-          await adminMessaging().send({
-            token: sub.token,
-            notification: { title: payload.title, body: payload.body },
-            webpush: payload.url ? { fcmOptions: { link: payload.url } } : undefined,
-          });
+          await adminMessaging().send(buildMessage(sub.token, payload));
         } catch (err: any) {
           console.error("sendWebPush error:", describeSendError(err));
           if (isDeadTokenError(err)) await doc.ref.delete().catch(() => {});

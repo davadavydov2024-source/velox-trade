@@ -1,5 +1,5 @@
-import { collection, addDoc, query, where, getDocs, deleteDoc } from "firebase/firestore";
-import { db, activeApp } from "./firebase";
+import { collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
+import { db, auth, activeApp } from "./firebase";
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_FCM_VAPID_KEY;
 
@@ -47,11 +47,17 @@ export async function subscribeToPush(uid: string): Promise<void> {
   const { getToken } = await import("firebase/messaging");
   const token = await getToken(messaging, { vapidKey: VAPID_PUBLIC });
 
-  await addDoc(collection(db, "pushSubscriptions"), {
-    uid,
-    token,
-    createdAt: Date.now(),
+  // Сохраняем через сервер: он убирает дубли и отвязывает токен от прежнего аккаунта на этом
+  // устройстве (см. api/push/subscribe).
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("not-signed-in");
+  const res = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ token }),
   });
+  if (!res.ok) throw new Error("subscribe-failed");
+  void uid;
 }
 
 export async function unsubscribeFromPush(uid: string): Promise<void> {
