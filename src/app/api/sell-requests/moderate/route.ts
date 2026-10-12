@@ -127,8 +127,10 @@ export async function POST(req: NextRequest) {
 
     // 4) Проверка полей и существования игры — несоответствие уходит на ручную проверку, не в публикацию.
     const fieldError = validateFields(r, flags.minProductPriceRub);
-    const gameSnap = await db.collection("games").where("slug", "==", r.gameId).limit(1).get();
-    if (fieldError || gameSnap.empty) {
+    const gamesSnap = await db.collection("games").get();
+    const allGames = gamesSnap.docs.map((d) => d.data() as { name: string; slug: string; categories?: string[] });
+    const ownGame = allGames.find((g) => g.slug === r.gameId);
+    if (fieldError || !ownGame) {
       const result: ModerationResult = { verdict: "review", reason: fieldError ? `Данные заявки: ${fieldError}` : "Игра не найдена" };
       await finish("pending", result);
       notifyAdminTelegramServer(`🏷️ Заявка «${r.itemName}» от ${r.userNick} требует ручной проверки: ${result.reason}`);
@@ -139,7 +141,10 @@ export async function POST(req: NextRequest) {
     const result = await moderateListing({
       name: r.itemName,
       description: r.description ?? "",
-      gameName: r.gameName,
+      gameName: ownGame.name || r.gameName,
+      gameSlug: r.gameId,
+      otherGames: allGames.filter((g) => g.slug !== r.gameId).map((g) => g.name),
+      gameCategories: ownGame.categories ?? [],
       category: r.category,
       price: r.price,
       starsPrice: r.starsPrice,
