@@ -1,4 +1,4 @@
-﻿import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
 function normalize(username: string): string {

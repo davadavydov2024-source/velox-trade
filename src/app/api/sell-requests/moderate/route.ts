@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     // 4) Проверка полей и существования игры — несоответствие уходит на ручную проверку, не в публикацию.
     const fieldError = validateFields(r, flags.minProductPriceRub);
     const gamesSnap = await db.collection("games").get();
-    const allGames = gamesSnap.docs.map((d) => d.data() as { name: string; slug: string; categories?: string[] });
+    const allGames = gamesSnap.docs.map((d) => d.data() as { name: string; slug: string; categories?: string[]; aiAllowed?: string; aiForbidden?: string });
     const ownGame = allGames.find((g) => g.slug === r.gameId);
     if (fieldError || !ownGame) {
       const result: ModerationResult = { verdict: "review", reason: fieldError ? `Данные заявки: ${fieldError}` : "Игра не найдена" };
@@ -145,6 +145,14 @@ export async function POST(req: NextRequest) {
       gameSlug: r.gameId,
       otherGames: allGames.filter((g) => g.slug !== r.gameId).map((g) => g.name),
       gameCategories: ownGame.categories ?? [],
+      gameRules: { allowed: ownGame.aiAllowed?.trim() || undefined, forbidden: ownGame.aiForbidden?.trim() || undefined },
+      catalog: allGames.map((g) => ({
+        name: g.name,
+        slug: g.slug,
+        categories: g.categories ?? [],
+        allowed: g.aiAllowed?.trim() || undefined,
+        forbidden: g.aiForbidden?.trim() || undefined,
+      })),
       category: r.category,
       price: r.price,
       starsPrice: r.starsPrice,

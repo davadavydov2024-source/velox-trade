@@ -14,6 +14,7 @@ import { useLanguage, useLanguageStore } from "@/lib/languageStore";
 import { LANGUAGES } from "@/lib/i18n";
 import { useMascot } from "@/lib/mascotContext";
 import { AuthBackground } from "@/components/AuthBackground";
+import { isUsernameAvailable, saveMyUsername, usernameFormatError } from "@/lib/usernames";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -61,7 +62,7 @@ function passwordStrength(pw: string): { score: number; label: string; color: st
 const STEP_LABELS = ["Старт", "Данные", "Telegram"];
 
 function RegisterInner() {
-  const { register } = useAuth();
+  const { register, refreshProfile } = useAuth();
   const { toast } = useToast();
   const { celebrate } = useMascot();
   const router = useRouter();
@@ -96,6 +97,8 @@ function RegisterInner() {
 
   // --- регистрация по паролю ---
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [tgUsername, setTgUsername] = useState("");
   const [email, setEmail] = useState("");
   const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
@@ -150,6 +153,11 @@ function RegisterInner() {
       toast("warning", "Введи имя");
       return;
     }
+    const usernameErr = usernameFormatError(username);
+    if (usernameErr) {
+      toast("warning", usernameErr);
+      return;
+    }
     if (!EMAIL_RE.test(email.trim())) {
       toast("warning", "Введи корректный email");
       return;
@@ -165,6 +173,10 @@ function RegisterInner() {
     }
     setLoading(true);
     try {
+      if (!(await isUsernameAvailable(username))) {
+        toast("warning", "Этот юзернейм уже занят");
+        return;
+      }
       const res = await fetch("/api/auth/tg-verify/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,7 +216,20 @@ function RegisterInner() {
         return;
       }
 
+      // Пока идёт регистрация, окно «придумай юзернейм» (UsernameGate) не показываем.
+      try { sessionStorage.setItem("registering-username", "1"); } catch {}
       await register(email, password, name, language, Number(age));
+      try {
+        if (auth.currentUser) {
+          await saveMyUsername(auth.currentUser.uid, username);
+          await refreshProfile();
+        }
+      } catch {
+        // Успели занять между проверкой и созданием аккаунта — сайт попросит выбрать другой.
+        toast("warning", "Юзернейм успели занять — выбери другой на следующем экране");
+      } finally {
+        try { sessionStorage.removeItem("registering-username"); } catch {}
+      }
 
       try {
         const idToken = await auth.currentUser?.getIdToken();
@@ -238,6 +263,7 @@ function RegisterInner() {
       celebrate("register");
       router.push("/profile");
     } catch (err: any) {
+      try { sessionStorage.removeItem("registering-username"); } catch {}
       toast("error", translateAuthError(err?.code));
     } finally {
       setLoading(false);
@@ -246,6 +272,11 @@ function RegisterInner() {
 
   async function handleStartTelegramRegister(e: React.FormEvent) {
     e.preventDefault();
+    const tgUsernameErr = usernameFormatError(tgUsername);
+    if (tgUsernameErr) {
+      toast("warning", tgUsernameErr);
+      return;
+    }
     const ageValue = Number(tgAge);
     if (!Number.isInteger(ageValue) || ageValue < MIN_AGE || ageValue > MAX_AGE) {
       toast("warning", `Укажи реальный возраст (от ${MIN_AGE} до ${MAX_AGE})`);
@@ -253,7 +284,11 @@ function RegisterInner() {
     }
     setTgCreating(true);
     try {
-      const code = await createTelegramRegisterRequest(tgEmail, tgName, ageValue);
+      if (!(await isUsernameAvailable(tgUsername))) {
+        toast("warning", "Этот юзернейм уже занят");
+        return;
+      }
+      const code = await createTelegramRegisterRequest(tgEmail, tgName, ageValue, tgUsername);
       setTgCode(code);
       setTgLinkUrl(`https://t.me/${TELEGRAM_BOT}?start=${code}`);
 
@@ -441,6 +476,24 @@ function RegisterInner() {
                     placeholder={t("auth_name_placeholder")}
                     className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
                   />
+                </div>
+
+                <div>
+                  <div className="relative group">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors text-sm">@</span>
+                    <input
+                      required
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      maxLength={20}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                      placeholder="Юзернейм (латиница, цифры, _)"
+                      className="input-field pl-9 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                    />
+                  </div>
+                  <p className="text-[11px] text-white/30 mt-1 ml-1">3-20 символов. Это ссылка на твой профиль — обязателен.</p>
                 </div>
 
                 <div>
@@ -668,6 +721,24 @@ function RegisterInner() {
                         className="input-field pl-10 focus:ring-2 focus:ring-accent/30 transition-shadow"
                       />
                     </div>
+                  <div>
+                    <div className="relative group">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors text-sm">@</span>
+                      <input
+                        required
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        maxLength={20}
+                        value={tgUsername}
+                        onChange={(e) => setTgUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                        placeholder="Юзернейм (латиница, цифры, _)"
+                        className="input-field pl-9 focus:ring-2 focus:ring-accent/30 transition-shadow"
+                      />
+                    </div>
+                    <p className="text-[11px] text-white/30 mt-1 ml-1">3-20 символов. Это ссылка на твой профиль — обязателен.</p>
+                  </div>
+
                     <div className="relative group">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-accent transition-colors" size={18} />
                       <input

@@ -7,6 +7,7 @@ import { getAllTrades, subscribeTradeChat, sendTradeChatMessage, TradeChat } fro
 import { TradeOffer, TradeOfferStatus } from "@/types";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { useToast } from "@/lib/toastContext";
+import { TradeSwap } from "@/components/TradeSwap";
 
 const STATUS_LABEL: Record<TradeOfferStatus, { text: string; color: string }> = {
   pending: { text: "Ожидает ответа", color: "#ff9800" },
@@ -127,26 +128,17 @@ export default function AdminTradesPage() {
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-md bg-black/30 relative overflow-hidden">
-                      {isValidImageSrc(active.offeredProductImage) && <Image src={safeImageSrc(active.offeredProductImage!)} alt="" fill className="object-cover" sizes="40px" />}
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-white/30">{active.fromUserNick} отдаёт</p>
-                      <p className="text-xs font-medium">{active.offeredProductName}</p>
-                    </div>
-                  </div>
-                  <ArrowLeftRight size={14} className="text-white/30" />
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-md bg-black/30 relative overflow-hidden">
-                      {isValidImageSrc(active.requestedProductImage) && <Image src={safeImageSrc(active.requestedProductImage!)} alt="" fill className="object-cover" sizes="40px" />}
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-white/30">{active.toUserNick} отдаёт</p>
-                      <p className="text-xs font-medium">{active.requestedProductName}</p>
-                    </div>
-                  </div>
+                <div className="w-full sm:max-w-md">
+                  <TradeSwap
+                    giveName={active.offeredProductName}
+                    giveImage={active.offeredProductImage}
+                    giveLabel={`${active.fromUserNick} отдаёт`}
+                    getName={active.requestedProductName}
+                    getImage={active.requestedProductImage}
+                    getLabel={`${active.toUserNick} отдаёт`}
+                    extra={active.extraBalanceFromProposer}
+                    size="sm"
+                  />
                 </div>
                 {active.status === "accepted" && (
                   <a href="/admin/deliveries" target="_blank" rel="noopener noreferrer" className="text-xs text-accent flex items-center gap-1 hover:underline">
