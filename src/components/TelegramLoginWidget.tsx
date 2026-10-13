@@ -1,96 +1,30 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useAuth } from "@/lib/authContext";
-import { useToast } from "@/lib/toastContext";
-import { auth } from "@/lib/firebase";
-
-const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
-
-interface TelegramWidgetUser {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
-}
-
-declare global {
-  interface Window {
-    onTelegramAuth?: (user: TelegramWidgetUser) => void;
-  }
-}
-
 /**
- * Официальный Telegram Login Widget (https://core.telegram.org/widgets/login) — рендерится самим
- * Telegram через встроенный <script>, поэтому сначала показываем пустой контейнер и подставляем
- * скрипт в него через ref, а не пишем разметку кнопки вручную. Требует, чтобы домен сайта был
- * добавлен боту через @BotFather → /setdomain, иначе виджет откажется грузиться — см. итоговое
- * сообщение с инструкцией.
+ * Кнопка «Войти через Telegram» — новый официальный вход Telegram (OpenID Connect), см.
+ * api/auth/telegram-oidc. Старый iframe-виджет (telegram-widget.js) требовал /setdomain и падал с
+ * «bot domain invalid»; новый работает через Client ID из BotFather → Login Widget и обычный
+ * переход на oauth.telegram.org, без сторонних скриптов на странице.
+ * Пропсы onSuccess сохранены для совместимости со старыми вызовами: переход полностраничный,
+ * дальнейшие действия выполняет страница /auth/telegram-finish.
  */
 export function TelegramLoginWidget({
   refCode,
-  onSuccess,
 }: {
-  /** Реферальный код (?ref=) — применяется после входа, если аккаунт только что создан. */
   refCode?: string | null;
-  /** Что сделать после успешного входа (например, перейти в профиль). */
   onSuccess?: () => void;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { loginWithCustomToken } = useAuth();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    window.onTelegramAuth = async (tgUser: TelegramWidgetUser) => {
-      try {
-        const res = await fetch("/api/auth/telegram-widget", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(tgUser),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Не удалось войти через Telegram");
-        await loginWithCustomToken(data.token);
-        if (refCode) {
-          try {
-            const idToken = await auth.currentUser?.getIdToken();
-            if (idToken) {
-              await fetch("/api/auth/apply-referral", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-                body: JSON.stringify({ code: refCode }),
-              });
-            }
-          } catch {
-            // Реферальный бонус не критичен для входа — молча игнорируем.
-          }
-        }
-        toast("success", "Вход через Telegram выполнен!");
-        onSuccess?.();
-      } catch (err: any) {
-        toast("error", err?.message || "Не удалось войти через Telegram");
-      }
-    };
-
-    if (containerRef.current && containerRef.current.childElementCount === 0) {
-      const script = document.createElement("script");
-      script.src = "https://telegram.org/js/telegram-widget.js?22";
-      script.async = true;
-      script.setAttribute("data-telegram-login", TELEGRAM_BOT);
-      script.setAttribute("data-size", "large");
-      script.setAttribute("data-radius", "10");
-      script.setAttribute("data-onauth", "onTelegramAuth(user)");
-      script.setAttribute("data-request-access", "write");
-      containerRef.current.appendChild(script);
-    }
-
-    return () => {
-      delete window.onTelegramAuth;
-    };
-  }, [loginWithCustomToken, toast, refCode, onSuccess]);
-
-  return <div ref={containerRef} className="flex justify-center" />;
+  const href = `/api/auth/telegram-oidc/start${refCode ? `?ref=${encodeURIComponent(refCode)}` : ""}`;
+  return (
+    <a
+      href={href}
+      className="w-full flex items-center justify-center gap-2.5 py-3 rounded-btn font-medium text-white transition-[filter,transform] hover:brightness-110 active:scale-[0.99]"
+      style={{ background: "#2AABEE" }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M9.78 15.17 9.6 19.3c.35 0 .5-.15.69-.33l1.66-1.59 3.44 2.52c.63.35 1.08.17 1.25-.58l2.26-10.6c.2-.93-.34-1.3-.95-1.07L4.6 12.8c-.9.35-.89.85-.15 1.08l3.4 1.06 7.9-4.98c.37-.24.71-.11.43.13" />
+      </svg>
+      Войти через Telegram
+    </a>
+  );
 }

@@ -31,6 +31,22 @@ function LoginInner() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Ошибки входа через Telegram приходят параметром ?tg_error= (см. api/auth/telegram-oidc/callback).
+  useEffect(() => {
+    const code = searchParams.get("tg_error");
+    if (!code) return;
+    const messages: Record<string, string> = {
+      "not-configured": "Вход через Telegram ещё не настроен на сервере",
+      denied: "Вход через Telegram отменён",
+      "session-expired": "Сессия входа истекла — нажми «Войти через Telegram» ещё раз",
+      "state-mismatch": "Не удалось подтвердить вход — попробуй ещё раз",
+      "token-exchange": "Telegram отклонил вход. Проверь Client ID/Secret и Redirect URI в BotFather",
+    };
+    toast("error", messages[code] ?? "Не удалось войти через Telegram. Попробуй ещё раз");
+    window.history.replaceState(null, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // ?redirect= используется, когда сюда попали со страницы подтверждения входа с другого
   // устройства (/auth/link) — после логина нужно вернуться именно туда, а не в /profile.
   const redirectTo = searchParams.get("redirect") || "/profile";
