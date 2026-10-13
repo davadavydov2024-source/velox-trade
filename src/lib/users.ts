@@ -14,6 +14,7 @@ import {
 import { db, auth } from "./firebase";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
+import { stripUndefined } from "./stripUndefined";
 import { notifyTelegram } from "./telegramNotify";
 import { notifyAdminEvent } from "./adminNotifyClient";
 
@@ -295,7 +296,8 @@ export async function updateProfileInfo(
 // ---- Top-up requests (ручное пополнение — заявка обрабатывается администратором вручную) ----
 
 export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
-  const ref = await addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
+  // stripUndefined: необязательный comment приходит как undefined, а Firestore такое значение не принимает.
+  const ref = await addDoc(topUpsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
   notifyAdminEvent("topup", ref.id);
   return ref;
 }
