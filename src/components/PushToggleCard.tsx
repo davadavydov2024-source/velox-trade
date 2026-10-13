@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { Bell, BellOff, ShoppingBag, MessageSquare, Clock, Megaphone } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush } from "@/lib/webPush";
@@ -37,6 +37,7 @@ export function PushToggleCard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [categoryBusy, setCategoryBusy] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const categories: PushCategories = profile?.pushCategories ?? DEFAULT_PUSH_CATEGORIES;
 
@@ -69,12 +70,36 @@ export function PushToggleCard() {
       if (err?.message === "permission-denied") {
         toast("warning", "Разрешение на уведомления не дано — включи его в настройках браузера для этого сайта");
       } else if (err?.message === "vapid-not-configured") {
-        toast("error", "Push ещё не настроен на сервере");
+        toast("error", "Push ещё не настроен на сервере (нет NEXT_PUBLIC_FCM_VAPID_KEY)");
+      } else if (err?.message === "token-failed") {
+        toast("error", "Не удалось получить токен уведомлений — проверь VAPID-ключ и перезагрузи страницу");
       } else {
         toast("error", "Не удалось изменить настройку уведомлений");
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/push/test", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } });
+      const data = await res.json();
+      if (!res.ok) {
+        toast("error", `Сервер не смог отправить: ${data.detail || data.error}`);
+      } else if (data.devices === 0) {
+        toast("warning", "На сервере нет подписки для этого аккаунта — выключи и снова включи уведомления");
+      } else if (data.sent > 0) {
+        toast("success", `Отправлено на устройств: ${data.sent}. Уведомление должно прийти через пару секунд`);
+      } else {
+        toast("error", `Не доставлено: ${data.errors?.[0] ?? "неизвестная ошибка"}`);
+      }
+    } catch {
+      toast("error", "Не удалось отправить тест");
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -106,6 +131,12 @@ export function PushToggleCard() {
         </div>
         <Switch on={enabled} onClick={handleToggle} disabled={loading || busy} />
       </div>
+
+      {enabled && (
+        <button type="button" onClick={handleTest} disabled={testing} className="btn-secondary w-full py-2 text-sm disabled:opacity-50">
+          {testing ? "Отправляем..." : "Отправить тестовое уведомление"}
+        </button>
+      )}
 
       {enabled && (
         <div className="pt-3 border-t border-white/10 space-y-3">

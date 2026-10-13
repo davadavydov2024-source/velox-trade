@@ -50,19 +50,57 @@ export function toAbsoluteLink(url?: string): string | undefined {
   return undefined;
 }
 
-/** Единое тело сообщения для всех отправок: ссылка по клику, высокий приоритет и срок жизни сутки. */
+/**
+ * Единое тело сообщения для всех отправок. Сообщение DATA-ONLY (без поля notification): показом
+ * уведомления целиком занимается наш service worker (public/firebase-messaging-sw.js) в событии
+ * "push" — так поведение одинаково во всех браузерах, ссылка по клику всегда открывается, и не
+ * зависит от того, подгрузился ли Firebase SDK внутри SW. Все значения data обязаны быть строками.
+ */
 function buildMessage(token: string, payload: PushPayload) {
   const link = toAbsoluteLink(payload.url);
   return {
     token,
-    notification: { title: payload.title.slice(0, 120), body: payload.body.slice(0, 300) },
-    data: link ? { url: link } : undefined,
+    data: {
+      title: payload.title.slice(0, 120),
+      body: payload.body.slice(0, 300),
+      icon: `${SITE_URL}/icons/icon-192.png`,
+      ...(link ? { url: link } : {}),
+    },
     webpush: {
       headers: { Urgency: "high", TTL: "86400" },
-      notification: { icon: `${SITE_URL}/icons/icon-192.png` },
-      ...(link ? { fcmOptions: { link } } : {}),
     },
   };
+}
+
+export interface PushSendReport {
+  devices: number;
+  sent: number;
+  failed: number;
+  errors: string[];
+}
+
+/** Как sendWebPush, но без проверки категорий и с подробным отчётом — для кнопки «Тест» в профиле. */
+export async function sendWebPushDetailed(uid: string, payload: PushPayload): Promise<PushSendReport> {
+  const snap = await adminDb().collection("pushSubscriptions").where("uid", "==", uid).get();
+  const report: PushSendReport = { devices: snap.size, sent: 0, failed: 0, errors: [] };
+  await Promise.all(
+    snap.docs.map(async (doc) => {
+      const sub = doc.data() as { token?: string };
+      if (!sub.token) {
+        await doc.ref.delete().catch(() => {});
+        return;
+      }
+      try {
+        await adminMessaging().send(buildMessage(sub.token, payload));
+        report.sent++;
+      } catch (err: any) {
+        report.failed++;
+        report.errors.push(describeSendError(err));
+        if (isDeadTokenError(err)) await doc.ref.delete().catch(() => {});
+      }
+    })
+  );
+  return report;
 }
 
 /**

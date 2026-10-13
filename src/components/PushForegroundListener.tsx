@@ -2,49 +2,24 @@
 
 import { useEffect } from "react";
 import { useAuth } from "@/lib/authContext";
-import { useToast } from "@/lib/toastContext";
-import { activeApp } from "@/lib/firebase";
+import { syncPushSubscriptionSilently } from "@/lib/webPush";
 
 /**
- * FCM показывает системное уведомление сам, только когда сайт закрыт или вкладка в фоне. Если
- * сайт открыт и в фокусе, сообщение молча приходит в onMessage и пользователь НИЧЕГО не видит —
- * из-за этого казалось, что «пуши не работают». Здесь показываем такое сообщение тостом со ссылкой.
+ * При каждом входе тихо обновляет push-подписку этого устройства, если уведомления уже разрешены:
+ * токены FCM со временем меняются, а после смены аккаунта на этом браузере токен нужно
+ * перепривязать. Без этого уведомления могли «тихо отвалиться» у тех, кто включил их давно.
+ * Показом самих уведомлений занимается service worker (public/firebase-messaging-sw.js).
  */
 export function PushForegroundListener() {
   const { user } = useAuth();
-  const { toast } = useToast();
 
   useEffect(() => {
-    if (!user || typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission !== "granted") return;
-
-    let unsub: (() => void) | null = null;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { isSupported, getMessaging, onMessage } = await import("firebase/messaging");
-        if (!(await isSupported()) || cancelled) return;
-        unsub = onMessage(getMessaging(activeApp), (payload) => {
-          const title = payload.notification?.title ?? "Уведомление";
-          const body = payload.notification?.body;
-          const link = payload.data?.url ?? payload.fcmOptions?.link;
-          let href: string | undefined;
-          try {
-            if (link) href = new URL(link).pathname;
-          } catch {
-            href = undefined;
-          }
-          toast("info", body ? `${title}: ${body}` : title, href);
-        });
-      } catch {
-        // Не критично — без этого уведомления просто не будут дублироваться тостом при открытом сайте.
-      }
-    })();
-    return () => {
-      cancelled = true;
-      unsub?.();
-    };
-  }, [user, toast]);
+    if (!user) return;
+    const t = setTimeout(() => {
+      syncPushSubscriptionSilently().catch(() => {});
+    }, 3000); // не мешаем первой загрузке страницы
+    return () => clearTimeout(t);
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }
