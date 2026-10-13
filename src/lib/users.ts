@@ -14,7 +14,8 @@ import {
 import { db, auth } from "./firebase";
 import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
-import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
+import { notifyTelegram } from "./telegramNotify";
+import { notifyAdminEvent } from "./adminNotifyClient";
 
 const usersCol = collection(db, "users");
 const ordersCol = collection(db, "orders");
@@ -57,7 +58,7 @@ export async function ensureUserProfile(
   };
   await setDoc(ref, profile);
   await setDoc(doc(db, "referralCodes", referralCode), { uid });
-  notifyAdminTelegram(`🆕 Новый пользователь: ${displayName} (${email})${age !== undefined ? `, возраст: ${age}` : ""}`);
+  notifyAdminEvent("registration", uid);
   return { uid, ...profile } as UserProfile;
 }
 
@@ -295,8 +296,7 @@ export async function updateProfileInfo(
 
 export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
   const ref = await addDoc(topUpsCol, { ...data, status: "pending", createdAt: Date.now() });
-  const kind = data.type === "deposit" ? "пополнение" : "вывод";
-  notifyAdminTelegram(`💰 Новая заявка на ${kind}: ${data.userNick} — ${data.amount} ₽`);
+  notifyAdminEvent("topup", ref.id);
   return ref;
 }
 

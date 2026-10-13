@@ -1,6 +1,11 @@
 import { adminDb } from "./firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendTelegramMessage, editTelegramMessage, getAvailableGifts, sendGift, InlineButton } from "./telegramBot";
+import { sendAdminNotice, sellRequestText, sellRequestButtons } from "./telegramAdminNotify";
+
+// Одобрение/отклонение заявок на продажу вынесено в telegramAdminModeration.ts — общая серверная логика
+// (транзакция, все поля товара, уведомление продавца) и поддержка сообщений с фото.
+export { approveSellRequestFromBot, rejectSellRequestFromBot } from "./telegramAdminModeration";
 
 interface SellRequest {
   id: string;
@@ -60,56 +65,9 @@ export async function sendPendingSellRequests(chatId: number) {
     return;
   }
   for (const doc of snap.docs) {
-    const r = doc.data() as Omit<SellRequest, "id">;
-    const commission = Math.round(r.price * ((r.commissionPercent ?? 0) / 100));
-    const payout = r.price - commission;
-    const text =
-      `🏷️ ${r.itemName} — ${r.gameName}\n` +
-      `От: ${r.userNick}\n` +
-      `Цена: ${r.price} ₽ · Комиссия ${r.commissionPercent ?? 0}%: −${commission} ₽ · К выплате: ${payout} ₽\n` +
-      (r.description ? `Описание: ${r.description}` : "");
-    await sendTelegramMessage(chatId, text, [
-      [
-        { text: "✅ Одобрить", callback_data: `sell_approve_${doc.id}` },
-        { text: "❌ Отклонить", callback_data: `sell_reject_${doc.id}` },
-      ],
-    ]);
+    const r = doc.data();
+    await sendAdminNotice({ chatId, text: sellRequestText(r), photoUrl: r.imageUrl, buttons: sellRequestButtons(doc.id) });
   }
-}
-
-export async function approveSellRequestFromBot(chatId: number, messageId: number, requestId: string) {
-  const db = adminDb();
-  const ref = db.collection("sellRequests").doc(requestId);
-  const snap = await ref.get();
-  if (!snap.exists) {
-    await editTelegramMessage(chatId, messageId, "Заявка уже не найдена (возможно, обработана на сайте).");
-    return;
-  }
-  const r = snap.data() as Omit<SellRequest, "id">;
-  if (r.status !== "pending") {
-    await editTelegramMessage(chatId, messageId, `Заявка уже обработана (статус: ${r.status}).`);
-    return;
-  }
-
-  const productRef = await db.collection("products").add({
-    gameId: r.gameId,
-    sellerId: r.userId,
-    name: r.itemName,
-    description: r.description,
-    image: r.imageUrl,
-    price: r.price,
-    rarity: r.rarity ?? "common",
-    stock: r.stock ?? 1,
-    createdAt: Date.now(),
-  });
-  await ref.update({ status: "approved", productId: productRef.id });
-
-  await editTelegramMessage(chatId, messageId, `✅ Одобрено — «${r.itemName}» уже в каталоге.`);
-}
-
-export async function rejectSellRequestFromBot(chatId: number, messageId: number, requestId: string) {
-  await adminDb().collection("sellRequests").doc(requestId).update({ status: "rejected" });
-  await editTelegramMessage(chatId, messageId, "❌ Заявка отклонена.");
 }
 
 // ===================== Заявки на пополнение/вывод =====================

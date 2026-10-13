@@ -1,7 +1,8 @@
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
 import { ProductEditRequest } from "@/types";
-import { notifyTelegram, notifyAdminTelegram } from "./telegramNotify";
+import { notifyTelegram } from "./telegramNotify";
+import { notifyAdminEvent } from "./adminNotifyClient";
 
 export const MAX_PRODUCT_EDITS = 3;
 
@@ -9,7 +10,7 @@ const editRequestsCol = collection(db, "productEditRequests");
 
 export async function createProductEditRequest(data: Omit<ProductEditRequest, "id" | "createdAt" | "status">) {
   const ref = await addDoc(editRequestsCol, { ...data, status: "pending", createdAt: Date.now() });
-  notifyAdminTelegram(`✏️ Заявка на редактирование товара «${data.productName}» от продавца`);
+  notifyAdminEvent("product_edit", ref.id);
   return ref;
 }
 

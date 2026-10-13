@@ -39,11 +39,13 @@ export function FormatInput({
   onChange,
   placeholder,
   className = "",
+  style,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -95,6 +97,7 @@ export function FormatInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={`${className} w-full pr-10`}
+        style={style}
         onKeyDown={(e) => {
           const kind = kindFromKey(e);
           if (kind) {

@@ -163,3 +163,15 @@ export async function sendGift(userId: number, giftId: string, text?: string): P
   const result = await tgCall("sendGift", { user_id: userId, gift_id: giftId, text });
   return result !== null;
 }
+
+/** Как editTelegramMessage, но для сообщений-ФОТО: у них нет text, редактируется подпись (caption).
+ * Нужно, когда админ жмёт кнопку под уведомлением с фото — editMessageText на таком сообщении падает. */
+export async function editTelegramCaption(chatId: number, messageId: number, caption: string, buttons?: InlineButton[][]): Promise<boolean> {
+  const result = await tgCall("editMessageCaption", {
+    chat_id: chatId,
+    message_id: messageId,
+    caption: caption.slice(0, 1000),
+    reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
+  });
+  return result !== null;
+}

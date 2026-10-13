@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { moderateListing, ModerationResult } from "@/lib/aiModeration";
-import { notifyTelegramServer, notifyAdminTelegramServer } from "@/lib/telegramNotifyServer";
+import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
+import { notifyAdminSellRequest } from "@/lib/telegramAdminNotify";
 import { sendWebPush } from "@/lib/webPushServer";
 import { DEFAULT_FEATURE_FLAGS } from "@/types";
 
@@ -66,7 +67,7 @@ function validateFields(r: Req, minPrice: number): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  let fallbackNote: string | null = null;
+  let fallbackRequestId: string | null = null;
   try {
     const authHeader = req.headers.get("authorization");
     const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -97,8 +98,7 @@ export async function POST(req: NextRequest) {
     if (claimed.kind === "already") return NextResponse.json({ status: claimed.status, verdict: claimed.verdict ?? null });
     const r = claimed.r;
     // Если дальше что-то пойдёт не так или ИИ выключен — заявка остаётся админу, и он должен об этом узнать.
-    const pendingNote = `🏷️ Новая заявка на продажу: «${r.itemName}» от ${r.userNick} — ${r.price} ₽`;
-    fallbackNote = pendingNote;
+    fallbackRequestId = requestId;
 
     const finish = async (status: "pending" | "approved" | "rejected", result: ModerationResult, extra: Record<string, unknown> = {}) => {
       await reqRef.update({ status, aiVerdict: result.verdict, aiReason: result.reason, ...extra });
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
     const flags = { ...DEFAULT_FEATURE_FLAGS, ...(flagsSnap.exists ? flagsSnap.data() : {}) };
     if (!flags.aiModerationEnabled) {
       await reqRef.update({ aiLockedAt: null });
-      notifyAdminTelegramServer(pendingNote);
+      await notifyAdminSellRequest(requestId);
       return NextResponse.json({ status: "pending", verdict: null, reason: "Заявку проверит администратор" });
     }
 
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     if (recentChecks > MAX_AI_CHECKS_PER_HOUR) {
       const result: ModerationResult = { verdict: "review", reason: "Слишком много заявок за час — проверит администратор" };
       await finish("pending", result);
-      notifyAdminTelegramServer(`🏷️ Заявка «${r.itemName}» от ${r.userNick} ждёт ручной проверки: ${result.reason}`);
+      await notifyAdminSellRequest(requestId, result.reason);
       return NextResponse.json({ status: "pending", verdict: "review", reason: result.reason });
     }
 
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
     if (fieldError || !ownGame) {
       const result: ModerationResult = { verdict: "review", reason: fieldError ? `Данные заявки: ${fieldError}` : "Игра не найдена" };
       await finish("pending", result);
-      notifyAdminTelegramServer(`🏷️ Заявка «${r.itemName}» от ${r.userNick} требует ручной проверки: ${result.reason}`);
+      await notifyAdminSellRequest(requestId, result.reason);
       return NextResponse.json({ status: "pending", verdict: "review", reason: "Заявку проверит администратор" });
     }
 
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
 
     if (result.verdict === "review") {
       await finish("pending", result);
-      notifyAdminTelegramServer(`🏷️ Заявка «${r.itemName}» от ${r.userNick} ждёт ручной проверки: ${result.reason}`);
+      await notifyAdminSellRequest(requestId, result.reason);
       return NextResponse.json({ status: "pending", verdict: "review", reason: "Заявку проверит администратор" });
     }
 
@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("sell-requests/moderate error:", err);
     // Заявка осталась pending — админ увидит её в очереди как обычно.
-    if (fallbackNote) notifyAdminTelegramServer(fallbackNote);
+    if (fallbackRequestId) await notifyAdminSellRequest(fallbackRequestId);
     return NextResponse.json({ status: "pending", verdict: null, reason: "Заявку проверит администратор" });
   }
 }

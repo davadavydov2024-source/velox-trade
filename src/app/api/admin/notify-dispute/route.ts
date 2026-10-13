@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendTelegramMessage } from "@/lib/telegramBot";
+import { siteRow } from "@/lib/telegramAdminNotify";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,8 @@ export async function POST(req: NextRequest) {
       const { chatId } = linkSnap.data() as { chatId: number };
       await sendTelegramMessage(
         chatId,
-        `⚠️ Новая жалоба на сделку\nЗаказ: ${orderId}\nОт: ${buyerName}\nПричина: ${reason}\n\nОткрой /admin/disputes на сайте, чтобы рассмотреть.`
+        `⚠️ Новая жалоба на сделку\nЗаказ: ${orderId}\nОт: ${buyerName}\nПричина: ${reason}\n\nОткрой /admin/disputes на сайте, чтобы рассмотреть.`,
+        [siteRow("/admin/disputes", "⚖️ Рассмотреть спор")]
       );
     }
 

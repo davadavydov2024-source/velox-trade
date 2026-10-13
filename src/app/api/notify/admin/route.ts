@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendTelegramMessage } from "@/lib/telegramBot";
+import { siteRow, ALLOWED_ADMIN_PATHS } from "@/lib/telegramAdminNotify";
 
 export const runtime = "nodejs";
 
@@ -11,10 +12,12 @@ export async function POST(req: NextRequest) {
   try {
     if (!ADMIN_CHAT_ID) return NextResponse.json({ ok: true, delivered: false });
 
-    const { text } = await req.json();
+    const { text, path } = await req.json();
     if (!text) return NextResponse.json({ ok: false, error: "text обязателен" }, { status: 400 });
 
-    await sendTelegramMessage(ADMIN_CHAT_ID, text);
+    // Кнопка «Открыть на сайте» — только на страницы админки из белого списка, произвольные ссылки не принимаем.
+    const row = typeof path === "string" && ALLOWED_ADMIN_PATHS.includes(path) ? siteRow(path) : [];
+    await sendTelegramMessage(ADMIN_CHAT_ID, text, row.length ? [row] : undefined);
     return NextResponse.json({ ok: true, delivered: true });
   } catch (err) {
     console.error("notify/admin error:", err);

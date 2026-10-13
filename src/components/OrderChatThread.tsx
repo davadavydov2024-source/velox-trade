@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Send,
   CheckCircle2,
@@ -20,18 +21,21 @@ import {
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { subscribeOrderChat, sendOrderChatMessage } from "@/lib/orderChats";
+import { markChatRead, peerReadAt, UNREAD_TRACKING_START } from "@/lib/chatRead";
+import { MessageTicks, ReadLabel, UploadingPhotoBubble } from "@/components/ChatStatus";
 import { getOrderById, confirmOrderReceipt, cancelOrderBySeller, getUserProfile, isAdminUid } from "@/lib/users";
 import { getProductById } from "@/lib/products";
 import { createDispute, getDispute, resolveDispute } from "@/lib/disputes";
 import { createReview } from "@/lib/reviews";
 import { subscribeDelivery } from "@/lib/deliveries";
-import { OrderChatMessage, Order, Dispute, Delivery } from "@/types";
+import { OrderChatMessage, Order, Dispute, Delivery, formatOrderTotal } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { FormatInput } from "@/components/FormatInput";
 import { ChatMessageBody } from "@/components/ChatMessageBody";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { auth } from "@/lib/firebase";
 import { DeliveryPanel } from "@/components/DeliveryPanel";
+import { PhotoAnnotator } from "@/components/PhotoAnnotator";
 
 const STATUS_LABEL: Record<Order["status"], { text: string; color: string }> = {
   pending_confirmation: { text: "Ожидает подтверждения", color: "#ff9800" },
@@ -58,6 +62,16 @@ function initials(name: string) {
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateLabel(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Сегодня";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
 const ADMIN_COMMANDS = [
@@ -233,7 +247,7 @@ function DealSheet({
           </div>
           <div className="flex items-center justify-between mb-6">
             <span className="text-xs text-white/40">Количество: {order.items.reduce((s, i) => s + i.quantity, 0)}</span>
-            <span className="font-bold text-accent">{order.total.toFixed(2)} ₽</span>
+            <span className="font-bold text-accent">{formatOrderTotal(order)}</span>
           </div>
 
           <OrderDealTimeline order={order} delivery={delivery} />
@@ -272,10 +286,13 @@ function DealSheet({
 export function OrderChatThread({
   orderId,
   counterpartName,
+  counterpartUsername = null,
   asAdmin = false,
 }: {
   orderId: string;
   counterpartName: string;
+  /** Юзернейм собеседника — если задан, имя в шапке становится ссылкой на его профиль. */
+  counterpartUsername?: string | null;
   asAdmin?: boolean;
 }) {
   const { user, profile } = useAuth();
@@ -283,6 +300,9 @@ export function OrderChatThread({
   const [order, setOrder] = useState<Order | null>(null);
   const [itemImage, setItemImage] = useState<string | null>(null);
   const [messages, setMessages] = useState<OrderChatMessage[]>([]);
+  const [readBy, setReadBy] = useState<Record<string, number> | undefined>(undefined);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [visibleTick, setVisibleTick] = useState(0);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -294,6 +314,7 @@ export function OrderChatThread({
   const [delivery, setDelivery] = useState<Delivery | null | undefined>(undefined);
   const [dealOpen, setDealOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [disputeOpen, setDisputeOpen] = useState(false);
@@ -320,7 +341,10 @@ export function OrderChatThread({
       })
       .finally(() => setLoading(false));
 
-    const unsub = subscribeOrderChat(orderId, (chat) => setMessages(chat?.messages ?? []));
+    const unsub = subscribeOrderChat(orderId, (chat) => {
+      setMessages(chat?.messages ?? []);
+      setReadBy(chat?.readBy);
+    });
     const unsubDelivery = subscribeDelivery(orderId, setDelivery);
     return () => {
       unsub();
@@ -334,11 +358,43 @@ export function OrderChatThread({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, uploadPreview]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setVisibleTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
 
   const isBuyer = !asAdmin && !!(user && order && order.userId === user.uid);
   const isSeller = !asAdmin && !!(user && order && order.sellerId === user.uid);
   const isAdminViewer = asAdmin && isAdminUid(user?.uid);
+
+  // Моё ли сообщение — одно определение и для пузырей, и для отметок прочтения.
+  const isMineMsg = (m: OrderChatMessage) =>
+    isAdminViewer ? m.from === "admin" : (isBuyer && m.from === "buyer") || (isSeller && m.from === "seller");
+
+  // Отмечаем чат прочитанным, пока он открыт и вкладка на виду (системные сообщения не в счёт).
+  useEffect(() => {
+    if (!user || !order || messages.length === 0 || document.visibilityState !== "visible") return;
+    const lastOther = [...messages].reverse().find((m) => m.from !== "system" && !isMineMsg(m));
+    if (!lastOther || lastOther.createdAt <= UNREAD_TRACKING_START) return;
+    if (lastOther.createdAt <= (readBy?.[user.uid] ?? 0)) return;
+    markChatRead("orderChats", orderId, user.uid, lastOther.createdAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, readBy, user, order, orderId, visibleTick, isBuyer, isSeller, isAdminViewer]);
+
+  // Кто из собеседников должен прочитать МОИ сообщения: покупатель ↔ продавец, админ — любой из двоих.
+  const peerRead = order
+    ? peerReadAt(readBy, isAdminViewer ? [order.userId, order.sellerId] : isBuyer ? [order.sellerId] : [order.userId])
+    : 0;
+  const lastMineIdx = messages.map((m) => isMineMsg(m)).lastIndexOf(true);
 
   const canConfirm = delivery === undefined || !!delivery?.buyerNickname;
 
@@ -392,7 +448,7 @@ export function OrderChatThread({
         setDispute({ ...d, status: cmd === "/approve" ? "approved" : "rejected" });
         toast("success", cmd === "/approve" ? "Спор одобрен" : "Спор отклонён");
       } else if (cmd === "/refund") {
-        if (!confirm(`Вернуть ${order.total} ₽ покупателю и отменить заказ?`)) return;
+        if (!confirm(`Вернуть ${formatOrderTotal(order)} покупателю и отменить заказ?`)) return;
         const idToken = await auth.currentUser?.getIdToken();
         const res = await fetch("/api/admin/orders/refund", {
           method: "POST",
@@ -422,6 +478,8 @@ export function OrderChatThread({
   async function handlePhotoPick(file: File | undefined) {
     if (!file || !user || !order) return;
     setUploadingPhoto(true);
+    const preview = URL.createObjectURL(file);
+    setUploadPreview(preview);
     try {
       const url = await uploadImage(file, "chat-photos");
       const from: OrderChatMessage["from"] = isAdminViewer ? "admin" : isBuyer ? "buyer" : "seller";
@@ -431,6 +489,10 @@ export function OrderChatThread({
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      setTimeout(() => {
+        setUploadPreview(null);
+        URL.revokeObjectURL(preview);
+      }, 500);
     }
   }
 
@@ -530,6 +592,19 @@ export function OrderChatThread({
 
   return (
     <div className="flex flex-col h-full">
+      <PhotoAnnotator
+        file={pendingPhoto}
+        sending={uploadingPhoto}
+        onCancel={() => {
+          setPendingPhoto(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
+        onSend={(f) => {
+          setPendingPhoto(null);
+          handlePhotoPick(f);
+        }}
+      />
+
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
           <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={() => setLightbox(null)}>
@@ -540,10 +615,22 @@ export function OrderChatThread({
       )}
 
       <div className="shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          <div>
-            <p className="font-bold flex items-center gap-1.5">
-              {counterpartName}
+        <div className="flex items-center gap-3 mb-3 p-3 rounded-2xl bg-gradient-to-r from-accent/12 via-accent/[0.04] to-transparent border border-white/[0.06]">
+          <div
+            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-sm font-bold ring-2 ring-accent/30"
+            style={{ background: `${avatarColor(counterpartName)}22`, color: avatarColor(counterpartName) }}
+          >
+            {initials(counterpartName) || "?"}
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-[15px] flex items-center gap-1.5 flex-wrap">
+              {counterpartUsername ? (
+                <Link href={`/seller/${counterpartUsername}`} className="hover:text-accent hover:underline transition-colors">
+                  {counterpartName}
+                </Link>
+              ) : (
+                counterpartName
+              )}
               {isAdminViewer && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent flex items-center gap-1">
                   <ShieldCheck size={11} /> Режим админа
@@ -565,7 +652,7 @@ export function OrderChatThread({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">{order.items.map((i) => i.name).join(", ")}</p>
-                <p className="text-accent text-sm font-semibold">{order.total.toFixed(2)} ₽</p>
+                <p className="text-accent text-sm font-semibold">{formatOrderTotal(order)}</p>
               </div>
               <span
                 className="text-[10px] font-semibold px-2 py-1 rounded-md shrink-0"
@@ -610,21 +697,31 @@ export function OrderChatThread({
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
         ) : (
           messages.map((m, i) => {
+            const showDateSeparator = i === 0 || new Date(messages[i - 1].createdAt).toDateString() !== new Date(m.createdAt).toDateString();
+            const dateSeparator = showDateSeparator ? (
+              <div className="flex items-center justify-center my-3">
+                <span className="text-[10px] font-medium text-white/30 bg-white/[0.04] px-2.5 py-1 rounded-full">{formatDateLabel(m.createdAt)}</span>
+              </div>
+            ) : null;
+
             if (m.from === "system") {
               return (
-                <p key={i} className="text-xs text-center text-white/40 italic py-1.5">
-                  {m.text}
-                </p>
+                <Fragment key={i}>
+                  {dateSeparator}
+                  <p className="text-xs text-center text-white/40 italic py-1.5">{m.text}</p>
+                </Fragment>
               );
             }
 
-            const isMine = isAdminViewer ? m.from === "admin" : (isBuyer && m.from === "buyer") || (isSeller && m.from === "seller");
+            const isMine = isMineMsg(m);
             const senderLabel = m.from === "admin" ? "Админ" : asAdmin ? (m.from === "buyer" ? buyerName : sellerName) : counterpartName;
             const prevSameSender = i > 0 && messages[i - 1].from === m.from;
             const isWarning = m.from === "admin" && m.text.startsWith("⚠️ Предупреждение");
 
             return (
-              <div key={i} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSameSender ? "mt-0.5" : "mt-2.5"}`}>
+              <Fragment key={i}>
+              {dateSeparator}
+              <div className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"} ${prevSameSender && !showDateSeparator ? "mt-0.5" : "mt-2.5"}`}>
                 {!isMine && !prevSameSender && (
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold"
@@ -640,9 +737,9 @@ export function OrderChatThread({
                     isWarning
                       ? "bg-amber-500/15 border border-amber-500/30 text-amber-200"
                       : isMine
-                      ? "bg-gradient-to-br from-accent to-accent-dark text-black"
-                      : "bg-surface border border-white/[0.04] text-white/80"
-                  } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2.5"} text-[13.5px] leading-snug rounded-2xl ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
+                      ? "bg-gradient-to-br from-accent to-accent-dark text-black shadow-[0_6px_18px_-8px_var(--color-accent)]"
+                      : "bg-white/[0.06] border border-white/[0.07] text-white/85 backdrop-blur-sm"
+                  } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2"} text-[14px] leading-snug rounded-[20px] ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
                 >
                   {!isMine && !prevSameSender && (
                     <p className={`text-[10px] mb-0.5 ${m.imageUrl ? "px-1.5 pt-1" : ""} text-white/30`}>{senderLabel}</p>
@@ -659,12 +756,18 @@ export function OrderChatThread({
                     </button>
                   )}
                   {m.text && <ChatMessageBody text={m.text} incoming={!isMine} className={m.imageUrl ? "px-1.5 pt-1.5" : ""} />}
-                  <p className={`text-[9px] opacity-50 text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"}`}>{formatTime(m.createdAt)}</p>
+                  <p className={`text-[9px] text-right ${m.imageUrl ? "px-1.5 pb-0.5" : "mt-0.5"} ${isMine ? "text-black/60" : "opacity-50"}`}>
+                    {formatTime(m.createdAt)}
+                    {isMine && <MessageTicks read={m.createdAt <= peerRead} />}
+                  </p>
                 </div>
               </div>
+              {isMine && i === lastMineIdx && !uploadPreview && <ReadLabel read={m.createdAt <= peerRead} />}
+              </Fragment>
             );
           })
         )}
+        {uploadPreview && <UploadingPhotoBubble src={uploadPreview} />}
       </div>
 
       <div className="shrink-0">
@@ -752,21 +855,25 @@ export function OrderChatThread({
             </div>
           )}
 
-          <form onSubmit={handleSend} className="flex gap-2 items-end" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <form
+            onSubmit={handleSend}
+            className="flex gap-1.5 items-center p-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20 transition-all"
+            style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+          >
             <input
               autoComplete="off"
               ref={fileInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => handlePhotoPick(e.target.files?.[0])}
+              onChange={(e) => e.target.files?.[0] && setPendingPhoto(e.target.files[0])}
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPhoto}
               title="Отправить фото"
-              className="btn-secondary px-3 py-2.5 shrink-0 disabled:opacity-50"
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white/50 hover:text-accent hover:bg-white/5 disabled:opacity-50 transition-colors"
             >
               {uploadingPhoto ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
             </button>
@@ -774,10 +881,15 @@ export function OrderChatThread({
               value={text}
               onChange={setText}
               placeholder={isAdminViewer ? "Сообщение или команда (/help)..." : "Написать сообщение..."}
-              className="input-field py-2.5 text-sm rounded-full"
+              className="input-field py-2 text-sm rounded-full"
+              style={{ background: "transparent", border: "none", boxShadow: "none" }}
             />
-            <button className="btn-primary w-10 h-10 shrink-0 rounded-full flex items-center justify-center p-0">
-              <Send size={16} />
+            <button
+              disabled={!text.trim()}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center bg-gradient-to-br from-accent to-accent-dark text-black shadow-[0_4px_14px_-4px_var(--color-accent)] disabled:opacity-30 disabled:shadow-none hover:scale-105 active:scale-95 transition-all"
+              aria-label="Отправить"
+            >
+              <Send size={15} />
             </button>
           </form>
         </div>

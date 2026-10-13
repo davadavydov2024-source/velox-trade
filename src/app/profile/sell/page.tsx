@@ -6,6 +6,7 @@ import { Tag, Check, ChevronLeft, ChevronRight, ImagePlus, Sparkles } from "luci
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { createSellRequest, requestAiModeration } from "@/lib/sellRequests";
+import { notifyAdminEvent } from "@/lib/adminNotifyClient";
 import { getGames } from "@/lib/products";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import { Game, DEFAULT_FEATURE_FLAGS, Rarity, RARITY_LABEL, DeliveryMethod } from "@/types";
@@ -156,16 +157,7 @@ export default function SellPage() {
       const outcome = await requestAiModeration(created.id);
       if (!outcome) {
         // Сервер модерации недоступен — заявка всё равно создана, админ проверит вручную.
-        fetch("/api/admin/notify-sell-request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            itemName,
-            game: selectedGame!.name,
-            price: paymentMethod === "stars" ? `${starsPriceNum} ⭐` : paymentMethod === "both" ? `${priceNum} ₽ / ${starsPriceNum} ⭐` : priceNum,
-            userNick: profile.displayName,
-          }),
-        }).catch(() => {});
+        notifyAdminEvent("sell_request", created.id);
       }
       if (outcome?.status === "rejected") {
         toast("error", `Объявление отклонено: ${outcome.reason ?? "нарушение правил площадки"}. Исправь и отправь снова.`);

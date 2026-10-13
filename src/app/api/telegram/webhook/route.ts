@@ -42,6 +42,13 @@ import {
   sendActivePromoCodes,
   deactivatePromoCodeFromBot,
 } from "@/lib/telegramAdminPanel";
+import {
+  approveProductEditFromBot,
+  rejectProductEditFromBot,
+  askBanFromBot,
+  banFromBot,
+  cancelBanFromBot,
+} from "@/lib/telegramAdminModeration";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
 import { fulfillStarsInvoice, validateStarsPreCheckout, logStarsIssue } from "@/lib/starsOrders";
@@ -323,6 +330,8 @@ export async function POST(req: NextRequest) {
           }
         }
       } else if (isAdminChat(chatId)) {
+        // Уведомления с фото редактируются через подпись (caption), а не текст — иначе Telegram вернёт ошибку.
+        const hasPhoto = Array.isArray(callback.message.photo) && callback.message.photo.length > 0;
         if (data === "admin_menu") {
           await setBotState(chatId, null);
           await editTelegramMessage(chatId, messageId, ADMIN_MENU_TEXT, adminMenuButtons());
@@ -348,9 +357,19 @@ export async function POST(req: NextRequest) {
         } else if (data.startsWith("contest_color_")) {
           await handleContestColorChoice(chatId, messageId, data.slice("contest_color_".length));
         } else if (data.startsWith("sell_approve_")) {
-          await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length));
+          await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length), hasPhoto);
         } else if (data.startsWith("sell_reject_")) {
-          await rejectSellRequestFromBot(chatId, messageId, data.slice("sell_reject_".length));
+          await rejectSellRequestFromBot(chatId, messageId, data.slice("sell_reject_".length), hasPhoto);
+        } else if (data.startsWith("pedit_approve_")) {
+          await approveProductEditFromBot(chatId, messageId, data.slice("pedit_approve_".length), hasPhoto);
+        } else if (data.startsWith("pedit_reject_")) {
+          await rejectProductEditFromBot(chatId, messageId, data.slice("pedit_reject_".length), hasPhoto);
+        } else if (data.startsWith("ban_ask_")) {
+          await askBanFromBot(chatId, messageId, data.slice("ban_ask_".length), hasPhoto);
+        } else if (data.startsWith("ban_yes_")) {
+          await banFromBot(chatId, messageId, data.slice("ban_yes_".length), hasPhoto);
+        } else if (data.startsWith("ban_no_")) {
+          await cancelBanFromBot(chatId, messageId, data.slice("ban_no_".length), hasPhoto);
         } else if (data.startsWith("topup_approve_")) {
           await approveTopUpFromBot(chatId, messageId, data.slice("topup_approve_".length));
         } else if (data.startsWith("topup_reject_")) {

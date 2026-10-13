@@ -18,11 +18,11 @@ export function notifyTelegram(uid: string, text: string): void {
 
 /** Шлёт уведомление прямо админу (не привязано к конкретному пользователю) — для новых
  * пользователей, новых заявок и т.п., которые админ должен увидеть проактивно. */
-export function notifyAdminTelegram(text: string): void {
+export function notifyAdminTelegram(text: string, path?: string): void {
   fetch("/api/notify/admin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, path }),
     keepalive: true,
   }).catch(() => {});
 }

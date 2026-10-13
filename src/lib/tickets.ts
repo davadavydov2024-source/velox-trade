@@ -34,7 +34,7 @@ export async function createTicket(data: {
 }) {
   const now = Date.now();
   const firstMessage: TicketMessage = { from: "user", text: data.message, createdAt: now };
-  notifyAdminTelegram(`🆘 Новое обращение в поддержку от ${data.userName}: «${data.subject}»`);
+  notifyAdminTelegram(`🆘 Новое обращение в поддержку от ${data.userName}: «${data.subject}»`, "/admin/support");
   return addDoc(ticketsCol, {
     userId: data.userId,
     userName: data.userName,
@@ -94,7 +94,7 @@ export async function addTicketMessage(id: string, from: "user" | "admin", text:
         </div>`
       );
     } else {
-      notifyAdminTelegram(`💬 Новое сообщение в поддержке от ${ticket.userName} по «${ticket.subject}»: ${preview}`);
+      notifyAdminTelegram(`💬 Новое сообщение в поддержке от ${ticket.userName} по «${ticket.subject}»: ${preview}`, "/admin/support");
     }
   }
 
