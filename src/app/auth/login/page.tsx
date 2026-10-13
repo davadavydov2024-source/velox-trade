@@ -10,6 +10,7 @@ import { getFeatureFlags } from "@/lib/featureFlags";
 import { DEFAULT_FEATURE_FLAGS, FeatureFlags } from "@/types";
 import { QrDeviceLogin } from "@/components/QrDeviceLogin";
 import { AuthBackground } from "@/components/AuthBackground";
+import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
 
 function translateAuthError(code?: string) {
   switch (code) {
@@ -270,6 +271,13 @@ function LoginInner() {
                   {loading ? "Входим..." : "Войти"}
                 </button>
               </form>
+
+              {flags.telegramLoginEnabled && (
+                <div className="mt-5 space-y-2">
+                  <p className="text-xs text-white/30 text-center">Или войти через Telegram</p>
+                  <TelegramLoginWidget onSuccess={() => router.push(redirectTo)} />
+                </div>
+              )}
 
               {flags.googleLoginEnabled && (
                 <>

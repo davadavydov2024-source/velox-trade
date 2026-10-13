@@ -13,6 +13,7 @@ import {
   setActiveSlotId,
   getLoadedSlotId,
   markIntentionalSignOut,
+  startAddAccount,
 } from "./accountSlots";
 
 export { getSavedAccounts, getActiveSlotId, getLoadedSlotId, PRIMARY_SLOT } from "./accountSlots";
@@ -109,4 +110,13 @@ export async function removeAccount(slotId: string) {
   }
   setActiveSlotId(PRIMARY_SLOT);
   if (loaded !== PRIMARY_SLOT) window.location.assign("/auth/login");
+}
+
+/** «Добавить аккаунт»: открывает полноэкранный экран входа/регистрации на новом пустом слоте. */
+export function beginAddAccount() {
+  if (getSavedAccounts().length >= MAX_ACCOUNTS) {
+    throw new Error(`Можно добавить не больше ${MAX_ACCOUNTS} аккаунтов`);
+  }
+  startAddAccount();
+  window.location.assign("/auth/add");
 }

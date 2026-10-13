@@ -88,7 +88,10 @@ export function getLoadedSlotId(): string {
   if (typeof window === "undefined") return PRIMARY_SLOT; // на сервере не кэшируем
   if (loadedSlot) return loadedSlot;
   const active = getActiveSlotId();
-  if (active === PRIMARY_SLOT || getSavedAccounts().some((a) => a.slotId === active)) {
+  // Слот, который только что создали кнопкой «Добавить аккаунт» (см. startAddAccount): в списке его
+  // ещё нет — аккаунт появится там после успешного входа/регистрации, — но откатывать на primary
+  // его нельзя, иначе экран добавления открылся бы под текущим аккаунтом.
+  if (active === PRIMARY_SLOT || getSavedAccounts().some((a) => a.slotId === active) || getPendingAdd()?.slotId === active) {
     loadedSlot = active;
   } else {
     loadedSlot = PRIMARY_SLOT;
@@ -148,4 +151,50 @@ export function getActiveSlotId(): string {
 export function setActiveSlotId(slotId: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem(ACTIVE_KEY, slotId);
+}
+
+// ---- Добавление аккаунта: новый пустой слот + обычные экраны входа/регистрации ----
+
+const PENDING_KEY = "vt_pending_add";
+
+export interface PendingAdd {
+  slotId: string; // новый, ещё пустой слот
+  prevSlot: string; // слот, на который вернуться при отмене
+}
+
+export function getPendingAdd(): PendingAdd | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    return raw ? (JSON.parse(raw) as PendingAdd) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Создаёт новый пустой слот и делает его активным. После этого страницу нужно перезагрузить
+ * (location.assign на /auth/add) — Firebase поднимется уже на новом слоте, где никто не вошёл, и
+ * дальше работают обычные экраны входа/регистрации. Как только человек войдёт, authContext
+ * сохранит аккаунт в список и снимет «ожидание» (clearPendingAdd). */
+export function startAddAccount(): string {
+  const slotId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `slot-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const prevSlot = getLoadedSlotId();
+  localStorage.setItem(PENDING_KEY, JSON.stringify({ slotId, prevSlot }));
+  setActiveSlotId(slotId);
+  return slotId;
+}
+
+export function clearPendingAdd() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(PENDING_KEY);
+}
+
+/** Отмена добавления: возвращаемся на прежний аккаунт. Вызывающий должен перезагрузить страницу. */
+export function cancelAddAccount() {
+  const pending = getPendingAdd();
+  clearPendingAdd();
+  if (!pending) return;
+  const stillThere = pending.prevSlot === PRIMARY_SLOT || getSavedAccounts().some((a) => a.slotId === pending.prevSlot);
+  setActiveSlotId(stillThere ? pending.prevSlot : PRIMARY_SLOT);
 }

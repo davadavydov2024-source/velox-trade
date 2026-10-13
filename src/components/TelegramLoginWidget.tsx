@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
+import { auth } from "@/lib/firebase";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -29,7 +30,15 @@ declare global {
  * добавлен боту через @BotFather → /setdomain, иначе виджет откажется грузиться — см. итоговое
  * сообщение с инструкцией.
  */
-export function TelegramLoginWidget() {
+export function TelegramLoginWidget({
+  refCode,
+  onSuccess,
+}: {
+  /** Реферальный код (?ref=) — применяется после входа, если аккаунт только что создан. */
+  refCode?: string | null;
+  /** Что сделать после успешного входа (например, перейти в профиль). */
+  onSuccess?: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { loginWithCustomToken } = useAuth();
   const { toast } = useToast();
@@ -45,7 +54,22 @@ export function TelegramLoginWidget() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Не удалось войти через Telegram");
         await loginWithCustomToken(data.token);
+        if (refCode) {
+          try {
+            const idToken = await auth.currentUser?.getIdToken();
+            if (idToken) {
+              await fetch("/api/auth/apply-referral", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+                body: JSON.stringify({ code: refCode }),
+              });
+            }
+          } catch {
+            // Реферальный бонус не критичен для входа — молча игнорируем.
+          }
+        }
         toast("success", "Вход через Telegram выполнен!");
+        onSuccess?.();
       } catch (err: any) {
         toast("error", err?.message || "Не удалось войти через Telegram");
       }
@@ -66,7 +90,7 @@ export function TelegramLoginWidget() {
     return () => {
       delete window.onTelegramAuth;
     };
-  }, [loginWithCustomToken, toast]);
+  }, [loginWithCustomToken, toast, refCode, onSuccess]);
 
   return <div ref={containerRef} className="flex justify-center" />;
 }

@@ -14,6 +14,7 @@ import { useLanguage, useLanguageStore } from "@/lib/languageStore";
 import { LANGUAGES } from "@/lib/i18n";
 import { useMascot } from "@/lib/mascotContext";
 import { AuthBackground } from "@/components/AuthBackground";
+import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
 import { isUsernameAvailable, saveMyUsername, usernameFormatError } from "@/lib/usernames";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
@@ -425,6 +426,25 @@ function RegisterInner() {
                     ))}
                   </div>
                 </div>
+
+                {(flags.telegramRegisterEnabled || flags.telegramLoginEnabled) && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-white/40">Быстрая регистрация через Telegram</p>
+                    <TelegramLoginWidget
+                      refCode={refCode}
+                      onSuccess={() => {
+                        celebrate("register");
+                        router.push("/profile");
+                      }}
+                    />
+                    <p className="text-[11px] text-white/30 text-center">
+                      Один клик через официальный вход Telegram — без пароля и почты. Юзернейм выберешь после входа.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-white/30">
+                      <div className="h-px bg-white/10 flex-1" /> или другим способом <div className="h-px bg-white/10 flex-1" />
+                    </div>
+                  </div>
+                )}
 
                 {flags.telegramRegisterEnabled && (
                   <div>

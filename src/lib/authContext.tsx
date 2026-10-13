@@ -26,6 +26,7 @@ import {
   setActiveSlotId,
   setSwitchNotice,
   upsertSavedAccount,
+  clearPendingAdd,
 } from "./accountSlots";
 import { removeAccount } from "./multiAccount";
 
@@ -120,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        clearPendingAdd(); // вошли — добавление аккаунта завершено (см. startAddAccount)
         resetIntentionalSignOut(); // новый вход — снова следим за потерей сессии
         try {
           await u.reload();

@@ -23,6 +23,8 @@ import { TwoFactorGate } from "@/components/TwoFactorGate";
 import { UnreadProvider } from "@/lib/unreadContext";
 import { VpnGate } from "@/components/VpnGate";
 import { UsernameGate } from "@/components/UsernameGate";
+import { PushForegroundListener } from "@/components/PushForegroundListener";
+import { AddAccountGuard } from "@/components/AddAccountGuard";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -43,6 +45,8 @@ export function Providers({ children }: { children: ReactNode }) {
             <MascotCelebration />
             <IosInstallPrompt />
             <EnableNotificationsPrompt />
+            <PushForegroundListener />
+            <AddAccountGuard />
             <BanGate>
               <VpnGate>
                 <TwoFactorGate>
