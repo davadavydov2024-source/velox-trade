@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { isPushSupported, hasActiveSubscription, subscribeToPush } from "@/lib/webPush";
+import { isPushSupported, hasActiveSubscription, subscribeToPush, describePushError } from "@/lib/webPush";
 
 const DISMISS_KEY = "vt_push_prompt_dismissed";
 
@@ -61,10 +61,12 @@ export function EnableNotificationsPrompt() {
       toast("success", "Уведомления включены!");
       setVisible(false);
     } catch (err: any) {
-      if (err?.message !== "permission-denied") {
-        toast("error", "Не удалось включить уведомления");
-      }
-      dismiss();
+      console.error("push enable error:", err);
+      const d = describePushError(err);
+      toast(d.level, d.text);
+      // Закрываем окно насовсем только если человек сам запретил уведомления; при технической
+      // ошибке оставляем — можно повторить или включить в профиле → «Безопасность».
+      if (err?.message === "permission-denied") dismiss();
     } finally {
       setBusy(false);
     }

@@ -6,7 +6,7 @@ import { Bell, BellOff, ShoppingBag, MessageSquare, Clock, Megaphone } from "luc
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush } from "@/lib/webPush";
+import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush, describePushError } from "@/lib/webPush";
 import { PushCategories, DEFAULT_PUSH_CATEGORIES } from "@/types";
 
 const CATEGORY_LIST: { key: keyof PushCategories; label: string; hint: string; icon: typeof ShoppingBag }[] = [
@@ -67,15 +67,9 @@ export function PushToggleCard() {
         toast("success", "Push-уведомления включены");
       }
     } catch (err: any) {
-      if (err?.message === "permission-denied") {
-        toast("warning", "Разрешение на уведомления не дано — включи его в настройках браузера для этого сайта");
-      } else if (err?.message === "vapid-not-configured") {
-        toast("error", "Push ещё не настроен на сервере (нет NEXT_PUBLIC_FCM_VAPID_KEY)");
-      } else if (err?.message === "token-failed") {
-        toast("error", "Не удалось получить токен уведомлений — проверь VAPID-ключ и перезагрузи страницу");
-      } else {
-        toast("error", "Не удалось изменить настройку уведомлений");
-      }
+      console.error("push toggle error:", err);
+      const d = describePushError(err);
+      toast(d.level, d.text);
     } finally {
       setBusy(false);
     }
