@@ -16,6 +16,19 @@ export function notifyTelegram(uid: string, text: string): void {
   });
 }
 
+/**
+ * Уведомление о сообщении из чата: head — заголовок, rawText — текст сообщения вместе с разметкой.
+ * Форматирование сохраняется, а скрытый текст приходит в боте как спойлер (скрыт до нажатия).
+ */
+export function notifyTelegramChat(uid: string, head: string, rawText: string): void {
+  fetch("/api/notify/telegram", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, text: head, chat: rawText }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 /** Шлёт уведомление прямо админу (не привязано к конкретному пользователю) — для новых
  * пользователей, новых заявок и т.п., которые админ должен увидеть проактивно. */
 export function notifyAdminTelegram(text: string, path?: string): void {

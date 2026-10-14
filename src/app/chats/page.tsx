@@ -1,5 +1,6 @@
 "use client";
 
+import { previewText } from "@/lib/chatFormat";
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -171,7 +172,7 @@ function ChatsInner() {
               orderId: chat.orderId,
               counterpartName,
               counterpartUsername,
-              lastMessage: last ? last.text : "Сообщений пока нет",
+              lastMessage: last ? previewText(last.text, 120) : "Сообщений пока нет",
               updatedAt: chat.updatedAt,
               itemImage,
             } as ChatListItem;
@@ -200,7 +201,7 @@ function ChatsInner() {
       return {
         ...i,
         updatedAt: live.updatedAt,
-        lastMessage: last ? (last.imageUrl && !last.text ? "📷 Фото" : last.text) : i.lastMessage,
+        lastMessage: last ? (last.imageUrl && !last.text ? "📷 Фото" : previewText(last.text, 120)) : i.lastMessage,
       };
     })
     .sort((a, b) => b.updatedAt - a.updatedAt);

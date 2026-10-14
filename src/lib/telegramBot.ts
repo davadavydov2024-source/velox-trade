@@ -41,10 +41,11 @@ async function tgCall<T = unknown>(method: string, body: Record<string, unknown>
 
 /** Возвращает message_id отправленного сообщения (нужно, чтобы потом распознать Reply админа
  * на него) или null при ошибке. */
-export async function sendTelegramMessage(chatId: number, text: string, buttons?: InlineButton[][]): Promise<number | null> {
+export async function sendTelegramMessage(chatId: number, text: string, buttons?: InlineButton[][], parseMode?: "HTML"): Promise<number | null> {
   const result = await tgCall<{ message_id: number }>("sendMessage", {
     chat_id: chatId,
     text,
+    parse_mode: parseMode,
     reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
   });
   return result?.message_id ?? null;

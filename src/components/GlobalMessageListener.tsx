@@ -1,5 +1,6 @@
 "use client";
 
+import { previewText } from "@/lib/chatFormat";
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
@@ -39,7 +40,7 @@ export function GlobalMessageListener() {
         if (!last || last.from === "system") continue;
         const isMine = (last.from === "buyer" && chat.buyerId === user.uid) || (last.from === "seller" && chat.sellerId === user.uid);
         if (isMine) continue;
-        toast("info", `💬 Новое сообщение в чате по заказу: ${last.text.slice(0, 80)}`, "/chats");
+        toast("info", `💬 Новое сообщение в чате по заказу: ${previewText(last.text, 80)}`, "/chats");
       }
     });
 

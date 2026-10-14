@@ -1,7 +1,8 @@
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
 import { db } from "./firebase";
 import { OrderChat, OrderChatMessage } from "@/types";
-import { notifyTelegram, notifyEmail } from "./telegramNotify";
+import { notifyTelegram, notifyTelegramChat, notifyEmail } from "./telegramNotify";
+import { previewText, escapeHtml } from "./chatFormat";
 import { notifyPush } from "./webPushNotify";
 
 function chatRef(orderId: string) {
@@ -83,25 +84,32 @@ export async function sendOrderChatMessage(
   // Уведомляем в Telegram и push-уведомлением в браузере того, кому адресовано сообщение —
   // только для настоящих реплик участников, автоматические системные записи (подтверждение
   // получения, открытие спора и т.п.) уведомлений не шлют, чтобы не спамить.
-  const preview = imageUrl ? (text.trim() ? `📷 ${text}` : "📷 Фото") : text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  // Превью без разметки и со спрятанным скрытым текстом (push, email) — "||секрет||" не должен уходить открытым.
+  const plain = previewText(text, 200);
+  const preview = imageUrl ? (text.trim() ? `📷 ${plain}` : "📷 Фото") : plain;
+  // В Telegram форматирование сохраняется, а скрытое приходит спойлером.
+  const tg = (uid: string, head: string) => {
+    if (!text.trim()) notifyTelegram(uid, `${head}\n${preview}`);
+    else notifyTelegramChat(uid, imageUrl ? `${head}\n📷` : head, text);
+  };
   const emailBody = (who: string) =>
     `<div style="font-family:sans-serif;font-size:15px;color:#111;line-height:1.6;">
       <p>${who} написал(а) в чате по твоему заказу:</p>
-      <p style="background:#f5f5f5;border-radius:8px;padding:12px;margin:12px 0;">${preview}</p>
+      <p style="background:#f5f5f5;border-radius:8px;padding:12px;margin:12px 0;">${escapeHtml(preview)}</p>
       <p style="color:#666;font-size:13px;">Ответить можно на сайте, в разделе «Чаты».</p>
     </div>`;
 
   if (from === "buyer") {
-    notifyTelegram(sellerId, `💬 Новое сообщение по заказу от покупателя:\n${preview}`);
+    tg(sellerId, "💬 Новое сообщение по заказу от покупателя:");
     notifyPush(sellerId, "Новое сообщение по заказу", preview, "/chats");
     notifyEmail(sellerId, "Новое сообщение по заказу", emailBody("Покупатель"));
   } else if (from === "seller") {
-    notifyTelegram(buyerId, `💬 Новое сообщение по заказу от продавца:\n${preview}`);
+    tg(buyerId, "💬 Новое сообщение по заказу от продавца:");
     notifyPush(buyerId, "Новое сообщение по заказу", preview, "/chats");
     notifyEmail(buyerId, "Новое сообщение по заказу", emailBody("Продавец"));
   } else if (from === "admin") {
-    notifyTelegram(buyerId, `💬 Администратор написал в чате по заказу:\n${preview}`);
-    notifyTelegram(sellerId, `💬 Администратор написал в чате по заказу:\n${preview}`);
+    tg(buyerId, "💬 Администратор написал в чате по заказу:");
+    tg(sellerId, "💬 Администратор написал в чате по заказу:");
     notifyPush(buyerId, "Администратор написал в чате", preview, "/chats");
     notifyEmail(buyerId, "Администратор написал в чате по заказу", emailBody("Администратор"));
     notifyEmail(sellerId, "Администратор написал в чате по заказу", emailBody("Администратор"));

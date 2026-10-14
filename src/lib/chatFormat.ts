@@ -1,17 +1,11 @@
-// Лёгкая Telegram-подобная разметка для чатов. Хранится в обычном поле text сообщения —
-// схему Firestore менять не нужно. Ссылки в разметке НЕ поддерживаются (кнопки "Добавить ссылку"
-// нет), а любые ссылки в тексте показываются как обычный нечитаемый-для-клика текст с предупреждением.
+// Telegram-подобная разметка для чатов. Пользователь меток НЕ видит — редактор (components/FormatInput)
+// показывает оформление прямо в поле ввода, а в Firestore в поле text лежит строка с метками:
+//   **жирный**  ^^курсив^^  __подчёркнутый__  ~~зачёркнутый~~  `моно`  ||скрытый||  и "> цитата" в начале строки.
+// Спецсимволы, которые человек набрал сам, экранируются обратным слэшем (см. lib/chatEditorDom.ts),
+// поэтому случайно набранное "||" или "**" не превращается в форматирование.
+// Ссылки в разметке не поддерживаются; ссылки в тексте показываются некликабельно с предупреждением.
 
 export type FormatKind = "bold" | "italic" | "underline" | "strike" | "quote" | "mono" | "spoiler" | "clear";
-
-const MARK: Record<Exclude<FormatKind, "quote" | "clear">, string> = {
-  bold: "**",
-  italic: "^^",
-  underline: "__",
-  strike: "~~",
-  mono: "`",
-  spoiler: "||",
-};
 
 const MARKERS: [string, "bold" | "italic" | "underline" | "strike" | "spoiler" | "mono"][] = [
   ["**", "bold"],
@@ -22,10 +16,29 @@ const MARKERS: [string, "bold" | "italic" | "underline" | "strike" | "spoiler" |
   ["`", "mono"],
 ];
 
+/** Символы, перед которыми обратный слэш означает "это обычный символ". */
+export const ESC_SET = "\\*^_~|`>";
+
 export type InlineNode =
   | { t: "text"; v: string }
   | { t: "mono"; v: string }
   | { t: "fmt"; k: "bold" | "italic" | "underline" | "strike" | "spoiler"; c: InlineNode[] };
+
+function unescape(s: string): string {
+  return s.replace(/\\([\\*^_~|`>])/g, "$1");
+}
+
+/** Ищет закрывающий маркер, пропуская экранированные символы. */
+function findClose(s: string, m: string, from: number): number {
+  for (let j = from; j < s.length; j++) {
+    if (s[j] === "\\" && j + 1 < s.length && ESC_SET.includes(s[j + 1])) {
+      j++;
+      continue;
+    }
+    if (s.startsWith(m, j)) return j;
+  }
+  return -1;
+}
 
 export function parseInline(s: string): InlineNode[] {
   const out: InlineNode[] = [];
@@ -38,14 +51,19 @@ export function parseInline(s: string): InlineNode[] {
     }
   };
   while (i < s.length) {
+    if (s[i] === "\\" && i + 1 < s.length && ESC_SET.includes(s[i + 1])) {
+      buf += s[i + 1];
+      i += 2;
+      continue;
+    }
     let matched = false;
     for (const [m, k] of MARKERS) {
       if (!s.startsWith(m, i)) continue;
-      const end = s.indexOf(m, i + m.length);
+      const end = findClose(s, m, i + m.length);
       if (end > i + m.length) {
         const inner = s.slice(i + m.length, end);
         flush();
-        out.push(k === "mono" ? { t: "mono", v: inner } : { t: "fmt", k, c: parseInline(inner) });
+        out.push(k === "mono" ? { t: "mono", v: unescape(inner) } : { t: "fmt", k, c: parseInline(inner) });
         i = end + m.length;
         matched = true;
         break;
@@ -78,8 +96,98 @@ export function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
-export function stripFormatting(s: string): string {
-  return s.replace(/\*\*|\^\^|__|~~|\|\||`/g, "").replace(/^> /gm, "");
+// ---- Обычный текст (превью в списках, push, toast) ----
+
+function flatten(nodes: InlineNode[], hide: boolean): string {
+  return nodes
+    .map((n) => (n.t === "text" || n.t === "mono" ? n.v : n.k === "spoiler" && hide ? "▒▒▒▒" : flatten(n.c, hide)))
+    .join("");
+}
+
+/** Текст без разметки. hideSpoilers — скрытое заменяется на ▒▒▒▒ (для превью, push, Telegram-fallback). */
+export function toPlain(text: string, opts: { hideSpoilers?: boolean } = {}): string {
+  return parseBlocks(text)
+    .map((b) => b.lines.map((l) => flatten(parseInline(l), !!opts.hideSpoilers)).join("\n"))
+    .join("\n");
+}
+
+/** Короткое превью для списков чатов/уведомлений: без разметки, скрытое спрятано, обрезано до max символов. */
+export function previewText(text: string, max = 200): string {
+  const plain = toPlain(text, { hideSpoilers: true });
+  return plain.length > max ? `${plain.slice(0, max)}…` : plain;
+}
+
+export const stripFormatting = (s: string) => toPlain(s);
+
+// ---- Telegram (parse_mode HTML) ----
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+const TG_TAG: Record<string, string> = { bold: "b", italic: "i", underline: "u", strike: "s", spoiler: "tg-spoiler" };
+
+interface Budget {
+  n: number;
+  cut: boolean;
+}
+
+function renderTg(nodes: InlineNode[], budget: Budget): string {
+  let out = "";
+  for (const node of nodes) {
+    if (budget.n <= 0) {
+      budget.cut = true;
+      break;
+    }
+    if (node.t === "text" || node.t === "mono") {
+      let v = node.v;
+      if (v.length > budget.n) {
+        v = v.slice(0, budget.n);
+        budget.cut = true;
+      }
+      budget.n -= v.length;
+      out += node.t === "mono" ? `<code>${esc(v)}</code>` : esc(v);
+    } else {
+      const inner = renderTg(node.c, budget);
+      if (!inner) continue;
+      const tag = TG_TAG[node.k];
+      out += `<${tag}>${inner}</${tag}>`;
+    }
+  }
+  return out;
+}
+
+/**
+ * Разметка сообщения -> HTML для Telegram. Всё экранируется, из тегов используются только наши
+ * (b, i, u, s, code, blockquote, tg-spoiler) — ссылок (<a>) получиться не может. Скрытый текст уходит
+ * как tg-spoiler, то есть в боте он скрыт до нажатия. Длина обрезается по ВИДИМЫМ символам, теги
+ * при обрезке закрываются правильно, так что скрытое не может "протечь" из-за оборванного маркера.
+ */
+export function toTelegramHtml(text: string, maxPlain = 200): string {
+  const budget: Budget = { n: maxPlain, cut: false };
+  const parts: string[] = [];
+  for (const b of parseBlocks(text)) {
+    if (budget.n <= 0) {
+      budget.cut = true;
+      break;
+    }
+    const lines: string[] = [];
+    for (const l of b.lines) {
+      if (budget.n <= 0) {
+        budget.cut = true;
+        break;
+      }
+      lines.push(renderTg(parseInline(l), budget));
+      budget.n -= 1; // перенос строки
+    }
+    const body = lines.join("\n");
+    parts.push(b.type === "quote" ? `<blockquote>${body}</blockquote>` : body);
+  }
+  return parts.join("\n").trim() + (budget.cut ? "…" : "");
+}
+
+export function escapeHtml(s: string): string {
+  return esc(s);
 }
 
 // ---- Ссылки ----
@@ -87,49 +195,5 @@ export const LINK_RE_SOURCE = String.raw`(?:https?:\/\/|www\.)[^\s]+|\bt\.me\/[^
 
 export function hasLink(text: string): boolean {
   const re = new RegExp(LINK_RE_SOURCE, "i");
-  return re.test(text) || re.test(stripFormatting(text));
-}
-
-// ---- Применение форматирования к выделению в поле ввода ----
-export interface EditResult {
-  text: string;
-  start: number;
-  end: number;
-}
-
-export function applyFormat(text: string, start: number, end: number, kind: FormatKind): EditResult {
-  if (kind === "clear") {
-    const [a, b] = start === end ? [0, text.length] : [start, end];
-    const cleaned = stripFormatting(text.slice(a, b));
-    return { text: text.slice(0, a) + cleaned + text.slice(b), start: a, end: a + cleaned.length };
-  }
-
-  if (kind === "quote") {
-    const ls = text.lastIndexOf("\n", start - 1) + 1;
-    let le = text.indexOf("\n", end);
-    if (le === -1) le = text.length;
-    const lines = text.slice(ls, le).split("\n");
-    const allQuoted = lines.every((l) => l.startsWith("> "));
-    const next = lines.map((l) => (allQuoted ? l.slice(2) : "> " + l)).join("\n");
-    return { text: text.slice(0, ls) + next + text.slice(le), start: ls, end: ls + next.length };
-  }
-
-  const m = MARK[kind];
-  const sel = text.slice(start, end);
-
-  // Выделено вместе с маркерами — снимаем
-  if (sel.length >= 2 * m.length && sel.startsWith(m) && sel.endsWith(m)) {
-    const inner = sel.slice(m.length, sel.length - m.length);
-    return { text: text.slice(0, start) + inner + text.slice(end), start, end: start + inner.length };
-  }
-  // Маркеры стоят вокруг выделения — снимаем
-  if (start !== end && text.slice(start - m.length, start) === m && text.slice(end, end + m.length) === m) {
-    return {
-      text: text.slice(0, start - m.length) + sel + text.slice(end + m.length),
-      start: start - m.length,
-      end: end - m.length,
-    };
-  }
-  // Оборачиваем (при пустом выделении курсор встаёт между маркерами)
-  return { text: text.slice(0, start) + m + sel + m + text.slice(end), start: start + m.length, end: end + m.length };
+  return re.test(text) || re.test(toPlain(text));
 }

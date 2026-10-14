@@ -1,7 +1,8 @@
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { DirectConversation, DirectMessage } from "@/types";
-import { notifyTelegram } from "./telegramNotify";
+import { notifyTelegram, notifyTelegramChat } from "./telegramNotify";
+import { previewText } from "./chatFormat";
 import { notifyPush } from "./webPushNotify";
 
 export function conversationId(uidA: string, uidB: string): string {
@@ -50,7 +51,9 @@ export async function sendDirectMessage(
   const ref = convRef(id);
   const snap = await getDoc(ref);
   const message: DirectMessage = { from: fromUid, text, createdAt: Date.now(), ...(imageUrl ? { imageUrl } : {}) };
-  const preview = imageUrl ? (text.trim() ? `📷 ${text}` : "📷 Фото") : text;
+  // Превью без разметки, скрытое спрятано: lastMessage виден в списке чатов, push и уведомлениях.
+  const plain = previewText(text, 200);
+  const preview = imageUrl ? (text.trim() ? `📷 ${plain}` : "📷 Фото") : plain;
 
   if (!snap.exists()) {
     await setDoc(ref, {
@@ -75,6 +78,7 @@ export async function sendDirectMessage(
   // тихо ложилось в Firestore, и человек узнавал о нём только если сам зашёл на сайт в «Чаты»
   // (особенно заметно было, когда писал админ). Email сюда намеренно НЕ подключаем — см.
   // комментарий в api/notify/email/route.ts: личные сообщения решили туда не слать, это шум.
-  notifyTelegram(toUid, `💬 ${fromName} написал(а) вам:\n${preview}`);
+  if (text.trim()) notifyTelegramChat(toUid, `💬 ${fromName} написал(а) вам:${imageUrl ? "\n📷" : ""}`, text);
+  else notifyTelegram(toUid, `💬 ${fromName} написал(а) вам:\n${preview}`);
   notifyPush(toUid, `Сообщение от ${fromName}`, preview, "/chats", "messages");
 }
