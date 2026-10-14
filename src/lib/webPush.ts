@@ -1,5 +1,5 @@
 import { collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
-import { db, auth, activeApp } from "./firebase";
+import { db, auth, activeApp, firebaseConfig } from "./firebase";
 
 // VAPID-ключ НЕОБЯЗАТЕЛЕН: без него Firebase SDK использует свой ключ по умолчанию, и push работает
 // «из коробки» с подключённым Firebase Messaging. Если переменная всё же задана — пробуем с ней, а
@@ -130,6 +130,10 @@ export async function hasActiveSubscription(uid: string): Promise<boolean> {
 export async function subscribeToPush(uid: string): Promise<void> {
   const ctx = await getMessagingSafe();
   if (!ctx) throw new PushError("push-unsupported");
+  // Для getToken нужны ВСЕ четыре значения конфигурации. Если в Vercel не задана хоть одна из
+  // NEXT_PUBLIC_FIREBASE_* переменных, SDK падает с невнятной ошибкой — проверяем заранее.
+  const missing = (["apiKey", "projectId", "messagingSenderId", "appId"] as const).filter((k) => !firebaseConfig[k]);
+  if (missing.length) throw new PushError("config-missing", missing.join(", "));
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error("permission-denied");
@@ -140,7 +144,8 @@ export async function subscribeToPush(uid: string): Promise<void> {
     token = await requestToken(ctx.messaging, ctx.registration);
   } catch (e: any) {
     if (e instanceof PushError) throw e;
-    throw new PushError("token-failed", String(e?.code || e?.message || e).slice(0, 160));
+    console.error("FCM getToken failed:", e?.code, e?.message, e);
+    throw new PushError("token-failed", `${e?.code ?? ""} ${e?.message ?? e}`.trim().slice(0, 400));
   }
   if (!token) throw new PushError("token-failed", "пустой токен");
   try {
@@ -190,8 +195,20 @@ export function describePushError(err: any): { level: "warning" | "error"; text:
       return { level: "error", text: `Браузер не смог запустить service worker${detail}` };
     case "token-timeout":
       return { level: "error", text: "Серверы Google (FCM) не отвечают — похоже, они недоступны в твоей сети. Попробуй с VPN или с другой сети" };
-    case "token-failed":
-      return { level: "error", text: `Не удалось получить токен уведомлений${detail}` };
+    case "config-missing":
+      return { level: "error", text: `В Vercel не заданы переменные Firebase: ${err.detail}. Добавь NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID и NEXT_PUBLIC_FIREBASE_APP_ID (Firebase Console → Project settings → Your apps) и сделай redeploy` };
+    case "token-failed": {
+      const d = String(err?.detail ?? "");
+      if (/missing-app-config|appId|messagingSenderId/i.test(d))
+        return { level: "error", text: "Не хватает настроек Firebase: проверь NEXT_PUBLIC_FIREBASE_APP_ID и NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID в Vercel" };
+      if (/403|blocked|API key|PERMISSION_DENIED|not valid|restrict/i.test(d))
+        return { level: "error", text: "Google отклонил запрос из-за ограничений API-ключа. В Google Cloud Console → APIs & Services → Credentials → «Browser key» открой API restrictions и добавь «Firebase Installations API» и «Firebase Cloud Messaging Registration API» (или выбери «Don't restrict key»)" };
+      if (/push service error|AbortError/i.test(d))
+        return { level: "error", text: "Браузер не смог зарегистрироваться в push-сервисе (чаще всего из-за недоступности серверов Google). Попробуй Chrome или Edge, VPN или другую сеть" };
+      if (/permission-blocked/i.test(d))
+        return { level: "warning", text: "Уведомления заблокированы в настройках браузера для этого сайта — разреши их и попробуй снова" };
+      return { level: "error", text: `Не удалось получить токен уведомлений: ${d.slice(0, 200)}` };
+    }
     case "save-failed":
       return { level: "error", text: `Токен получен, но сервер не сохранил подписку${detail}` };
     default:
