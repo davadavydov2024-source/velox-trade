@@ -6,7 +6,7 @@ import { Bell, BellOff, ShoppingBag, MessageSquare, Clock, Megaphone } from "luc
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
-import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush, describePushError } from "@/lib/webPush";
+import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush, describePushError, ensureCurrentDeviceSubscribed } from "@/lib/webPush";
 import { PushCategories, DEFAULT_PUSH_CATEGORIES } from "@/types";
 
 const CATEGORY_LIST: { key: keyof PushCategories; label: string; hint: string; icon: typeof ShoppingBag }[] = [
@@ -38,6 +38,7 @@ export function PushToggleCard() {
   const [busy, setBusy] = useState(false);
   const [categoryBusy, setCategoryBusy] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [testResults, setTestResults] = useState<{ label: string; current: boolean; ok: boolean; error?: string }[] | null>(null);
 
   const categories: PushCategories = profile?.pushCategories ?? DEFAULT_PUSH_CATEGORIES;
 
@@ -77,19 +78,34 @@ export function PushToggleCard() {
 
   async function handleTest() {
     setTesting(true);
+    setTestResults(null);
     try {
+      // Сначала гарантируем, что ЭТО устройство записано на сервере — иначе тест мог молча уйти
+      // только на другие устройства (например, на компьютер, а не на телефон, с которого нажали).
+      let endpoint: string | undefined;
+      try {
+        endpoint = await ensureCurrentDeviceSubscribed();
+      } catch (err: any) {
+        const d = describePushError(err);
+        toast(d.level, d.text);
+        return;
+      }
       const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/push/test", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } });
+      const res = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ endpoint }),
+      });
       const data = await res.json();
       if (!res.ok) {
         toast("error", `Сервер не смог отправить: ${data.detail || data.error}`);
-      } else if (data.devices === 0) {
-        toast("warning", "На сервере нет подписки для этого аккаунта — выключи и снова включи уведомления");
-      } else if (data.sent > 0) {
-        toast("success", `Отправлено на устройств: ${data.sent}. Уведомление должно прийти через пару секунд`);
-      } else {
-        toast("error", `Не доставлено: ${data.errors?.[0] ?? "неизвестная ошибка"}`);
+        return;
       }
+      setTestResults(data.results ?? []);
+      const total = data.devices ?? 0;
+      if (data.sent === total && total > 0) toast("success", `Отправлено на все устройства (${total}). Уведомление придёт через пару секунд`);
+      else if (data.sent > 0) toast("warning", `Дошло на ${data.sent} из ${total} устройств — смотри список ниже`);
+      else toast("error", "Ни одно устройство не приняло уведомление — смотри список ниже");
     } catch {
       toast("error", "Не удалось отправить тест");
     } finally {
@@ -130,6 +146,27 @@ export function PushToggleCard() {
         <button type="button" onClick={handleTest} disabled={testing} className="btn-secondary w-full py-2 text-sm disabled:opacity-50">
           {testing ? "Отправляем..." : "Отправить тестовое уведомление"}
         </button>
+      )}
+
+      {enabled && testResults && (
+        <div className="rounded-btn bg-white/[0.03] border border-white/5 divide-y divide-white/5 text-sm">
+          {testResults.length === 0 ? (
+            <p className="p-3 text-white/50">Нет ни одного зарегистрированного устройства.</p>
+          ) : (
+            testResults.map((r, i) => (
+              <div key={i} className="p-3 flex items-start gap-2">
+                <span className={r.ok ? "text-green-400" : "text-red-400"}>{r.ok ? "✓" : "✕"}</span>
+                <div className="min-w-0">
+                  <p>
+                    {r.label}
+                    {r.current && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">это устройство</span>}
+                  </p>
+                  {r.error && <p className="text-xs text-red-400/80 break-words">{r.error}</p>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
 
       {enabled && (

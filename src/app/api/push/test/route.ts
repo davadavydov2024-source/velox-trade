@@ -13,11 +13,16 @@ export async function POST(req: NextRequest) {
     const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
     if (!decoded) return NextResponse.json({ error: "Сессия истекла" }, { status: 401 });
 
-    const report = await sendWebPushDetailed(decoded.uid, {
-      title: "Тестовое уведомление",
-      body: "Если ты это видишь — push-уведомления работают 🎉",
-      url: "/profile/security",
-    });
+    const { endpoint } = (await req.json().catch(() => ({}))) as { endpoint?: string };
+    const report = await sendWebPushDetailed(
+      decoded.uid,
+      {
+        title: "Тестовое уведомление",
+        body: "Если ты это видишь — push-уведомления работают 🎉",
+        url: "/profile/security",
+      },
+      typeof endpoint === "string" ? endpoint : undefined
+    );
     return NextResponse.json(report);
   } catch (err: any) {
     console.error("push/test error:", err);

@@ -23,6 +23,7 @@ interface StoredSub {
   endpoint?: string;
   p256dh?: string;
   auth?: string;
+  userAgent?: string;
 }
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://velox-trade-zeta.vercel.app").replace(/\/+$/, "");
@@ -56,11 +57,27 @@ function buildPayload(payload: PushPayload) {
   };
 }
 
+export interface PushDeviceResult {
+  label: string; // например «iPhone · Safari»
+  current: boolean; // это устройство, с которого нажали «Тест»
+  ok: boolean;
+  error?: string;
+}
+
 export interface PushSendReport {
   devices: number;
   sent: number;
   failed: number;
   errors: string[];
+  results: PushDeviceResult[];
+}
+
+/** Короткое имя устройства из User-Agent — чтобы в отчёте было видно, на какой телефон/компьютер что дошло. */
+export function deviceLabel(ua?: string): string {
+  const u = ua ?? "";
+  const os = /iPhone/i.test(u) ? "iPhone" : /iPad/i.test(u) ? "iPad" : /Android/i.test(u) ? "Android" : /Windows/i.test(u) ? "Windows" : /Mac OS X|Macintosh/i.test(u) ? "Mac" : /Linux/i.test(u) ? "Linux" : "Устройство";
+  const browser = /YaBrowser/i.test(u) ? "Яндекс.Браузер" : /EdgA?\//i.test(u) ? "Edge" : /OPR\//i.test(u) ? "Opera" : /Firefox|FxiOS/i.test(u) ? "Firefox" : /Chrome|CriOS/i.test(u) ? "Chrome" : /Safari/i.test(u) ? "Safari" : "";
+  return browser ? `${os} · ${browser}` : os;
 }
 
 function describeFailure(status: number, error?: string): string {
@@ -87,15 +104,22 @@ async function sendToDoc(
   return { ok: false, error: describeFailure(res.status, res.error) };
 }
 
-/** Как sendWebPush, но без проверки категорий и с подробным отчётом — для кнопки «Тест» в профиле. */
-export async function sendWebPushDetailed(uid: string, payload: PushPayload): Promise<PushSendReport> {
+/** Как sendWebPush, но без проверки категорий и с подробным отчётом по КАЖДОМУ устройству — для кнопки «Тест» в профиле. */
+export async function sendWebPushDetailed(uid: string, payload: PushPayload, currentEndpoint?: string): Promise<PushSendReport> {
   const cfg = getVapidConfig();
   if (!cfg) throw new Error("VAPID-ключи не заданы на сервере (NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY)");
   const snap = await adminDb().collection(PUSH_SUBS_COLLECTION).where("uid", "==", uid).get();
-  const report: PushSendReport = { devices: snap.size, sent: 0, failed: 0, errors: [] };
+  const report: PushSendReport = { devices: snap.size, sent: 0, failed: 0, errors: [], results: [] };
   await Promise.all(
     snap.docs.map(async (doc) => {
+      const data = doc.data() as StoredSub;
       const r = await sendToDoc(doc, payload, cfg);
+      report.results.push({
+        label: deviceLabel(data.userAgent),
+        current: !!currentEndpoint && data.endpoint === currentEndpoint,
+        ok: r.ok,
+        error: r.error,
+      });
       if (r.ok) report.sent++;
       else {
         report.failed++;

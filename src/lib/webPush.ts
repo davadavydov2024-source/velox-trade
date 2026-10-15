@@ -154,6 +154,21 @@ export async function subscribeToPush(_uid?: string): Promise<void> {
 }
 
 /**
+ * Гарантирует, что ЭТО устройство подписано и записано на сервере, и возвращает его endpoint.
+ * Бросает PushError с причиной, если не получилось (в отличие от тихой синхронизации).
+ * Используется кнопкой «Тест»: раньше она могла отправить уведомление только на уже сохранённые
+ * устройства и молча пропустить текущее, если его запись потерялась.
+ */
+export async function ensureCurrentDeviceSubscribed(): Promise<string> {
+  if (!isPushSupported()) throw new PushError("push-unsupported");
+  if (Notification.permission !== "granted") throw new PushError("permission-denied");
+  const registration = await getPushRegistration();
+  const sub = await ensureBrowserSubscription(registration);
+  await saveSubscriptionOnServer(sub);
+  return sub.endpoint;
+}
+
+/**
  * Тихая синхронизация при входе: если разрешение уже дано, (пере)сохраняем подписку на сервере.
  * Лечит смену аккаунта на том же браузере и подписки, потерянные при переезде с Firebase.
  * Окон и запросов разрешения не показывает.
