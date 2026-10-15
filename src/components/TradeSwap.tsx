@@ -67,7 +67,7 @@ export function TradeSwap({
       <ItemTile name={giveName} image={giveImage} label={giveLabel} tone="give" size={size} />
       <div className={`flex flex-col items-center shrink-0 ${size === "md" ? "pt-9 sm:pt-11" : "pt-6"} gap-1.5`}>
         <div
-          className={`${size === "md" ? "w-9 h-9" : "w-7 h-7"} rounded-full flex items-center justify-center text-black shadow-glow`}
+          className={`${size === "md" ? "w-9 h-9" : "w-7 h-7"} rounded-full flex items-center justify-center text-black`}
           style={{ background: "linear-gradient(135deg, var(--color-accent), #4a6cf7)" }}
         >
           <ArrowLeftRight size={size === "md" ? 16 : 13} strokeWidth={2.5} />

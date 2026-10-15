@@ -118,7 +118,7 @@ export function ProfileBanner({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/55 hover:bg-black/75 backdrop-blur text-white disabled:opacity-60 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/55 hover:bg-black/75 text-white disabled:opacity-60 transition-colors"
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
             {hasImage ? "Сменить баннер" : "Добавить баннер"}
@@ -129,7 +129,7 @@ export function ProfileBanner({
               onClick={handleRemove}
               disabled={busy}
               aria-label="Убрать баннер"
-              className="p-1.5 rounded-full bg-black/55 hover:bg-red-500/80 backdrop-blur text-white disabled:opacity-60 transition-colors"
+              className="p-1.5 rounded-full bg-black/55 hover:bg-red-500/80 text-white disabled:opacity-60 transition-colors"
             >
               <Trash2 size={13} />
             </button>

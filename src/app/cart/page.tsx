@@ -91,7 +91,8 @@ export default function CartPage() {
   if (lines.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-24 text-center">
-        <p className="text-white/40 mb-6">Корзина пуста.</p>
+        <p className="font-display text-xl font-semibold mb-2">Корзина пуста</p>
+        <p className="text-white/40 text-sm mb-6">Загляни в каталог — там есть из чего выбрать.</p>
         <Link href="/catalog" className="btn-primary px-6 py-3 inline-block">
           Перейти в каталог
         </Link>
@@ -101,17 +102,17 @@ export default function CartPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl font-bold mb-6">Корзина</h1>
-      <div className="grid md:grid-cols-[1fr_320px] gap-8">
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold mb-6">Корзина</h1>
+      <div className="grid md:grid-cols-[1fr_340px] gap-6 lg:gap-8 items-start">
         <div className="space-y-3">
           {lines.map((line) => (
-            <div key={line.product.id} className="card p-4 flex items-center gap-4">
-              <div className="relative w-16 h-16 rounded-xl bg-black/30 shrink-0">
+            <div key={line.product.id} className="rounded-[16px] bg-surface border border-border p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
+              <div className="relative w-16 h-16 rounded-[12px] bg-[#0f1116] shrink-0">
                 <Image src={safeImageSrc(line.product.image)} alt={line.product.name} fill className="object-contain p-2" sizes="64px" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{line.product.name}</p>
-                <p className="text-accent font-bold">{line.product.price} ₽</p>
+                <p className="font-display font-semibold mt-0.5">{line.product.price} ₽</p>
               </div>
               <div className="flex items-center gap-2">
                 <button className="btn-secondary p-2" onClick={() => setQuantity(line.product.id, line.quantity - 1)}>
@@ -129,7 +130,7 @@ export default function CartPage() {
           ))}
         </div>
 
-        <div className="card p-5 h-fit space-y-4">
+        <div className="rounded-[18px] bg-surface border border-border p-5 space-y-4 md:sticky md:top-[88px]">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
@@ -159,7 +160,7 @@ export default function CartPage() {
             )}
             <div className="flex justify-between font-bold text-lg border-t border-border pt-2">
               <span>Итого</span>
-              <span className="text-accent">{finalTotal.toFixed(2)} ₽</span>
+              <span className="font-display">{finalTotal.toFixed(2)} ₽</span>
             </div>
           </div>
 

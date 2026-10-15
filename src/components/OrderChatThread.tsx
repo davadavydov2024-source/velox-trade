@@ -88,7 +88,7 @@ function TimelineDot({ state, icon }: { state: StepState; icon: React.ReactNode 
   const base = "w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2";
   if (state === "done") return <div className={`${base} border-accent bg-accent/15 text-accent`}>{icon}</div>;
   if (state === "current")
-    return <div className={`${base} border-accent bg-accent text-black shadow-[0_0_0_4px_rgba(255,152,0,0.16)]`}>{icon}</div>;
+    return <div className={`${base} border-accent bg-accent text-black shadow-[0_0_0_4px_rgba(200,245,66,0.18)]`}>{icon}</div>;
   if (state === "dashed") return <div className={`${base} border-dashed border-red-400/40 text-red-300/80`}>{icon}</div>;
   return <div className={`${base} border-border bg-surface text-white/30`}>{icon}</div>;
 }
@@ -738,7 +738,7 @@ export function OrderChatThread({
                       ? "bg-amber-500/15 border border-amber-500/30 text-amber-200"
                       : isMine
                       ? "bg-gradient-to-br from-accent to-accent-dark text-black shadow-[0_6px_18px_-8px_var(--color-accent)]"
-                      : "bg-white/[0.06] border border-white/[0.07] text-white/85 backdrop-blur-sm"
+                      : "bg-white/[0.06] border border-white/[0.07] text-white/85"
                   } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2"} text-[14px] leading-snug rounded-[20px] ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
                 >
                   {!isMine && !prevSameSender && (

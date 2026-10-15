@@ -78,14 +78,7 @@ export default function AchievementsPage() {
   return (
     <div className="space-y-6">
       <div className="card p-5 relative overflow-hidden">
-        <div
-          className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-20"
-          style={{ background: "radial-gradient(circle, var(--color-accent), transparent 70%)" }}
-        />
-        <h1
-          className="text-2xl font-bold mb-1 flex items-center gap-2 relative auth-title-sheen bg-clip-text text-transparent inline-flex"
-          style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
-        >
+        <h1 className="font-display text-xl sm:text-2xl font-semibold mb-1 flex items-center gap-2 relative">
           <Trophy size={22} className="text-accent shrink-0" /> Достижения
         </h1>
         <p className="text-sm text-white/40 relative mb-3">

@@ -252,20 +252,16 @@ function TopUpPageInner() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <div className="card p-5 relative overflow-hidden">
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(circle at 85% 0%, rgba(255,152,0,0.16), transparent 60%)" }}
-        />
+      <div className="rounded-[20px] bg-accent text-black p-5 sm:p-6">
         <div className="relative flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs text-white/40 mb-1">Ваш баланс</p>
-            <p className="text-3xl font-extrabold text-accent leading-none">
-              {(profile?.balance ?? 0).toFixed(2)} <span className="text-xl font-bold">₽</span>
+            <p className="text-xs text-black/60 mb-1.5">Ваш баланс</p>
+            <p className="font-display text-3xl font-semibold leading-none">
+              {(profile?.balance ?? 0).toFixed(2)} <span className="text-xl">₽</span>
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/25 flex items-center justify-center shrink-0">
-            <Wallet size={22} className="text-accent" />
+          <div className="w-12 h-12 rounded-[14px] bg-black text-accent flex items-center justify-center shrink-0">
+            <Wallet size={22} />
           </div>
         </div>
       </div>

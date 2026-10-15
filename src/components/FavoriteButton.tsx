@@ -41,7 +41,7 @@ export function FavoriteButton({ productId, className }: { productId: string; cl
   return (
     <button
       onClick={handleClick}
-      className={className ?? "p-1.5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors"}
+      className={className ?? "p-1.5 rounded-full bg-black/55 hover:bg-black/75 transition-colors"}
       aria-label={isFav ? "Убрать из избранного" : "Добавить в избранное"}
     >
       <Heart size={15} className={isFav ? "fill-red-500 text-red-500" : "text-white/70"} />

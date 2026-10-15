@@ -63,10 +63,10 @@ function formatWhen(ts: number) {
 }
 
 function itemClasses(active: boolean) {
-  return `relative w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-all duration-150 ${
+  return `relative w-full flex items-center gap-3 p-2.5 rounded-[14px] text-left transition-colors duration-150 ${
     active
-      ? "bg-gradient-to-r from-accent/20 to-accent/[0.04] ring-1 ring-accent/25"
-      : "hover:bg-white/[0.05] active:bg-white/10"
+      ? "bg-white/[0.07]"
+      : "hover:bg-white/[0.04] active:bg-white/10"
   }`;
 }
 
@@ -74,7 +74,7 @@ function itemClasses(active: boolean) {
 function UnreadBadge({ n }: { n: number }) {
   if (n <= 0) return null;
   return (
-    <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-black text-[11px] font-bold leading-5 text-center shadow-[0_0_10px_-1px_var(--color-accent)]">
+    <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-black text-[11px] font-bold leading-5 text-center ">
       {n > 99 ? "99+" : n}
     </span>
   );
@@ -224,7 +224,7 @@ function ChatsInner() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       <div className="mb-6 hidden sm:flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Чаты</h1>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold">Чаты</h1>
           <p className="text-sm text-white/40 mt-1">Сделки, личные сообщения и поддержка — в одном месте</p>
         </div>
       </div>
@@ -254,7 +254,7 @@ function ChatsInner() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-1 p-1 rounded-full bg-black/30">
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-[12px] bg-black/30">
               {FILTERS.map((f) => {
                 const count = f.id === "deals" ? items.length : f.id === "dm" ? dmConversations.length : 0;
                 const unreadCount = f.id === "deals" ? unreadDeals : f.id === "dm" ? unreadDms : unread.total;
@@ -263,8 +263,8 @@ function ChatsInner() {
                   <button
                     key={f.id}
                     onClick={() => setFilter(f.id)}
-                    className={`h-8 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
-                      active ? "bg-accent text-black shadow-[0_2px_10px_-2px_var(--color-accent)]" : "text-white/55 hover:text-white hover:bg-white/5"
+                    className={`h-8 rounded-[9px] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                      active ? "bg-accent text-black" : "text-white/55 hover:text-white hover:bg-white/5"
                     }`}
                   >
                     {f.label}
@@ -288,7 +288,7 @@ function ChatsInner() {
             <>
           <button onClick={() => setView({ kind: "support" })} className={itemClasses(view?.kind === "support")}>
             {view?.kind === "support" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-[14px] bg-accent/15 flex items-center justify-center shrink-0">
               <LifeBuoy size={19} className="text-accent" />
             </div>
             <div className="flex-1 min-w-0">
@@ -305,8 +305,8 @@ function ChatsInner() {
 
           <button onClick={() => setView({ kind: "news" })} className={itemClasses(view?.kind === "news")}>
             {view?.kind === "news" && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent" />}
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1d9bf0]/30 to-[#1d9bf0]/10 flex items-center justify-center shrink-0">
-              <Megaphone size={19} className="text-accent" />
+            <div className="w-12 h-12 rounded-[14px] bg-[#229ed9]/15 flex items-center justify-center shrink-0">
+              <Megaphone size={19} className="text-[#229ed9]" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
@@ -438,16 +438,13 @@ function ChatsInner() {
            в чатах на телефонах. Теперь чат полностью накрывает шторку, пока открыт. */}
         <div
           className={`card md:p-5 flex flex-col ${
-            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-[60] md:static md:z-auto rounded-none md:rounded-card md:h-[75vh]"
+            !view ? "hidden md:flex md:h-[75vh]" : "fixed inset-0 z-[60] md:static md:z-auto rounded-none md:rounded-[18px] md:h-[75vh]"
           }`}
         >
           {!view ? (
             <div className="text-center py-24 m-auto px-6">
-              <div className="relative w-20 h-20 mx-auto mb-5">
-                <div className="absolute inset-0 rounded-full blur-2xl opacity-50 bg-accent animate-pulse" />
-                <div className="relative w-20 h-20 rounded-3xl flex items-center justify-center border border-accent/30 bg-gradient-to-br from-accent/25 to-accent/5 rotate-3">
-                  <MessageCircle className="text-accent -rotate-3" size={32} />
-                </div>
+              <div className="w-16 h-16 mx-auto mb-5 rounded-[18px] flex items-center justify-center bg-surface border border-border">
+                <MessageCircle className="text-accent" size={28} />
               </div>
               <p className="text-sm font-medium text-white/70 mb-1">Выберите чат слева</p>
               <p className="text-xs text-white/30 max-w-[220px] mx-auto">

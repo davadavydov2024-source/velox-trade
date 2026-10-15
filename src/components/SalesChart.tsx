@@ -52,17 +52,17 @@ export function SalesChart({ orders }: { orders: Order[] }) {
         <AreaChart data={data}>
           <defs>
             <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ff9800" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#ff9800" stopOpacity={0} />
+              <stop offset="0%" stopColor="#c8f542" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#c8f542" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis dataKey="label" stroke="#5b6272" fontSize={10} tickLine={false} axisLine={false} interval={2} />
           <YAxis stroke="#5b6272" fontSize={10} tickLine={false} axisLine={false} width={40} />
           <Tooltip
             formatter={(v: number) => [`${v} ₽`, "Выручка"]}
-            contentStyle={{ background: "#151922", border: "1px solid #232838", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "#14161c", border: "1px solid #242831", borderRadius: 8, fontSize: 12 }}
           />
-          <Area type="monotone" dataKey="revenue" stroke="#ff9800" strokeWidth={2} fill="url(#salesGradient)" />
+          <Area type="monotone" dataKey="revenue" stroke="#c8f542" strokeWidth={2} fill="url(#salesGradient)" />
         </AreaChart>
       </ResponsiveContainer>
     </div>

@@ -34,7 +34,7 @@ export function SiteScreenView({ screen }: { screen: SiteScreen }) {
           )}
 
           <h1
-            className="text-2xl sm:text-3xl font-extrabold mb-3 tracking-tight auth-title-sheen bg-clip-text text-transparent"
+            className="text-2xl sm:text-3xl font-extrabold mb-3 tracking-tight font-display"
             style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
           >
             {screen.title}

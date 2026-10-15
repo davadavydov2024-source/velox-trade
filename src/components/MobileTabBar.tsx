@@ -73,7 +73,7 @@ export function MobileTabBar() {
         <span className={`relative text-[10.5px] leading-none font-medium transition-colors ${active ? "text-accent" : "text-white/40"}`}>{label}</span>
         <span
           className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-accent transition-all duration-300 ${
-            active ? "w-4 opacity-100 shadow-[0_0_8px_var(--color-accent)]" : "w-0 opacity-0"
+            active ? "w-4 opacity-100" : "w-0 opacity-0"
           }`}
         />
       </Link>
@@ -84,21 +84,21 @@ export function MobileTabBar() {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-40 px-3 pointer-events-none"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
+      className="lg:hidden fixed bottom-0 inset-x-0 z-40 pointer-events-none"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Основная навигация"
     >
-      <div className="pointer-events-auto relative mx-auto max-w-md flex items-end rounded-[28px] bg-surface/80 backdrop-blur-xl border border-white/[0.08] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.06)] px-1.5">
+      <div className="pointer-events-auto relative mx-auto flex items-end bg-bg border-t border-border px-1.5">
         {left.map(renderTab)}
 
         {/* Центральная кнопка «Продать» — приподнята над панелью */}
         <Link href={SELL_HREF} aria-label="Продать" className="relative flex-1 flex justify-center select-none">
           <span
-            className={`-mt-6 mb-2 w-14 h-14 rounded-full flex items-center justify-center text-black ring-[5px] ring-bg bg-gradient-to-br from-accent to-accent-dark transition-all duration-300 active:scale-90 ${
-              sellActive ? "shadow-[0_0_28px_2px_var(--color-accent)] scale-105" : "shadow-[0_8px_22px_-4px_var(--color-accent)]"
+            className={`-mt-5 mb-2 w-12 h-12 rounded-[16px] flex items-center justify-center text-black ring-[5px] ring-bg bg-accent transition-transform duration-200 active:scale-90 ${
+              sellActive ? "scale-105" : ""
             }`}
           >
-            <Plus size={28} strokeWidth={3} className={`transition-transform duration-300 ${sellActive ? "rotate-90" : ""}`} />
+            <Plus size={24} strokeWidth={3} className={`transition-transform duration-300 ${sellActive ? "rotate-90" : ""}`} />
           </span>
         </Link>
 

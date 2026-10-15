@@ -214,7 +214,7 @@ export function DmThread({
                   className={`max-w-[85%] sm:max-w-[75%] shadow-sm ${
                     isMine
                       ? "bg-gradient-to-br from-accent to-accent-dark text-black shadow-[0_6px_18px_-8px_var(--color-accent)]"
-                      : "bg-white/[0.06] border border-white/[0.07] text-white/85 backdrop-blur-sm"
+                      : "bg-white/[0.06] border border-white/[0.07] text-white/85"
                   } ${m.imageUrl ? "p-1.5" : "px-3.5 py-2"} text-[14px] leading-snug rounded-[20px] ${isMine ? "rounded-br-md" : "rounded-bl-md"}`}
                 >
                   {m.imageUrl && (

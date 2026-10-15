@@ -10,7 +10,7 @@ function Dot({ state, icon }: { state: StepState; icon: React.ReactNode }) {
   if (state === "done") return <div className={`${base} border-accent bg-accent/15 text-accent`}>{icon}</div>;
   if (state === "current")
     return (
-      <div className={`${base} border-accent bg-accent text-black shadow-[0_0_0_4px_rgba(255,152,0,0.16)]`}>{icon}</div>
+      <div className={`${base} border-accent bg-accent text-black shadow-[0_0_0_4px_rgba(200,245,66,0.18)]`}>{icon}</div>
     );
   if (state === "dashed") return <div className={`${base} border-dashed border-red-400/40 text-red-300/80`}>{icon}</div>;
   return <div className={`${base} border-border bg-surface text-white/30`}>{icon}</div>;
