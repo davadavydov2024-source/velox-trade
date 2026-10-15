@@ -81,8 +81,15 @@ export function deviceLabel(ua?: string): string {
 }
 
 function describeFailure(status: number, error?: string): string {
+  const reason = /"reason"\s*:\s*"([^"]+)"/.exec(error ?? "")?.[1] ?? "";
+  if (reason === "BadJwtToken" || reason === "InvalidProviderToken") {
+    return `${error}: push-сервис (Apple) не принял подпись VAPID. Чаще всего виноват VAPID_SUBJECT в Vercel — он должен быть вида mailto:почта@домен.ru или https://сайт, без пробелов и русских букв (либо удали эту переменную)`;
+  }
+  if (reason === "VapidPkHashMismatch" || reason === "MismatchSenderId") {
+    return `${error}: подписка этого устройства создана с другим VAPID-ключом. Выключи и снова включи уведомления на этом устройстве`;
+  }
   if (status === 401 || status === 403) {
-    return `${error ?? status}: push-сервис не принял VAPID-ключи. Проверь, что NEXT_PUBLIC_VAPID_PUBLIC_KEY и VAPID_PRIVATE_KEY — одна пара, и что пользователь заново включил уведомления после смены ключей`;
+    return `${error ?? status}: push-сервис не принял VAPID-подпись. Проверь пару ключей NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY и VAPID_SUBJECT, затем заново включи уведомления на устройстве`;
   }
   if (status === 404 || status === 410) return `${status}: подписка устарела (уведомления отключены или данные сайта очищены) — удалена`;
   return error ?? `ошибка ${status}`;

@@ -18,12 +18,25 @@ export interface PushSubscriptionData {
   auth: string; // base64url
 }
 
+/**
+ * Claim "sub" в VAPID-подписи ОБЯЗАН быть корректным mailto:почта или https://адрес. Chrome/Яндекс (FCM)
+ * на кривое значение закрывают глаза, а Apple (iPhone) отвечает 403 BadJwtToken — именно поэтому на
+ * Windows уведомления шли, а на iPhone нет. Если VAPID_SUBJECT пустой или невалидный (с пробелами,
+ * русскими буквами, пометками вроде «(необязательно)»), безопасно подставляем адрес сайта.
+ */
+export function resolveVapidSubject(): string {
+  const raw = (process.env.VAPID_SUBJECT || "").trim();
+  const mailtoOk = /^mailto:[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(raw);
+  const httpsOk = /^https:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[^\s]*)?$/.test(raw);
+  if (mailtoOk || httpsOk) return raw;
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://velox-trade-zeta.vercel.app").trim().replace(/\/+$/, "");
+}
+
 export function getVapidConfig(): VapidConfig | null {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) return null;
-  const subject = process.env.VAPID_SUBJECT || `mailto:${process.env.VAPID_CONTACT_EMAIL || "admin@velox-trade.app"}`;
-  return { publicKey, privateKey, subject };
+  return { publicKey, privateKey, subject: resolveVapidSubject() };
 }
 
 const b64url = (buf: Buffer | string) => Buffer.from(buf).toString("base64url");
