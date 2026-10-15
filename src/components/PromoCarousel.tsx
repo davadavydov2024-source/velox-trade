@@ -70,7 +70,7 @@ export function PromoCarousel() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full rounded-2xl overflow-hidden h-40 sm:h-52 lg:h-64 group select-none touch-pan-y"
+      className="relative w-full rounded-[22px] overflow-hidden h-48 sm:h-72 lg:h-[380px] group select-none touch-pan-y bg-surface"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => {
         setPaused(false);
@@ -101,18 +101,18 @@ export function PromoCarousel() {
               sizes="(max-width: 1024px) 100vw, 1200px"
               priority={i === 0}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-            <div className="absolute left-4 sm:left-6 bottom-4 sm:bottom-6 right-4">
-              {ad.description && <p className="text-[11px] sm:text-xs text-white/70 mb-1 truncate">{ad.description}</p>}
-              <p className="text-base sm:text-xl font-bold text-white mb-2 sm:mb-3 truncate">{ad.title}</p>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent" />
+            <div className="absolute left-5 sm:left-10 bottom-5 sm:bottom-10 right-5 sm:max-w-[48%]">
+              {ad.description && <p className="text-[11px] sm:text-sm text-white/70 mb-1.5 line-clamp-2">{ad.description}</p>}
+              <p className="font-display text-xl sm:text-4xl font-bold text-white leading-[1.08] mb-3 sm:mb-5 line-clamp-3">{ad.title}</p>
               {ad.buttonText && ad.buttonLink && (
                 <a
                   href={normalizeExternalUrl(ad.buttonLink)}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-btn"
-                  style={{ background: ad.color, color: "#000" }}
+                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold px-4 sm:px-5 py-2 sm:py-3 rounded-[12px]"
+                  style={{ background: ad.color || "var(--color-accent)", color: "#000" }}
                 >
                   {ad.buttonText} <ExternalLink size={13} />
                 </a>
@@ -129,7 +129,7 @@ export function PromoCarousel() {
             type="button"
             onClick={() => goTo(index - 1)}
             aria-label="Предыдущий слайд"
-            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/60"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/55 border border-white/10 flex items-center justify-center text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/75"
           >
             <ChevronLeft size={18} />
           </button>
@@ -137,17 +137,17 @@ export function PromoCarousel() {
             type="button"
             onClick={() => goTo(index + 1)}
             aria-label="Следующий слайд"
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/60"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/55 border border-white/10 flex items-center justify-center text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/75"
           >
             <ChevronRight size={18} />
           </button>
 
-          <div className="absolute left-4 sm:left-6 top-4 flex gap-1.5">
+          <div className="absolute left-5 sm:left-10 top-4 sm:top-6 flex gap-1.5">
             {ads.map((a, i) => (
               <button
                 key={a.id}
                 onClick={() => goTo(i)}
-                className={`h-1 rounded-full transition-all ${i === index ? "w-5 bg-white" : "w-1.5 bg-white/40"}`}
+                className={`h-[3px] rounded-full transition-all ${i === index ? "w-8 bg-accent" : "w-4 bg-white/35 hover:bg-white/60"}`}
                 aria-label={`Слайд ${i + 1}`}
               />
             ))}

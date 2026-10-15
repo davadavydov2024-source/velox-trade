@@ -156,7 +156,7 @@ export default function ProfilePage() {
         {/* Обложка. Админ видит на ней кнопки «Добавить/Сменить баннер» — остальным она просто красивый фон. */}
         <ProfileBanner
           url={profile.bannerURL}
-          editable={isAdmin}
+          editable
           onChange={() => refreshProfile()}
           className="h-32 sm:h-44"
         />

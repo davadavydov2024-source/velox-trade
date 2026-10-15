@@ -12,12 +12,12 @@ import { getPublicProfileCached, PublicProfile } from "@/lib/sellerCache";
 import { StyledNickname } from "./StyledNickname";
 import { FavoriteButton } from "./FavoriteButton";
 
-const RARITY_BORDER: Record<string, string> = {
-  common: "border-rarity-common/40",
-  uncommon: "border-rarity-uncommon/50",
-  rare: "border-rarity-rare/50",
-  epic: "border-rarity-epic/50",
-  legendary: "border-rarity-legendary/60",
+const RARITY_BAR: Record<string, string> = {
+  common: "#8a93a3",
+  uncommon: "#4cc26b",
+  rare: "#3b9cff",
+  epic: "#b266ff",
+  legendary: "#ffb020",
 };
 
 export function ProductCard({ product }: { product: Product }) {
@@ -45,106 +45,96 @@ export function ProductCard({ product }: { product: Product }) {
   const avgRating = seller?.ratingCount ? (seller.ratingSum ?? 0) / seller.ratingCount : null;
 
   return (
-    <div className={`card p-3 group border ${RARITY_BORDER[product.rarity]} hover:-translate-y-1.5 hover:shadow-glow transition-all duration-300 ${isBoosted ? "ring-1 ring-accent/60" : ""}`}>
-      <Link href={`/product/${product.id}`} className="block relative aspect-square rounded-[12px] overflow-hidden bg-black/30 mb-3">
+    <div className={`group flex flex-col rounded-[16px] bg-surface border ${isBoosted ? "border-accent/60" : "border-border hover:border-white/20"} overflow-hidden transition-colors`}>
+      <Link href={`/product/${product.id}`} className="block relative aspect-square bg-[#0f1116]">
         <Image
           src={safeImageSrc(product.image)}
           alt={product.name}
           fill
-          className="object-contain p-4 transition-transform duration-300 group-hover:scale-110"
+          className="object-contain p-5 transition-transform duration-200 group-hover:scale-[1.04]"
           sizes="(max-width: 768px) 50vw, 220px"
         />
-        {product.isNew && (
-          <span className="absolute top-2 left-2 bg-rarity-rare text-white text-[10px] font-bold px-2 py-1 rounded-md">
-            NEW
-          </span>
-        )}
-        {isBoosted && (
-          <span className="absolute bottom-2 left-2 bg-accent text-black text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1">
-            {product.boostTier === "home" ? "⭐ ТОП" : "🚀 В топе"}
-          </span>
-        )}
-        {!!product.discountPercent && (
-          <span className="absolute top-2 right-2 bg-accent text-black text-[10px] font-bold px-2 py-1 rounded-md">
-            -{product.discountPercent}%
-          </span>
-        )}
-        {paymentMode !== "rub" && !!product.starsPrice && (
-          <span
-            className={`absolute right-2 bg-[#1d9bf0] text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-0.5 ${
-              product.discountPercent ? "top-9" : "top-2"
-            }`}
-          >
-            ⭐ Stars
-          </span>
-        )}
-        <div className="absolute bottom-2 right-2">
+        <span className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ background: RARITY_BAR[product.rarity] }} />
+        <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+          {product.isNew && <span className="bg-white text-black text-[10px] font-bold px-1.5 py-0.5 rounded-[6px] tracking-wide">NEW</span>}
+          {isBoosted && (
+            <span className="bg-accent text-black text-[10px] font-bold px-1.5 py-0.5 rounded-[6px]">
+              {product.boostTier === "home" ? "ТОП" : "В топе"}
+            </span>
+          )}
+        </div>
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+          {!!product.discountPercent && (
+            <span className="bg-[#ff4d4f] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-[6px]">-{product.discountPercent}%</span>
+          )}
+          {paymentMode !== "rub" && !!product.starsPrice && (
+            <span className="bg-[#229ed9] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-[6px]">⭐ Stars</span>
+          )}
+        </div>
+        <div className="absolute bottom-2.5 right-2">
           <FavoriteButton productId={product.id} />
         </div>
       </Link>
 
-      {/* prefetch={false}: та же ссылка уже прогружается через блок с картинкой чуть выше —
-          повторный Link на тот же адрес удваивал бы предзагрузку без всякой пользы. */}
-      <Link href={`/product/${product.id}`} prefetch={false}>
-        <h3 className="font-medium text-sm truncate hover:text-accent transition-colors">{product.name}</h3>
-      </Link>
-      <p className="text-xs text-white/40 mb-1">{RARITY_LABEL[product.rarity]}</p>
-      {seller?.username && (
-        <Link
-          href={`/seller/${seller.username}`}
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1.5 mb-2 text-xs text-white/40 hover:text-accent transition-colors"
-        >
-          <span className="relative w-4 h-4 rounded-full overflow-hidden bg-black/30 shrink-0">
-            <Image src={safeImageSrc(seller.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="16px" />
-            {seller.isOnline && (
-              <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-green-400 border border-black/50" />
-            )}
-          </span>
-          <span className="truncate max-w-[80px]">
-            <StyledNickname name={seller.displayName} nameColor={seller.nameColor} nameFont={seller.nameFont} />
-          </span>
-          {avgRating !== null && (
-            <span className="flex items-center gap-0.5 text-accent shrink-0">
-              <Star size={10} className="fill-accent" /> {avgRating.toFixed(1)}
-            </span>
-          )}
+      <div className="p-3 flex flex-col flex-1">
+        {/* prefetch={false}: та же ссылка уже прогружается через блок с картинкой выше. */}
+        <Link href={`/product/${product.id}`} prefetch={false}>
+          <h3 className="font-medium text-[13.5px] leading-snug line-clamp-2 min-h-[2.5em] hover:text-accent transition-colors">{product.name}</h3>
         </Link>
-      )}
+        <p className="text-[11px] mt-1" style={{ color: RARITY_BAR[product.rarity] }}>{RARITY_LABEL[product.rarity]}</p>
 
-      <div className="flex items-center justify-between">
-        <div>
+        {seller?.username && (
+          <Link
+            href={`/seller/${seller.username}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 mt-2 text-xs text-white/45 hover:text-white transition-colors"
+          >
+            <span className="relative w-4 h-4 rounded-full overflow-hidden bg-black/30 shrink-0">
+              <Image src={safeImageSrc(seller.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="16px" />
+              {seller.isOnline && <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-green-400 border border-black/50" />}
+            </span>
+            <span className="truncate max-w-[84px]">
+              <StyledNickname name={seller.displayName} nameColor={seller.nameColor} nameFont={seller.nameFont} />
+            </span>
+            {avgRating !== null && (
+              <span className="flex items-center gap-0.5 text-white/70 shrink-0">
+                <Star size={10} className="fill-accent text-accent" /> {avgRating.toFixed(1)}
+              </span>
+            )}
+          </Link>
+        )}
+
+        <div className="flex items-end justify-between gap-2 mt-auto pt-3">
+          <div className="leading-none">
+            {starsOnly ? (
+              <span className="font-display text-[17px] font-semibold">{product.starsPrice} ⭐</span>
+            ) : (
+              <>
+                {!!product.discountPercent && <span className="block text-[11px] text-white/35 line-through mb-0.5">{product.price} ₽</span>}
+                <span className="font-display text-[17px] font-semibold">{finalPrice} ₽</span>
+              </>
+            )}
+          </div>
           {starsOnly ? (
-            <span className="font-bold text-accent">{product.starsPrice} ⭐</span>
+            <Link href={`/product/${product.id}`} className="btn-primary py-2 px-3.5 text-xs" aria-label="Открыть товар">
+              Купить
+            </Link>
           ) : (
-            <>
-              {!!product.discountPercent && (
-                <span className="text-xs text-white/40 line-through mr-1">{product.price} ₽</span>
-              )}
-              <span className="font-bold text-accent">{finalPrice} ₽</span>
-            </>
+            <button
+              disabled={product.stock <= 0}
+              onClick={() => {
+                add(product, 1);
+                toast("success", `${product.name} добавлен в корзину`);
+              }}
+              className="btn-primary py-2 px-3 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Добавить в корзину"
+            >
+              <ShoppingCart size={16} />
+            </button>
           )}
         </div>
-        {starsOnly ? (
-          // Только Stars — в корзину нельзя, ведём на страницу товара, где есть кнопка оплаты Stars.
-          <Link href={`/product/${product.id}`} className="btn-primary py-2 px-3 text-xs" aria-label="Открыть товар">
-            Купить
-          </Link>
-        ) : (
-        <button
-          disabled={product.stock <= 0}
-          onClick={() => {
-            add(product, 1);
-            toast("success", `${product.name} добавлен в корзину`);
-          }}
-          className="btn-primary py-2 px-3 disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Добавить в корзину"
-        >
-          <ShoppingCart size={16} />
-        </button>
-        )}
+        {product.stock <= 0 && <p className="text-xs text-red-400 mt-1.5">Нет в наличии</p>}
       </div>
-      {product.stock <= 0 && <p className="text-xs text-red-400 mt-1">Нет в наличии</p>}
     </div>
   );
 }

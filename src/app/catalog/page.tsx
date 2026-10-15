@@ -2,10 +2,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { SlidersHorizontal, Star } from "lucide-react";
+import Link from "next/link";
+import { SlidersHorizontal, Star, Search, X } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
-import { getProducts, getGameBySlug } from "@/lib/products";
-import { Product, Rarity, RARITY_LABEL, getPaymentMode } from "@/types";
+import { getProducts, getGameBySlug, getGames } from "@/lib/products";
+import { Game, Product, Rarity, RARITY_LABEL, getPaymentMode } from "@/types";
 
 const RARITIES: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
@@ -29,6 +30,11 @@ function CatalogInner() {
   // прямую ссылку на этот раздел.
   const [onlyStars, setOnlyStars] = useState(params.get("stars") === "1");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [games, setGames] = useState<Game[]>([]);
+
+  useEffect(() => {
+    getGames().then(setGames).catch(() => setGames([]));
+  }, []);
 
   useEffect(() => {
     getProducts({ sort, excludeWheelLocked: true })
@@ -74,142 +80,134 @@ function CatalogInner() {
       .sort((a, b) => boostRank(b) - boostRank(a));
   }, [products, gameSlug, category, onlyNew, rarity, onlyAvailable, onlyStars, search]);
 
+  const currentGame = games.find((g) => g.slug === gameSlug);
+  const title = currentGame?.name ?? (gameSlug ? gameSlug.replace(/-/g, " ") : "Каталог");
+  const activeFilters = [rarity, category, onlyAvailable, onlyStars].filter(Boolean).length;
+
+  const chip = (on: boolean) => `chip ${on ? "chip-on" : ""}`;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl md:text-3xl font-bold">
-          {gameSlug ? `Каталог — ${gameSlug.replace(/-/g, " ")}` : "Каталог товаров"}
-        </h1>
-        <button className="md:hidden btn-secondary py-2 px-3" onClick={() => setFiltersOpen((v) => !v)}>
-          <SlidersHorizontal size={18} />
-        </button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-12">
+      {/* Быстрое переключение игры — ряд плиток вместо прыжка на отдельную страницу. */}
+      {games.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 mb-6">
+          <Link href="/catalog" className={chip(!gameSlug)}>Все игры</Link>
+          {games.map((g) => (
+            <Link key={g.id} href={`/catalog?game=${g.slug}`} className={chip(gameSlug === g.slug)}>
+              {g.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-end justify-between gap-4 mb-5">
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold capitalize">{title}</h1>
+          <p className="text-sm text-white/40 mt-1.5">{loaded ? `${filtered.length} ${filtered.length === 1 ? "предмет" : "предметов"}` : "Загрузка…"}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as typeof sort)}
+            className="input-field py-2 px-3 text-sm w-auto hidden sm:block"
+            aria-label="Сортировка"
+          >
+            <option value="newest">Сначала новые</option>
+            <option value="price_asc">Дешевле</option>
+            <option value="price_desc">Дороже</option>
+          </select>
+          <button className="md:hidden btn-secondary py-2 px-3 relative" onClick={() => setFiltersOpen((v) => !v)} aria-label="Фильтры">
+            <SlidersHorizontal size={18} />
+            {activeFilters > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-accent text-black text-[10px] font-bold rounded-full w-5 h-5 grid place-items-center">{activeFilters}</span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Виден всегда (не спрятан за кнопкой фильтров на мобильных) — отдельный быстрый вход
-          в раздел "Оплата звёздами", а не только галочка в сайдбаре ниже. */}
-      <button
-        onClick={() => setOnlyStars((v) => !v)}
-        className={`mb-6 inline-flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-full transition-colors ${
-          onlyStars ? "bg-accent text-black shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/70 hover:bg-white/10"
-        }`}
-      >
-        <Star size={13} className={onlyStars ? "" : "fill-accent text-accent"} /> Оплата звёздами
-      </button>
-
-      <div className="grid md:grid-cols-[240px_1fr] gap-8">
-        {/* Filters */}
-        <aside className={`${filtersOpen ? "block" : "hidden"} md:block space-y-6`}>
-          <div>
-            <label className="text-xs text-white/40 mb-2 block">Поиск</label>
+      <div className="grid md:grid-cols-[250px_1fr] gap-6 lg:gap-8 items-start">
+        <aside className={`${filtersOpen ? "block" : "hidden"} md:block md:sticky md:top-[88px] rounded-[18px] bg-surface border border-border p-4 space-y-5`}>
+          <div className="relative">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/35" />
             <input
-            autoComplete="off"
+              autoComplete="off"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Название предмета..."
-              className="input-field py-2.5 text-sm"
+              placeholder="Название предмета"
+              className="input-field py-2.5 pl-10 text-sm"
             />
+          </div>
+
+          <div className="sm:hidden">
+            <p className="text-xs uppercase tracking-wider text-white/35 mb-2">Сортировка</p>
+            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="input-field py-2.5 text-sm">
+              <option value="newest">Сначала новые</option>
+              <option value="price_asc">Дешевле</option>
+              <option value="price_desc">Дороже</option>
+            </select>
           </div>
 
           {gameCategories.length > 0 && (
             <div>
-              <p className="text-xs text-white/40 mb-2">Категория</p>
+              <p className="text-xs uppercase tracking-wider text-white/35 mb-2">Категория</p>
               <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setCategory("")}
-                  className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                    category === "" ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
-                  }`}
-                >
-                  Все
-                </button>
+                <button onClick={() => setCategory("")} className={`${chip(category === "")} !py-1.5 !text-xs`}>Все</button>
                 {gameCategories.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCategory(c)}
-                    className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                      category === c ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
-                    }`}
-                  >
-                    {c}
-                  </button>
+                  <button key={c} onClick={() => setCategory(c)} className={`${chip(category === c)} !py-1.5 !text-xs`}>{c}</button>
                 ))}
               </div>
             </div>
           )}
 
           <div>
-            <p className="text-xs text-white/40 mb-2">Редкость</p>
+            <p className="text-xs uppercase tracking-wider text-white/35 mb-2">Редкость</p>
             <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setRarity("")}
-                className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                  rarity === "" ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
-                }`}
-              >
-                Все
-              </button>
+              <button onClick={() => setRarity("")} className={`${chip(rarity === "")} !py-1.5 !text-xs`}>Любая</button>
               {RARITIES.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRarity(r)}
-                  className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                    rarity === r ? "bg-accent text-black font-medium shadow-[0_0_12px_-2px_var(--color-accent)]" : "bg-white/5 text-white/60 hover:bg-white/10"
-                  }`}
-                >
-                  {RARITY_LABEL[r]}
-                </button>
+                <button key={r} onClick={() => setRarity(r)} className={`${chip(rarity === r)} !py-1.5 !text-xs`}>{RARITY_LABEL[r]}</button>
               ))}
             </div>
           </div>
 
-          <div>
-            <p className="text-xs text-white/40 mb-2">Сортировка</p>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-              className="input-field py-2.5 text-sm"
-            >
-              <option value="newest">Новинки</option>
-              <option value="price_asc">Цена: по возрастанию</option>
-              <option value="price_desc">Цена: по убыванию</option>
-            </select>
+          <div className="space-y-2.5 pt-1">
+            <label className="flex items-center gap-2.5 text-sm text-white/75 cursor-pointer">
+              <input autoComplete="off" type="checkbox" className="accent-[var(--color-accent)] w-4 h-4" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
+              Только в наличии
+            </label>
+            {/* Раздел "Оплата звёздами" — товары, у которых продавец включил оплату Telegram Stars. */}
+            <label className="flex items-center gap-2.5 text-sm text-white/75 cursor-pointer">
+              <input autoComplete="off" type="checkbox" className="accent-[var(--color-accent)] w-4 h-4" checked={onlyStars} onChange={(e) => setOnlyStars(e.target.checked)} />
+              <span className="flex items-center gap-1.5">Оплата Stars <Star size={13} className="text-accent fill-accent" /></span>
+            </label>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-white/70">
-            <input
-            autoComplete="off" type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
-            Только в наличии
-          </label>
-
-          {/* Раздел "Оплата звёздами" — товары, у которых продавец включил оплату Telegram Stars. */}
-          <label className="flex items-center gap-2 text-sm text-white/70">
-            <input autoComplete="off" type="checkbox" checked={onlyStars} onChange={(e) => setOnlyStars(e.target.checked)} />
-            <span className="flex items-center gap-1">
-              Оплата звёздами <Star size={13} className="text-accent fill-accent" />
-            </span>
-          </label>
+          {(activeFilters > 0 || search) && (
+            <button
+              onClick={() => { setRarity(""); setCategory(""); setOnlyAvailable(false); setOnlyStars(false); setSearch(""); }}
+              className="w-full text-sm text-white/50 hover:text-white inline-flex items-center justify-center gap-1.5 pt-1"
+            >
+              <X size={14} /> Сбросить
+            </button>
+          )}
         </aside>
 
-        {/* Grid */}
         <div>
           {!loaded ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="card p-3 aspect-[3/4] animate-pulse bg-white/5" />
+                <div key={i} className="rounded-[16px] aspect-[3/4] animate-pulse bg-white/5" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="card p-10 text-center text-white/40">
+            <div className="rounded-[18px] border border-dashed border-border p-12 text-center text-white/40 text-sm">
               {products.length === 0
                 ? "Товары появятся здесь, как только администратор добавит их в каталог."
-                : "Ничего не найдено по заданным фильтрам."}
+                : "Ничего не найдено. Попробуй убрать часть фильтров."}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filtered.map((p, i) => (
-                <div key={p.id} className="activity-card-enter" style={{ animationDelay: `${Math.min(i, 12) * 30}ms`, animationFillMode: "backwards" }}>
-                  <ProductCard product={p} />
-                </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {filtered.map((p) => (
+                <ProductCard key={p.id} product={p} />
               ))}
             </div>
           )}
@@ -225,7 +223,7 @@ export default function CatalogPage() {
       fallback={
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="card p-3 aspect-[3/4] animate-pulse bg-white/5" />
+            <div key={i} className="rounded-[16px] aspect-[3/4] animate-pulse bg-white/5" />
           ))}
         </div>
       }

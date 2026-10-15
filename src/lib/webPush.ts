@@ -1,20 +1,21 @@
-import { collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
-import { db, auth, activeApp, firebaseConfig } from "./firebase";
+import { auth } from "./firebase";
 
-// VAPID-ключ НЕОБЯЗАТЕЛЕН: без него Firebase SDK использует свой ключ по умолчанию, и push работает
-// «из коробки» с подключённым Firebase Messaging. Если переменная всё же задана — пробуем с ней, а
-// при неудаче (например, ключ от другого проекта) автоматически повторяем без ключа.
-const VAPID_PUBLIC = process.env.NEXT_PUBLIC_FCM_VAPID_KEY || undefined;
+/**
+ * Push-уведомления на стандартном Web Push (Push API + VAPID) — БЕЗ Firebase Messaging.
+ * Браузер сам регистрируется в своём push-сервисе, а мы получаем подписку {endpoint, keys} и
+ * сохраняем её на сервере (api/push/subscribe). Ограничения API-ключа Firebase, Installations API
+ * и FCM Registration API больше ни на что не влияют.
+ *
+ * Нужны две переменные в Vercel: NEXT_PUBLIC_VAPID_PUBLIC_KEY (публичный, для браузера) и
+ * VAPID_PRIVATE_KEY (секретный, только сервер). Сгенерировать пару: `node scripts/generate-vapid.js`.
+ */
+const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
-// У сайта два service worker'а: общий /sw.js (кэш/PWA, scope "/") и этот — для push. Раньше оба
-// регистрировались на scope "/", а на одном scope живёт только один SW: каждая регистрация
-// вытесняла предыдущую, и в итоге push приходил в SW, который его не обрабатывает. Поэтому push-SW
-// получает СВОЙ scope и явно передаётся в getToken.
-const PUSH_SW_URL = "/firebase-messaging-sw.js";
-const PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
+const PUSH_SW_URL = "/push-sw.js";
+// Отдельный scope: общий /sw.js (PWA/кэш) живёт на "/", а на одном scope может быть только один SW.
+const PUSH_SW_SCOPE = "/push-scope/";
 
-/** Ошибка включения push с машинным кодом (message) и подробностями (detail) — чтобы интерфейс
- * показал, ЧТО именно сломалось, а не общее «не удалось». */
+/** Ошибка включения push с машинным кодом (message) и подробностями (detail). */
 export class PushError extends Error {
   detail: string;
   constructor(code: string, detail = "") {
@@ -39,55 +40,25 @@ function withTimeout<T>(promise: Promise<T>, ms: number, code: string): Promise<
   });
 }
 
-async function requestToken(messaging: import("firebase/messaging").Messaging, registration: ServiceWorkerRegistration): Promise<string | null> {
-  const { getToken } = await import("firebase/messaging");
-  const attempt = (vapidKey?: string) =>
-    withTimeout(
-      getToken(messaging, { ...(vapidKey ? { vapidKey } : {}), serviceWorkerRegistration: registration }),
-      20000,
-      "token-timeout"
-    );
-  if (VAPID_PUBLIC) {
-    try {
-      return await attempt(VAPID_PUBLIC);
-    } catch (e) {
-      if (e instanceof PushError) throw e; // таймаут — повтор не поможет
-      // иначе — ключ не подошёл; пробуем со встроенным ключом Firebase
-    }
-  }
-  return attempt();
+function base64UrlToBytes(base64Url: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
+  const raw = atob((base64Url + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-async function getMessagingSafe() {
-  if (typeof window === "undefined") return null;
-  const { isSupported, getMessaging } = await import("firebase/messaging");
-  if (!(await isSupported())) return null; // Safari вне PWA на iOS и т.п.
-  // Файл воркера должен реально отдаваться сайтом (public/firebase-messaging-sw.js) — иначе
-  // регистрация падает с невнятной ошибкой. Проверяем заранее и говорим прямо.
-  const probe = await fetch(PUSH_SW_URL, { cache: "no-store" }).catch(() => null);
-  if (!probe || !probe.ok) throw new PushError("sw-missing", probe ? `HTTP ${probe.status}` : "нет ответа");
-  let registration: ServiceWorkerRegistration;
-  try {
-    registration = await navigator.serviceWorker.register(PUSH_SW_URL, { scope: PUSH_SW_SCOPE, updateViaCache: "none" });
-  } catch (e: any) {
-    throw new PushError("sw-register-failed", String(e?.message || e).slice(0, 160));
-  }
-  // Ждём именно ЭТОТ SW, а не navigator.serviceWorker.ready (оно относится к основному scope "/").
-  if (!registration.active) {
-    const worker = registration.installing || registration.waiting;
-    if (worker) {
-      await new Promise<void>((resolve) => {
-        if (worker.state === "activated") return resolve();
-        worker.addEventListener("statechange", () => worker.state === "activated" && resolve());
-        setTimeout(resolve, 8000); // страховка, чтобы не зависнуть навсегда
-      });
-    }
-  }
-  return { messaging: getMessaging(activeApp), registration };
+function sameKey(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
+  if (!a) return false;
+  const x = new Uint8Array(a);
+  return x.length === b.length && x.every((v, i) => v === b[i]);
 }
 
 export function isPushSupported(): boolean {
-  return typeof window !== "undefined" && "serviceWorker" in navigator && "Notification" in window;
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window
+  );
 }
 
 export async function getPushPermissionState(): Promise<NotificationPermission | "unsupported"> {
@@ -95,92 +66,127 @@ export async function getPushPermissionState(): Promise<NotificationPermission |
   return Notification.permission;
 }
 
-/** Тихое получение токена (без запроса разрешения) — любые сбои дают null, а не исключение. */
-async function fetchToken(): Promise<string | null> {
+async function getPushRegistration(): Promise<ServiceWorkerRegistration> {
+  // Файл воркера должен реально отдаваться сайтом (public/push-sw.js) — проверяем заранее и говорим прямо.
+  const probe = await fetch(PUSH_SW_URL, { cache: "no-store" }).catch(() => null);
+  if (!probe || !probe.ok) throw new PushError("sw-missing", probe ? `HTTP ${probe.status}` : "нет ответа");
+
+  let registration: ServiceWorkerRegistration;
   try {
-    const ctx = await getMessagingSafe();
-    if (!ctx) return null;
-    return await requestToken(ctx.messaging, ctx.registration);
-  } catch {
-    return null;
+    registration = await navigator.serviceWorker.register(PUSH_SW_URL, { scope: PUSH_SW_SCOPE, updateViaCache: "none" });
+  } catch (e: any) {
+    throw new PushError("sw-register-failed", String(e?.message || e).slice(0, 160));
   }
+  if (!registration.active) {
+    const worker = registration.installing || registration.waiting;
+    if (worker) {
+      await new Promise<void>((resolve) => {
+        if (worker.state === "activated") return resolve();
+        worker.addEventListener("statechange", () => worker.state === "activated" && resolve());
+        setTimeout(resolve, 8000); // страховка
+      });
+    }
+  }
+  return registration;
 }
 
-async function saveTokenOnServer(token: string) {
-  // Через сервер: он убирает дубли и отвязывает токен от прежнего аккаунта на этом устройстве.
+async function saveSubscriptionOnServer(sub: PushSubscription) {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("not-signed-in");
   const res = await fetch("/api/push/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ subscription: sub.toJSON() }),
   });
-  if (!res.ok) throw new Error("subscribe-failed");
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new PushError("save-failed", data?.error || `HTTP ${res.status}`);
+  }
 }
 
-/** Проверяет, есть ли у ЭТОГО браузера уже сохранённый FCM-токен для юзера. */
-export async function hasActiveSubscription(uid: string): Promise<boolean> {
+/** Получает (или создаёт) подписку браузера. Если разрешение уже дано — окон не показывает. */
+async function ensureBrowserSubscription(registration: ServiceWorkerRegistration): Promise<PushSubscription> {
+  if (!VAPID_PUBLIC) throw new PushError("vapid-not-configured");
+  const key = base64UrlToBytes(VAPID_PUBLIC);
+
+  let sub = await registration.pushManager.getSubscription();
+  // Подписка с другим ключом (например, от прошлой настройки) не подойдёт — пересоздаём.
+  if (sub && !sameKey(sub.options?.applicationServerKey, key)) {
+    await sub.unsubscribe().catch(() => {});
+    sub = null;
+  }
+  if (!sub) {
+    try {
+      sub = await withTimeout(
+        registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key as BufferSource }),
+        20000,
+        "subscribe-timeout"
+      );
+    } catch (e: any) {
+      if (e instanceof PushError) throw e;
+      throw new PushError("subscribe-failed", `${e?.name ?? ""} ${e?.message ?? e}`.trim().slice(0, 300));
+    }
+  }
+  return sub;
+}
+
+/** Есть ли у ЭТОГО браузера действующая подписка (разрешение дано и подписка создана). */
+export async function hasActiveSubscription(_uid?: string): Promise<boolean> {
   if (!isPushSupported() || Notification.permission !== "granted") return false;
-  const token = await fetchToken();
-  if (!token) return false;
-  const snap = await getDocs(query(collection(db, "pushSubscriptions"), where("uid", "==", uid), where("token", "==", token)));
-  return !snap.empty;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE);
+    return !!(await reg?.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
 }
 
-export async function subscribeToPush(uid: string): Promise<void> {
-  const ctx = await getMessagingSafe();
-  if (!ctx) throw new PushError("push-unsupported");
-  // Для getToken нужны ВСЕ четыре значения конфигурации. Если в Vercel не задана хоть одна из
-  // NEXT_PUBLIC_FIREBASE_* переменных, SDK падает с невнятной ошибкой — проверяем заранее.
-  const missing = (["apiKey", "projectId", "messagingSenderId", "appId"] as const).filter((k) => !firebaseConfig[k]);
-  if (missing.length) throw new PushError("config-missing", missing.join(", "));
+export async function subscribeToPush(_uid?: string): Promise<void> {
+  if (!isPushSupported()) throw new PushError("push-unsupported");
+  if (!VAPID_PUBLIC) throw new PushError("vapid-not-configured");
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("permission-denied");
+  if (permission !== "granted") throw new PushError("permission-denied");
 
-  let token: string | null = null;
-  try {
-    // Внутри — таймаут 20 с: если серверы Google (FCM) недоступны из сети пользователя, getToken иначе висит вечно.
-    token = await requestToken(ctx.messaging, ctx.registration);
-  } catch (e: any) {
-    if (e instanceof PushError) throw e;
-    console.error("FCM getToken failed:", e?.code, e?.message, e);
-    throw new PushError("token-failed", `${e?.code ?? ""} ${e?.message ?? e}`.trim().slice(0, 400));
-  }
-  if (!token) throw new PushError("token-failed", "пустой токен");
-  try {
-    await saveTokenOnServer(token);
-  } catch (e: any) {
-    throw new PushError("save-failed", String(e?.message || e).slice(0, 160));
-  }
-  void uid;
+  const registration = await getPushRegistration();
+  const sub = await ensureBrowserSubscription(registration);
+  await saveSubscriptionOnServer(sub);
 }
 
 /**
- * Тихая синхронизация: если разрешение на уведомления уже дано, получаем актуальный токен и
- * (пере)сохраняем его на сервере. Лечит три случая: токен сменился (FCM их периодически
- * обновляет), токен остался от старой регистрации SW (до исправления scope), и вход в другой
- * аккаунт на том же браузере. Окон и запросов разрешения не показывает.
+ * Тихая синхронизация при входе: если разрешение уже дано, (пере)сохраняем подписку на сервере.
+ * Лечит смену аккаунта на том же браузере и подписки, потерянные при переезде с Firebase.
+ * Окон и запросов разрешения не показывает.
  */
 export async function syncPushSubscriptionSilently(): Promise<void> {
-  if (!isPushSupported() || Notification.permission !== "granted") return;
-  const token = await fetchToken();
-  if (token) await saveTokenOnServer(token);
-}
-
-export async function unsubscribeFromPush(uid: string): Promise<void> {
-  const ctx = await getMessagingSafe();
-  if (!ctx) return;
-  const { deleteToken } = await import("firebase/messaging");
-  const token = await requestToken(ctx.messaging, ctx.registration).catch(() => null);
-  if (token) {
-    await deleteToken(ctx.messaging).catch(() => {});
-    const snap = await getDocs(query(collection(db, "pushSubscriptions"), where("uid", "==", uid), where("token", "==", token)));
-    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  if (!isPushSupported() || Notification.permission !== "granted" || !VAPID_PUBLIC) return;
+  try {
+    const registration = await getPushRegistration();
+    const sub = await ensureBrowserSubscription(registration);
+    await saveSubscriptionOnServer(sub);
+  } catch {
+    // тихо: это фоновая синхронизация
   }
 }
 
-/** Понятный человеку текст для ошибки включения push (общий для карточки в профиле и всплывающего окна). */
+export async function unsubscribeFromPush(_uid?: string): Promise<void> {
+  if (!isPushSupported()) return;
+  const reg = await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE);
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  const endpoint = sub.endpoint;
+  await sub.unsubscribe().catch(() => {});
+  const idToken = await auth.currentUser?.getIdToken();
+  if (idToken) {
+    await fetch("/api/push/unsubscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ endpoint }),
+    }).catch(() => {});
+  }
+}
+
+/** Понятный текст для ошибки включения push (общий для карточки в профиле и всплывающего окна). */
 export function describePushError(err: any): { level: "warning" | "error"; text: string } {
   const code = err?.message as string | undefined;
   const detail = err?.detail ? ` (${err.detail})` : "";
@@ -189,28 +195,18 @@ export function describePushError(err: any): { level: "warning" | "error"; text:
       return { level: "warning", text: "Разрешение на уведомления не дано — включи его в настройках браузера для этого сайта" };
     case "push-unsupported":
       return { level: "warning", text: "Этот браузер не поддерживает push. На iPhone добавь сайт на главный экран («Поделиться» → «На экран Домой») и включи уведомления оттуда" };
+    case "vapid-not-configured":
+      return { level: "error", text: "На сайте не заданы VAPID-ключи: добавь NEXT_PUBLIC_VAPID_PUBLIC_KEY и VAPID_PRIVATE_KEY в Vercel (пара генерируется командой node scripts/generate-vapid.js) и сделай redeploy" };
     case "sw-missing":
-      return { level: "error", text: `Не найден файл /firebase-messaging-sw.js на сайте${detail}. Положи его в папку public и задеплой` };
+      return { level: "error", text: `Не найден файл /push-sw.js на сайте${detail}. Положи его в папку public и задеплой` };
     case "sw-register-failed":
       return { level: "error", text: `Браузер не смог запустить service worker${detail}` };
-    case "token-timeout":
-      return { level: "error", text: "Серверы Google (FCM) не отвечают — похоже, они недоступны в твоей сети. Попробуй с VPN или с другой сети" };
-    case "config-missing":
-      return { level: "error", text: `В Vercel не заданы переменные Firebase: ${err.detail}. Добавь NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID и NEXT_PUBLIC_FIREBASE_APP_ID (Firebase Console → Project settings → Your apps) и сделай redeploy` };
-    case "token-failed": {
-      const d = String(err?.detail ?? "");
-      if (/missing-app-config|appId|messagingSenderId/i.test(d))
-        return { level: "error", text: "Не хватает настроек Firebase: проверь NEXT_PUBLIC_FIREBASE_APP_ID и NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID в Vercel" };
-      if (/403|blocked|API key|PERMISSION_DENIED|not valid|restrict/i.test(d))
-        return { level: "error", text: "Google отклонил запрос из-за ограничений API-ключа. В Google Cloud Console → APIs & Services → Credentials → «Browser key» открой API restrictions и добавь «Firebase Installations API» и «Firebase Cloud Messaging Registration API» (или выбери «Don't restrict key»)" };
-      if (/push service error|AbortError/i.test(d))
-        return { level: "error", text: "Браузер не смог зарегистрироваться в push-сервисе (чаще всего из-за недоступности серверов Google). Попробуй Chrome или Edge, VPN или другую сеть" };
-      if (/permission-blocked/i.test(d))
-        return { level: "warning", text: "Уведомления заблокированы в настройках браузера для этого сайта — разреши их и попробуй снова" };
-      return { level: "error", text: `Не удалось получить токен уведомлений: ${d.slice(0, 200)}` };
-    }
+    case "subscribe-timeout":
+      return { level: "error", text: "Push-сервис браузера не отвечает — возможно, он недоступен в твоей сети. Попробуй другую сеть или VPN" };
+    case "subscribe-failed":
+      return { level: "error", text: `Браузер не смог оформить подписку${detail}. Если ошибка про «push service error» — push-сервис браузера недоступен в твоей сети; попробуй Chrome/Edge или другую сеть` };
     case "save-failed":
-      return { level: "error", text: `Токен получен, но сервер не сохранил подписку${detail}` };
+      return { level: "error", text: `Подписка создана, но сервер не сохранил её${detail}` };
     default:
       return { level: "error", text: `Не удалось включить уведомления${code ? `: ${String(code).slice(0, 120)}` : ""}` };
   }

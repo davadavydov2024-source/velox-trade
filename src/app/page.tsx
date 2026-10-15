@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
-import { ArrowRight, Sparkles, Flame } from "lucide-react";
+import { ReactNode, useEffect, useState } from "react";
+import { ArrowUpRight, Dices } from "lucide-react";
 import { getGames, getProducts } from "@/lib/products";
 import { getPublicStats } from "@/lib/stats";
 import { Game, Product } from "@/types";
@@ -16,12 +16,30 @@ import { SiteRatingWidget } from "@/components/SiteRatingWidget";
 import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 
-const ACCENTS = ["#ff9800", "#4a6cf7", "#22c55e", "#e879f9", "#38bdf8"];
+function SectionHead({ title, href, hint, extra }: { title: string; href?: string; hint?: string; extra?: ReactNode }) {
+  return (
+    <div className="flex items-end justify-between gap-4 mb-5">
+      <div>
+        <h2 className="font-display text-xl sm:text-2xl font-semibold">{title}</h2>
+        {hint && <p className="text-sm text-white/40 mt-1">{hint}</p>}
+      </div>
+      <div className="flex items-center gap-4 shrink-0">
+        {extra}
+        {href && (
+          <Link href={href} className="text-sm text-white/55 hover:text-accent transition-colors inline-flex items-center gap-1">
+            Все <ArrowUpRight size={15} />
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [games, setGames] = useState<Game[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [featured, setFeatured] = useState<Product[]>([]);
+  const [fresh, setFresh] = useState<Product[]>([]);
   const [dealsCount, setDealsCount] = useState(0);
 
   useEffect(() => {
@@ -33,248 +51,114 @@ export default function HomePage() {
       .then((products) => {
         const now = Date.now();
         setFeatured(products.filter((p) => p.boostTier === "home" && (p.boostUntil ?? 0) > now).slice(0, 6));
+        setFresh(
+          [...products]
+            .filter((p) => p.stock > 0)
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 12)
+        );
       })
-      .catch(() => setFeatured([]));
+      .catch(() => { setFeatured([]); setFresh([]); });
     getPublicStats()
       .then((s) => setDealsCount(s.dealsCount))
       .catch(() => setDealsCount(0));
   }, []);
 
   return (
-    <div>
-      {/* Большой промо-баннер — теперь самое первое, что видно на странице */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 lg:pt-4">
+    <>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      {/* Баннер — первое, что видно на странице (если реклама не добавлена, блок не занимает места). */}
+      <div className="pt-4 lg:pt-6">
         <PromoCarousel />
       </div>
 
-      {/* Живая лента покупок — социальное доказательство сразу под баннером */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-        <LiveActivityFeed />
-      </div>
-
-      {/* Mobile hero — компактный, с реальными данными вместо статичного лого */}
-      <section className="lg:hidden border-b border-border px-4 pt-4 pb-6 space-y-4">
-        <div>
-          <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-3">
-            <Sparkles size={13} /> №1 маркетплейс игровых предметов
-          </span>
-          {dealsCount > 0 && (
-            <span className="flex items-center gap-1.5 text-[11px] text-white/40 mb-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
-            </span>
-          )}
-          <h1
-            className="text-2xl font-extrabold leading-tight mb-1.5 tracking-tight auth-title-sheen bg-clip-text text-transparent"
-            style={{ backgroundImage: "linear-gradient(90deg, #fff, var(--color-accent-light), #fff)" }}
-          >
-            Лучший магазин игровых предметов
-          </h1>
-          <p className="text-white/50 text-sm">Roblox-предметы быстро, безопасно и по честным ценам</p>
-        </div>
-
-        <Link
-          href="/profile/wheel"
-          className="block rounded-2xl p-4 relative overflow-hidden active:scale-[0.98] transition-transform"
-          style={{ background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))" }}
-        >
-          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10 blur-xl" />
-          <p className="text-black/60 text-[11px] font-semibold mb-1 relative">Колесо фортуны</p>
-          <p className="text-black font-bold text-base relative">Крути и выигрывай предметы</p>
-        </Link>
-
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-sm font-semibold text-white/70">Игры</p>
-            <Link href="/games" className="text-accent text-xs">
-              Все игры →
-            </Link>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-            {(loaded ? games.slice(0, 8) : Array.from({ length: 5 })).map((game, i) =>
-              loaded && game ? (
-                <Link key={(game as Game).id} href={`/catalog?game=${(game as Game).slug}`} className="flex-none flex flex-col items-center gap-1.5 w-14">
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/30 ring-1 ring-white/5">
-                    <Image src={safeImageSrc((game as Game).image)} alt={(game as Game).name} fill className="object-cover" sizes="48px" />
-                  </div>
-                  <span className="text-[10px] text-center text-white/60 leading-tight truncate w-full">{(game as Game).name}</span>
-                </Link>
-              ) : (
-                <div key={i} className="flex-none w-12 h-12 rounded-xl bg-white/5 animate-pulse" />
-              )
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-2.5">
-          <Link href="/catalog" className="btn-primary flex-1 py-3 text-sm text-center">
-            Начать покупки
-          </Link>
-          <Link href="/profile/sell" className="btn-secondary flex-1 py-3 text-sm text-center">
-            Продать предмет
-          </Link>
-        </div>
-      </section>
-
-      {/* Hero (десктоп) */}
-      <section className="hidden lg:block relative overflow-hidden border-b border-border">
-        <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
-        <div
-          className="auth-blob-1 absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full opacity-[0.12] blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, var(--color-accent) 0%, transparent 70%)" }}
-        />
-        <div
-          className="auth-blob-2 absolute top-1/3 -right-24 w-[380px] h-[380px] rounded-full opacity-[0.08] blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #4a6cf7 0%, transparent 70%)" }}
-        />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 md:pt-24 pb-10 md:pb-12 grid md:grid-cols-2 gap-12 items-center relative">
-          <div>
-            {dealsCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-white/50 bg-white/5 px-3 py-1.5 rounded-full mb-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> {dealsCount.toLocaleString("ru-RU")} сделок совершено
+      {/* Игры: ряд плиток-иконок с подписью, прокручивается вбок. */}
+      <section className="pt-8 lg:pt-10">
+        <SectionHead
+          title="Игры"
+          href="/games"
+          extra={
+            dealsCount > 0 ? (
+              <span className="hidden sm:flex items-center gap-2 text-xs text-white/45">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                {dealsCount.toLocaleString("ru-RU")} сделок
               </span>
-            )}
-            <span className="inline-flex items-center gap-1.5 text-accent text-xs font-semibold bg-accent/10 px-3 py-1.5 rounded-full mb-5 ml-2">
-              <Sparkles size={14} /> №1 маркетплейс игровых предметов
-            </span>
-            <h1 className="text-4xl md:text-6xl font-extrabold leading-[1.1] mb-5 tracking-tight">
-              Лучший магазин
-              <br />
-              <span className="bg-gradient-to-r from-accent to-accent-light bg-clip-text text-transparent">
-                игровых предметов
-              </span>
-            </h1>
-            <p className="text-white/50 mb-8 max-w-md text-lg">
-              Покупай и продавай предметы из Roblox быстро, безопасно и по честным ценам — Grow a Garden, Adopt Me,
-              Blox Fruits и десятки других игр.
-            </p>
-            <div className="flex flex-wrap gap-3 mb-10">
-              <Link href="/catalog" className="btn-primary px-6 py-3.5 flex items-center gap-2 shadow-glow">
-                Начать покупки <ArrowRight size={18} />
-              </Link>
-              <Link href="/profile/sell" className="btn-secondary px-6 py-3.5">
-                Продать предмет
-              </Link>
-            </div>
-            <div className="flex gap-8">
-              {[
-                { label: "Безопасные сделки", value: "100%" },
-                { label: "Поддержка", value: "24/7" },
-                { label: "Доставка предметов", value: "~5 мин" },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <p className="text-xl font-bold text-accent">{stat.value}</p>
-                  <p className="text-xs text-white/40">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative pt-2">
-            {!loaded ? (
-              <div className="grid grid-cols-3 gap-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className={`rounded-2xl bg-white/5 animate-pulse h-32 ${i === 0 ? "col-span-2" : ""}`} />
-                ))}
-              </div>
-            ) : games.length === 0 ? (
-              <div className="relative w-56 h-56 md:w-72 md:h-72 mx-auto">
-                <Image src="/icons/logo-nobg.png" alt="Velox Trade" fill className="object-contain" sizes="288px" priority />
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                {games.slice(0, 5).map((game, i) => (
-                  <Link
-                    key={game.id}
-                    href={`/catalog?game=${game.slug}`}
-                    className={`relative card p-2.5 hover:-translate-y-1 transition-transform duration-300 ${i === 0 ? "col-span-2 row-span-1 -rotate-1 border-accent/60" : ""}`}
-                  >
-                    <div
-                      className="relative w-full rounded-xl overflow-hidden bg-black/30"
-                      style={{ height: i === 0 ? 96 : 76, borderLeft: `3px solid ${ACCENTS[i % ACCENTS.length]}` }}
-                    >
-                      <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="180px" />
-                      {i === 0 && (
-                        <span className="absolute top-1.5 left-1.5 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
-                          <Flame size={11} /> Хайп
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs font-medium mt-2 truncate">{game.name}</p>
-                  </Link>
-                ))}
-                <Link
-                  href="/games"
-                  className="card p-2.5 flex items-center justify-center text-accent text-xs font-medium bg-accent/5 border-accent/20 hover:bg-accent/10 transition-colors"
-                >
-                  Все игры →
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-2 lg:pt-4 pb-4 grid sm:grid-cols-2 gap-4">
-        <AdSlotCard />
-        <QuickTopupCard />
-      </section>
-
-      {featured.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <span className="text-accent">⭐</span> Рекомендуем
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {featured.map((p, i) => (
-              <div key={p.id} className="activity-card-enter" style={{ animationDelay: `${i * 40}ms`, animationFillMode: "backwards" }}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Popular games */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Популярные игры</h2>
-          <Link href="/games" className="text-accent text-sm hover:underline">
-            Все игры →
-          </Link>
-        </div>
+            ) : null
+          }
+        />
         {!loaded ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="card aspect-square animate-pulse bg-white/5" />
+          <div className="flex gap-4 overflow-hidden">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="flex-none w-[84px]">
+                <div className="w-[84px] h-[84px] rounded-[20px] bg-white/5 animate-pulse" />
+                <div className="h-2.5 w-14 mt-2.5 rounded bg-white/5 animate-pulse" />
+              </div>
             ))}
           </div>
         ) : games.length === 0 ? (
-          <div className="card p-10 text-center text-white/40">
-            Игры появятся здесь, как только администратор добавит их в админ-панели.
-          </div>
+          <div className="card p-8 text-center text-white/40 text-sm">Игры появятся здесь, как только администратор добавит их в админ-панели.</div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            {games.map((game, i) => (
-              <Link
-                key={game.id}
-                href={`/catalog?game=${game.slug}`}
-                className="card p-4 flex flex-col items-center gap-3 hover:-translate-y-1.5 hover:shadow-glow hover:border-accent/50 border border-transparent transition-all duration-300 activity-card-enter"
-                style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
-              >
-                <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/5">
-                  <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="56px" />
+          <div className="flex gap-4 sm:gap-5 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+            {games.map((game) => (
+              <Link key={game.id} href={`/catalog?game=${game.slug}`} className="flex-none w-[84px] group">
+                <div className="relative w-[84px] h-[84px] rounded-[20px] overflow-hidden bg-surface border border-border group-hover:border-accent transition-colors">
+                  <Image src={safeImageSrc(game.image)} alt={game.name} fill className="object-cover" sizes="84px" />
                 </div>
-                <span className="text-xs text-center text-white/70 leading-tight">{game.name}</span>
+                <span className="block text-[12.5px] text-center text-white/70 group-hover:text-white mt-2.5 truncate transition-colors">{game.name}</span>
               </Link>
             ))}
           </div>
         )}
       </section>
 
-      <RecentlyViewedSection />
-      <SiteRatingWidget />
+      {/* Быстрые действия: колесо, реклама, пополнение. */}
+      <section className="pt-8 lg:pt-10 grid lg:grid-cols-[1fr_1fr_1fr] gap-4">
+        <Link
+          href="/profile/wheel"
+          className="group flex items-center gap-4 rounded-[18px] bg-accent text-black p-5 hover:bg-accent-light transition-colors"
+        >
+          <span className="w-12 h-12 rounded-[14px] bg-black text-accent grid place-items-center shrink-0">
+            <Dices size={24} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-display text-[17px] font-semibold leading-tight">Колесо фортуны</span>
+            <span className="block text-sm text-black/65 mt-0.5">Крути раз в несколько часов и забирай предметы</span>
+          </span>
+          <ArrowUpRight size={20} className="ml-auto shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
+        </Link>
+        <AdSlotCard />
+        <QuickTopupCard />
+      </section>
+
+      <div className="pt-8">
+        <LiveActivityFeed />
+      </div>
+
+      {featured.length > 0 && (
+        <section className="pt-12">
+          <SectionHead title="Рекомендуем" hint="Предметы, которые продавцы вывели на главную" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {featured.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {fresh.length > 0 && (
+        <section className="pt-12">
+          <SectionHead title="Новые предметы" href="/catalog" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {fresh.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
     </div>
+    <RecentlyViewedSection />
+    <SiteRatingWidget />
+    </>
   );
 }

@@ -20,7 +20,7 @@ export function SiteRatingWidget() {
   const recent = reviews.slice(0, 3);
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold mb-1">Отзывы о Velox Trade</h2>

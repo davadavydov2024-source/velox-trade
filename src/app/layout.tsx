@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Onest, Unbounded } from "next/font/google";
 import { Providers } from "./providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileTabBar } from "@/components/MobileTabBar";
-import { AuthBackground } from "@/components/AuthBackground";
+
+const onest = Onest({ subsets: ["latin", "cyrillic"], variable: "--font-onest", display: "swap" });
+const unbounded = Unbounded({ subsets: ["latin", "cyrillic"], variable: "--font-unbounded", display: "swap" });
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -36,8 +39,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
-      <body className="bg-bg text-white min-h-screen flex flex-col">
-        <AuthBackground variant="ambient" />
+      <body className={`${onest.variable} ${unbounded.variable} bg-bg text-white min-h-screen flex flex-col`}>
         <Providers>
           <Header />
           <main className="flex-1 pb-28 lg:pb-0">{children}</main>

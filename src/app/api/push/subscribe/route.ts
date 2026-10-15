@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { PUSH_SUBS_COLLECTION, subscriptionDocId } from "@/lib/webPushServer";
+import { isAllowedPushEndpoint } from "@/lib/webpushProtocol";
 
 export const runtime = "nodejs";
 
 /**
- * Сохраняет FCM-токен устройства за текущим пользователем. Делается на сервере, а не addDoc'ом
- * с клиента, чтобы:
- *  1) не плодить дубли — раньше каждое включение уведомлений добавляло ещё один документ с тем же
- *     токеном, и одно событие приходило несколько раз;
- *  2) отвязать токен от прежнего аккаунта — если на этом браузере сначала сидел другой
- *     пользователь, его уведомления продолжали бы приходить на это устройство.
- * Тело: { token: string }.
+ * Сохраняет Web Push подписку устройства за текущим пользователем.
+ * Документ называется по хэшу endpoint — поэтому повторное включение не плодит дубли, а если на
+ * этом браузере сменился аккаунт, подписка просто переходит новому владельцу.
+ * Тело: { subscription: { endpoint, keys: { p256dh, auth } } }.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -20,23 +19,26 @@ export async function POST(req: NextRequest) {
     const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
     if (!decoded) return NextResponse.json({ error: "Сессия истекла" }, { status: 401 });
 
-    const { token } = (await req.json().catch(() => ({}))) as { token?: string };
-    if (typeof token !== "string" || token.length < 20 || token.length > 1024) {
-      return NextResponse.json({ error: "Неверный токен" }, { status: 400 });
+    const body = (await req.json().catch(() => ({}))) as {
+      subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+    };
+    const endpoint = body.subscription?.endpoint;
+    const p256dh = body.subscription?.keys?.p256dh;
+    const auth = body.subscription?.keys?.auth;
+    if (typeof endpoint !== "string" || typeof p256dh !== "string" || typeof auth !== "string" || endpoint.length > 2000) {
+      return NextResponse.json({ error: "Неверная подписка" }, { status: 400 });
+    }
+    if (!isAllowedPushEndpoint(endpoint)) {
+      return NextResponse.json({ error: "Этот push-сервис не поддерживается" }, { status: 400 });
+    }
+    if (Buffer.from(p256dh, "base64url").length !== 65 || Buffer.from(auth, "base64url").length < 16) {
+      return NextResponse.json({ error: "Неверные ключи подписки" }, { status: 400 });
     }
 
-    const col = adminDb().collection("pushSubscriptions");
-    const existing = await col.where("token", "==", token).get();
-
-    let keep: FirebaseFirestore.QueryDocumentSnapshot | null = null;
-    const batch = adminDb().batch();
-    for (const d of existing.docs) {
-      if (!keep && d.data().uid === decoded.uid) keep = d;
-      else batch.delete(d.ref); // чужой аккаунт или дубль
-    }
-    if (keep) batch.update(keep.ref, { lastSeenAt: Date.now() });
-    else batch.set(col.doc(), { uid: decoded.uid, token, createdAt: Date.now() });
-    await batch.commit();
+    await adminDb()
+      .collection(PUSH_SUBS_COLLECTION)
+      .doc(subscriptionDocId(endpoint))
+      .set({ uid: decoded.uid, endpoint, p256dh, auth, userAgent: (req.headers.get("user-agent") ?? "").slice(0, 200), updatedAt: Date.now() }, { merge: true });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -4,7 +4,7 @@ import { useUnread } from "@/lib/unreadContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Search, ShoppingCart, Wallet, User as UserIcon, Menu, X, Swords } from "lucide-react";
+import { Search, ShoppingCart, Wallet, User as UserIcon, Menu, X, LayoutGrid, Gamepad2, MessageSquare, CirclePlus } from "lucide-react";
 import { useCart } from "@/lib/cartStore";
 import { useAuth } from "@/lib/authContext";
 import { useLanguage } from "@/lib/languageStore";
@@ -35,55 +35,63 @@ export function Header() {
     setMenuOpen(false);
   }, [pathname]);
 
+  const navItem = (href: string, label: string, Icon: typeof LayoutGrid, badge?: number) => {
+    const active = pathname === href.split("?")[0] && !href.includes("?");
+    return (
+      <Link
+        key={href}
+        href={href}
+        className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-[10px] text-[11px] font-medium transition-colors ${
+          active ? "text-white" : "text-white/50 hover:text-white"
+        }`}
+      >
+        <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
+        {label}
+        {!!badge && badge > 0 && (
+          <span className="absolute top-0 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-black text-[10px] font-bold leading-4 text-center">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
   return (
-    <header className="sticky top-0 z-50 glass border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
-          <Swords className="text-accent" size={24} />
-          <span>
-            VELOX <span className="text-accent">TRADE</span>
+    <header className="sticky top-0 z-50 bg-bg/95 border-b border-border">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[68px] flex items-center gap-4 lg:gap-6">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <span className="w-8 h-8 rounded-[10px] bg-accent text-black grid place-items-center font-display text-[15px] font-bold">V</span>
+          <span className="font-display text-[16px] font-semibold hidden sm:block">
+            Velox<span className="text-white/40">Trade</span>
           </span>
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-6 text-sm text-white/70 shrink-0">
-          <Link href="/games" className="hover:text-white transition-colors">
-            {t("nav_games")}
-          </Link>
-          <Link href="/catalog" className="hover:text-white transition-colors">
-            {t("nav_catalog")}
-          </Link>
-          <Link href="/catalog?new=1" className="hover:text-white transition-colors">
-            {t("nav_new")}
-          </Link>
-          <Link href="/chats" className="hover:text-white transition-colors relative">
-            {t("nav_chats")}
-            {unreadTotal > 0 && (
-              <span className="absolute -top-2 -right-4 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[17px] text-center">
-                {unreadTotal > 99 ? "99+" : unreadTotal}
-              </span>
-            )}
-          </Link>
-        </nav>
-
         <form
           action="/catalog"
-          className="hidden md:flex flex-1 max-w-md relative"
+          className="hidden md:flex flex-1 relative"
           onSubmit={(e) => {
             e.preventDefault();
             window.location.href = `/catalog?q=${encodeURIComponent(search)}`;
           }}
         >
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35" size={18} />
           <input
             autoComplete="off"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск предметов..."
-            className="input-field pl-10 py-2.5"
+            placeholder="Найти предмет, игру или продавца"
+            className="input-field pl-11 py-2.5 text-sm rounded-[14px]"
           />
         </form>
 
-        <div className="flex items-center gap-2 ml-auto shrink-0">
+        <div className="flex items-center gap-1 ml-auto shrink-0">
+          <nav className="hidden lg:flex items-center gap-0.5 mr-2">
+            {navItem("/catalog", t("nav_catalog"), LayoutGrid)}
+            {navItem("/games", t("nav_games"), Gamepad2)}
+            {navItem("/profile/sell", "Продать", CirclePlus)}
+            {navItem("/chats", t("nav_chats"), MessageSquare, unreadTotal)}
+          </nav>
+
           {mounted && profile && (
             <Link href="/profile/topup" className="hidden sm:flex items-center gap-1.5 btn-secondary py-2 px-3 text-sm">
               <Wallet size={16} className="text-accent" />
@@ -97,7 +105,7 @@ export function Header() {
           >
             {mobileSearchOpen ? <X size={18} /> : <Search size={18} />}
           </button>
-          <Link href="/cart" className="relative btn-secondary py-2 px-3">
+          <Link href="/cart" className="relative btn-secondary py-2 px-3" aria-label="Корзина">
             <ShoppingCart size={18} />
             {mounted && cartCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-accent text-black text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -107,7 +115,7 @@ export function Header() {
           </Link>
           <NotificationBell />
           {user ? (
-            <Link href="/profile" className="hidden lg:flex btn-secondary py-2 px-3">
+            <Link href="/profile" className="hidden lg:flex btn-secondary py-2 px-3" aria-label="Профиль">
               <UserIcon size={18} />
             </Link>
           ) : (
@@ -115,7 +123,7 @@ export function Header() {
               {t("nav_login")}
             </Link>
           )}
-          <button className="lg:hidden btn-secondary py-2 px-3" onClick={() => setMenuOpen((v) => !v)}>
+          <button className="lg:hidden btn-secondary py-2 px-3" onClick={() => setMenuOpen((v) => !v)} aria-label="Меню">
             {menuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>

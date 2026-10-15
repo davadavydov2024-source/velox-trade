@@ -22,8 +22,8 @@ export function RecentlyViewedSection({ excludeId, title = "Вы недавно 
   if (products.length === 0) return null;
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-b border-border">
-      <h2 className="text-2xl font-bold mb-6">{title}</h2>
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-4">
+      <h2 className="font-display text-xl sm:text-2xl font-semibold mb-5">{title}</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {products.map((p) => (
           <ProductCard key={p.id} product={p} />

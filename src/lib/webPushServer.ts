@@ -1,24 +1,15 @@
-import { adminDb, adminMessaging } from "./firebaseAdmin";
+import { createHash } from "crypto";
+import { adminDb } from "./firebaseAdmin";
 import { PushCategories, DEFAULT_PUSH_CATEGORIES } from "@/types";
+import { getVapidConfig, sendRawWebPush, VapidConfig } from "./webpushProtocol";
 
 export type PushCategory = keyof PushCategories;
 
-/**
- * "Мёртвый" токен — устройство отписалось, приложение удалили, токен протух и т.п.
- * FCM в этих случаях бросает messaging/registration-token-not-registered — токен больше никогда
- * не сработает, поэтому удаляем его из базы, чтобы не тратить попытки отправки впустую.
- * В отличие от старого web-push (VAPID), тут в принципе не бывает 401/403 "не та пара ключей" —
- * ключ Firebase-проекта один на всех, никакого рассинхрона публичного/приватного больше нет.
- */
-function isDeadTokenError(err: any): boolean {
-  const code = err?.errorInfo?.code || err?.code;
-  return code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token";
-}
+/** Коллекция подписок стандартного Web Push (не Firebase): { uid, endpoint, p256dh, auth, createdAt }. */
+export const PUSH_SUBS_COLLECTION = "webPushSubs";
 
-function describeSendError(err: any): string {
-  const code = err?.errorInfo?.code || err?.code;
-  if (isDeadTokenError(err)) return `${code}: токен устарел (пользователь отключил уведомления или очистил данные сайта) и был удалён.`;
-  return `${code ?? "?"}: ${(err?.message || "неизвестная ошибка").toString().slice(0, 200)}`;
+export function subscriptionDocId(endpoint: string): string {
+  return createHash("sha256").update(endpoint).digest("hex");
 }
 
 interface PushPayload {
@@ -27,14 +18,18 @@ interface PushPayload {
   url?: string;
 }
 
+interface StoredSub {
+  uid?: string;
+  endpoint?: string;
+  p256dh?: string;
+  auth?: string;
+}
+
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://velox-trade-zeta.vercel.app").replace(/\/+$/, "");
 
 /**
- * FCM принимает в webpush.fcmOptions.link ТОЛЬКО абсолютный https-адрес. Раньше сюда уходили
- * относительные пути вида "/chats" или "/product/123" — Firebase отвечал INVALID_ARGUMENT, и ни
- * одно push-уведомление со ссылкой не доходило (а ссылка есть почти у всех). Здесь путь
- * превращается в полный адрес сайта; чужие домены отбрасываются — в push нельзя вставить
- * ссылку на посторонний сайт.
+ * Ссылка в уведомлении — только на наш сайт: относительный путь ("/chats") превращается в полный
+ * адрес, чужие домены отбрасываются (в push нельзя вставить ссылку на посторонний сайт).
  */
 export function toAbsoluteLink(url?: string): string | undefined {
   if (!url || typeof url !== "string") return undefined;
@@ -45,30 +40,19 @@ export function toAbsoluteLink(url?: string): string | undefined {
     const parsed = new URL(u);
     if (parsed.origin === new URL(SITE_URL).origin) return parsed.toString();
   } catch {
-    // не URL — игнорируем ссылку, само уведомление всё равно отправится
+    // не URL — ссылку игнорируем, само уведомление всё равно отправится
   }
   return undefined;
 }
 
-/**
- * Единое тело сообщения для всех отправок. Сообщение DATA-ONLY (без поля notification): показом
- * уведомления целиком занимается наш service worker (public/firebase-messaging-sw.js) в событии
- * "push" — так поведение одинаково во всех браузерах, ссылка по клику всегда открывается, и не
- * зависит от того, подгрузился ли Firebase SDK внутри SW. Все значения data обязаны быть строками.
- */
-function buildMessage(token: string, payload: PushPayload) {
+/** Тело, которое получит service worker (public/push-sw.js) в событии "push". */
+function buildPayload(payload: PushPayload) {
   const link = toAbsoluteLink(payload.url);
   return {
-    token,
-    data: {
-      title: payload.title.slice(0, 120),
-      body: payload.body.slice(0, 300),
-      icon: `${SITE_URL}/icons/icon-192.png`,
-      ...(link ? { url: link } : {}),
-    },
-    webpush: {
-      headers: { Urgency: "high", TTL: "86400" },
-    },
+    title: payload.title.slice(0, 120),
+    body: payload.body.slice(0, 300),
+    icon: `${SITE_URL}/icons/icon-192.png`,
+    ...(link ? { url: link } : {}),
   };
 }
 
@@ -79,24 +63,43 @@ export interface PushSendReport {
   errors: string[];
 }
 
+function describeFailure(status: number, error?: string): string {
+  if (status === 401 || status === 403) {
+    return `${error ?? status}: push-сервис не принял VAPID-ключи. Проверь, что NEXT_PUBLIC_VAPID_PUBLIC_KEY и VAPID_PRIVATE_KEY — одна пара, и что пользователь заново включил уведомления после смены ключей`;
+  }
+  if (status === 404 || status === 410) return `${status}: подписка устарела (уведомления отключены или данные сайта очищены) — удалена`;
+  return error ?? `ошибка ${status}`;
+}
+
+async function sendToDoc(
+  doc: FirebaseFirestore.QueryDocumentSnapshot,
+  payload: PushPayload,
+  cfg: VapidConfig
+): Promise<{ ok: boolean; error?: string }> {
+  const sub = doc.data() as StoredSub;
+  if (!sub.endpoint || !sub.p256dh || !sub.auth) {
+    await doc.ref.delete().catch(() => {});
+    return { ok: false, error: "битая подписка удалена" };
+  }
+  const res = await sendRawWebPush({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth }, buildPayload(payload), cfg);
+  if (res.ok) return { ok: true };
+  if (res.gone) await doc.ref.delete().catch(() => {});
+  return { ok: false, error: describeFailure(res.status, res.error) };
+}
+
 /** Как sendWebPush, но без проверки категорий и с подробным отчётом — для кнопки «Тест» в профиле. */
 export async function sendWebPushDetailed(uid: string, payload: PushPayload): Promise<PushSendReport> {
-  const snap = await adminDb().collection("pushSubscriptions").where("uid", "==", uid).get();
+  const cfg = getVapidConfig();
+  if (!cfg) throw new Error("VAPID-ключи не заданы на сервере (NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY)");
+  const snap = await adminDb().collection(PUSH_SUBS_COLLECTION).where("uid", "==", uid).get();
   const report: PushSendReport = { devices: snap.size, sent: 0, failed: 0, errors: [] };
   await Promise.all(
     snap.docs.map(async (doc) => {
-      const sub = doc.data() as { token?: string };
-      if (!sub.token) {
-        await doc.ref.delete().catch(() => {});
-        return;
-      }
-      try {
-        await adminMessaging().send(buildMessage(sub.token, payload));
-        report.sent++;
-      } catch (err: any) {
+      const r = await sendToDoc(doc, payload, cfg);
+      if (r.ok) report.sent++;
+      else {
         report.failed++;
-        report.errors.push(describeSendError(err));
-        if (isDeadTokenError(err)) await doc.ref.delete().catch(() => {});
+        if (r.error) report.errors.push(r.error);
       }
     })
   );
@@ -104,14 +107,13 @@ export async function sendWebPushDetailed(uid: string, payload: PushPayload): Pr
 }
 
 /**
- * Рассылка ВСЕМ подписанным пользователям сразу — для админских рассылок (см. /admin/notifications).
- * Считается категорией "news" — уважает отключённую пользователем категорию "Новости и объявления".
- * В отличие от sendWebPush (один uid), тут не группируем по uid — просто идём по каждому
- * сохранённому токену. Мёртвые токены удаляются по ходу.
+ * Рассылка ВСЕМ подписанным пользователям — для админских рассылок (/admin/notifications).
+ * Считается категорией "news": уважает отключённую пользователем категорию «Новости и объявления».
  */
 export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ total: number; sent: number; failed: number; lastError?: string }> {
-  const db = adminDb();
-  const snap = await db.collection("pushSubscriptions").get();
+  const cfg = getVapidConfig();
+  if (!cfg) return { total: 0, sent: 0, failed: 0, lastError: "VAPID-ключи не заданы на сервере" };
+  const snap = await adminDb().collection(PUSH_SUBS_COLLECTION).get();
   if (snap.empty) return { total: 0, sent: 0, failed: 0 };
 
   let sent = 0;
@@ -121,27 +123,19 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
   const BATCH = 50;
   const docs = snap.docs;
   for (let i = 0; i < docs.length; i += BATCH) {
-    const batch = docs.slice(i, i + BATCH);
     await Promise.all(
-      batch.map(async (doc) => {
-        const sub = doc.data() as { uid?: string; token?: string };
-        if (!sub.token) {
-          await doc.ref.delete().catch(() => {});
+      docs.slice(i, i + BATCH).map(async (doc) => {
+        const uid = (doc.data() as StoredSub).uid;
+        if (uid && !(await isCategoryEnabled(uid, "news"))) {
           skipped++;
           return;
         }
-        if (sub.uid && !(await isCategoryEnabled(sub.uid, "news"))) {
-          skipped++;
-          return;
-        }
-        try {
-          await adminMessaging().send(buildMessage(sub.token, payload));
-          sent++;
-        } catch (err: any) {
-          console.error("sendWebPushBroadcast error:", err?.errorInfo?.code || err?.code, err?.message);
-          lastError = describeSendError(err);
-          if (isDeadTokenError(err)) await doc.ref.delete().catch(() => {});
+        const r = await sendToDoc(doc, payload, cfg);
+        if (r.ok) sent++;
+        else {
           failed++;
+          lastError = r.error;
+          console.error("sendWebPushBroadcast error:", r.error);
         }
       })
     );
@@ -150,32 +144,21 @@ export async function sendWebPushBroadcast(payload: PushPayload): Promise<{ tota
 }
 
 /**
- * Шлёт push-уведомление во все устройства пользователя (может быть несколько токенов —
- * разные браузеры/телефоны). Мёртвые токены удаляются, чтобы не копился мусор.
- * Уважает настройки категорий уведомлений пользователя (/profile/security) — если категория
- * выключена, push просто не отправляется, без ошибки.
+ * Шлёт push во все устройства пользователя. Устаревшие подписки удаляются. Уважает настройки
+ * категорий уведомлений (/profile/security): если категория выключена — просто не отправляет.
  */
 export async function sendWebPush(uid: string, payload: PushPayload, category: PushCategory = "messages"): Promise<void> {
   try {
+    const cfg = getVapidConfig();
+    if (!cfg) return;
     if (!(await isCategoryEnabled(uid, category))) return;
 
-    const db = adminDb();
-    const snap = await db.collection("pushSubscriptions").where("uid", "==", uid).get();
+    const snap = await adminDb().collection(PUSH_SUBS_COLLECTION).where("uid", "==", uid).get();
     if (snap.empty) return;
-
     await Promise.all(
       snap.docs.map(async (doc) => {
-        const sub = doc.data() as { token?: string };
-        if (!sub.token) {
-          await doc.ref.delete().catch(() => {});
-          return;
-        }
-        try {
-          await adminMessaging().send(buildMessage(sub.token, payload));
-        } catch (err: any) {
-          console.error("sendWebPush error:", describeSendError(err));
-          if (isDeadTokenError(err)) await doc.ref.delete().catch(() => {});
-        }
+        const r = await sendToDoc(doc, payload, cfg);
+        if (!r.ok) console.error("sendWebPush error:", r.error);
       })
     );
   } catch (err) {
@@ -183,7 +166,7 @@ export async function sendWebPush(uid: string, payload: PushPayload, category: P
   }
 }
 
-/** Проверяет, включена ли у пользователя данная категория уведомлений (по умолчанию — да, у старых профилей поля нет). */
+/** Включена ли у пользователя данная категория (по умолчанию — да, у старых профилей поля нет). */
 async function isCategoryEnabled(uid: string, category: PushCategory): Promise<boolean> {
   try {
     const userSnap = await adminDb().collection("users").doc(uid).get();
