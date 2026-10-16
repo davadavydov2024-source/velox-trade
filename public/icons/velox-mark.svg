@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="640" height="640">
+  <rect width="640" height="640" rx="140" fill="#c8f542"/>
+  <!-- speed lines -->
+  <rect x="60" y="243" width="94" height="16" rx="8" fill="#0b0c10"/>
+  <rect x="83" y="311" width="86" height="19" rx="9" fill="#4a5420"/>
+  <rect x="60" y="377" width="94" height="19" rx="9" fill="#6b7a26"/>
+  <!-- diamond: upper facets -->
+  <polygon points="326,133 160,264 274,264" fill="#0b0c10"/>
+  <polygon points="344,128 281,264 345,264" fill="#0b0c10"/>
+  <polygon points="344,128 345,264 407,264" fill="#33351a"/>
+  <polygon points="362,133 528,264 416,264" fill="#33351a"/>
+  <!-- diamond: lower facets -->
+  <polygon points="160,278 272,278 330,500" fill="#1a1c0e"/>
+  <polygon points="284,278 345,278 345,506" fill="#14160a"/>
+  <polygon points="345,278 406,278 345,506" fill="#0b0c10"/>
+  <polygon points="418,278 528,278 360,500" fill="#0b0c10"/>
+</svg>

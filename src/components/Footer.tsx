@@ -11,7 +11,8 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8 text-sm">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5 mb-3">
-            <span className="w-7 h-7 rounded-[9px] bg-accent text-black grid place-items-center font-display text-[13px] font-bold">V</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/velox-mark.svg" alt="" width={30} height={30} className="w-[30px] h-[30px] rounded-[9px]" />
             <span className="font-display font-semibold">Velox<span className="text-white/40">Trade</span></span>
           </div>
           <p className="text-white/40">{t("footer_tagline")}</p>

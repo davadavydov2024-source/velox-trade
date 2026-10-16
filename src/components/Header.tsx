@@ -60,7 +60,8 @@ export function Header() {
     <header className="sticky top-0 z-50 bg-bg/95 border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[68px] flex items-center gap-4 lg:gap-6">
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <span className="w-8 h-8 rounded-[10px] bg-accent text-black grid place-items-center font-display text-[15px] font-bold">V</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/velox-mark.svg" alt="Velox Trade" width={36} height={36} className="w-9 h-9 rounded-[10px]" />
           <span className="font-display text-[16px] font-semibold hidden sm:block">
             Velox<span className="text-white/40">Trade</span>
           </span>

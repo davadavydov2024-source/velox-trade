@@ -1,0 +1,47 @@
+[debug] [2026-10-15T12:19:44.628Z] ----------------------------------------------------------------------
+[debug] [2026-10-15T12:19:44.635Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2026-10-15T12:19:44.636Z] CLI Version:   15.28.1
+[debug] [2026-10-15T12:19:44.636Z] Platform:      win32
+[debug] [2026-10-15T12:19:44.636Z] Node Version:  v24.18.0
+[debug] [2026-10-15T12:19:44.636Z] Detected Agent: unknown
+[debug] [2026-10-15T12:19:44.636Z] Time:          Thu Oct 15 2026 15:19:44 GMT+0300 (Москва, стандартное время)
+[debug] [2026-10-15T12:19:44.636Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-15T12:19:46.319Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-15T12:19:46.320Z] > authorizing via signed-in user (davadavydov2024@gmail.com)
+[debug] [2026-10-15T12:19:46.320Z] [iam] checking project blade-shoop for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-10-15T12:19:46.338Z] Checked if tokens are valid: false, expires at: 1792066647273
+[debug] [2026-10-15T12:19:46.338Z] Checked if tokens are valid: false, expires at: 1792066647273
+[debug] [2026-10-15T12:19:46.339Z] > refreshing access token with scopes: []
+[debug] [2026-10-15T12:19:46.341Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-10-15T12:19:46.341Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-10-15T12:19:46.896Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-10-15T12:19:46.897Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-10-15T12:19:46.926Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/blade-shoop:testIamPermissions [none]
+[debug] [2026-10-15T12:19:46.926Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/blade-shoop:testIamPermissions  x-goog-user-project=blade-shoop
+[debug] [2026-10-15T12:19:46.926Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/blade-shoop:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-10-15T12:19:47.225Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/blade-shoop:testIamPermissions 200
+[debug] [2026-10-15T12:19:47.226Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/blade-shoop:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'blade-shoop'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-10-15T12:19:47.233Z] Checked if tokens are valid: true, expires at: 1792070385897
+[debug] [2026-10-15T12:19:47.233Z] Checked if tokens are valid: true, expires at: 1792070385897
+[debug] [2026-10-15T12:19:47.233Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/blade-shoop/databases/(default) [none]
+[debug] [2026-10-15T12:19:48.154Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/blade-shoop/databases/(default) 200
+[debug] [2026-10-15T12:19:48.155Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/blade-shoop/databases/(default) {"name":"projects/blade-shoop/databases/(default)","uid":"2fa4578f-c567-4784-a037-cc826ae9967c","createTime":"2026-06-29T22:27:48.973681Z","updateTime":"2026-06-29T22:27:48.973681Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-10-15T11:19:48.001445Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"INOJwIKBvJcDMMHL/czywpUD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-10-15T12:19:48.162Z] Checked if tokens are valid: true, expires at: 1792070385897
+[debug] [2026-10-15T12:19:48.163Z] Checked if tokens are valid: true, expires at: 1792070385897
+[debug] [2026-10-15T12:19:48.163Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/blade-shoop:test [none]
+[debug] [2026-10-15T12:19:48.163Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/blade-shoop:test [omitted]
+[debug] [2026-10-15T12:19:48.667Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/blade-shoop:test 200
+[debug] [2026-10-15T12:19:48.667Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/blade-shoop:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-10-15T12:19:48.669Z] Checked if tokens are valid: true, expires at: 1792070385897
+[debug] [2026-10-15T12:19:48.669Z] Checked if tokens are valid: true, expires at: 1792070385897
+[debug] [2026-10-15T12:19:48.669Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/blade-shoop/releases pageSize=10&pageToken=
