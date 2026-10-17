@@ -1,4 +1,5 @@
 import { auth } from "./firebase";
+import { getDeviceId } from "./sessions";
 
 /**
  * Push-уведомления на стандартном Web Push (Push API + VAPID) — БЕЗ Firebase Messaging.
@@ -96,7 +97,7 @@ async function saveSubscriptionOnServer(sub: PushSubscription) {
   const res = await fetch("/api/push/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ subscription: sub.toJSON() }),
+    body: JSON.stringify({ subscription: sub.toJSON(), deviceId: getDeviceId() }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

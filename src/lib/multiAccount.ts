@@ -15,6 +15,7 @@ import {
   markIntentionalSignOut,
   startAddAccount,
 } from "./accountSlots";
+import { cleanupOnLogout } from "./sessions";
 
 export { getSavedAccounts, getActiveSlotId, getLoadedSlotId, PRIMARY_SLOT } from "./accountSlots";
 export type { SavedAccount } from "./accountSlots";
@@ -97,7 +98,10 @@ export function switchAccount(slotId: string, to = "/profile") {
 export async function removeAccount(slotId: string) {
   const loaded = getLoadedSlotId();
   if (slotId === loaded) markIntentionalSignOut();
-  await signOut(authForSlot(slotId)).catch(() => {});
+  const slotAuth = authForSlot(slotId);
+  // До signOut (пока есть токен): убираем сессию устройства из списка и отвязываем push-подписку.
+  if (slotAuth.currentUser) await cleanupOnLogout(slotAuth.currentUser, slotId === loaded);
+  await signOut(slotAuth).catch(() => {});
   removeSavedAccountBySlot(slotId);
 
   if (slotId !== loaded) return;

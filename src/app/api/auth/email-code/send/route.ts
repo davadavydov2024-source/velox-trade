@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendMail } from "@/lib/mailer";
+import { rateLimit, ipKey } from "@/lib/rateLimit";
+import { randomCode6 } from "@/lib/secureRandom";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +17,9 @@ const RESEND_COOLDOWN_MS = 30 * 1000; // не чаще раза в 30 секун
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await rateLimit(ipKey(req, "email_send"), 10, 60 * 60_000))) {
+      return NextResponse.json({ error: "Слишком много запросов, попробуй позже" }, { status: 429 });
+    }
     const { email } = await req.json();
     const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Код уже отправлен, подожди немного перед повторной отправкой" }, { status: 429 });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomCode6();
     await ref.set({ code, createdAt: Date.now(), attempts: 0, verified: false });
 
     await sendMail(

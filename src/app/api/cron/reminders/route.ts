@@ -16,7 +16,7 @@ const HOUR = 60 * 60 * 1000;
  */
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
 

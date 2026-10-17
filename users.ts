@@ -284,9 +284,5 @@ export async function forceReloadUser(uid: string) {
 }
 
 // ---- Admin check ----
-
-export function isAdminUid(uid: string | null | undefined): boolean {
-  if (!uid) return false;
-  const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return list.includes(uid);
-}
+// Реэкспорт для существующих импортов из "@/lib/users"; сервер импортирует из "@/lib/isAdmin".
+export { isAdminUid } from "./isAdmin";

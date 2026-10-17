@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { syncSellerRating } from "@/lib/reviewStats";
 
 export const runtime = "nodejs";
 // Роут читает query-параметры через nextUrl.searchParams — без этого Next пробует пререндерить
@@ -23,6 +24,16 @@ export async function GET(req: NextRequest) {
     const data = snap.data() as Record<string, unknown>;
     const lastActiveAt = (data.lastActiveAt as number) ?? 0;
 
+    // Рейтинг берём из реальных отзывов (и заодно чиним расхождение в профиле), а не из сохранённых
+    // счётчиков — они могли отстать от числа отзывов. Сбой подсчёта не должен ломать профиль.
+    let ratingSum = (data.ratingSum as number) ?? 0;
+    let ratingCount = (data.ratingCount as number) ?? 0;
+    try {
+      ({ ratingSum, ratingCount } = await syncSellerRating(uid));
+    } catch (err) {
+      console.error("public-profile: syncSellerRating failed", err);
+    }
+
     return NextResponse.json({
       profile: {
         uid,
@@ -31,8 +42,8 @@ export async function GET(req: NextRequest) {
         bio: data.bio ?? "",
         photoURL: data.photoURL ?? null,
         badges: data.badges ?? [],
-        ratingSum: data.ratingSum ?? 0,
-        ratingCount: data.ratingCount ?? 0,
+        ratingSum,
+        ratingCount,
         createdAt: data.createdAt ?? null,
         isOnline: Date.now() - lastActiveAt < ONLINE_THRESHOLD_MS,
         nameColor: data.nameColor ?? undefined,

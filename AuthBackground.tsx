@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Анимированный фон для страниц входа/регистрации — крупные яркие движущиеся цветные пятна поверх
@@ -9,17 +9,20 @@ import { useMemo } from "react";
  * наведения мыши. Чисто декоративный слой, fixed и pointer-events-none.
  */
 export function AuthBackground() {
-  const particles = useMemo(
-    () =>
+  // Частицы генерируем только после монтирования: Math.random() при рендере давал разные значения
+  // на сервере и в браузере -> предупреждение/ошибка hydration mismatch.
+  const [particles, setParticles] = useState<{ id: number; left: number; size: number; duration: number; delay: number }[]>([]);
+  useEffect(() => {
+    setParticles(
       Array.from({ length: 22 }).map((_, i) => ({
         id: i,
         left: Math.round(Math.random() * 100),
         size: 3 + Math.round(Math.random() * 5),
         duration: 7 + Math.round(Math.random() * 9),
         delay: Math.round(Math.random() * 8),
-      })),
-    []
-  );
+      }))
+    );
+  }, []);
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-bg">

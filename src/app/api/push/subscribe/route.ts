@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+      deviceId?: string;
     };
     const endpoint = body.subscription?.endpoint;
     const p256dh = body.subscription?.keys?.p256dh;
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     await adminDb()
       .collection(PUSH_SUBS_COLLECTION)
       .doc(subscriptionDocId(endpoint))
-      .set({ uid: decoded.uid, endpoint, p256dh, auth, userAgent: (req.headers.get("user-agent") ?? "").slice(0, 200), updatedAt: Date.now() }, { merge: true });
+      .set({ uid: decoded.uid, endpoint, p256dh, auth, ...(typeof body.deviceId === "string" && body.deviceId.length <= 100 ? { deviceId: body.deviceId } : {}), userAgent: (req.headers.get("user-agent") ?? "").slice(0, 200), updatedAt: Date.now() }, { merge: true });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

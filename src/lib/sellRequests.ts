@@ -55,10 +55,13 @@ export async function getAllSellRequests(): Promise<SellRequest[]> {
  * Для одобрения используй approveSellRequest — она ещё и создаёт сам товар.
  */
 export async function setSellRequestStatus(request: SellRequest, status: "approved" | "rejected") {
-  await updateDoc(doc(db, "sellRequests", request.id), { status });
-  if (status === "rejected") {
-    notifyTelegram(request.userId, `❌ Заявка на продажу «${request.itemName}» отклонена.`);
+  // "approved" без создания товара оставлял заявку одобренной, а товара в каталоге не было.
+  if (status === "approved") {
+    await approveSellRequest(request);
+    return;
   }
+  await updateDoc(doc(db, "sellRequests", request.id), { status });
+  notifyTelegram(request.userId, `❌ Заявка на продажу «${request.itemName}» отклонена.`);
 }
 
 /**

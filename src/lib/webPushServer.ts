@@ -58,6 +58,7 @@ function buildPayload(payload: PushPayload) {
 }
 
 export interface PushDeviceResult {
+  id: string; // id документа подписки — для кнопки «Отключить» в отчёте теста
   label: string; // например «iPhone · Safari»
   current: boolean; // это устройство, с которого нажали «Тест»
   ok: boolean;
@@ -122,6 +123,7 @@ export async function sendWebPushDetailed(uid: string, payload: PushPayload, cur
       const data = doc.data() as StoredSub;
       const r = await sendToDoc(doc, payload, cfg);
       report.results.push({
+        id: doc.id,
         label: deviceLabel(data.userAgent),
         current: !!currentEndpoint && data.endpoint === currentEndpoint,
         ok: r.ok,

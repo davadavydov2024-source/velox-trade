@@ -1,3 +1,4 @@
+import { randomToken as secureRandomToken } from "./secureRandom";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
 
@@ -9,10 +10,7 @@ export interface TelegramLink {
 
 function randomLinkCode(): string {
   // 20 случайных символов из безопасного алфавита — достаточно, чтобы код нельзя было угадать перебором.
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  let out = "";
-  for (let i = 0; i < 20; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+  return secureRandomToken(20);
 }
 
 /** Создаёт заявку на привязку Telegram и возвращает код для deep-ссылки на бота. */

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { isAdminUid } from "@/lib/users";
+import { isAdminUid } from "@/lib/isAdmin";
 import { encryptSecret } from "@/lib/botCredentialCrypto";
 
 export const runtime = "nodejs";

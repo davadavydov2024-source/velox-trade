@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 /**
@@ -14,17 +14,20 @@ import { usePathname } from "next/navigation";
  */
 export function AuthBackground({ variant = "hero" }: { variant?: "hero" | "ambient" }) {
   const pathname = usePathname();
-  const particles = useMemo(
-    () =>
+  // Частицы создаём после монтирования: Math.random() при рендере давал разные значения на сервере и
+  // в браузере (hydration mismatch).
+  const [particles, setParticles] = useState<{ id: number; left: number; size: number; duration: number; delay: number }[]>([]);
+  useEffect(() => {
+    setParticles(
       Array.from({ length: 22 }).map((_, i) => ({
         id: i,
         left: Math.round(Math.random() * 100),
         size: 3 + Math.round(Math.random() * 5),
         duration: 7 + Math.round(Math.random() * 9),
         delay: Math.round(Math.random() * 8),
-      })),
-    []
-  );
+      }))
+    );
+  }, []);
 
   // В админке фон не нужен — там плотные таблицы и формы, декоративное движение только мешает
   // работе. Ограничение только для "ambient" (глобальный фон в layout.tsx) — для "hero" (страницы

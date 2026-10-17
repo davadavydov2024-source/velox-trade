@@ -60,10 +60,10 @@ export async function sendDirectMessage(
       participants: [fromUid, toUid],
       participantNames: { [fromUid]: fromName, [toUid]: toName },
       participantPhotos: { [fromUid]: fromPhoto, [toUid]: toPhoto },
-      messages: [message],
+      messages: arrayUnion(message),
       updatedAt: Date.now(),
       lastMessage: preview,
-    });
+    }, { merge: true });
   } else {
     await updateDoc(ref, {
       messages: arrayUnion(message),

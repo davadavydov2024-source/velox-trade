@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { sendTelegramMessage, generateSixDigitCode } from "@/lib/telegramBot";
+import { rateLimit, ipKey } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await rateLimit(ipKey(req, "request_code"), 10, 60 * 60_000))) {
+      return NextResponse.json({ error: "Слишком много запросов, попробуй позже" }, { status: 429 });
+    }
     const { email } = await req.json();
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Укажи email" }, { status: 400 });

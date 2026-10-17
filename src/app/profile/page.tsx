@@ -55,6 +55,16 @@ export default function ProfilePage() {
       .catch(() => setPurchaseCount(null));
   }, [user]);
 
+  // Рейтинг в своём профиле берётся из сохранённых счётчиков, которые могли отстать от реальных
+  // отзывов. Запрос профиля через сервер пересчитывает их по отзывам — после этого перечитываем свой.
+  useEffect(() => {
+    if (!user) return;
+    fetch(`/api/public-profile?uid=${encodeURIComponent(user.uid)}`)
+      .then(() => refreshProfile())
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
   if (!profile || !user) return null;
 
   const nameCooldown = cooldownLeft(profile.lastNameChangeAt);
@@ -153,7 +163,7 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <OnboardingChecklist />
       <div className="card overflow-hidden">
-        {/* Обложка. Админ видит на ней кнопки «Добавить/Сменить баннер» — остальным она просто красивый фон. */}
+        {/* Обложка. На своём профиле у каждого есть кнопки «Добавить/Сменить баннер». */}
         <ProfileBanner
           url={profile.bannerURL}
           editable
@@ -164,7 +174,9 @@ export default function ProfilePage() {
         <div className="px-5 sm:px-6 pb-6 -mt-12 sm:-mt-14 relative">
           <div className="flex items-end gap-4 flex-wrap sm:flex-nowrap">
             <div className="relative shrink-0">
-              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-[28px] overflow-hidden bg-surface ring-4 ring-bg">
+              {/* Мягкое свечение в цвет акцента за аватаром */}
+              <div className="absolute inset-0 rounded-full bg-accent/40 blur-xl scale-110" />
+              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-surface ring-4 ring-bg shadow-[0_0_0_2px_var(--color-accent)]">
                 <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="112px" />
               </div>
               <span className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-green-400 border-[3px] border-bg" title="В сети" />
@@ -172,14 +184,14 @@ export default function ProfilePage() {
 
             <div className="flex-1 min-w-0 pb-1">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="font-display text-xl sm:text-2xl font-semibold leading-tight">
+                <h1 className="text-2xl font-extrabold leading-tight">
                   <StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} />
                 </h1>
                 {checkmarks.map((b) => (
                   <ShieldCheck key={b} size={19} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
                 ))}
                 {isAdmin && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30">
+                  <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400/20 to-accent/20 text-amber-300 border border-amber-400/30">
                     <Crown size={11} /> Админ
                   </span>
                 )}
@@ -239,26 +251,26 @@ export default function ProfilePage() {
           )}
 
           <div className={`grid gap-3 mt-5 ${hasStars ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
-            <div className="relative overflow-hidden rounded-[16px] p-3.5 bg-accent text-black">
-              <Wallet size={15} className="mb-2" />
-              <p className="font-display text-xl font-semibold leading-none">{profile.balance.toFixed(0)} ₽</p>
-              <p className="text-[11px] text-black/60 mt-1.5">Баланс</p>
+            <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30">
+              <Wallet size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold text-accent leading-none">{profile.balance.toFixed(0)} ₽</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Баланс</p>
             </div>
             {hasStars && (
-              <div className="relative overflow-hidden rounded-[16px] p-3.5 bg-surface border border-yellow-400/30">
+              <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/15 to-yellow-400/[0.03] border border-yellow-400/25">
                 <Sparkles size={15} className="text-yellow-300 mb-2" />
-                <p className="font-display text-xl font-semibold text-yellow-300 leading-none">{profile.starsBalance} ⭐</p>
+                <p className="text-xl font-extrabold text-yellow-300 leading-none">{profile.starsBalance} ⭐</p>
                 <p className="text-[11px] text-white/45 mt-1.5">Stars с продаж</p>
               </div>
             )}
-            <div className="rounded-[16px] p-3.5 bg-surface border border-border">
+            <div className="rounded-card p-3.5 bg-white/[0.03] border border-white/[0.06]">
               <ShoppingBag size={15} className="text-accent mb-2" />
-              <p className="font-display text-xl font-semibold leading-none">{purchaseCount ?? "—"}</p>
+              <p className="text-xl font-extrabold leading-none">{purchaseCount ?? "—"}</p>
               <p className="text-[11px] text-white/45 mt-1.5">Покупок</p>
             </div>
-            <div className="rounded-[16px] p-3.5 bg-surface border border-border">
+            <div className="rounded-card p-3.5 bg-white/[0.03] border border-white/[0.06]">
               <Star size={15} className="text-accent mb-2" />
-              <p className="font-display text-xl font-semibold leading-none">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
+              <p className="text-xl font-extrabold leading-none">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
               <p className="text-[11px] text-white/45 mt-1.5">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
             </div>
           </div>

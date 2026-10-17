@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { sendWebPush } from "@/lib/webPushServer";
+import { rateLimit } from "@/lib/rateLimit";
+import { mayNotify } from "@/lib/notifyAccess";
 
 export const runtime = "nodejs";
 
@@ -24,6 +26,8 @@ export async function POST(req: NextRequest) {
     if (typeof uid !== "string" || !uid || typeof title !== "string" || !title.trim()) {
       return NextResponse.json({ error: "uid и title обязательны" }, { status: 400 });
     }
+    if (!(await rateLimit(`notify_push_${decoded.uid}`, 60, 60_000))) return NextResponse.json({ error: "Слишком часто" }, { status: 429 });
+    if (!(await mayNotify(decoded.uid, uid))) return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
     const validCategory = category === "purchases" || category === "reminders" || category === "news" ? category : "messages";
     await sendWebPush(uid, { title: title.trim().slice(0, 120), body: typeof body === "string" ? body.slice(0, 300) : "", url: typeof url === "string" ? url : undefined }, validCategory);
     return NextResponse.json({ ok: true });

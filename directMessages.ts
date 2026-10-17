@@ -44,14 +44,19 @@ export async function sendDirectMessage(
   const preview = imageUrl ? (text.trim() ? `📷 ${text}` : "📷 Фото") : text;
 
   if (!snap.exists()) {
-    await setDoc(ref, {
-      participants: [fromUid, toUid],
-      participantNames: { [fromUid]: fromName, [toUid]: toName },
-      participantPhotos: { [fromUid]: fromPhoto, [toUid]: toPhoto },
-      messages: [message],
-      updatedAt: Date.now(),
-      lastMessage: preview,
-    });
+    // merge + arrayUnion: если два первых сообщения уйдут одновременно, второе не затрёт первое.
+    await setDoc(
+      ref,
+      {
+        participants: [fromUid, toUid],
+        participantNames: { [fromUid]: fromName, [toUid]: toName },
+        participantPhotos: { [fromUid]: fromPhoto, [toUid]: toPhoto },
+        messages: arrayUnion(message),
+        updatedAt: Date.now(),
+        lastMessage: preview,
+      },
+      { merge: true }
+    );
   } else {
     await updateDoc(ref, {
       messages: arrayUnion(message),

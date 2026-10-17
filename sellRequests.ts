@@ -25,19 +25,12 @@ export async function getAllSellRequests(): Promise<SellRequest[]> {
  * Для одобрения используй approveSellRequest — она ещё и создаёт сам товар.
  */
 export async function setSellRequestStatus(request: SellRequest, status: "approved" | "rejected") {
+  // "approved" через эту функцию ставить нельзя — заявка стала бы "одобренной" без товара в каталоге.
+  if (status === "approved") return approveSellRequest(request);
   await updateDoc(doc(db, "sellRequests", request.id), { status });
-  if (status === "rejected") {
-    notifyTelegram(request.userId, `❌ Заявка на продажу «${request.itemName}» отклонена.`);
-  }
+  notifyTelegram(request.userId, `❌ Заявка на продажу «${request.itemName}» отклонена.`);
 }
 
-/**
- * Одобряет заявку на продажу И сразу создаёт товар в каталоге на основе её данных —
- * раньше одобрение только меняло статус заявки, а товар приходилось добавлять вручную
- * через «Товары», из-за чего он нигде не появлялся, если админ забывал это сделать.
- * Продавец — сам автор заявки (его uid), начальный остаток — 1 шт (это конкретный сданный предмет).
- * Редкость по умолчанию "common" — админ может поправить её и остальные детали в «Товары» после создания.
- */
 /**
  * Одобряет заявку на продажу И сразу создаёт товар в каталоге на основе её данных —
  * количество и редкость берём из того, что выбрал продавец в форме заявки.

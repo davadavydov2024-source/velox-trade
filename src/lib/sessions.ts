@@ -122,3 +122,35 @@ export async function terminateSession(targetDeviceId: string | "all"): Promise<
     throw new Error(data.error || "Не удалось завершить сессию");
   }
 }
+
+/**
+ * Вызывается перед выходом из аккаунта: просит сервер удалить запись этой сессии и push-подписку
+ * этого устройства (api/auth/logout-cleanup), затем (для аккаунта, который открыт в этом браузере)
+ * снимает и саму подписку браузера. Никогда не бросает и не держит выход дольше ~3 секунд —
+ * выйти из аккаунта должно быть можно всегда, даже без сети.
+ */
+export async function cleanupOnLogout(user: { getIdToken: () => Promise<string> }, isThisBrowserAccount: boolean): Promise<void> {
+  if (typeof window === "undefined") return;
+  const work = (async () => {
+    let sub: PushSubscription | null | undefined;
+    try {
+      if ("serviceWorker" in navigator && "PushManager" in window) {
+        const reg = await navigator.serviceWorker.getRegistration("/push-scope/");
+        sub = await reg?.pushManager.getSubscription();
+      }
+    } catch {
+      sub = null;
+    }
+    const idToken = await user.getIdToken();
+    await fetch("/api/auth/logout-cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ deviceId: getDeviceId(), endpoint: sub?.endpoint }),
+      keepalive: true,
+    });
+    // Подписку браузера снимаем только если выходим из аккаунта, открытого здесь; при входе в
+    // следующий аккаунт она создастся заново сама (см. PushForegroundListener).
+    if (isThisBrowserAccount) await sub?.unsubscribe().catch(() => {});
+  })().catch(() => {});
+  await Promise.race([work, new Promise((r) => setTimeout(r, 3000))]);
+}

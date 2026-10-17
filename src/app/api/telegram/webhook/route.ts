@@ -1,3 +1,4 @@
+import { safeEqual } from "@/lib/secureRandom";
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import {
@@ -70,6 +71,7 @@ import {
 export const runtime = "nodejs";
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+const safeEqualStr = safeEqual;
 const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TELEGRAM_ADMIN_CHAT_ID) : null;
 const SITE_NAME = "Velox Trade";
 
@@ -220,11 +222,15 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
 }
 
 export async function POST(req: NextRequest) {
-  if (WEBHOOK_SECRET) {
-    const header = req.headers.get("x-telegram-bot-api-secret-token");
-    if (header !== WEBHOOK_SECRET) {
-      return NextResponse.json({ ok: false }, { status: 401 });
-    }
+  // Без секрета любой мог бы прислать поддельное обновление «от имени» любого Telegram-пользователя
+  // (в т.ч. админа). Поэтому секрет обязателен: TELEGRAM_WEBHOOK_SECRET + setWebhook с secret_token.
+  if (!WEBHOOK_SECRET) {
+    console.error("telegram/webhook: TELEGRAM_WEBHOOK_SECRET не задан — запрос отклонён");
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+  const secretHeader = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
+  if (!safeEqualStr(secretHeader, WEBHOOK_SECRET)) {
+    return NextResponse.json({ ok: false }, { status: 401 });
   }
 
   try {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendTelegramMessage } from "@/lib/telegramBot";
-import { isAdminUid } from "@/lib/users";
+import { isAdminUid } from "@/lib/isAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

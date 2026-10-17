@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { rateLimit, ipKey } from "@/lib/rateLimit";
+import { randomCode6, randomToken as secureToken } from "@/lib/secureRandom";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,10 +9,7 @@ export const dynamic = "force-dynamic";
 const BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 function randomToken(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  let out = "";
-  for (let i = 0; i < 20; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+  return secureToken(20);
 }
 
 /**
@@ -21,6 +20,9 @@ function randomToken(): string {
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await rateLimit(ipKey(req, "tg_start"), 10, 60 * 60_000))) {
+      return NextResponse.json({ error: "Слишком много запросов, попробуй позже" }, { status: 429 });
+    }
     const { email } = await req.json();
     const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = randomToken();
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomCode6();
     await adminDb().collection("tgVerifyRequests").doc(token).set({
       email: normalized,
       code,

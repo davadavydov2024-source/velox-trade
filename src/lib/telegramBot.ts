@@ -1,3 +1,4 @@
+import { randomInt } from "crypto";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 export interface InlineButton {
@@ -6,7 +7,7 @@ export interface InlineButton {
   url?: string;
 }
 
-async function tgCall<T = unknown>(method: string, body: Record<string, unknown>): Promise<T | null> {
+async function tgCall<T = unknown>(method: string, body: Record<string, unknown>, attempt = 0): Promise<T | null> {
   if (!BOT_TOKEN) {
     console.error(`tgCall(${method}): TELEGRAM_BOT_TOKEN не задан на сервере`);
     return null;
@@ -26,9 +27,9 @@ async function tgCall<T = unknown>(method: string, body: Record<string, unknown>
       // 429 — Telegram сам просит подождать retry_after секунд перед следующим запросом (обычно
       // при частой рассылке многим пользователям подряд). Одна повторная попытка после паузы
       // спасает большинство сообщений от "теряется молча из-за rate limit".
-      if (data.error_code === 429 && data.parameters?.retry_after) {
+      if (data.error_code === 429 && data.parameters?.retry_after && attempt < 1) {
         await new Promise((r) => setTimeout(r, (data.parameters.retry_after + 1) * 1000));
-        return tgCall<T>(method, body);
+        return tgCall<T>(method, body, attempt + 1);
       }
       return null;
     }
@@ -110,7 +111,7 @@ export async function answerPreCheckoutQuery(preCheckoutQueryId: string, ok: boo
 }
 
 export function generateSixDigitCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 /** Проверяет, состоит ли пользователь в канале/группе — используется для условия "подпишись,

@@ -1,3 +1,4 @@
+import { randomToken as secureRandomToken } from "@/lib/secureRandom";
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
@@ -13,7 +14,7 @@ function siteUrl(req: NextRequest): string {
 }
 
 function randomCode(): string {
-  return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join("");
+  return secureRandomToken(24, "abcdefghijklmnopqrstuvwxyz0123456789");
 }
 
 /**

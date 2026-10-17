@@ -38,7 +38,7 @@ export function PushToggleCard() {
   const [busy, setBusy] = useState(false);
   const [categoryBusy, setCategoryBusy] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
-  const [testResults, setTestResults] = useState<{ label: string; current: boolean; ok: boolean; error?: string }[] | null>(null);
+  const [testResults, setTestResults] = useState<{ id: string; label: string; current: boolean; ok: boolean; error?: string }[] | null>(null);
 
   const categories: PushCategories = profile?.pushCategories ?? DEFAULT_PUSH_CATEGORIES;
 
@@ -113,6 +113,22 @@ export function PushToggleCard() {
     }
   }
 
+  async function handleRemoveDevice(id: string) {
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/push/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error();
+      setTestResults((list) => (list ? list.filter((r) => r.id !== id) : list));
+      toast("success", "Устройство отключено от уведомлений");
+    } catch {
+      toast("error", "Не удалось отключить устройство");
+    }
+  }
+
   async function handleCategoryToggle(key: keyof PushCategories) {
     if (!user) return;
     setCategoryBusy(key);
@@ -163,6 +179,11 @@ export function PushToggleCard() {
                   </p>
                   {r.error && <p className="text-xs text-red-400/80 break-words">{r.error}</p>}
                 </div>
+                {!r.current && (
+                  <button type="button" onClick={() => handleRemoveDevice(r.id)} className="ml-auto shrink-0 text-xs text-white/40 hover:text-red-400 transition-colors">
+                    Отключить
+                  </button>
+                )}
               </div>
             ))
           )}

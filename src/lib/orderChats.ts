@@ -76,7 +76,7 @@ export async function sendOrderChatMessage(
   const message: OrderChatMessage = { from, text, createdAt: Date.now(), ...(imageUrl ? { imageUrl } : {}) };
 
   if (!snap.exists()) {
-    await setDoc(ref, { orderId, buyerId, sellerId, messages: [message], updatedAt: Date.now() });
+    await setDoc(ref, { orderId, buyerId, sellerId, messages: arrayUnion(message), updatedAt: Date.now() }, { merge: true });
   } else {
     await updateDoc(ref, { messages: arrayUnion(message), updatedAt: Date.now() });
   }

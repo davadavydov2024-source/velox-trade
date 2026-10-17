@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, orderBy } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { Dispute } from "@/types";
 import { notifyTelegram } from "./telegramNotify";
 import { sendOrderChatMessage } from "./orderChats";
@@ -25,9 +25,11 @@ export async function createDispute(data: Omit<Dispute, "id" | "status" | "creat
   // Уведомляем админов в Telegram, если у них привязан бот — молча игнорируем ошибку,
   // жалоба всё равно появится в /admin/disputes даже если уведомление не дошло.
   try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("no-auth");
     await fetch("/api/admin/notify-dispute", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({ orderId: data.orderId, reason: data.reason, buyerName: data.buyerName, filedBy: data.filedBy }),
     });
   } catch {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, ipKey } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
  * никакого доступа к самому аккаунту это не даёт.
  */
 export async function GET(req: NextRequest) {
+  if (!(await rateLimit(ipKey(req, "roblox"), 60, 60_000))) return NextResponse.json({ found: false }, { status: 429 });
   const username = req.nextUrl.searchParams.get("username")?.trim();
   if (!username) return NextResponse.json({ error: "Не указан ник" }, { status: 400 });
   if (username.length > 30) return NextResponse.json({ found: false });

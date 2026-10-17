@@ -16,14 +16,16 @@ service firebase.storage {
     }
 
     function isImage() {
-      return request.resource.contentType.matches('image/.*');
+      // SVG исключён: он может содержать скрипты
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
     }
 
     function isUnder5MB() {
       return request.resource.size < 5 * 1024 * 1024;
     }
 
-    // Изображения товаров и игр — загружать может только админ (каталог им управляется).
+    // Файлы сейчас грузятся через /api/blob/upload (Vercel Blob), а не в Firebase Storage —
+    // правила оставлены на случай использования и максимально закрыты.
     match /products/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin() && isImage() && isUnder5MB();
@@ -32,8 +34,6 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdmin() && isImage() && isUnder5MB();
     }
-
-    // Баннеры и фото для рассылок — тоже только админ.
     match /ads/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin() && isImage() && isUnder5MB();
@@ -43,14 +43,12 @@ service firebase.storage {
       allow write: if isAdmin() && isImage() && isUnder5MB();
     }
 
-    // Аватары — любой залогиненный пользователь может загрузить файл (лимит на частоту смены
-    // проверяется в коде сайта, а не здесь — Storage Rules этого не умеют делать надёжно).
-    match /avatars/{allPaths=**} {
+    // Аватар — только в собственную папку avatars/<uid>/... (раньше любой мог перезаписать чужой).
+    match /avatars/{uid}/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn() && isImage() && isUnder5MB();
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage() && isUnder5MB();
     }
 
-    // Всё остальное — закрыто по умолчанию.
     match /{allPaths=**} {
       allow read, write: if false;
     }

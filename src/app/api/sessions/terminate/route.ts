@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { PUSH_SUBS_COLLECTION } from "@/lib/webPushServer";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,12 @@ export async function POST(req: NextRequest) {
         if (d.data().revoked) return;
         batch.update(d.ref, { revoked: true, revokedAt: now });
       });
+      // Завершённые устройства больше не должны получать уведомления.
+      const pushSnap = await db.collection(PUSH_SUBS_COLLECTION).where("uid", "==", uid).get();
+      pushSnap.docs.forEach((d) => {
+        const dev = d.data().deviceId;
+        if (dev && dev !== currentDeviceId) batch.delete(d.ref);
+      });
       await batch.commit();
       return NextResponse.json({ ok: true });
     }
@@ -71,6 +78,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Сессия не найдена" }, { status: 404 });
     }
     await targetRef.update({ revoked: true, revokedAt: now });
+    // Завершённое устройство больше не должно получать уведомления.
+    const targetPush = await db.collection(PUSH_SUBS_COLLECTION).where("uid", "==", uid).where("deviceId", "==", targetDeviceId).get();
+    await Promise.all(targetPush.docs.map((d) => d.ref.delete()));
 
     return NextResponse.json({ ok: true });
   } catch (err) {

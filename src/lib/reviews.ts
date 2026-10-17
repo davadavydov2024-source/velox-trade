@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, increment } from "firebase/firestore";
-import { db } from "./firebase";
+import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc } from "firebase/firestore";
+import { db, auth } from "./firebase";
 import { Review } from "@/types";
 import { sendOrderChatMessage } from "./orderChats";
 import { notifyTelegram } from "./telegramNotify";
@@ -18,10 +18,21 @@ export async function createReview(data: Omit<Review, "id" | "createdAt">) {
 
   await addDoc(reviewsCol, { ...data, createdAt: Date.now() });
   await updateDoc(orderRef, { reviewSubmitted: true });
-  await updateDoc(doc(db, "users", data.sellerId), {
-    ratingSum: increment(data.rating),
-    ratingCount: increment(1),
-  });
+  // Рейтинг продавца пересчитывает СЕРВЕР по реальным отзывам. Раньше счётчики увеличивались
+  // отсюда прямой записью в чужой профиль — правила Firestore её не пропускали, и счётчик отставал
+  // от числа отзывов (30 отзывов, а в рейтинге — 4).
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (idToken) {
+      await fetch("/api/reviews/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ sellerId: data.sellerId }),
+      });
+    }
+  } catch {
+    // не критично: рейтинг всё равно исправится при следующем просмотре профиля продавца
+  }
 
   const order = orderSnap.data() as { userId: string; sellerId: string };
   const stars = "⭐".repeat(data.rating);

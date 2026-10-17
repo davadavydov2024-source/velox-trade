@@ -99,7 +99,13 @@ export function VpnGate({ children }: { children: ReactNode }) {
         <p className="text-white/40 text-xs">
           Отключи VPN/прокси и обнови страницу, чтобы пользоваться сайтом без ограничений.
         </p>
-        <button onClick={() => window.location.reload()} className="btn-secondary px-5 py-2.5 text-sm">
+        <button
+          onClick={() => {
+            try {
+              sessionStorage.removeItem(CACHE_KEY);
+            } catch {}
+            window.location.reload();
+          }} className="btn-secondary px-5 py-2.5 text-sm">
           Я отключил VPN — обновить
         </button>
       </div>

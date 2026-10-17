@@ -330,8 +330,4 @@ export async function forceReloadUser(uid: string) {
 
 // ---- Admin check ----
 
-export function isAdminUid(uid: string | null | undefined): boolean {
-  if (!uid) return false;
-  const list = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return list.includes(uid);
-}
+export { isAdminUid } from "./isAdmin";

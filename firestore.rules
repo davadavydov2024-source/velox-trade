@@ -38,14 +38,26 @@ service cloud.firestore {
     // Пользователь может читать/писать только свой профиль, и НЕ может менять баланс или метки себе сам.
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
+      // Новый профиль можно создать только "чистым": нулевой баланс, обычный бейдж, без привилегий.
+      // Раньше можно было создать себе профиль с любым балансом/бейджем/staffRole.
+      allow create: if isOwner(userId) &&
+        request.resource.data.balance == 0 &&
+        request.resource.data.badges == ["user"] &&
+        request.resource.data.banned == false &&
+        !request.resource.data.keys().hasAny(["staffRole","starsBalance","ratingSum","ratingCount","claimedEventIds","unlockedAchievements","twoFactorEnabled","nameColor","nameFont","referredBy","lastWheelSpinAt","wheelSpinsCount","banReason","banUntil","forceReloadAt"]);
       allow update: if isAdmin() ||
+        // Владелец не может трогать защищённые поля: баланс, бейджи, бан, роль персонала, рейтинг,
+        // Stars, награды/достижения (иначе их можно получить повторно), кулдаун колеса, флаг 2FA и т.д.
         (isOwner(userId) &&
-          request.resource.data.balance == resource.data.balance &&
-          request.resource.data.badges == resource.data.badges &&
-          request.resource.data.banned == resource.data.banned) ||
-        // Позволяет покупателю обновить только рейтинг продавца при оставлении отзыва — ничего больше.
-        (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["ratingSum", "ratingCount"]));
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["balance","badges","banned","banReason","banUntil","staffRole","ratingSum","ratingCount","starsBalance","referredBy","claimedEventIds","unlockedAchievements","lastWheelSpinAt","wheelSpinsCount","twoFactorEnabled","nameColor","nameFont","forceReloadAt","createdAt","uid"]))
+        ||
+        // Покупатель после отзыва: рейтинг продавца можно только увеличить на одну оценку 1-5,
+        // и нельзя накручивать себе (раньше можно было записать любые значения кому угодно).
+        (isSignedIn() && request.auth.uid != userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["ratingSum", "ratingCount"]) &&
+          request.resource.data.ratingCount == resource.data.get("ratingCount", 0) + 1 &&
+          request.resource.data.ratingSum >= resource.data.get("ratingSum", 0) + 1 &&
+          request.resource.data.ratingSum <= resource.data.get("ratingSum", 0) + 5);
       allow delete: if isAdmin();
     }
 
@@ -77,29 +89,21 @@ service cloud.firestore {
     // --- orders ---
     // Пользователь создаёт только свои заказы и видит только свои; админ видит и меняет всё.
     match /orders/{orderId} {
-      // Раньше продавец вообще не мог прочитать свои же продажи через сайт — только покупатель.
       allow read: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sellerId == request.auth.uid));
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
-      // Покупатель может: подтвердить получение, открыть спор, отметить что отзыв оставлен —
-      // но не может менять сумму, состав заказа или чужие поля.
+      // Заказы создаёт ТОЛЬКО сервер (api/orders/checkout, Stars, обмены — Admin SDK обходит правила).
+      // Раньше клиент мог сам создать заказ с любой суммой/статусом.
+      allow create: if isAdmin();
+      // Покупатель меняет только status/confirmedAt/reviewSubmitted; продавец — только status (спор).
       allow update: if isAdmin() ||
         (isSignedIn() && resource.data.userId == request.auth.uid &&
-          request.resource.data.userId == resource.data.userId &&
-          request.resource.data.sellerId == resource.data.sellerId &&
-          request.resource.data.total == resource.data.total &&
-          request.resource.data.items == resource.data.items &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "confirmedAt", "reviewSubmitted"]) &&
           (
             (resource.data.status == "pending_confirmation" && request.resource.data.status == "confirmed") ||
             (resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed") ||
             (request.resource.data.status == resource.data.status && request.resource.data.reviewSubmitted == true)
           )) ||
-        // Продавец может открыть спор на покупателя, пока заказ ждёт подтверждения — отмена и
-        // возврат денег покупателю идут только через сервер (Admin SDK), не отсюда.
         (isSignedIn() && resource.data.sellerId == request.auth.uid &&
-          request.resource.data.userId == resource.data.userId &&
-          request.resource.data.sellerId == resource.data.sellerId &&
-          request.resource.data.total == resource.data.total &&
-          request.resource.data.items == resource.data.items &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]) &&
           resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed");
       allow delete: if isAdmin();
     }
@@ -298,10 +302,24 @@ service cloud.firestore {
       allow read: if isAdmin() || resource == null ||
         (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId)) ||
         (isHelper() && get(/databases/$(database)/documents/deliveries/$(orderId)).data.source == "wheel");
+      // Чат можно создать только для реального заказа/выдачи и только с настоящими участниками
+      // (раньше любой мог "занять" чужой orderId с самим собой в роли покупателя).
       allow create: if isAdmin() ||
-        (isSignedIn() && (request.auth.uid == request.resource.data.buyerId || request.auth.uid == request.resource.data.sellerId));
+        (isSignedIn() && (request.auth.uid == request.resource.data.buyerId || request.auth.uid == request.resource.data.sellerId) &&
+          (
+            (exists(/databases/$(database)/documents/orders/$(orderId)) &&
+              get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.resource.data.buyerId &&
+              get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.resource.data.sellerId) ||
+            (exists(/databases/$(database)/documents/deliveries/$(orderId)) &&
+              get(/databases/$(database)/documents/deliveries/$(orderId)).data.buyerId == request.resource.data.buyerId &&
+              get(/databases/$(database)/documents/deliveries/$(orderId)).data.sellerId == request.resource.data.sellerId)
+          ));
+      // Участники не могут менять состав чата и не могут удалять сообщения (массив только растёт).
       allow update: if isAdmin() ||
-        (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId)) ||
+        (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId) &&
+          request.resource.data.buyerId == resource.data.buyerId &&
+          request.resource.data.sellerId == resource.data.sellerId &&
+          request.resource.data.messages.size() >= resource.data.messages.size()) ||
         (isHelper() && get(/databases/$(database)/documents/deliveries/$(orderId)).data.source == "wheel");
       allow delete: if isAdmin();
     }
@@ -313,7 +331,11 @@ service cloud.firestore {
     match /directConversations/{conversationId} {
       allow read: if isAdmin() ||
         (isSignedIn() && request.auth.uid in resource.data.participants);
-      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      // Ровно два участника, один из них — автор, и id документа содержит его uid
+      // (нельзя создать переписку "за двоих" под чужим id).
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.size() == 2 &&
+        conversationId.matches('.*' + request.auth.uid + '.*');
       // Разрешаем дописать ровно одно новое сообщение в конец messages (никогда не удалять и не
       // редактировать старые), обновить lastMessage/updatedAt и свои собственные записи в
       // participantNames/participantPhotos — но не тронуть список участников и чужие сообщения.
@@ -333,7 +355,12 @@ service cloud.firestore {
     // здесь фиксируем базовое условие авторства.
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.rating in [1, 2, 3, 4, 5] &&
+        exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.userId == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.sellerId == request.resource.data.sellerId &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status == "confirmed";
       allow update, delete: if isAdmin();
     }
 
@@ -384,7 +411,10 @@ service cloud.firestore {
     // менять статус нельзя, иначе можно было бы подделать подтверждение входа без реальной сессии.
     match /deviceLogins/{code} {
       allow create: if request.resource.data.status == "pending" && request.resource.data.expiresAt is number;
-      allow read: if true;
+      // ТОЛЬКО get по точному id: раньше был полный read, и любой мог выгрузить список всех
+      // deviceLogins вместе с выданными кастомными токенами входа и войти в чужой аккаунт.
+      allow get: if true;
+      allow list: if false;
       allow update: if false;
       // Удалить может только тот, кто только что реально вошёл этим кодом (сверяем uid,
       // который сервер прописал при подтверждении, с uid уже аутентифицированного запроса) —
@@ -428,27 +458,34 @@ service cloud.firestore {
       // лениво при первом сообщении, без этого условия чтение до первого сообщения падало бы
       // с permission-denied.
       allow read: if isAdmin() || resource == null || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
-      allow create: if isAdmin() || (isSignedIn() && (request.auth.uid == request.resource.data.fromUserId || request.auth.uid == request.resource.data.toUserId));
-      allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId));
+      allow create: if isAdmin() || (isSignedIn() && (request.auth.uid == request.resource.data.fromUserId || request.auth.uid == request.resource.data.toUserId) &&
+        exists(/databases/$(database)/documents/tradeOffers/$(tradeId)) &&
+        get(/databases/$(database)/documents/tradeOffers/$(tradeId)).data.fromUserId == request.resource.data.fromUserId &&
+        get(/databases/$(database)/documents/tradeOffers/$(tradeId)).data.toUserId == request.resource.data.toUserId);
+      allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId) &&
+        request.resource.data.fromUserId == resource.data.fromUserId &&
+        request.resource.data.toUserId == resource.data.toUserId &&
+        request.resource.data.messages.size() >= resource.data.messages.size());
       allow delete: if isAdmin();
     }
 
     // --- жалобы на сделки ---
     match /disputes/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));
-      allow create: if isSignedIn() && (request.resource.data.buyerId == request.auth.uid || request.resource.data.sellerId == request.auth.uid);
+      // Жалобу можно подать только по реальному заказу и только его участнику.
+      allow create: if isSignedIn() && (request.resource.data.buyerId == request.auth.uid || request.resource.data.sellerId == request.auth.uid) &&
+        exists(/databases/$(database)/documents/orders/$(orderId)) &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.resource.data.buyerId &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.resource.data.sellerId;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-     match /cases/{caseId} {
-  allow read: if true;
-  allow write: if isAdmin();
-}
-match /caseOpenings/{openingId} {
-  allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-  allow write: if false;
-}
+    // rateLimits: счётчики частоты запросов (lib/rateLimit.ts) — только сервер через Admin SDK.
+    match /rateLimits/{id} {
+      allow read, write: if false;
+    }
+
     // --- Telegram Stars: покупка товара и вывод накопленных Stars продавцом ---
     // Оба процесса полностью серверные (создание счёта/зачисление/раздача подарками — только
     // через Admin SDK в api/telegram/stars/invoice, lib/starsOrders.ts, lib/telegramAdminPanel.ts),
