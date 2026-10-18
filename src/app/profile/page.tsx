@@ -250,14 +250,22 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className={`grid gap-3 mt-5 ${hasStars ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+          <div className={`grid gap-3 mt-5 grid-cols-2 sm:grid-cols-4 ${hasStars ? "lg:grid-cols-5" : ""}`}>
             <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30">
               <Wallet size={15} className="text-accent mb-2" />
               <p className="text-xl font-extrabold text-accent leading-none">{profile.balance.toFixed(0)} ₽</p>
               <p className="text-[11px] text-white/45 mt-1.5">Баланс</p>
             </div>
+            <Link
+              href="/profile/topup#stars"
+              className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/15 to-yellow-400/[0.03] border border-yellow-400/25 hover:border-yellow-400/50 transition-colors"
+            >
+              <Sparkles size={15} className="text-yellow-300 mb-2" />
+              <p className="text-xl font-extrabold text-yellow-300 leading-none">{profile.starsWallet ?? 0} ⭐</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Баланс ⭐ · пополнить</p>
+            </Link>
             {hasStars && (
-              <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/15 to-yellow-400/[0.03] border border-yellow-400/25">
+              <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/10 to-yellow-400/[0.02] border border-yellow-400/15">
                 <Sparkles size={15} className="text-yellow-300 mb-2" />
                 <p className="text-xl font-extrabold text-yellow-300 leading-none">{profile.starsBalance} ⭐</p>
                 <p className="text-[11px] text-white/45 mt-1.5">Stars с продаж</p>

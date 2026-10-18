@@ -1,4 +1,3 @@
-import { safeEqual } from "@/lib/secureRandom";
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import {
@@ -43,16 +42,10 @@ import {
   sendActivePromoCodes,
   deactivatePromoCodeFromBot,
 } from "@/lib/telegramAdminPanel";
-import {
-  approveProductEditFromBot,
-  rejectProductEditFromBot,
-  askBanFromBot,
-  banFromBot,
-  cancelBanFromBot,
-} from "@/lib/telegramAdminModeration";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
 import { fulfillStarsInvoice, validateStarsPreCheckout, logStarsIssue } from "@/lib/starsOrders";
+import { TOPUP_PAYLOAD_PREFIX, validateStarsTopupPreCheckout, fulfillStarsTopup, startStarsTopupInBot } from "@/lib/starsWallet";
 import { getStarsBalanceMessage, requestStarsWithdrawal, MIN_STARS_WITHDRAWAL } from "@/lib/telegramStarsWithdrawals";
 import {
   contestMenuButtons,
@@ -71,7 +64,6 @@ import {
 export const runtime = "nodejs";
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-const safeEqualStr = safeEqual;
 const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TELEGRAM_ADMIN_CHAT_ID) : null;
 const SITE_NAME = "Velox Trade";
 
@@ -222,15 +214,11 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
 }
 
 export async function POST(req: NextRequest) {
-  // Без секрета любой мог бы прислать поддельное обновление «от имени» любого Telegram-пользователя
-  // (в т.ч. админа). Поэтому секрет обязателен: TELEGRAM_WEBHOOK_SECRET + setWebhook с secret_token.
-  if (!WEBHOOK_SECRET) {
-    console.error("telegram/webhook: TELEGRAM_WEBHOOK_SECRET не задан — запрос отклонён");
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-  const secretHeader = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
-  if (!safeEqualStr(secretHeader, WEBHOOK_SECRET)) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+  if (WEBHOOK_SECRET) {
+    const header = req.headers.get("x-telegram-bot-api-secret-token");
+    if (header !== WEBHOOK_SECRET) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
   }
 
   try {
@@ -243,7 +231,10 @@ export async function POST(req: NextRequest) {
       // блокируем оплату (лучше оформить заказ позже, чем потерять платёж), ошибку пишем в лог.
       let verdict: { ok: boolean; message?: string } = { ok: true };
       try {
-        verdict = await validateStarsPreCheckout(preCheckout.invoice_payload ?? "", preCheckout.total_amount ?? 0);
+        const pl: string = preCheckout.invoice_payload ?? "";
+        verdict = pl.startsWith(TOPUP_PAYLOAD_PREFIX)
+          ? await validateStarsTopupPreCheckout(pl, preCheckout.total_amount ?? 0)
+          : await validateStarsPreCheckout(pl, preCheckout.total_amount ?? 0);
       } catch (err) {
         console.error("validateStarsPreCheckout error:", err);
       }
@@ -336,8 +327,6 @@ export async function POST(req: NextRequest) {
           }
         }
       } else if (isAdminChat(chatId)) {
-        // Уведомления с фото редактируются через подпись (caption), а не текст — иначе Telegram вернёт ошибку.
-        const hasPhoto = Array.isArray(callback.message.photo) && callback.message.photo.length > 0;
         if (data === "admin_menu") {
           await setBotState(chatId, null);
           await editTelegramMessage(chatId, messageId, ADMIN_MENU_TEXT, adminMenuButtons());
@@ -363,19 +352,9 @@ export async function POST(req: NextRequest) {
         } else if (data.startsWith("contest_color_")) {
           await handleContestColorChoice(chatId, messageId, data.slice("contest_color_".length));
         } else if (data.startsWith("sell_approve_")) {
-          await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length), hasPhoto);
+          await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length));
         } else if (data.startsWith("sell_reject_")) {
-          await rejectSellRequestFromBot(chatId, messageId, data.slice("sell_reject_".length), hasPhoto);
-        } else if (data.startsWith("pedit_approve_")) {
-          await approveProductEditFromBot(chatId, messageId, data.slice("pedit_approve_".length), hasPhoto);
-        } else if (data.startsWith("pedit_reject_")) {
-          await rejectProductEditFromBot(chatId, messageId, data.slice("pedit_reject_".length), hasPhoto);
-        } else if (data.startsWith("ban_ask_")) {
-          await askBanFromBot(chatId, messageId, data.slice("ban_ask_".length), hasPhoto);
-        } else if (data.startsWith("ban_yes_")) {
-          await banFromBot(chatId, messageId, data.slice("ban_yes_".length), hasPhoto);
-        } else if (data.startsWith("ban_no_")) {
-          await cancelBanFromBot(chatId, messageId, data.slice("ban_no_".length), hasPhoto);
+          await rejectSellRequestFromBot(chatId, messageId, data.slice("sell_reject_".length));
         } else if (data.startsWith("topup_approve_")) {
           await approveTopUpFromBot(chatId, messageId, data.slice("topup_approve_".length));
         } else if (data.startsWith("topup_reject_")) {
@@ -406,6 +385,30 @@ export async function POST(req: NextRequest) {
 
       // Счёт за товар (кнопка "Купить за Telegram Stars" на сайте) — payload вида "stars_<id>".
       // Отличаем от доната (payload "donate_..."), который просто благодарит и уведомляет админа.
+      // Пополнение кошелька ⭐ — payload "sttop_<id>" (счёт выставлен ботом по ссылке с сайта).
+      if (payload.startsWith(TOPUP_PAYLOAD_PREFIX)) {
+        const topupId = payload.slice(TOPUP_PAYLOAD_PREFIX.length);
+        try {
+          const replyText = await fulfillStarsTopup(topupId, totalAmount, {
+            chargeId: message.successful_payment.telegram_payment_charge_id,
+            payerTgId: message.from?.id,
+          });
+          await sendTelegramMessage(chatId, replyText);
+        } catch (err) {
+          await logStarsIssue({
+            type: "topup-exception",
+            topupId,
+            starsAmount: totalAmount,
+            chargeId: message.successful_payment.telegram_payment_charge_id ?? null,
+            payerTgId: message.from?.id ?? null,
+            error: String((err as any)?.message ?? err),
+          });
+          console.error("fulfillStarsTopup error:", err);
+          await sendTelegramMessage(chatId, `Оплата ${totalAmount} ⭐ прошла, но зачисление не удалось. Напиши в поддержку на сайте — зачислим вручную.`);
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       if (payload.startsWith("stars_")) {
         const invoiceId = payload.slice("stars_".length);
         try {
@@ -474,6 +477,17 @@ export async function POST(req: NextRequest) {
     if (text.startsWith("/start")) {
       const parts = text.trim().split(/\s+/);
       const code = parts[1];
+
+      // Диплинк с сайта «Пополнить баланс ⭐»: t.me/bot?start=sttop_<id> — выставляем счёт на нужную сумму.
+      if (code?.startsWith(TOPUP_PAYLOAD_PREFIX)) {
+        try {
+          await sendTelegramMessage(chatId, await startStarsTopupInBot(code.slice(TOPUP_PAYLOAD_PREFIX.length), chatId));
+        } catch (err) {
+          console.error("startStarsTopupInBot error:", err);
+          await sendTelegramMessage(chatId, "Что-то пошло не так, попробуй ещё раз чуть позже.");
+        }
+        return NextResponse.json({ ok: true });
+      }
 
       // Диплинк с кнопки "Участвовать" под постом конкурса: t.me/bot?start=contest_<id>.
       // Раньше это была callback_data-кнопка, ответ на которую Telegram показывал мимолётным

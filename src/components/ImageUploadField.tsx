@@ -7,6 +7,7 @@ import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
 import { useToast } from "@/lib/toastContext";
 import { ImageCropModal } from "./ImageCropModal";
+import { CROP_PRESETS, CropPurpose, DEFAULT_PURPOSE_BY_FOLDER } from "@/lib/imageCropPresets";
 
 interface ImageUploadFieldProps {
   value: string;
@@ -16,7 +17,8 @@ interface ImageUploadFieldProps {
   shape?: "square" | "round";
   size?: number;
   disabled?: boolean;
-  aspect?: number; // соотношение сторон при обрезке — по умолчанию квадрат
+  aspect?: number; // явное соотношение сторон (перекрывает пресет назначения)
+  purpose?: CropPurpose; // назначение фото: от него зависят пропорции, форма и размер результата
 }
 
 export function ImageUploadField({
@@ -27,8 +29,12 @@ export function ImageUploadField({
   shape = "square",
   size = 96,
   disabled = false,
-  aspect = 1,
+  aspect: aspectProp,
+  purpose,
 }: ImageUploadFieldProps) {
+  const preset = CROP_PRESETS[purpose ?? DEFAULT_PURPOSE_BY_FOLDER[folder] ?? "square"];
+  const isRound = shape === "round" || !!preset.round;
+  const aspect = isRound ? 1 : aspectProp ?? preset.aspect;
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -61,7 +67,10 @@ export function ImageUploadField({
     }
   }
 
-  const radius = shape === "round" ? "rounded-full" : "rounded-xl";
+  const radius = isRound ? "rounded-full" : "rounded-xl";
+  // Превью повторяет пропорции будущего фото (широкое — шире, высокое — выше).
+  const previewW = aspect >= 1 ? Math.min(Math.round(size * aspect), 240) : size;
+  const previewH = aspect >= 1 ? Math.round(previewW / aspect) : Math.round(size / aspect);
   const inputId = `upload-${folder}-${label ?? "field"}`.replace(/\s+/g, "-");
 
   return (
@@ -69,7 +78,10 @@ export function ImageUploadField({
       {cropSrc && (
         <ImageCropModal
           imageSrc={cropSrc}
-          aspect={shape === "round" ? 1 : aspect}
+          aspect={aspect}
+          round={isRound}
+          aspectOptions={aspectProp ? undefined : preset.options}
+          maxWidth={preset.maxWidth}
           onCancel={() => {
             setCropSrc(null);
             if (inputRef.current) inputRef.current.value = "";
@@ -79,8 +91,8 @@ export function ImageUploadField({
       )}
       {label && <label className="text-xs text-white/40 mb-1.5 block">{label}</label>}
       <div className="flex items-center gap-3">
-        <div className={`relative bg-black/30 shrink-0 overflow-hidden ${radius}`} style={{ width: size, height: size }}>
-          {isValidImageSrc(value) && <Image src={safeImageSrc(value)} alt="" fill className="object-cover" sizes={`${size}px`} />}
+        <div className={`relative bg-black/30 shrink-0 overflow-hidden ${radius}`} style={{ width: previewW, height: previewH }}>
+          {isValidImageSrc(value) && <Image src={safeImageSrc(value)} alt="" fill className="object-cover" sizes={`${previewW}px`} />}
           {uploading && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
               <Loader2 size={20} className="animate-spin text-accent" />

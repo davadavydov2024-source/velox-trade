@@ -10,11 +10,15 @@ import { getCroppedImageBlob } from "@/lib/cropImage";
 interface ImageCropModalProps {
   imageSrc: string;
   aspect?: number; // 1 = квадрат (для аватара), 4/3 или 1 для товаров и т.д.
+  aspectOptions?: { label: string; value: number }[]; // кнопки выбора пропорций
+  round?: boolean; // круглая рамка (аватар)
+  maxWidth?: number; // максимальная ширина результата, px
   onCancel: () => void;
   onCropped: (blob: Blob) => void;
 }
 
-export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: ImageCropModalProps) {
+export function ImageCropModal({ imageSrc, aspect: initialAspect = 1, aspectOptions, round = false, maxWidth, onCancel, onCropped }: ImageCropModalProps) {
+  const [aspect, setAspect] = useState(initialAspect);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -28,7 +32,7 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
     if (!croppedAreaPixels) return;
     setProcessing(true);
     try {
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels);
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, "image/jpeg", maxWidth);
       onCropped(blob);
     } finally {
       setProcessing(false);
@@ -51,6 +55,8 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
             crop={crop}
             zoom={zoom}
             aspect={aspect}
+            cropShape={round ? "round" : "rect"}
+            showGrid={!round}
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={onCropComplete}
@@ -58,6 +64,25 @@ export function ImageCropModal({ imageSrc, aspect = 1, onCancel, onCropped }: Im
         </div>
 
         <div className="p-4 space-y-3">
+          {aspectOptions && aspectOptions.length > 1 && !round && (
+            <div>
+              <p className="text-xs text-white/40 mb-1.5">Пропорции</p>
+              <div className="flex flex-wrap gap-1.5">
+                {aspectOptions.map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    onClick={() => setAspect(o.value)}
+                    className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                      Math.abs(aspect - o.value) < 0.001 ? "bg-accent text-black font-medium" : "bg-white/5 text-white/60 hover:bg-white/10"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <p className="text-xs text-white/40 mb-1">Масштаб</p>
             <input

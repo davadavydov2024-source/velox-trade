@@ -248,7 +248,7 @@ export default function AdminAdsPage() {
             Уйдёт всем пользователям, которые привязали Telegram (Профиль → Безопасность). Требует настроенного
             TELEGRAM_BOT_TOKEN и Firebase Admin SDK на сервере (см. README, раздел про вход через Telegram).
           </p>
-          <ImageUploadField value={tgPhotoUrl} onChange={setTgPhotoUrl} folder="broadcasts" label="Фото (необязательно)" size={80} />
+          <ImageUploadField value={tgPhotoUrl} onChange={setTgPhotoUrl} folder="broadcasts" purpose="wide" label="Фото (необязательно)" size={80} />
           <textarea
             value={tgText}
             onChange={(e) => setTgText(e.target.value)}

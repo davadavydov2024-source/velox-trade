@@ -11,7 +11,7 @@ import { Product, RARITY_LABEL, Review, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADG
 import { useCart } from "@/lib/cartStore";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
-import { requestStarsInvoice } from "@/lib/starsPayments";
+import { requestStarsInvoice, payWithStarsWallet } from "@/lib/starsPayments";
 import { ProductCard } from "@/components/ProductCard";
 import { Lightbox } from "@/components/Lightbox";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -40,7 +40,7 @@ export default function ProductPage() {
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const add = useCart((s) => s.add);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [starsLoading, setStarsLoading] = useState(false);
 
@@ -187,16 +187,16 @@ export default function ProductPage() {
           >
             {RARITY_LABEL[product.rarity]}
           </span>
-          <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight mt-3 mb-3">{product.name}</h1>
+          <h1 className="text-3xl font-bold mt-3 mb-2">{product.name}</h1>
           <p className="text-white/50 mb-6">{product.description}</p>
 
-          <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mb-5 rounded-[16px] bg-surface border border-border px-5 py-4">
+          <div className="flex items-baseline gap-3 mb-6">
             {starsOnly ? (
-              <span className="font-display text-3xl font-semibold">{product.starsPrice} ⭐</span>
+              <span className="text-3xl font-extrabold text-accent">{product.starsPrice} ⭐</span>
             ) : (
               <>
                 {!!product.discountPercent && <span className="text-white/40 line-through">{product.price} ₽</span>}
-                <span className="font-display text-3xl font-semibold">{finalPrice} ₽</span>
+                <span className="text-3xl font-extrabold text-accent">{finalPrice} ₽</span>
                 {paymentMode === "both" && <span className="text-lg text-white/50">или {product.starsPrice} ⭐</span>}
               </>
             )}
@@ -260,6 +260,29 @@ export default function ProductPage() {
             )}
           </div>
 
+          {user && product.sellerId !== "store" && product.sellerId !== user.uid && paymentMode !== "rub" && !!product.starsPrice && (profile?.starsWallet ?? 0) >= product.starsPrice * qty && (
+            <button
+              onClick={async () => {
+                if (starsLoading || product.stock <= 0) return;
+                if (!confirm(`Оплатить ${product.starsPrice! * qty} ⭐ с баланса?`)) return;
+                setStarsLoading(true);
+                const res = await payWithStarsWallet(product.id, qty);
+                setStarsLoading(false);
+                if (res.ok) {
+                  toast("success", res.message);
+                  refreshProfile();
+                } else {
+                  toast("error", res.message);
+                }
+              }}
+              disabled={starsLoading || product.stock <= 0}
+              className="btn-primary px-6 py-3 flex items-center gap-2 mt-3 w-full sm:w-auto"
+              title="Звёзды спишутся с баланса на сайте — заказ оформится сразу"
+            >
+              <span>⭐</span> {starsLoading ? "Оплачиваем..." : `Оплатить с баланса ${product.starsPrice * qty} ⭐`}
+            </button>
+          )}
+
           {user && product.sellerId !== "store" && product.sellerId !== user.uid && paymentMode !== "rub" && !!product.starsPrice && (
             <button
               onClick={async () => {
@@ -296,7 +319,7 @@ export default function ProductPage() {
 
       {related.length > 0 && (
         <section className="mt-16">
-          <h2 className="font-display text-xl font-semibold mb-5">Похожие товары</h2>
+          <h2 className="text-xl font-bold mb-4">Похожие товары</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {related.map((p) => (
               <ProductCard key={p.id} product={p} />
@@ -307,7 +330,7 @@ export default function ProductPage() {
 
       {priceHistory.length >= 2 && (
         <section className="mt-16 card p-5">
-          <h2 className="font-display text-lg font-semibold mb-4">История цены</h2>
+          <h2 className="text-lg font-bold mb-4">История цены</h2>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={priceHistory}>
               <XAxis
@@ -322,9 +345,9 @@ export default function ProductPage() {
               <Tooltip
                 formatter={(v: number) => [`${v} ₽`, "Цена"]}
                 labelFormatter={(v) => new Date(v).toLocaleDateString("ru-RU")}
-                contentStyle={{ background: "#14161c", border: "1px solid #242831", borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: "#151922", border: "1px solid #232838", borderRadius: 8, fontSize: 12 }}
               />
-              <Line type="monotone" dataKey="price" stroke="#c8f542" strokeWidth={2} dot={{ r: 3, fill: "#c8f542" }} />
+              <Line type="monotone" dataKey="price" stroke="#ff9800" strokeWidth={2} dot={{ r: 3, fill: "#ff9800" }} />
             </LineChart>
           </ResponsiveContainer>
         </section>
@@ -335,12 +358,12 @@ export default function ProductPage() {
       {/* Липкая панель покупки на мобильных — на телефоне кнопки в основной колонке уходят далеко
          вниз под описанием, так удобнее купить без скролла обратно наверх. */}
       <div
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-bg border-t border-border p-3 flex items-center gap-3"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-bg/95 backdrop-blur border-t border-border p-3 flex items-center gap-3"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <div className="min-w-0">
           <p className="text-[10px] text-white/40 truncate max-w-[110px]">{product.name}</p>
-          <p className="font-display text-lg font-semibold leading-tight">{finalPrice} ₽</p>
+          <p className="text-lg font-extrabold text-accent leading-tight">{finalPrice} ₽</p>
         </div>
         <Link
           href="/cart"

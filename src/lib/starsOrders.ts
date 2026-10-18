@@ -20,6 +20,8 @@ interface InvoiceDoc {
   telegramChargeId?: string;
   payerTgId?: number;
   orderId?: string;
+  /** "wallet" — оплачено с кошелька ⭐ на сайте (lib/starsWallet.ts), иначе — счёт в Telegram. */
+  paymentSource?: "telegram" | "wallet";
 }
 
 export type PreCheckoutResult = { ok: true } | { ok: false; message: string };
@@ -104,6 +106,13 @@ export async function fulfillStarsInvoice(
       ? (productSnap.data() as { name: string; stock: number; gameId: string; image?: string })
       : null;
     const failReason = !product ? "товар удалён" : (product.stock ?? 0) < invoice.quantity ? "товар уже раскупили" : null;
+    if ((failReason || !product) && invoice.paymentSource === "wallet") {
+      // Оплата с кошелька: звёзды возвращаем туда же, в той же транзакции — ничто не «зависает».
+      tx.update(invoiceRef, { status: "refunded", failReason, refundedAt: Date.now() });
+      tx.set(db.collection("users").doc(invoice.buyerId), { starsWallet: FieldValue.increment(invoice.amountStars) }, { merge: true });
+      tx.set(db.collection("starsWalletLog").doc(), { uid: invoice.buyerId, delta: invoice.amountStars, type: "refund", ref: invoiceId, at: Date.now() });
+      return { kind: "failed-wallet" as const, reason: failReason ?? "товар недоступен" };
+    }
     if (failReason || !product) {
       tx.update(invoiceRef, { status: "failed", failReason, paidStars: starsAmount, ...chargeInfo });
       return { kind: "failed" as const, reason: failReason ?? "товар недоступен" };
@@ -164,6 +173,10 @@ export async function fulfillStarsInvoice(
     return `Счёт на ${starsAmount} ⭐ уже был оплачен ранее — заказ создан, ищи его в «Мои заказы» на сайте.`;
   }
 
+  if (result.kind === "failed-wallet") {
+    return `К сожалению, ${result.reason}. ${starsAmount} ⭐ вернулись на баланс.`;
+  }
+
   if (result.kind === "failed") {
     // Заказ оформить нельзя — возвращаем звёзды сразу, не заставляя писать в поддержку.
     const refunded = payment.payerTgId && payment.chargeId ? await refundStarPayment(payment.payerTgId, payment.chargeId) : false;
@@ -203,6 +216,7 @@ export async function refundStarsOrder(orderId: string): Promise<RefundResult> {
 
   let invoice: InvoiceDoc | null = null;
   let already = false;
+  let walletRefunded = false;
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(invoiceRef);
@@ -213,6 +227,16 @@ export async function refundStarsOrder(orderId: string): Promise<RefundResult> {
         return;
       }
       if (invoice.status === "refunding") throw new Error("busy");
+      if (invoice.paymentSource === "wallet") {
+        // Заказ оплачен с кошелька ⭐: возвращаем звёзды обратно на кошелёк покупателя, а не через Telegram.
+        const amountW = order.starsAmount ?? invoice.amountStars;
+        tx.update(invoiceRef, { status: "refunded", refundedAt: Date.now() });
+        tx.set(sellerRef, { starsBalance: FieldValue.increment(-amountW) }, { merge: true });
+        tx.set(db.collection("users").doc(invoice.buyerId), { starsWallet: FieldValue.increment(amountW) }, { merge: true });
+        tx.set(db.collection("starsWalletLog").doc(), { uid: invoice.buyerId, delta: amountW, type: "refund", ref: order.starsInvoiceId, at: Date.now() });
+        walletRefunded = true;
+        return;
+      }
       if (!invoice.telegramChargeId || !invoice.payerTgId) throw new Error("no-charge");
       tx.update(invoiceRef, { status: "refunding" });
       tx.set(sellerRef, { starsBalance: FieldValue.increment(-(order.starsAmount ?? invoice.amountStars)) }, { merge: true });
@@ -226,6 +250,7 @@ export async function refundStarsOrder(orderId: string): Promise<RefundResult> {
     return { ok: false, error: map[e?.message] ?? "Не удалось начать возврат" };
   }
   if (already) return { ok: true, alreadyRefunded: true };
+  if (walletRefunded) return { ok: true };
 
   const inv = invoice as unknown as InvoiceDoc;
   const amount = order.starsAmount ?? inv.amountStars;

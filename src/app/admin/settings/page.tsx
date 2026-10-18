@@ -165,7 +165,7 @@ export default function AdminSettingsPage() {
             <Send size={14} /> {savingBotPhoto ? "Сохраняем..." : "Сохранить"}
           </button>
         </div>
-        <ImageUploadField value={welcomeImage} onChange={setWelcomeImage} folder="broadcasts" label="Баннер (рекомендуем широкий, например 1280×640)" />
+        <ImageUploadField value={welcomeImage} onChange={setWelcomeImage} folder="broadcasts" purpose="banner" label="Баннер (широкий, 2:1 или 3:1)" />
       </div>
 
       <div className="card p-5">

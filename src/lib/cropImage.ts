@@ -16,15 +16,17 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** Вырезает выбранную область из изображения и возвращает результат как Blob (JPEG). */
-export async function getCroppedImageBlob(imageSrc: string, crop: PixelCrop, mimeType = "image/jpeg"): Promise<Blob> {
+export async function getCroppedImageBlob(imageSrc: string, crop: PixelCrop, mimeType = "image/jpeg", maxWidth?: number): Promise<Blob> {
   const image = await loadImage(imageSrc);
   const canvas = document.createElement("canvas");
-  canvas.width = crop.width;
-  canvas.height = crop.height;
+  // Если указан maxWidth — уменьшаем результат (не увеличиваем): быстрее грузится и не упирается в лимит размера.
+  const scale = maxWidth && crop.width > maxWidth ? maxWidth / crop.width : 1;
+  canvas.width = Math.round(crop.width * scale);
+  canvas.height = Math.round(crop.height * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas недоступен в этом браузере");
 
-  ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+  ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(

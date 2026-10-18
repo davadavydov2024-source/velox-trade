@@ -606,7 +606,8 @@ function AdminUsersInner() {
 
               <Section icon={<Wallet size={13} />} title="Деньги">
                 <Row label="Баланс"><span className="font-semibold text-accent">{selected.balance.toFixed(2)} ₽</span></Row>
-                <Row label="Telegram Stars">{selected.starsBalance ?? 0} ⭐</Row>
+                <Row label="Баланс ⭐ (кошелёк для покупок)">{selected.starsWallet ?? 0} ⭐</Row>
+                <Row label="Stars с продаж (вывод в боте)">{selected.starsBalance ?? 0} ⭐</Row>
               </Section>
 
               <Section icon={<Star size={13} />} title="Репутация и достижения">

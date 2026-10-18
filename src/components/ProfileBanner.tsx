@@ -91,6 +91,7 @@ export function ProfileBanner({
         <ImageCropModal
           imageSrc={cropSrc}
           aspect={BANNER_ASPECT}
+          maxWidth={1600}
           onCancel={() => {
             setCropSrc(null);
             if (inputRef.current) inputRef.current.value = "";

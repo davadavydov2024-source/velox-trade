@@ -380,7 +380,10 @@ export interface UserProfile {
   // зачисляются сразу при оплате (starsOrders.ts → fulfillStarsInvoice), выводятся через бота
   // от 15 ⭐ (см. telegramStarsWithdrawals.ts). Отдельно от обычного рублёвого balance.
   starsBalance?: number;
-  // Баннер (обложка) профиля — может ставить любой пользователь, но только себе
+  // Кошелёк ⭐ для ПОКУПОК на сайте: пополняется оплатой счёта в боте (lib/starsWallet.ts), тратится на
+  // товары за Stars. Не выводится (в отличие от starsBalance — заработка с продаж).
+  starsWallet?: number;
+  // Баннер (обложка) профиля — может ставить ТОЛЬКО администратор и только себе
   // (см. api/profile/banner, components/ProfileBanner). Видно всем на публичной странице профиля.
   bannerURL?: string | null;
 }
@@ -508,9 +511,9 @@ export interface SiteSettings {
 }
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  primaryColor: "#c8f542",
-  secondaryColor: "#dcff7a",
-  bgColor: "#0b0c10",
+  primaryColor: "#ff9800",
+  secondaryColor: "#ffb74d",
+  bgColor: "#0d1017",
   siteName: "Velox Trade",
   darkMode: true,
   updatedAt: 0,
