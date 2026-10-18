@@ -1,3 +1,4 @@
+import { maskSecrets } from "./chatSecrets";
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, arrayUnion, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import { TradeOffer } from "@/types";
@@ -94,7 +95,8 @@ export async function sendTradeChatMessage(tradeId: string, fromUserId: string, 
     await updateDoc(ref, { messages: arrayUnion(message), updatedAt: Date.now() });
   }
 
-  const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  const masked = maskSecrets(text);
+  const preview = masked.length > 200 ? `${masked.slice(0, 200)}…` : masked;
   if (from === "fromUser" || from === "toUser") {
     const otherUid = from === "fromUser" ? toUserId : fromUserId;
     notifyTelegram(otherUid, `💬 Новое сообщение по обмену:\n${preview}`);

@@ -1,7 +1,9 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { secretRegex, splitSecretMatch } from "@/lib/chatSecrets";
+import { CHAT_HIDE_EVENT } from "@/components/ChatPrivacyShield";
 import { InlineNode, LINK_RE_SOURCE, hasLink, parseBlocks, parseInline } from "@/lib/chatFormat";
 
 function Spoiler({ children }: { children: ReactNode }) {
@@ -18,8 +20,52 @@ function Spoiler({ children }: { children: ReactNode }) {
   );
 }
 
-// Ссылки НИКОГДА не превращаются в кликабельные <a> — только подсвечиваются как текст.
+/** Пароль/код: пока не нажато, значения в DOM вообще нет. После показа сам скрывается через 10 с,
+ * при уходе с вкладки и по повторному нажатию. */
+function Secret({ value }: { value: string }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => setOpen(false), 10_000);
+    const hide = () => setOpen(false);
+    window.addEventListener(CHAT_HIDE_EVENT, hide);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener(CHAT_HIDE_EVENT, hide);
+    };
+  }, [open]);
+  return open ? (
+    <span data-allow-copy onClick={() => setOpen(false)} className="rounded px-1 font-mono bg-amber-500/25 cursor-pointer break-all">
+      {value}
+    </span>
+  ) : (
+    <button type="button" onClick={() => setOpen(true)} className="select-none rounded px-1.5 bg-white/20 text-[0.85em] align-baseline" title="Нажми, чтобы показать на 10 секунд">
+      🔒 •••••• показать
+    </button>
+  );
+}
+
+// Пароли и коды прячем за кнопкой, остальное — как раньше (ссылки только подсвечиваются).
 function renderPlain(v: string, key: string): ReactNode {
+  const re = secretRegex();
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(v))) {
+    if (m[0].length === 0) { re.lastIndex++; continue; }
+    if (m.index > last) parts.push(renderLinks(v.slice(last, m.index), `${key}-s${m.index}`));
+    const { prefix, value } = splitSecretMatch(m);
+    if (prefix) parts.push(<span key={`${key}-k${m.index}`}>{prefix}</span>);
+    parts.push(<Secret key={`${key}-v${m.index}`} value={value} />);
+    last = m.index + m[0].length;
+  }
+  if (parts.length === 0) return renderLinks(v, key);
+  if (last < v.length) parts.push(renderLinks(v.slice(last), `${key}-e`));
+  return <span key={key}>{parts}</span>;
+}
+
+// Ссылки НИКОГДА не превращаются в кликабельные <a> — только подсвечиваются как текст.
+function renderLinks(v: string, key: string): ReactNode {
   const re = new RegExp(LINK_RE_SOURCE, "gi");
   const parts: ReactNode[] = [];
   let last = 0;

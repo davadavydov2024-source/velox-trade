@@ -1,3 +1,4 @@
+import { maskSecrets } from "./chatSecrets";
 // Telegram-подобная разметка для чатов. Пользователь меток НЕ видит — редактор (components/FormatInput)
 // показывает оформление прямо в поле ввода, а в Firestore в поле text лежит строка с метками:
 //   **жирный**  ^^курсив^^  __подчёркнутый__  ~~зачёркнутый~~  `моно`  ||скрытый||  и "> цитата" в начале строки.
@@ -113,7 +114,7 @@ export function toPlain(text: string, opts: { hideSpoilers?: boolean } = {}): st
 
 /** Короткое превью для списков чатов/уведомлений: без разметки, скрытое спрятано, обрезано до max символов. */
 export function previewText(text: string, max = 200): string {
-  const plain = toPlain(text, { hideSpoilers: true });
+  const plain = maskSecrets(toPlain(text, { hideSpoilers: true }));
   return plain.length > max ? `${plain.slice(0, max)}…` : plain;
 }
 

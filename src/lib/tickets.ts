@@ -1,3 +1,4 @@
+import { maskSecrets } from "./chatSecrets";
 import {
   collection,
   doc,
@@ -80,7 +81,8 @@ export async function addTicketMessage(id: string, from: "user" | "admin", text:
 
   // Уведомляем в Telegram и push-уведомлением того, кому адресована реплика.
   if (ticket) {
-    const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+    const masked = maskSecrets(text);
+    const preview = masked.length > 200 ? `${masked.slice(0, 200)}…` : masked;
     if (from === "admin") {
       notifyTelegram(ticket.userId, `💬 Ответ в поддержке по обращению «${ticket.subject}»:\n${preview}`);
       notifyPush(ticket.userId, "Ответ в поддержке", preview, "/chats?tab=support");

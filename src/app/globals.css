@@ -667,3 +667,8 @@ body {
     display: none;
   }
 }
+
+/* Конфиденциальность чатов: при печати/сохранении в PDF чат не выводится */
+@media print {
+  .chat-private { display: none !important; }
+}

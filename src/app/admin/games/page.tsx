@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Plus, Trash2, Edit3, X, Tags, Sparkles, ShieldCheck } from "lucide-react";
 import { getGames, createGame, updateGame, deleteGame } from "@/lib/products";
 import { GAME_CATEGORY_TEMPLATES } from "@/lib/gameCategoryTemplates";
+import { fetchAiCategories } from "@/lib/gamesAi";
 import { Game } from "@/types";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
@@ -20,6 +21,8 @@ export default function AdminGamesPage() {
   const [categoryInput, setCategoryInput] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -77,6 +80,55 @@ export default function AdminGamesPage() {
     setShowTemplates(false);
   }
 
+  /** Кнопка «ИИ»: подбирает категории и (если поля пусты) черновик правил модерации — всё попадает в форму, ничего не сохраняется само. */
+  async function handleAiCategories() {
+    const name = form.name.trim();
+    if (!name) {
+      toast("warning", "Сначала укажи название игры");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const s = await fetchAiCategories(name, form.slug || undefined, form.categories ?? []);
+      setForm((f) => ({
+        ...f,
+        categories: [...(f.categories ?? []), ...s.categories.filter((c) => !(f.categories ?? []).includes(c))],
+        aiAllowed: f.aiAllowed?.trim() ? f.aiAllowed : s.allowed,
+        aiForbidden: f.aiForbidden?.trim() ? f.aiForbidden : s.forbidden,
+      }));
+      toast("success", `ИИ предложил категорий: ${s.categories.length}. Проверь и сохрани`);
+    } catch (err: any) {
+      toast("error", err?.message || "ИИ недоступен");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  /** Один клик: ИИ заполняет категории у всех игр, где их ещё нет (правила модерации не трогает). */
+  async function handleBulkAi() {
+    const targets = games.filter((g) => !g.categories || g.categories.length === 0);
+    if (targets.length === 0) {
+      toast("info", "У всех игр уже есть категории");
+      return;
+    }
+    if (!confirm(`ИИ подберёт категории для игр без них: ${targets.length} шт. Продолжить?`)) return;
+    setBulkBusy(true);
+    let done = 0;
+    for (const g of targets) {
+      try {
+        const s = await fetchAiCategories(g.name, g.slug, []);
+        await updateGame(g.id, { categories: s.categories });
+        done++;
+      } catch (err: any) {
+        toast("warning", `«${g.name}»: ${err?.message || "не удалось"}`);
+        if (/не настроен/i.test(err?.message ?? "")) break; // без ключей дальше бессмысленно
+      }
+    }
+    setBulkBusy(false);
+    toast(done ? "success" : "warning", `Категории подобраны для игр: ${done} из ${targets.length}`);
+    refresh();
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (form.image && !isValidImageSrc(form.image)) {
@@ -88,7 +140,19 @@ export default function AdminGamesPage() {
         await updateGame(editing.id, form);
         toast("success", "Игра обновлена");
       } else {
-        await createGame(form);
+        let toCreate = form;
+        // Новая игра без категорий — ИИ придумывает их автоматически (рабочая страница не блокируется
+        // при сбое: игра просто создаётся без категорий, их можно добавить позже кнопкой «ИИ»).
+        if (!form.categories || form.categories.length === 0) {
+          try {
+            const s = await fetchAiCategories(form.name.trim(), form.slug || undefined, []);
+            toCreate = { ...form, categories: s.categories };
+            toast("info", `ИИ подобрал категории: ${s.categories.join(", ")}`);
+          } catch (err: any) {
+            toast("warning", `Категории не подобраны автоматически: ${err?.message || "ИИ недоступен"}`);
+          }
+        }
+        await createGame(toCreate);
         toast("success", "Игра добавлена");
       }
       setShowForm(false);
@@ -114,9 +178,14 @@ export default function AdminGamesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Игры</h1>
-        <button onClick={openCreate} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <button onClick={handleBulkAi} disabled={bulkBusy} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50">
+            <Sparkles size={15} /> {bulkBusy ? "ИИ работает..." : "ИИ: категории для всех без них"}
+          </button>
+          <button onClick={openCreate} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2">
           <Plus size={16} /> Добавить игру
-        </button>
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -146,13 +215,23 @@ export default function AdminGamesPage() {
               <p className="text-xs text-white/40 flex items-center gap-1.5">
                 <Tags size={13} /> Категории товаров для этой игры (необязательно)
               </p>
-              <button
-                type="button"
-                onClick={() => setShowTemplates((v) => !v)}
-                className="text-xs text-accent hover:underline flex items-center gap-1"
-              >
-                <Sparkles size={12} /> Вставить шаблон
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleAiCategories}
+                  disabled={aiBusy}
+                  className="text-xs text-accent hover:underline flex items-center gap-1 disabled:opacity-50"
+                >
+                  <Sparkles size={12} /> {aiBusy ? "ИИ думает..." : "Придумать с ИИ"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplates((v) => !v)}
+                  className="text-xs text-white/50 hover:text-accent hover:underline flex items-center gap-1"
+                >
+                  Вставить шаблон
+                </button>
+              </div>
             </div>
 
             {showTemplates && (

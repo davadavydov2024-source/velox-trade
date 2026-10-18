@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/requireUser";
 import { rateLimit } from "@/lib/rateLimit";
 import { mayNotify } from "@/lib/notifyAccess";
 import { stripLinks } from "@/lib/sanitizeText";
+import { maskSecrets } from "@/lib/chatSecrets";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const safeText = stripLinks(text, 600);
     if (typeof chat === "string" && chat) {
-      const safeChat = chat.slice(0, 4000);
+      const safeChat = maskSecrets(chat.slice(0, 4000));
       const html = `${escapeHtml(safeText)}\n${toTelegramHtml(safeChat, 200)}`;
       const sent = await sendTelegramMessage(chatId, html, undefined, "HTML");
       if (sent === null) await sendTelegramMessage(chatId, `${safeText}\n${previewText(safeChat, 200)}`);

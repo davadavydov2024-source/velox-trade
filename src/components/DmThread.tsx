@@ -11,6 +11,8 @@ import { DirectMessage } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { FormatInput } from "@/components/FormatInput";
 import { ChatMessageBody } from "@/components/ChatMessageBody";
+import { ChatPrivacyShield } from "@/components/ChatPrivacyShield";
+import { ScrollToBottomButton, useChatScroll } from "@/components/ScrollToBottomButton";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { PhotoAnnotator } from "@/components/PhotoAnnotator";
 import { getPublicProfileCached } from "@/lib/sellerCache";
@@ -83,9 +85,7 @@ export function DmThread({
     return unsub;
   }, [conversationId]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, uploadPreview]);
+  const chatScroll = useChatScroll(scrollRef, messages.length, uploadPreview);
 
   useEffect(() => {
     const onVisible = () => {
@@ -148,7 +148,8 @@ export function DmThread({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <ChatPrivacyShield>
+    <div className="relative flex flex-col h-full">
       <PhotoAnnotator
         file={pendingPhoto}
         sending={uploadingPhoto}
@@ -194,7 +195,7 @@ export function DmThread({
         </div>
       </Link>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
+      <div ref={scrollRef} onScroll={chatScroll.onScroll} className="flex-1 min-h-0 space-y-1 overflow-y-auto mb-3 pr-1 -mr-1 overscroll-contain">
         {messages.length === 0 ? (
           <p className="text-sm text-white/30 text-center py-8">Сообщений пока нет. Напишите первым.</p>
         ) : (
@@ -274,6 +275,8 @@ export function DmThread({
           <Send size={15} />
         </button>
       </form>
+      <ScrollToBottomButton {...chatScroll.button} />
     </div>
+    </ChatPrivacyShield>
   );
 }

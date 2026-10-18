@@ -30,6 +30,7 @@ import {
   ArrowLeftRight,
   Shield,
   Trophy,
+  Eye,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
@@ -44,6 +45,7 @@ const NAV = [
   { href: "/admin/disputes", label: "Жалобы", icon: AlertTriangle },
   { href: "/admin/sell-requests", label: "Заявки на продажу", icon: Tag },
   { href: "/admin/chats", label: "Чаты", icon: MessageSquare },
+  { href: "/admin/messages", label: "Переписки", icon: Eye },
   { href: "/admin/promocodes", label: "Промокоды", icon: Gift },
   { href: "/admin/events", label: "Ивенты", icon: PartyPopper },
   { href: "/admin/wheel", label: "Колесо Фортуны", icon: Disc3 },

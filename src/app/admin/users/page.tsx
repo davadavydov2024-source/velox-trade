@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search, Ban, CheckCircle, Tag, X, PowerOff, Palette, MessageCircle, Wallet, Copy, ExternalLink, ShieldCheck,
-  ShieldAlert, Users, Wifi, UserPlus, BadgeCheck, ChevronRight, Mail, Star, Gift, Bell, Clock, Hash, UserCog,
+  ShieldAlert, Download, Eye, Users, Wifi, UserPlus, BadgeCheck, ChevronRight, Mail, Star, Gift, Bell, Clock, Hash, UserCog,
 } from "lucide-react";
 import { getAllUsers, setUserBalance, setUserBan, setUserBadges, setStaffRole, adminUpdateNickname } from "@/lib/users";
 import { UserProfile, UserBadge, BADGE_COLOR, BADGE_LABEL, DEFAULT_PUSH_CATEGORIES } from "@/types";
@@ -15,6 +15,7 @@ import { StyledNickname } from "@/components/StyledNickname";
 import { safeImageSrc } from "@/lib/safeImage";
 import { useToast } from "@/lib/toastContext";
 import { useAuth } from "@/lib/authContext";
+import { auth } from "@/lib/firebase";
 
 const ALL_BADGES: UserBadge[] = [
   "user", "buyer", "verified", "creator", "blogger", "sponsor", "vip", "moderator", "developer", "admin", "founder",
@@ -118,6 +119,7 @@ function AdminUsersInner() {
   const [banReason, setBanReason] = useState("");
   const [banDuration, setBanDuration] = useState<number | "forever">("forever");
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const listTopRef = useRef<HTMLDivElement>(null);
 
@@ -184,6 +186,34 @@ function AdminUsersInner() {
       toast("success", `${what} скопирован`);
     } catch {
       toast("error", "Не удалось скопировать");
+    }
+  }
+
+  // ---- экспорт ----
+
+  async function handleExport(format: "csv" | "json") {
+    setExporting(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/admin/users/export?format=${format}`, { headers: { Authorization: `Bearer ${idToken}` } });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Ошибка выгрузки");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `users-${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast("success", `Файл со всеми пользователями скачан (${format.toUpperCase()})`);
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось скачать список");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -328,6 +358,14 @@ function AdminUsersInner() {
         <div>
           <h1 className="text-2xl font-bold">Пользователи</h1>
           <p className="text-sm text-white/40">Нажми на человека — откроется полная карточка со всей информацией и действиями.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => handleExport("csv")} disabled={exporting} className="btn-secondary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50">
+            <Download size={15} /> {exporting ? "Готовим файл..." : "Скачать всех (CSV)"}
+          </button>
+          <button onClick={() => handleExport("json")} disabled={exporting} className="btn-secondary px-3 py-2.5 text-sm disabled:opacity-50" title="Скачать в формате JSON">
+            JSON
+          </button>
         </div>
       </div>
 
@@ -522,6 +560,13 @@ function AdminUsersInner() {
                   </button>
                 ))}
               </div>
+
+              <button
+                onClick={() => router.push(`/admin/messages?uid=${selected.uid}`)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-btn bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
+              >
+                <Eye size={15} /> Читать переписки пользователя
+              </button>
 
               <Section icon={<Hash size={13} />} title="Основное">
                 <Row label="UID">
