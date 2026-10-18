@@ -32,7 +32,6 @@ import { OrderChatMessage, Order, Dispute, Delivery, formatOrderTotal } from "@/
 import { safeImageSrc } from "@/lib/safeImage";
 import { FormatInput } from "@/components/FormatInput";
 import { ChatMessageBody } from "@/components/ChatMessageBody";
-import { ChatPrivacyShield } from "@/components/ChatPrivacyShield";
 import { ScrollToBottomButton, useChatScroll } from "@/components/ScrollToBottomButton";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { auth } from "@/lib/firebase";
@@ -591,7 +590,6 @@ export function OrderChatThread({
   const matchingCommands = showCommandHints ? ADMIN_COMMANDS.filter((c) => c.cmd.startsWith(text.split(" ")[0])) : [];
 
   return (
-    <ChatPrivacyShield>
     <div className="relative flex flex-col h-full">
       <PhotoAnnotator
         file={pendingPhoto}
@@ -897,6 +895,5 @@ export function OrderChatThread({
       </div>
       <ScrollToBottomButton {...chatScroll.button} />
     </div>
-    </ChatPrivacyShield>
   );
 }

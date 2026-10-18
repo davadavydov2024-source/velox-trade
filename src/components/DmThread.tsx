@@ -11,7 +11,6 @@ import { DirectMessage } from "@/types";
 import { safeImageSrc } from "@/lib/safeImage";
 import { FormatInput } from "@/components/FormatInput";
 import { ChatMessageBody } from "@/components/ChatMessageBody";
-import { ChatPrivacyShield } from "@/components/ChatPrivacyShield";
 import { ScrollToBottomButton, useChatScroll } from "@/components/ScrollToBottomButton";
 import { uploadImage, ImageUploadError } from "@/lib/storage";
 import { PhotoAnnotator } from "@/components/PhotoAnnotator";
@@ -148,7 +147,6 @@ export function DmThread({
   }
 
   return (
-    <ChatPrivacyShield>
     <div className="relative flex flex-col h-full">
       <PhotoAnnotator
         file={pendingPhoto}
@@ -277,6 +275,5 @@ export function DmThread({
       </form>
       <ScrollToBottomButton {...chatScroll.button} />
     </div>
-    </ChatPrivacyShield>
   );
 }
