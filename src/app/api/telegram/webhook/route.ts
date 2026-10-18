@@ -214,7 +214,15 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
 }
 
 export async function POST(req: NextRequest) {
-  if (WEBHOOK_SECRET) {
+  // Секрет вебхука ОБЯЗАТЕЛЕН: без него любой мог бы прислать на этот адрес поддельное обновление
+  // от «Telegram» — например, фальшивое successful_payment (бесплатные звёзды/баланс) или
+  // команды от имени админа. Нет секрета — отказываем (fail closed). Задать: переменная
+  // TELEGRAM_WEBHOOK_SECRET в Vercel + setWebhook с тем же secret_token.
+  if (!WEBHOOK_SECRET) {
+    console.error("telegram/webhook: TELEGRAM_WEBHOOK_SECRET не задан — запрос отклонён из соображений безопасности");
+    return NextResponse.json({ ok: false, error: "webhook secret not configured" }, { status: 503 });
+  }
+  {
     const header = req.headers.get("x-telegram-bot-api-secret-token");
     if (header !== WEBHOOK_SECRET) {
       return NextResponse.json({ ok: false }, { status: 401 });

@@ -16,8 +16,10 @@ const HOUR = 60 * 60 * 1000;
  */
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
+  // Fail closed: без CRON_SECRET (или с неверным) роут не выполняется — раньше при незаданной
+  // переменной его мог запустить кто угодно. Vercel Cron сам подставляет CRON_SECRET в заголовок.
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
+    return NextResponse.json({ error: "Не авторизован (проверь CRON_SECRET)" }, { status: 401 });
   }
 
   const db = adminDb();

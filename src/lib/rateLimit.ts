@@ -1,23 +1,23 @@
+import { createHash } from "crypto";
 import { NextRequest } from "next/server";
 import { adminDb } from "./firebaseAdmin";
-import { getClientIp } from "./getClientIp";
 
 /**
- * Ограничитель частоты на Firestore (работает и на serverless, где память инстансов не общая).
- * Возвращает true, если запрос можно выполнять, false — если лимит за окно исчерпан.
- * При сбое хранилища возвращает false (лучше отказать, чем пропустить перебор кодов).
- * Коллекция rateLimits закрыта правилами Firestore (доступ только у Admin SDK).
+ * Простой лимитер на Firestore (серверный): не больше `limit` действий за окно `windowMs` по ключу.
+ * Возвращает false, если лимит исчерпан. При сбое самой проверки пропускает действие (лучше
+ * пропустить одно лишнее, чем положить сайт), но пишет ошибку в лог. Документы живут в коллекции
+ * rateLimits — при желании включи TTL по полю expireAt в Firebase Console, чтобы они чистились сами.
  */
 export async function rateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
-  const db = adminDb();
-  const ref = db.collection("rateLimits").doc(key.replace(/[\/\s]/g, "_").slice(0, 300));
   try {
-    return await db.runTransaction(async (tx) => {
+    const id = createHash("sha256").update(key).digest("hex").slice(0, 40);
+    const ref = adminDb().collection("rateLimits").doc(id);
+    return await adminDb().runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const now = Date.now();
       const d = snap.data() as { count: number; windowStart: number } | undefined;
-      if (!d || now - d.windowStart > windowMs) {
-        tx.set(ref, { count: 1, windowStart: now });
+      if (!d || now - d.windowStart >= windowMs) {
+        tx.set(ref, { count: 1, windowStart: now, expireAt: new Date(now + windowMs * 2) });
         return true;
       }
       if (d.count >= limit) return false;
@@ -26,10 +26,11 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
     });
   } catch (err) {
     console.error("rateLimit error:", err);
-    return false;
+    return true;
   }
 }
 
-export function ipKey(req: NextRequest | Request, name: string): string {
-  return `${name}_ip_${getClientIp(req)}`;
+/** IP клиента за прокси Vercel. */
+export function clientIp(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for")?.split(",")[0] ?? req.headers.get("x-real-ip") ?? "unknown").trim();
 }
