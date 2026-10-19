@@ -1,29 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendTelegramMessage } from "@/lib/telegramBot";
-import { requireUser } from "@/lib/adminGuard";
-import { rateLimit } from "@/lib/rateLimit";
-import { cleanPlainText } from "@/lib/sanitizeNotify";
+import { siteRow, ALLOWED_ADMIN_PATHS } from "@/lib/telegramAdminNotify";
+import { requireUser } from "@/lib/requireUser";
+import { rateLimit } from "@/lib/apiRateLimit";
+import { stripLinks } from "@/lib/sanitizeText";
 
 export const runtime = "nodejs";
 
 const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TELEGRAM_ADMIN_CHAT_ID) : null;
 
-/** Шлёт сообщение в личку админа (новые пользователи, заявки). Только для вошедших, с лимитом частоты. */
+/** Сообщение админу в личку. Нужен вход в аккаунт + лимит частоты + без ссылок (раньше роут был
+ * открыт всем, и админу можно было слать что угодно). */
 export async function POST(req: NextRequest) {
   try {
-    const guard = await requireUser(req);
-    if ("error" in guard) return guard.error;
     if (!ADMIN_CHAT_ID) return NextResponse.json({ ok: true, delivered: false });
-
-    const { text } = await req.json().catch(() => ({}));
-    const clean = cleanPlainText(text, 500, guard.isAdmin);
-    if (!clean) return NextResponse.json({ ok: false, error: "text обязателен" }, { status: 400 });
-
-    if (!guard.isAdmin && !(await rateLimit(`tg-admin:${guard.uid}`, 20, 60 * 60 * 1000))) {
-      return NextResponse.json({ ok: true, delivered: false });
+    const caller = await requireUser(req);
+    if (!caller) return NextResponse.json({ ok: false, error: "Не авторизован" }, { status: 401 });
+    if (!(await rateLimit(`notify_admin_${caller}`, 15, 60_000))) {
+      return NextResponse.json({ ok: false, error: "Слишком часто" }, { status: 429 });
     }
 
-    await sendTelegramMessage(ADMIN_CHAT_ID, clean);
+    const { text, path } = await req.json();
+    if (typeof text !== "string" || !text) return NextResponse.json({ ok: false, error: "text обязателен" }, { status: 400 });
+
+    const row = typeof path === "string" && ALLOWED_ADMIN_PATHS.includes(path) ? siteRow(path) : [];
+    await sendTelegramMessage(ADMIN_CHAT_ID, stripLinks(text, 1000), row.length ? [row] : undefined);
     return NextResponse.json({ ok: true, delivered: true });
   } catch (err) {
     console.error("notify/admin error:", err);

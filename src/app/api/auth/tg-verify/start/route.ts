@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { rateLimit, ipKey } from "@/lib/rateLimit";
+import { rateLimit, ipKey } from "@/lib/apiRateLimit";
 import { randomCode6, randomToken as secureToken } from "@/lib/secureRandom";
 
 export const runtime = "nodejs";

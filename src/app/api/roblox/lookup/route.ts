@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit, ipKey } from "@/lib/rateLimit";
+import { rateLimit, ipKey } from "@/lib/apiRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

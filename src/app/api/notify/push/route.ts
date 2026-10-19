@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { sendWebPush } from "@/lib/webPushServer";
-import { rateLimit } from "@/lib/rateLimit";
-import { isAdminUid } from "@/lib/adminGuard";
-import { stripForeignLinks } from "@/lib/sanitizeNotify";
+import { rateLimit } from "@/lib/apiRateLimit";
+import { mayNotify } from "@/lib/notifyAccess";
 
 export const runtime = "nodejs";
 
@@ -27,15 +26,10 @@ export async function POST(req: NextRequest) {
     if (typeof uid !== "string" || !uid || typeof title !== "string" || !title.trim()) {
       return NextResponse.json({ error: "uid и title обязательны" }, { status: 400 });
     }
+    if (!(await rateLimit(`notify_push_${decoded.uid}`, 60, 60_000))) return NextResponse.json({ error: "Слишком часто" }, { status: 429 });
+    if (!(await mayNotify(decoded.uid, uid))) return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
     const validCategory = category === "purchases" || category === "reminders" || category === "news" ? category : "messages";
-    const admin = isAdminUid(decoded.uid);
-    // Лимиты частоты (отправитель и получатель) и вырезание чужих ссылок из текста — как у Telegram-уведомлений.
-    if (!admin) {
-      if (!(await rateLimit(`push-from:${decoded.uid}`, 60, 60 * 60 * 1000))) return NextResponse.json({ error: "Слишком часто" }, { status: 429 });
-      if (!(await rateLimit(`push-to:${uid}`, 40, 60 * 60 * 1000))) return NextResponse.json({ ok: true });
-    }
-    const clean = (t: string, max: number) => (admin ? t.slice(0, max) : stripForeignLinks(t.slice(0, max)));
-    await sendWebPush(uid, { title: clean(title.trim(), 120), body: typeof body === "string" ? clean(body, 300) : "", url: typeof url === "string" ? url : undefined }, validCategory);
+    await sendWebPush(uid, { title: title.trim().slice(0, 120), body: typeof body === "string" ? body.slice(0, 300) : "", url: typeof url === "string" ? url : undefined }, validCategory);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("notify/push error:", err);

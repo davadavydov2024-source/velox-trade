@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendMail } from "@/lib/mailer";
-import { randomInt } from "crypto";
-import { rateLimit, clientIp } from "@/lib/rateLimit";
+import { rateLimit, ipKey } from "@/lib/apiRateLimit";
+import { randomCode6 } from "@/lib/secureRandom";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,15 +17,13 @@ const RESEND_COOLDOWN_MS = 30 * 1000; // не чаще раза в 30 секун
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await rateLimit(ipKey(req, "email_send"), 10, 60 * 60_000))) {
+      return NextResponse.json({ error: "Слишком много запросов, попробуй позже" }, { status: 429 });
+    }
     const { email } = await req.json();
     const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       return NextResponse.json({ error: "Некорректный email" }, { status: 400 });
-    }
-
-    // Защита от рассылки писем на чужие адреса и от выжигания квоты почты: лимиты по IP и по адресу.
-    if (!(await rateLimit(`emailcode-ip:${clientIp(req)}`, 10, 60 * 60 * 1000)) || !(await rateLimit(`emailcode-mail:${normalized}`, 5, 60 * 60 * 1000))) {
-      return NextResponse.json({ error: "Слишком много запросов кода. Попробуй позже." }, { status: 429 });
     }
 
     const db = adminDb();
@@ -36,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Код уже отправлен, подожди немного перед повторной отправкой" }, { status: 429 });
     }
 
-    const code = randomInt(100000, 1000000).toString();
+    const code = randomCode6();
     await ref.set({ code, createdAt: Date.now(), attempts: 0, verified: false });
 
     await sendMail(

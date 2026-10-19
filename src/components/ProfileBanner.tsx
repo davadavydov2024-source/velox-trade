@@ -13,9 +13,9 @@ import { ImageCropModal } from "./ImageCropModal";
 const BANNER_ASPECT = 3;
 
 /**
- * Обложка профиля. Для посетителей — просто картинка/градиент. Если editable (владелец на СВОЁМ
+ * Обложка профиля. Для всех — просто красивая картинка/градиент. Если editable (владелец на СВОЁМ
  * профиле) — поверх появляются кнопки «Сменить» / «Убрать»: загрузка с обрезкой → папка "banners"
- * (/api/blob/upload) → api/profile/banner (сервер пишет bannerURL только в документ самого вошедшего).
+ * (доступна любому вошедшему) → api/profile/banner (проверка токена и бана на сервере).
  */
 export function ProfileBanner({
   url,
@@ -91,6 +91,7 @@ export function ProfileBanner({
         <ImageCropModal
           imageSrc={cropSrc}
           aspect={BANNER_ASPECT}
+          maxWidth={1600}
           onCancel={() => {
             setCropSrc(null);
             if (inputRef.current) inputRef.current.value = "";
@@ -118,7 +119,7 @@ export function ProfileBanner({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/55 hover:bg-black/75 backdrop-blur text-white disabled:opacity-60 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/55 hover:bg-black/75 text-white disabled:opacity-60 transition-colors"
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
             {hasImage ? "Сменить баннер" : "Добавить баннер"}
@@ -129,7 +130,7 @@ export function ProfileBanner({
               onClick={handleRemove}
               disabled={busy}
               aria-label="Убрать баннер"
-              className="p-1.5 rounded-full bg-black/55 hover:bg-red-500/80 backdrop-blur text-white disabled:opacity-60 transition-colors"
+              className="p-1.5 rounded-full bg-black/55 hover:bg-red-500/80 text-white disabled:opacity-60 transition-colors"
             >
               <Trash2 size={13} />
             </button>

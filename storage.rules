@@ -1,9 +1,54 @@
 rules_version = '2';
 
-// Firebase Storage на сайте НЕ используется (картинки лежат в Vercel Blob через /api/blob/upload),
-// поэтому закрываем его полностью: раньше любой вошедший мог писать/перезаписывать файлы в avatars/.
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Список UID админов — продублирован из firestore.rules (Storage Rules не видят Firestore).
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        "s4Cbs8BFRwd9CrPYNkQBQzbVlQG3",
+        "DAdWBqr7i8UWc1nT0NVVMuJ1DJQ2"
+      ];
+    }
+
+    function isImage() {
+      // SVG исключён: он может содержать скрипты
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+    }
+
+    function isUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // Файлы сейчас грузятся через /api/blob/upload (Vercel Blob), а не в Firebase Storage —
+    // правила оставлены на случай использования и максимально закрыты.
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+    match /games/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+    match /ads/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+    match /broadcasts/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+    }
+
+    // Аватар — только в собственную папку avatars/<uid>/... (раньше любой мог перезаписать чужой).
+    match /avatars/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage() && isUnder5MB();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
