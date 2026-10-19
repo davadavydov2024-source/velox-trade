@@ -599,7 +599,7 @@ function RegisterInner() {
                 </div>
 
                 <label className="flex items-start gap-2.5 text-xs text-white/50 pt-1 cursor-pointer">
-                  <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 accent-[var(--color-accent)]" />
+                  <input type="checkbox" required checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 accent-[#ff9800]" />
                   <span>
                     Я согласен с{" "}
                     <Link href="/rules" target="_blank" className="text-accent hover:underline">

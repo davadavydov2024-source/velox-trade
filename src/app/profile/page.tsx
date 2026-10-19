@@ -257,7 +257,7 @@ export default function ProfilePage() {
               <p className="text-[11px] text-white/45 mt-1.5">Баланс</p>
             </div>
             <Link
-              href="/profile/topup#stars"
+              href="/profile/stars"
               className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/15 to-yellow-400/[0.03] border border-yellow-400/25 hover:border-yellow-400/50 transition-colors"
             >
               <Sparkles size={15} className="text-yellow-300 mb-2" />

@@ -74,7 +74,7 @@ export function EnableNotificationsPrompt() {
 
   return (
     <div className="fixed left-4 right-4 sm:left-auto sm:right-6 bottom-20 lg:bottom-6 z-[95] sm:max-w-xs">
-      <div className="card p-4 flex items-start gap-3">
+      <div className="card p-4 shadow-glow flex items-start gap-3">
         <div className="w-9 h-9 rounded-full bg-accent/15 flex items-center justify-center flex-none">
           <Bell size={17} className="text-accent" />
         </div>

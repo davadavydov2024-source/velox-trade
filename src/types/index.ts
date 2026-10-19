@@ -328,6 +328,16 @@ export interface PushCategories {
   news: boolean; // рассылки и объявления от администрации сайта
 }
 
+export interface NotifyPrefs {
+  email?: boolean; // письма на почту (чаты заказов, ответы поддержки, одобрение товара)
+  telegram?: boolean; // сообщения от бота в Telegram
+  loginAlerts?: boolean; // оповещение «вход с нового устройства»
+}
+
+export interface PrivacyPrefs {
+  hideOnline?: boolean; // скрывать «в сети» и время последней активности
+}
+
 export const DEFAULT_PUSH_CATEGORIES: PushCategories = {
   purchases: true,
   messages: true,
@@ -368,6 +378,8 @@ export interface UserProfile {
   lastWheelSpinAt?: number; // когда последний раз крутили колесо фортуны — раз в 7 часов
   wheelSpinsCount?: number; // сколько раз всего крутили колесо — для страницы достижений
   twoFactorEnabled?: boolean; // сам секрет и резервные коды НЕ хранятся тут — только в серверной коллекции twoFactorSecrets
+  notifyPrefs?: NotifyPrefs; // каналы уведомлений и оповещения о входе (api/profile/preferences); нет поля — всё включено
+  privacy?: PrivacyPrefs; // настройки приватности
   pushCategories?: PushCategories; // отсутствует у старых профилей — тогда считаем, что включено всё (DEFAULT_PUSH_CATEGORIES)
   // Возраст указывается один раз при регистрации, пользователь сам его не меняет — виден только
   // администратору на /admin/users (не показывается публично на сайте).

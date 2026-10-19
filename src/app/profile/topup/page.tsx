@@ -25,7 +25,6 @@ import { useSearchParams } from "next/navigation";
 import { getSiteScreen } from "@/lib/siteScreens";
 import { SiteScreenView } from "@/components/SiteScreenView";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { StarsTopUpCard } from "@/components/StarsTopUpCard";
 
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
@@ -270,8 +269,6 @@ function TopUpPageInner() {
           </div>
         </div>
       </div>
-
-      <StarsTopUpCard />
 
       {closedScreen ? (
         <SiteScreenView screen={closedScreen} />

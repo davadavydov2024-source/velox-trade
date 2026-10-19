@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight, Plus } from "lucide-react";
+import { Wallet, ShoppingBag, Heart, Settings, Shield, LogOut, LayoutDashboard, Palette, Tag, Gift, Rocket, Disc3, Trophy, ArrowLeftRight, Plus, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isAdminUid } from "@/lib/users";
 import { BADGE_COLOR, BADGE_LABEL } from "@/types";
@@ -44,6 +44,7 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
         { href: "/profile/orders", label: t("profile_nav_orders"), icon: ShoppingBag },
         { href: "/profile/trades", label: "Обмены", icon: ArrowLeftRight },
         { href: "/profile/topup", label: t("profile_nav_topup"), icon: Wallet },
+        { href: "/profile/stars", label: "Пополнение ⭐", icon: Sparkles },
         { href: "/profile/sell", label: t("profile_nav_sell"), icon: Tag },
         { href: "/profile/my-products", label: t("my_products_title"), icon: Rocket },
         { href: "/profile/sales", label: "Мои продажи", icon: ShoppingBag },
@@ -75,7 +76,7 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
       <div className="md:hidden space-y-3 min-w-0">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative w-10 h-10 rounded-[12px] overflow-hidden bg-surface shrink-0">
+            <div className="relative w-10 h-10 rounded-full overflow-hidden bg-surface shrink-0 ring-2 ring-accent/60">
               <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="40px" />
             </div>
             <div className="min-w-0">
@@ -83,8 +84,8 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
               <p className="text-[11px] text-white/35 truncate">{profile.email}</p>
             </div>
           </div>
-          <Link href="/profile/topup" className="shrink-0 flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-surface border border-border text-sm">
-            <span className="font-display font-semibold">{profile.balance.toFixed(0)} ₽</span>
+          <Link href="/profile/topup" className="shrink-0 flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-accent/10 border border-accent/25 text-sm">
+            <span className="font-bold text-accent">{profile.balance.toFixed(0)} ₽</span>
             <span className="w-5 h-5 rounded-full bg-accent text-black flex items-center justify-center">
               <Plus size={13} strokeWidth={3} />
             </span>
@@ -126,20 +127,20 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
         <div className="card overflow-hidden mb-4">
           <ProfileBanner url={profile.bannerURL} className="h-16" />
           <div className="p-4 pt-0">
-          <div className="relative w-14 h-14 -mt-7 mb-2 rounded-[18px] overflow-hidden bg-surface ring-4 ring-surface">
+          <div className="relative w-14 h-14 -mt-7 mb-2 rounded-full overflow-hidden bg-surface ring-4 ring-surface shadow-[0_0_0_2px_var(--color-accent)]">
             <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="56px" />
           </div>
           <p className="font-semibold truncate">{profile.displayName}</p>
           <p className="text-xs text-white/40 truncate mb-3">{profile.email}</p>
           <Link
             href="/profile/topup"
-            className="flex items-center justify-between gap-2 px-3.5 py-3 rounded-[14px] bg-accent text-black hover:bg-accent-light transition-colors mb-3"
+            className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-btn bg-accent/10 border border-accent/20 hover:bg-accent/15 transition-colors mb-3"
           >
             <span>
-              <span className="block text-[10px] text-black/55 leading-none mb-1">Баланс</span>
-              <span className="block font-display text-lg font-semibold leading-none">{profile.balance.toFixed(0)} ₽</span>
+              <span className="block text-[10px] text-white/40 leading-none mb-1">Баланс</span>
+              <span className="block text-lg font-bold text-accent leading-none">{profile.balance.toFixed(0)} ₽</span>
             </span>
-            <span className="w-7 h-7 rounded-[9px] bg-black text-accent flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center shrink-0">
               <Plus size={15} strokeWidth={3} />
             </span>
           </Link>
@@ -168,12 +169,13 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
                 <Link
                   key={l.href}
                   href={l.href}
-                  className={`relative flex items-center gap-3 px-3 py-2.5 rounded-[12px] text-sm transition-colors duration-150 ${
-                    active ? "bg-white/[0.07] text-white font-medium" : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  className={`relative flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-all duration-150 ${
+                    active ? "bg-accent/15 text-white font-medium" : "text-white/55 hover:bg-white/5 hover:text-white/80"
                   }`}
                 >
+                  {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-accent" />}
                   <span
-                    className={`w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0 transition-colors ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                       active ? "bg-accent text-black" : "bg-white/5 text-white/50"
                     }`}
                   >

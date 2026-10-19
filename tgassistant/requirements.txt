@@ -1,0 +1,8 @@
+aiogram>=3.22
+aiosqlite>=0.20
+Pillow>=10.1
+gTTS>=2.5
+imageio-ffmpeg>=0.5
+tzdata
+# опционально, для .removebg:
+# rembg onnxruntime

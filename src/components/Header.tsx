@@ -91,7 +91,7 @@ export function Header() {
             </Link>
           )}
           {mounted && profile && (
-            <Link href="/profile/topup#stars" className="hidden sm:flex items-center gap-1.5 btn-secondary py-2 px-3 text-sm" title="Баланс Telegram Stars — пополнить">
+            <Link href="/profile/stars" className="hidden sm:flex items-center gap-1.5 btn-secondary py-2 px-3 text-sm" title="Баланс Telegram Stars — пополнить">
               <span className="text-yellow-300">⭐</span>
               {(profile.starsWallet ?? 0).toLocaleString("ru-RU")}
             </Link>

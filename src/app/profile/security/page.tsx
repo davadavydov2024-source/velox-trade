@@ -14,7 +14,10 @@ import {
   getDeviceId,
 } from "@/lib/sessions";
 import { UserSession } from "@/types";
-import { Monitor, ShieldCheck } from "lucide-react";
+import {
+  Monitor, ShieldCheck, Mail, Send, KeyRound, Smartphone, Bell, Eye, LogIn, ChevronRight, MonitorSmartphone, Lock, MessageCircle,
+} from "lucide-react";
+import { authedFetch } from "@/lib/authedFetch";
 import { PushToggleCard } from "@/components/PushToggleCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 
@@ -51,6 +54,8 @@ export default function SecurityPage() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [terminatingId, setTerminatingId] = useState<string | null>(null);
   const deviceId = getDeviceId();
+  const [open, setOpen] = useState<string | null>(null);
+  const [prefBusy, setPrefBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -199,147 +204,337 @@ export default function SecurityPage() {
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold mb-2">Безопасность</h1>
+  const notify = profile?.notifyPrefs ?? {};
+  const emailPref = notify.email !== false;
+  const telegramPref = notify.telegram !== false;
+  const loginAlertsPref = notify.loginAlerts !== false;
+  const showOnline = profile?.privacy?.hideOnline !== true;
+  const realEmail = !!profile?.email && !profile.email.endsWith("@telegram.local");
+  const toggle = (id: string) => setOpen((cur) => (cur === id ? null : id));
 
-      <div className="card p-5 flex items-center justify-between gap-3">
-        <div>
-          <p className="font-medium">Подтверждение email</p>
-          <p className="text-sm text-white/40">{profile?.emailVerified ? "Email подтверждён" : "Email не подтверждён"}</p>
+  /** Сохраняет переключатель через сервер и перечитывает профиль. */
+  async function savePref(key: string, payload: { notifyPrefs?: Record<string, boolean>; privacy?: Record<string, boolean> }) {
+    setPrefBusy(key);
+    try {
+      const res = await authedFetch("/api/profile/preferences", { method: "POST", body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error();
+      await refreshProfile();
+    } catch {
+      toast("error", "Не удалось сохранить настройку. Попробуй ещё раз.");
+    } finally {
+      setPrefBusy(null);
+    }
+  }
+
+  const activeSessions = sessions.length;
+
+  return (
+    <div className="space-y-5 max-w-2xl">
+      {/* Шапка */}
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-accent/15 text-accent flex items-center justify-center shrink-0">
+          <ShieldCheck size={24} />
         </div>
-        {!profile?.emailVerified && (
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={checkVerification} disabled={checking} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
-              {checking ? "Проверяем..." : "Я подтвердил — проверить"}
-            </button>
-            <button onClick={resendVerification} disabled={sending || cooldown > 0} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
-              {sending ? "Отправка..." : cooldown > 0 ? `Повтор через ${cooldown}с` : "Отправить письмо"}
-            </button>
-          </div>
-        )}
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold leading-tight">Безопасность</h1>
+          <p className="text-sm text-white/40 truncate">{profile?.email}</p>
+        </div>
       </div>
 
-      <div className="card p-5 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-medium">Telegram</p>
-            <p className="text-sm text-white/40">
-              {tgLoading
-                ? "Проверяем..."
-                : tgLink
-                ? `Привязан${tgLink.telegramUsername ? ` — @${tgLink.telegramUsername}` : ""}`
-                : "Не привязан — уведомления о заказах, заявках и рассылки будут приходить в Telegram"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
+      {/* ---------- Вход и защита ---------- */}
+      <Group title="Вход и защита">
+        <Row
+          icon={<Mail size={18} />}
+          color="#2196f3"
+          title="Email"
+          value={profile?.emailVerified ? "Подтверждён" : "Не подтверждён"}
+          valueTone={profile?.emailVerified ? "good" : "warn"}
+          open={open === "email"}
+          onClick={() => toggle("email")}
+        >
+          <p className="text-sm text-white/50 mb-3">
+            {profile?.emailVerified ? "Адрес подтверждён — на него можно восстановить доступ к аккаунту." : "Подтверди адрес: пришлём письмо со ссылкой. Без этого сложнее восстановить доступ."}
+          </p>
+          {!profile?.emailVerified && (
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={resendVerification} disabled={sending || cooldown > 0} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
+                {sending ? "Отправка..." : cooldown > 0 ? `Повтор через ${cooldown}с` : "Отправить письмо"}
+              </button>
+              <button onClick={checkVerification} disabled={checking} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
+                {checking ? "Проверяем..." : "Я подтвердил — проверить"}
+              </button>
+            </div>
+          )}
+        </Row>
+
+        <Row
+          icon={<Send size={18} />}
+          color="#29a9eb"
+          title="Telegram"
+          value={tgLoading ? "…" : tgLink ? (tgLink.telegramUsername ? `@${tgLink.telegramUsername}` : "Привязан") : "Не привязан"}
+          valueTone={tgLink ? "good" : undefined}
+          open={open === "telegram"}
+          onClick={() => toggle("telegram")}
+        >
+          <p className="text-sm text-white/50 mb-3">
+            {tgLink ? "Бот присылает уведомления о заказах и заявках, а ещё через него можно войти в аккаунт." : "Подключи Telegram — уведомления о заказах, заявках и рассылки будут приходить в бота."}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
             {tgLink ? (
               <button onClick={handleUnlinkTelegram} disabled={tgUnlinking} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
-                {tgUnlinking ? "..." : "Отвязать"}
+                {tgUnlinking ? "..." : "Отвязать Telegram"}
               </button>
             ) : (
               <>
-                <button onClick={handleCheckTelegram} disabled={tgLoading} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
-                  Проверить
-                </button>
                 <button onClick={handleConnectTelegram} disabled={tgConnecting} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
                   {tgConnecting ? "..." : "Подключить Telegram"}
+                </button>
+                <button onClick={handleCheckTelegram} disabled={tgLoading} className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2 disabled:opacity-50">
+                  Проверить
                 </button>
               </>
             )}
           </div>
-        </div>
-
-        {!tgLink && (
-          <div className="pt-1">
-            <p className="text-xs text-white/40 mb-2">
-              Не уверен, что это безопасно? Посмотри короткое видео — там показано, что происходит при подключении и что мы не получаем доступ ни к чему лишнему.
-            </p>
-            <video controls preload="metadata" className="w-full rounded-btn border border-border" style={{ maxHeight: 360 }}>
-              <source src="/videos/telegram-connect-tutorial.mp4" type="video/mp4" />
-            </video>
-          </div>
-        )}
-      </div>
-
-      <PushToggleCard />
-      <TwoFactorCard />
-
-      <div className="card p-5 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-medium">Активные сессии</p>
-            <p className="text-sm text-white/40">Устройства, на которых выполнен вход в аккаунт</p>
-          </div>
-          {sessions.length > 1 && (
-            <button
-              onClick={handleTerminateAll}
-              disabled={!canManage || terminatingId !== null}
-              className="btn-secondary px-4 py-2 text-sm disabled:opacity-50 shrink-0"
-              title={!canManage ? `Доступно через ${hoursLeft} ч.` : undefined}
-            >
-              {terminatingId === "all" ? "..." : "Завершить остальные"}
-            </button>
+          {!tgLink && (
+            <div className="pt-4">
+              <p className="text-xs text-white/40 mb-2">Не уверен, что это безопасно? Короткое видео — что происходит при подключении и что мы не получаем доступ ни к чему лишнему.</p>
+              <video controls preload="metadata" className="w-full rounded-btn border border-border" style={{ maxHeight: 360 }}>
+                <source src="/videos/telegram-connect-tutorial.mp4" type="video/mp4" />
+              </video>
+            </div>
           )}
-        </div>
+        </Row>
 
-        {!canManage && !sessionsLoading && (
-          <div className="flex items-start gap-2 text-xs text-white/40 bg-white/5 rounded-lg p-3">
-            <ShieldCheck size={16} className="shrink-0 mt-0.5" />
-            <span>
-              Завершать другие сессии с этого устройства можно будет через {hoursLeft} ч. — это защита на случай,
-              если аккаунт угнали: у злоумышленника есть доступ, но не будет возможности выкинуть тебя из твоих же
-              сессий.
-            </span>
+        <Row
+          icon={<Lock size={18} />}
+          color="#4caf50"
+          title="Двухфакторная защита"
+          value={profile?.twoFactorEnabled ? "Включена" : "Выключена"}
+          valueTone={profile?.twoFactorEnabled ? "good" : undefined}
+          open={open === "2fa"}
+          onClick={() => toggle("2fa")}
+        >
+          <TwoFactorCard />
+        </Row>
+
+        <Row
+          icon={<KeyRound size={18} />}
+          color="#ff9800"
+          title="Пароль"
+          value="Сменить"
+          open={open === "password"}
+          onClick={() => toggle("password")}
+        >
+          <p className="text-sm text-white/50 mb-3">Отправим письмо со ссылкой для смены пароля на {profile?.email}.</p>
+          <button onClick={handleResetPassword} disabled={resettingPassword} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
+            {resettingPassword ? "Отправка..." : "Отправить письмо для смены пароля"}
+          </button>
+        </Row>
+
+        <Row
+          icon={<MonitorSmartphone size={18} />}
+          color="#9c27b0"
+          title="Активные сессии"
+          value={sessionsLoading ? "…" : `${activeSessions} ${activeSessions === 1 ? "устройство" : activeSessions < 5 ? "устройства" : "устройств"}`}
+          open={open === "sessions"}
+          onClick={() => toggle("sessions")}
+        >
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <p className="text-sm text-white/50">Устройства, на которых выполнен вход в аккаунт.</p>
+            {sessions.length > 1 && (
+              <button
+                onClick={handleTerminateAll}
+                disabled={!canManage || terminatingId !== null}
+                className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-50 shrink-0"
+                title={!canManage ? `Доступно через ${hoursLeft} ч.` : undefined}
+              >
+                {terminatingId === "all" ? "..." : "Завершить остальные"}
+              </button>
+            )}
           </div>
-        )}
 
-        {sessionsLoading ? (
-          <p className="text-sm text-white/40">Загрузка...</p>
-        ) : (
-          <div className="space-y-2">
-            {sessions.map((s) => {
-              const isCurrent = s.deviceId === deviceId;
-              return (
-                <div key={s.deviceId} className="flex items-center justify-between gap-3 bg-white/5 rounded-lg p-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Monitor size={18} className="text-white/40 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {s.deviceLabel} {isCurrent && <span className="text-emerald-400">— это устройство</span>}
-                      </p>
-                      <p className="text-xs text-white/40">
-                        Первый вход: {new Date(s.createdAt).toLocaleString("ru-RU")} · Активность:{" "}
-                        {new Date(s.lastActiveAt).toLocaleString("ru-RU")}
-                      </p>
+          {!canManage && !sessionsLoading && (
+            <div className="flex items-start gap-2 text-xs text-white/40 bg-white/5 rounded-lg p-3 mb-3">
+              <ShieldCheck size={16} className="shrink-0 mt-0.5" />
+              <span>
+                Завершать другие сессии с этого устройства можно будет через {hoursLeft} ч. — это защита на случай, если аккаунт угнали: у злоумышленника есть доступ, но не будет возможности выкинуть тебя из твоих же сессий.
+              </span>
+            </div>
+          )}
+
+          {sessionsLoading ? (
+            <p className="text-sm text-white/40">Загрузка...</p>
+          ) : (
+            <div className="space-y-2">
+              {sessions.map((sess) => {
+                const isCurrent = sess.deviceId === deviceId;
+                return (
+                  <div key={sess.deviceId} className="flex items-center justify-between gap-3 bg-white/5 rounded-lg p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Monitor size={18} className="text-white/40 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {sess.deviceLabel} {isCurrent && <span className="text-emerald-400">— это устройство</span>}
+                        </p>
+                        <p className="text-xs text-white/40">
+                          Первый вход: {new Date(sess.createdAt).toLocaleString("ru-RU")} · Активность: {new Date(sess.lastActiveAt).toLocaleString("ru-RU")}
+                        </p>
+                      </div>
                     </div>
+                    {!isCurrent && (
+                      <button
+                        onClick={() => handleTerminate(sess.deviceId)}
+                        disabled={!canManage || terminatingId !== null}
+                        className="text-xs text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40 disabled:no-underline shrink-0"
+                        title={!canManage ? `Доступно через ${hoursLeft} ч.` : undefined}
+                      >
+                        {terminatingId === sess.deviceId ? "..." : "Завершить"}
+                      </button>
+                    )}
                   </div>
-                  {!isCurrent && (
-                    <button
-                      onClick={() => handleTerminate(s.deviceId)}
-                      disabled={!canManage || terminatingId !== null}
-                      className="text-xs text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40 disabled:no-underline shrink-0"
-                      title={!canManage ? `Доступно через ${hoursLeft} ч.` : undefined}
-                    >
-                      {terminatingId === s.deviceId ? "..." : "Завершить"}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </Row>
+      </Group>
 
-      <div className="card p-5 flex items-center justify-between">
-        <div>
-          <p className="font-medium">Пароль</p>
-          <p className="text-sm text-white/40">Сменить пароль через письмо на email</p>
-        </div>
-        <button onClick={handleResetPassword} disabled={resettingPassword} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
-          {resettingPassword ? "Отправка..." : "Сменить пароль"}
-        </button>
-      </div>
+      {/* ---------- Уведомления ---------- */}
+      <Group title="Уведомления">
+        <Row
+          icon={<Bell size={18} />}
+          color="#f44336"
+          title="Push в браузере"
+          value="Настроить"
+          open={open === "push"}
+          onClick={() => toggle("push")}
+        >
+          <PushToggleCard />
+        </Row>
+
+        <Row
+          icon={<MessageCircle size={18} />}
+          color="#29a9eb"
+          title="Сообщения в Telegram"
+          subtitle={tgLink ? "Заказы, заявки, чаты и рассылки" : "Сначала подключи Telegram выше"}
+          right={<Switch checked={telegramPref && !!tgLink} disabled={!tgLink || prefBusy === "telegram"} onChange={(v) => savePref("telegram", { notifyPrefs: { telegram: v } })} />}
+        />
+
+        <Row
+          icon={<Mail size={18} />}
+          color="#2196f3"
+          title="Письма на почту"
+          subtitle={realEmail ? "Чаты заказов, ответы поддержки, одобрение товаров" : "У аккаунта нет настоящего email"}
+          right={<Switch checked={emailPref && realEmail} disabled={!realEmail || prefBusy === "email"} onChange={(v) => savePref("email", { notifyPrefs: { email: v } })} />}
+        />
+
+        <Row
+          icon={<LogIn size={18} />}
+          color="#ff9800"
+          title="Вход с нового устройства"
+          subtitle="Сообщение в Telegram, когда в аккаунт заходят с незнакомого устройства"
+          right={<Switch checked={loginAlertsPref} disabled={prefBusy === "loginAlerts"} onChange={(v) => savePref("loginAlerts", { notifyPrefs: { loginAlerts: v } })} />}
+        />
+      </Group>
+
+      {/* ---------- Конфиденциальность ---------- */}
+      <Group title="Конфиденциальность">
+        <Row
+          icon={<Eye size={18} />}
+          color="#4caf50"
+          title="Показывать, что я в сети"
+          subtitle={showOnline ? "Другие видят зелёный индикатор и время последней активности" : "Скрыто: в профиле и чатах вы всегда «не в сети»"}
+          right={<Switch checked={showOnline} disabled={prefBusy === "hideOnline"} onChange={(v) => savePref("hideOnline", { privacy: { hideOnline: !v } })} />}
+        />
+      </Group>
+
+      <p className="text-xs text-white/30 flex items-start gap-1.5 px-1">
+        <Smartphone size={12} className="shrink-0 mt-0.5" />
+        Важные письма — подтверждение почты, сброс пароля и коды входа — приходят всегда, их отключить нельзя.
+      </p>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Компоненты в стиле настроек Telegram: сгруппированные строки с цветной иконкой, значением справа,
+// переключателем или раскрывающейся панелью.
+// ---------------------------------------------------------------------------
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <p className="text-xs font-semibold uppercase tracking-wider text-white/35 px-1 mb-2">{title}</p>
+      <div className="card divide-y divide-border/60 overflow-hidden">{children}</div>
+    </section>
+  );
+}
+
+function Row({
+  icon,
+  color,
+  title,
+  subtitle,
+  value,
+  valueTone,
+  right,
+  open,
+  onClick,
+  children,
+}: {
+  icon: React.ReactNode;
+  color: string;
+  title: string;
+  subtitle?: string;
+  value?: string;
+  valueTone?: "good" | "warn";
+  right?: React.ReactNode;
+  open?: boolean;
+  onClick?: () => void;
+  children?: React.ReactNode;
+}) {
+  const expandable = !!children;
+  const content = (
+    <>
+      <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ background: color }}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block text-[15px] font-medium leading-tight">{title}</span>
+        {subtitle && <span className="block text-xs text-white/40 mt-0.5 leading-snug">{subtitle}</span>}
+      </span>
+      {value && (
+        <span className={`text-sm shrink-0 ${valueTone === "good" ? "text-emerald-400" : valueTone === "warn" ? "text-yellow-400" : "text-white/40"}`}>{value}</span>
+      )}
+      {right}
+      {expandable && <ChevronRight size={16} className={`text-white/25 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />}
+    </>
+  );
+  return (
+    <div>
+      {expandable ? (
+        <button type="button" onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
+          {content}
+        </button>
+      ) : (
+        <div className="w-full flex items-center gap-3 px-4 py-3">{content}</div>
+      )}
+      {expandable && open && <div className="px-4 pb-4 pt-1 border-t border-border/40 bg-white/[0.015]"><div className="pt-3">{children}</div></div>}
+    </div>
+  );
+}
+
+function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative w-11 h-6 rounded-full shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${checked ? "bg-accent" : "bg-white/15"}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : ""}`} />
+    </button>
   );
 }

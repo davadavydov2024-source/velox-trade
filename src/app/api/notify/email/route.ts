@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { sendMail } from "@/lib/mailer";
 import { requireUser } from "@/lib/adminGuard";
+import { getNotifyPrefs } from "@/lib/userPrefs";
 import { rateLimit } from "@/lib/rateLimit";
 import { cleanSubject, sanitizeEmailHtml, wrapEmail } from "@/lib/sanitizeNotify";
 
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
       if (!(await rateLimit(`mail-from:${guard.uid}`, 30, 60 * 60 * 1000))) return NextResponse.json({ ok: false, error: "Слишком часто" }, { status: 429 });
       if (!(await rateLimit(`mail-to:${uid}`, 10, 60 * 60 * 1000))) return NextResponse.json({ ok: true, delivered: false });
     }
+
+    // Получатель отключил почтовые уведомления в «Безопасность» — ничего не отправляем.
+    if (!(await getNotifyPrefs(uid)).email) return NextResponse.json({ ok: true, delivered: false });
 
     const userSnap = await adminDb().collection("users").doc(uid).get();
     const email: string | undefined = userSnap.data()?.email;

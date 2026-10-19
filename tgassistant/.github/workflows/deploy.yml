@@ -1,0 +1,21 @@
+# Автодеплой на ваш сервер по SSH при каждом push в main.
+# Секреты (Settings -> Secrets and variables -> Actions): SSH_HOST, SSH_USER, SSH_KEY
+name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          HOST: ${{ secrets.SSH_HOST }}
+          USER_NAME: ${{ secrets.SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          ssh "$USER_NAME@$HOST" 'cd ~/tgassistant && git pull && . venv/bin/activate && pip install -q -r requirements.txt && sudo systemctl restart tgbot'

@@ -7,10 +7,10 @@ import { authedFetch } from "./authedFetch";
  * keepalive: true — чтобы запрос долетел, даже если вкладка того, кто вызвал действие (купил,
  * написал в чат и т.п.), закроется или уйдёт со страницы сразу после клика.
  */
-export function notifyTelegram(uid: string, text: string): void {
+export function notifyTelegram(uid: string, text: string, kind?: "login"): void {
   authedFetch("/api/notify/telegram", {
     method: "POST",
-    body: JSON.stringify({ uid, text }),
+    body: JSON.stringify({ uid, text, kind }),
     keepalive: true,
   }).catch(() => {
     // Намеренно игнорируем: уведомление не критично для основного действия.

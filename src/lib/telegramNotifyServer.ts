@@ -1,5 +1,6 @@
 import { adminDb } from "./firebaseAdmin";
 import { sendTelegramMessage } from "./telegramBot";
+import { getNotifyPrefs } from "./userPrefs";
 
 /**
  * То же самое, что notifyTelegram() из telegramNotify.ts, но для вызова прямо из серверного
@@ -10,6 +11,7 @@ import { sendTelegramMessage } from "./telegramBot";
 export async function notifyTelegramServer(uid: string, text: string): Promise<void> {
   try {
     if (!uid) return;
+    if (!(await getNotifyPrefs(uid)).telegram) return; // получатель отключил Telegram-уведомления
     const linkSnap = await adminDb().collection("telegramLinks").doc(uid).get();
     if (!linkSnap.exists) return;
     const { chatId } = linkSnap.data() as { chatId: number };

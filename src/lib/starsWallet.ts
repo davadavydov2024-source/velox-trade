@@ -44,10 +44,10 @@ export async function createStarsTopup(uid: string, amount: number): Promise<str
 /** Бот получил /start sttop_<id>: проверяем заявку и выставляем счёт. Возвращает текст для пользователя. */
 export async function startStarsTopupInBot(topupId: string, chatId: number): Promise<string> {
   const snap = await adminDb().collection("starsTopups").doc(topupId).get();
-  if (!snap.exists) return "Заявка на пополнение не найдена. Создай новую на сайте: «Пополнение баланса» → «Баланс ⭐».";
+  if (!snap.exists) return "Заявка на пополнение не найдена. Создай новую на сайте: страница «Пополнение ⭐».";
   const t = snap.data() as TopupDoc;
   if (t.status !== "pending") return "Эта заявка уже оплачена. Баланс ⭐ виден на сайте.";
-  if (Date.now() - t.createdAt > TOPUP_TTL_MS) return "Заявка устарела. Создай новую на сайте: «Пополнение баланса» → «Баланс ⭐».";
+  if (Date.now() - t.createdAt > TOPUP_TTL_MS) return "Заявка устарела. Создай новую на сайте: страница «Пополнение ⭐».";
 
   const sent = await sendInvoice(
     chatId,
@@ -91,7 +91,7 @@ export async function fulfillStarsTopup(
   });
 
   if (out.already) return `Это пополнение уже зачислено — ${out.amount} ⭐ на балансе сайта.`;
-  sendWebPush(out.uid, { title: "Баланс ⭐ пополнен", body: `+${out.amount} ⭐ — можно оплачивать товары за Stars`, url: "/profile/topup" }, "purchases");
+  sendWebPush(out.uid, { title: "Баланс ⭐ пополнен", body: `+${out.amount} ⭐ — можно оплачивать товары за Stars`, url: "/profile/stars" }, "purchases");
   return `Готово! На баланс сайта зачислено ${out.amount} ⭐. Теперь на странице товара можно нажать «Оплатить с баланса ⭐».`;
 }
 

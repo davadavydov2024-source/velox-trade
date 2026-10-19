@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
     if (!snap.exists) return NextResponse.json({ profile: null });
 
     const data = snap.data() as Record<string, unknown>;
-    const lastActiveAt = (data.lastActiveAt as number) ?? 0;
+    // Приватность: пользователь может скрыть «в сети» и время последней активности (Безопасность → Конфиденциальность).
+    const hideOnline = (data.privacy as { hideOnline?: boolean } | undefined)?.hideOnline === true;
+    const lastActiveAt = hideOnline ? 0 : ((data.lastActiveAt as number) ?? 0);
 
     // Рейтинг берём из реальных отзывов (и заодно чиним расхождение в профиле), а не из сохранённых
     // счётчиков — они могли отстать от числа отзывов. Сбой подсчёта не должен ломать профиль.

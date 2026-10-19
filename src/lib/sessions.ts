@@ -72,7 +72,8 @@ export async function registerSession(uid: string): Promise<void> {
     await setDoc(ref, session);
     notifyTelegram(
       uid,
-      `🔔 Выполнен вход с нового устройства: ${deviceLabel}\n\nЕсли это были не вы — зайди в «Профиль → Безопасность» и заверши эту сессию.`
+      `🔔 Выполнен вход с нового устройства: ${deviceLabel}\n\nЕсли это были не вы — зайди в «Профиль → Безопасность» и заверши эту сессию.`,
+      "login"
     );
   } else {
     await updateDoc(ref, { lastActiveAt: now, deviceLabel });

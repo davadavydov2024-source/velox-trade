@@ -142,7 +142,7 @@ export default function TradesPage() {
         <div className="relative space-y-4">
           <div className="flex items-start gap-3">
             <div
-              className="w-11 h-11 rounded-2xl flex items-center justify-center text-black shrink-0"
+              className="w-11 h-11 rounded-2xl flex items-center justify-center text-black shrink-0 shadow-glow"
               style={{ background: "linear-gradient(135deg, var(--color-accent), #4a6cf7)" }}
             >
               <ArrowLeftRight size={20} strokeWidth={2.5} />
@@ -154,7 +154,7 @@ export default function TradesPage() {
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {stats.map((s) => (
-              <div key={s.label} className="rounded-2xl bg-black/30 border border-white/10 px-3 py-2.5">
+              <div key={s.label} className="rounded-2xl bg-black/30 backdrop-blur border border-white/10 px-3 py-2.5">
                 <p className="text-2xl font-bold leading-none" style={{ color: s.value ? s.color : undefined }}>
                   {loading ? "–" : s.value}
                 </p>
@@ -181,7 +181,7 @@ export default function TradesPage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all ${
-                active ? "bg-accent text-black" : "bg-white/5 text-white/55 hover:bg-white/10"
+                active ? "bg-accent text-black shadow-glow" : "bg-white/5 text-white/55 hover:bg-white/10"
               }`}
             >
               {t.icon}

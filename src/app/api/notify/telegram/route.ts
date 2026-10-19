@@ -4,6 +4,7 @@ import { sendTelegramMessage } from "@/lib/telegramBot";
 import { requireUser } from "@/lib/adminGuard";
 import { rateLimit } from "@/lib/rateLimit";
 import { cleanPlainText } from "@/lib/sanitizeNotify";
+import { getNotifyPrefs } from "@/lib/userPrefs";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     const guard = await requireUser(req);
     if ("error" in guard) return guard.error;
 
-    const { uid, text } = await req.json().catch(() => ({}));
+    const { uid, text, kind } = await req.json().catch(() => ({}));
     if (typeof uid !== "string" || !uid || uid.length > 128) return NextResponse.json({ ok: false, error: "uid обязателен" }, { status: 400 });
     const clean = cleanPlainText(text, 800, guard.isAdmin);
     if (!clean) return NextResponse.json({ ok: false, error: "text обязателен" }, { status: 400 });
@@ -26,6 +27,13 @@ export async function POST(req: NextRequest) {
     if (!guard.isAdmin) {
       if (!(await rateLimit(`tg-from:${guard.uid}`, 60, 60 * 60 * 1000))) return NextResponse.json({ ok: false, error: "Слишком часто" }, { status: 429 });
       if (!(await rateLimit(`tg-to:${uid}`, 30, 60 * 60 * 1000))) return NextResponse.json({ ok: true, delivered: false });
+    }
+
+    // Настройки получателя: «вход с нового устройства» (kind=login, только для самого себя) управляется
+    // отдельным переключателем, всё остальное — общим переключателем Telegram-уведомлений.
+    const prefs = await getNotifyPrefs(uid);
+    if (kind === "login" && guard.uid === uid ? !prefs.loginAlerts : !prefs.telegram) {
+      return NextResponse.json({ ok: true, delivered: false });
     }
 
     const linkSnap = await adminDb().collection("telegramLinks").doc(uid).get();

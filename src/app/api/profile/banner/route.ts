@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { isAdminUid } from "@/lib/users";
 
 export const runtime = "nodejs";
 
 /**
- * Баннер профиля может поставить любой пользователь, но только себе. Проверка именно на сервере
- * (токен + список NEXT_PUBLIC_ADMIN_UIDS) — скрытой на клиенте кнопки недостаточно: иначе любой
- * мог бы записать bannerURL в свой документ напрямую.
+ * Баннер профиля может поставить любой залогиненный пользователь — но только СЕБЕ (uid берётся
+ * из токена, не из тела запроса). Запись идёт только через этот роут: в правилах Firestore
+ * bannerURL должен быть закрыт для прямой записи с клиента, иначе в обход проверки ниже можно
+ * поставить любую ссылку.
+ * Не-админ может указать только картинку, загруженную через наш /api/blob/upload (Vercel Blob);
+ * админу разрешена любая https-ссылка, как и раньше.
  * Тело: { bannerURL: string | null } — null убирает баннер.
  */
 export async function POST(req: NextRequest) {
@@ -17,10 +21,6 @@ export async function POST(req: NextRequest) {
 
     const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
     if (!decoded) return NextResponse.json({ error: "Сессия истекла" }, { status: 401 });
-    const userSnap = await adminDb().collection("users").doc(decoded.uid).get();
-    if (!userSnap.exists) return NextResponse.json({ error: "Профиль не найден" }, { status: 404 });
-    if (userSnap.data()?.banned) return NextResponse.json({ error: "Аккаунт заблокирован" }, { status: 403 });
-
     const body = (await req.json().catch(() => ({}))) as { bannerURL?: string | null };
     const raw = body.bannerURL;
     if (raw !== null && typeof raw !== "string") {
@@ -33,12 +33,16 @@ export async function POST(req: NextRequest) {
       if (url.length > 1000 || !/^https:\/\//i.test(url)) {
         return NextResponse.json({ error: "Ссылка на баннер должна начинаться с https://" }, { status: 400 });
       }
-      // Принимаем только файлы из нашего хранилища (загруженные через /api/blob/upload), а не любые
-      // внешние ссылки — иначе в баннер можно подставить чужой трекер или нежелательную картинку.
-      let host = "";
-      try { host = new URL(url).hostname; } catch { /* неверный URL */ }
-      if (!host.endsWith(".public.blob.vercel-storage.com")) {
-        return NextResponse.json({ error: "Загрузи картинку через кнопку, внешние ссылки не принимаются" }, { status: 400 });
+      if (!isAdminUid(decoded.uid)) {
+        let host = "";
+        try {
+          host = new URL(url).hostname;
+        } catch {
+          return NextResponse.json({ error: "Неверная ссылка на баннер" }, { status: 400 });
+        }
+        if (!host.endsWith(".public.blob.vercel-storage.com")) {
+          return NextResponse.json({ error: "Загрузи картинку через кнопку «Добавить баннер»" }, { status: 400 });
+        }
       }
       bannerURL = url;
     }
