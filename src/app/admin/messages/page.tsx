@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Eye, MessageSquare, ShoppingBag, ShieldCheck, X, ArrowLeft } from "lucide-react";
+import { Search, Eye, MessageSquare, ShoppingBag, ShieldCheck, X, ArrowLeft, Send } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc, isValidImageSrc } from "@/lib/safeImage";
@@ -67,6 +67,8 @@ function AdminMessagesInner() {
   const [thread, setThread] = useState<Thread | null>(null);
   const [threadLoading, setThreadLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,6 +107,29 @@ function AdminMessagesInner() {
       toast("error", err?.message || "Не удалось открыть чат");
     } finally {
       setThreadLoading(false);
+    }
+  }
+
+  /** Отправка сообщения в чат заказа от лица администрации (при споре). */
+  async function sendAsAdmin() {
+    if (!thread || thread.type !== "order" || !reply.trim()) return;
+    setSending(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/messages/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ id: thread.id, text: reply }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Не удалось отправить");
+      setThread({ ...thread, messages: [...thread.messages, data.message] });
+      setReply("");
+      toast("success", "Отправлено от лица администрации");
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось отправить");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -267,6 +292,40 @@ function AdminMessagesInner() {
                 })}
                 <div ref={bottomRef} />
               </div>
+
+              {thread.type === "order" ? (
+                <div className="border-t border-border p-3 space-y-2">
+                  <p className="text-[11px] text-white/35 flex items-center gap-1.5">
+                    <ShieldCheck size={12} className="text-accent" /> Сообщение будет подписано «Админ» и придёт обоим участникам (в чат, Telegram и push).
+                  </p>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      rows={2}
+                      maxLength={2000}
+                      placeholder="Написать от лица администрации…"
+                      className="input-field py-2 text-sm flex-1 resize-none"
+                    />
+                    <button onClick={sendAsAdmin} disabled={sending || !reply.trim()} className="btn-primary px-4 self-stretch flex items-center gap-1.5 disabled:opacity-50">
+                      <Send size={15} /> {sending ? "..." : "Отправить"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t border-border p-3 flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] text-white/35 w-full">В личную переписку двух людей админ не вписывается — напиши каждому отдельно:</p>
+                  {thread.people?.map((p) => (
+                    <button
+                      key={p.uid}
+                      onClick={() => router.push(`/chats?dm=${p.uid}&name=${encodeURIComponent(p.name)}`)}
+                      className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5"
+                    >
+                      <Send size={12} /> Написать {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           ) : null}
         </div>
