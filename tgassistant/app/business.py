@@ -77,8 +77,9 @@ async def dispatch(ctx: Ctx, text: str):
             return await ctx.edit("⛔ Эта команда отключена для вас администратором")
     if name != "on" and await db.get_s(ctx.owner_id, "enabled", "1") == "0":
         return
-    if await db.get_tier(ctx.owner_id) < cmd.tier:
-        return await ctx.edit(f"🔒 Команда <code>.{name}</code> доступна на тарифе {registry.TIERS[cmd.tier]}. Оформить: /start в боте")
+    tier = await db.get_tier(ctx.owner_id)
+    if tier < cmd.tier:
+        return await ctx.edit(f"🔒 Команда <code>.{name}</code> — нужен тариф {registry.TIERS[cmd.tier]} (у вас {registry.TIERS[tier]}). Тарифы: /tariffs в боте" + ("" if config.ADMIN_ID else "\n⚠️ На сервере не задан ADMIN_ID — владельцу: /myrole"))
     try:
         await cmd.fn(ctx)
         await db.log_cmd(cmd.names[0])

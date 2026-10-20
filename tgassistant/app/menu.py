@@ -86,10 +86,10 @@ def back_kb(*extra_rows) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[*extra_rows, [_btn("🏠 В меню", "m:home")]])
 
 
-def cmds_kb() -> InlineKeyboardMarkup:
+def cmds_kb(tier: int = 0) -> InlineKeyboardMarkup:
     btns = []
     for sid in _visible():
-        lock = " 🔒" if max(c.tier for c in CMDS if c.section == sid and not c.hidden) else ""
+        lock = " 🔒" if min(c.tier for c in CMDS if c.section == sid and not c.hidden) > tier else ""  # замок — только если закрыт весь раздел
         btns.append(_btn(_stitle(sid) + lock, f"m:{sid}"))
     rows = [btns[i:i + 2] for i in range(0, len(btns), 2)]
     return back_kb(*rows)
@@ -159,12 +159,14 @@ async def profile_text(uid, bot) -> str:
 
 async def page(key: str, uid: int, bot):
     """Возвращает (текст, клавиатура) для экрана меню или None."""
+    tier = await db.get_tier(uid)
     if key == "home":
         return await home_text(uid, bot), home_kb(uid)
     if key == "cmds":
-        return "📖 <b>Команды</b>\nВыберите раздел. 🔒 — нужен платный тариф.\nСписок одной строкой: <code>.help</code> в любом чате.", cmds_kb()
+        note = "У вас VIP — доступны все команды." if tier >= 2 else "🔒 — раздел закрыт на вашем тарифе, отдельные платные команды внутри разделов тоже помечены."
+        return f"📖 <b>Команды</b>\nВыберите раздел. {note}\nСписок одной строкой: <code>.help</code> в любом чате.", cmds_kb(tier)
     if key in SECTIONS and key in _visible():
-        return section_text(key), section_kb(key)
+        return section_text(key, tier), section_kb(key)
     if key == "connect":
         return connect_text((await bot.me()).username), back_kb([_btn("🩺 Проверить подключение", "m:diag")])
     if key == "sub":
@@ -499,6 +501,18 @@ async def mods(m: Message):
 @router.message(Command("diag"))
 async def diag(m: Message, bot: Bot):
     await m.answer(await saver.diag_text(bot, m.from_user.id))
+
+
+@router.message(Command("myrole", "whoami"))
+async def myrole(m: Message):
+    uid = m.from_user.id
+    role = "👑 админ" if uid == config.ADMIN_ID else "🛡 мини-админ" if uid in db.MODS else "пользователь"
+    lines = [f"🪪 Ваш ID: <code>{uid}</code>", f"Роль: {role}", f"Действующий тариф: <b>{TIERS[await db.get_tier(uid)]}</b>", await sub_line(uid)]
+    if not config.ADMIN_ID:
+        lines.append("\n⚠️ На сервере не задана переменная <code>ADMIN_ID</code> — админ-функции выключены. Если вы владелец, укажите в ней свой ID (он выше) и перезапустите бота.")
+    elif role == "пользователь":
+        lines.append(f"\nЕсли вы владелец бота, а здесь написано «пользователь», в переменной <code>ADMIN_ID</code> на сервере должен быть ваш ID: <code>{uid}</code>.")
+    await m.answer("\n".join(lines))
 
 
 @router.message(Command("version"))

@@ -38,6 +38,8 @@ async def main():
     asyncio.create_task(utils.remind_loop(bot))
     asyncio.create_task(botcmds.sub_loop(bot))
     me = await bot.me()
+    if not config.ADMIN_ID:
+        logging.warning("ADMIN_ID не задан: админ-панель и админ-команды недоступны (задайте переменную ADMIN_ID)")
     user_cmds = [
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="connect", description="Как подключить бота"),

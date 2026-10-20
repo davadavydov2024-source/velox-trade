@@ -22,8 +22,8 @@ function post(url: string, body: unknown): void {
 }
 
 /** Шлёт пользователю уведомление в Telegram (если у него привязан аккаунт). */
-export function notifyTelegram(uid: string, text: string): void {
-  post("/api/notify/telegram", { uid, text });
+export function notifyTelegram(uid: string, text: string, category?: string): void {
+  post("/api/notify/telegram", { uid, text, category });
 }
 
 /**

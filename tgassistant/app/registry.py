@@ -57,15 +57,24 @@ def section_cmds(sec):
     return [c for c in CMDS if c.section == sec and not c.hidden]
 
 
-def section_text(sec: str) -> str:
+def section_text(sec: str, tier=None) -> str:
+    """Текст раздела. Если передан тариф пользователя, замок 🔒 ставится только на команды, которые ему недоступны."""
     icon, title = SECTIONS[sec]
     cmds = section_cmds(sec)
     lines = [f"{icon} <b>{title}</b>", ""]
     for c in cmds:
         usage = f" {html.escape(c.usage)}" if c.usage else ""
         alias = "".join(f" / <code>.{n}</code>" for n in c.names[1:])
-        lines.append(f"<code>.{c.names[0]}{usage}</code>{alias} — {html.escape(c.help)}")
+        lock = " 🔒" if tier is not None and c.tier > tier else ""
+        lines.append(f"<code>.{c.names[0]}{usage}</code>{alias}{lock} — {html.escape(c.help)}")
     top = max((c.tier for c in cmds), default=0)
-    if top:
-        lines += ["", f"🔒 Нужен тариф {TIERS[top]}"]
+    if tier is None:
+        if top:
+            lines += ["", f"🔒 Нужен тариф {TIERS[top]}"]
+    else:
+        locked = [c for c in cmds if c.tier > tier]
+        if locked:
+            lines += ["", f"🔒 Закрыто на вашем тарифе ({TIERS[tier]}): {len(locked)} из {len(cmds)}. Нужен {TIERS[max(c.tier for c in locked)]} — /tariffs"]
+        elif top:
+            lines += ["", "✅ Все команды раздела вам доступны"]
     return "\n".join(lines)

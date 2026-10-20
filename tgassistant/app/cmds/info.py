@@ -82,14 +82,14 @@ async def help_(ctx):
         return await ctx.edit(
             f"<code>.{c.names[0]}{usage}</code> — {html.escape(c.help)}\nТариф: {TIERS[c.tier]}"
         )
-    lines = ["📖 <b>Команды</b> (🔒 — платные)", ""]
+    tier = await db.get_tier(ctx.owner_id)
+    lines = [f"📖 <b>Команды</b> · ваш тариф: {TIERS[tier]}" + (" (🔒 — закрыто)" if tier < 2 else " — доступно всё"), ""]
     for sec, (icon, title) in SECTIONS.items():
         cs = [c for c in CMDS if c.section == sec and not c.hidden]
         if not cs:
             continue
-        lock = " 🔒" if max(c.tier for c in cs) else ""
-        lines.append(f"{icon} <b>{title}</b>{lock}")
-        lines.append(" ".join(f"<code>.{c.names[0]}</code>" for c in cs))
+        lines.append(f"{icon} <b>{title}</b>")
+        lines.append(" ".join(f"<code>.{c.names[0]}</code>{'🔒' if c.tier > tier else ''}" for c in cs))
         lines.append("")
     lines.append("Подробнее: <code>.help команда</code> или /start в боте")
     await ctx.edit("\n".join(lines))
