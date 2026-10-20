@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/authContext";
 import { getUserProfile } from "@/lib/users";
 import { saveMyUsername, usernameFormatError } from "@/lib/usernames";
 import { useToast } from "@/lib/toastContext";
+import { OnboardingTour } from "@/components/OnboardingTour";
 
 /**
  * Юзернейм обязателен для всех аккаунтов. Если вошедший пользователь его ещё не задал (старые
@@ -52,7 +53,16 @@ export function UsernameGate({ children }: { children: ReactNode }) {
   // На страницах входа/регистрации окно не показываем — там юзернейм задаётся самим процессом.
   const onAuthPage = pathname.startsWith("/auth");
 
-  if (loading || !missing || !verified || registering || onAuthPage) return <>{children}</>;
+  // Пока окно «Придумай юзернейм» не нужно — показываем сайт, а поверх него (для новичков) обучение:
+  // стрелки и подсказки, где указать ник, пополнить баланс и т.д. (см. OnboardingTour).
+  if (loading || !missing || !verified || registering || onAuthPage) {
+    return (
+      <>
+        <OnboardingTour />
+        {children}
+      </>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
