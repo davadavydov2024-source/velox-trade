@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
-import { fail, loadChat, postMessage, requireMessenger } from "@/lib/messenger/server";
+import { canPost, fail, isDmBlocked, loadChat, postMessage, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -21,13 +21,16 @@ export async function POST(req: NextRequest) {
   for (const id of toIds) {
     const t = await loadChat(id, me.uid);
     if ("error" in t) return t.error;
+    const noPost = canPost(t.chat, me.uid);
+    if (noPost) return fail(noPost, 403);
+    if (await isDmBlocked(t.chat, me.uid)) return fail("Нельзя писать этому пользователю", 403);
     targets.push(t.chat);
   }
 
   const db = adminDb();
   const col = db.collection("messengerChats").doc(from.chat.id).collection("messages");
   const msgs = (await Promise.all(msgIds.map((id) => col.doc(id).get()))).filter(
-    (m) => m.exists && !m.data()!.deletedForAll && ["text", "image"].includes(m.data()!.kind)
+    (m) => m.exists && !m.data()!.deletedForAll && ["text", "image", "voice", "videoNote", "file", "sticker"].includes(m.data()!.kind)
   );
   msgs.sort((a, c) => a.data()!.createdAt - c.data()!.createdAt);
   if (msgs.length === 0) return fail("Эти сообщения переслать нельзя");
@@ -43,7 +46,7 @@ export async function POST(req: NextRequest) {
     for (const m of msgs) {
       const d = m.data()!;
       const authorUid: string = d.forwardedFrom?.uid ?? d.from;
-      await postMessage({ chat, sender: me, kind: d.kind, text: d.text, mediaUrl: d.mediaUrl, forwardedFrom: { name: names.get(authorUid)!, uid: authorUid } });
+      await postMessage({ chat, sender: me, kind: d.kind, text: d.text, mediaUrl: d.mediaUrl, extra: { ...(d.sticker ? { sticker: d.sticker } : {}), ...(d.duration !== undefined ? { duration: d.duration } : {}), ...(d.waveform ? { waveform: d.waveform } : {}), ...(d.width ? { width: d.width, height: d.height } : {}) }, forwardedFrom: { name: names.get(authorUid)!, uid: authorUid } });
     }
   }
   return NextResponse.json({ ok: true });

@@ -28,3 +28,14 @@ match /messengerUserFolders/{uid}/folders/{folderId} {
   allow read: if request.auth != null && request.auth.uid == uid;
   allow write: if false;
 }
+
+// Этап 2–3: истории читаются ТОЛЬКО через API (нужна фильтрация по контактам), остальное только сервер.
+match /messengerStories/{id}   { allow read, write: if false; }
+match /messengerReports/{id}   { allow read, write: if false; }
+match /messengerBlocks/{uid}/blocked/{other} { allow read, write: if false; }
+
+// Каналы, Mili Premium, стикеры: всё через API.
+match /messengerInvites/{code}          { allow read, write: if false; }
+match /messengerStickerPacks/{slug}     { allow read, write: if false; }
+match /messengerUserStickers/{uid}      { allow read, write: if false; }
+// views подколлекция сообщений канала (messengerChats/{id}/messages/{msgId}/views) закрыта общим запретом: отдельный match не нужен.

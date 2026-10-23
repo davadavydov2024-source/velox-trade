@@ -95,7 +95,8 @@ export async function createAccount(uid: string, handle: string, displayName: st
 
 export async function uidByHandle(handle: string): Promise<string | null> {
   const snap = await adminDb().collection("messengerHandles").doc(handle.toLowerCase().replace(/^@/, "")).get();
-  return snap.exists ? (snap.data()!.uid as string) : null;
+  const uid = snap.exists ? snap.data()!.uid : null; // у публичных каналов в этом документе chatId, а не uid
+  return typeof uid === "string" ? uid : null;
 }
 
 // ---- Чаты и сообщения ----
@@ -127,6 +128,7 @@ export function previewOf(kind: MessageKind, text?: string): string {
   if (kind === "voice") return "🎤 Голосовое сообщение";
   if (kind === "videoNote") return "📹 Видеосообщение";
   if (kind === "file") return "📎 Файл";
+  if (kind === "sticker") return "🖼 Стикер";
   return (text ?? "").trim().slice(0, 120);
 }
 
@@ -138,6 +140,7 @@ interface PostOpts {
   mediaUrl?: string;
   replyTo?: { msgId: string; from: string; preview: string };
   forwardedFrom?: { name: string; uid?: string };
+  extra?: Record<string, unknown>; // duration, waveform, width, height (после cleanMediaMeta)
 }
 
 /** Единая точка записи сообщения: сообщение + lastMessage + счётчики непрочитанных + пуши. */
@@ -153,6 +156,8 @@ export async function postMessage(o: PostOpts): Promise<string> {
   if (o.mediaUrl) data.mediaUrl = o.mediaUrl;
   if (o.replyTo) data.replyTo = o.replyTo;
   if (o.forwardedFrom) data.forwardedFrom = o.forwardedFrom;
+  if (o.extra) Object.assign(data, o.extra);
+  if (chat.type === "channel") data.views = 0;
   const preview = previewOf(o.kind, o.text);
 
   const batch = db.batch();
@@ -177,4 +182,51 @@ export async function postMessage(o: PostOpts): Promise<string> {
     console.error("messenger push error:", err);
   }
   return msgRef.id;
+}
+
+// ---- Медиа, блокировки, права в каналах ----
+
+/** Файл загружен самим пользователем через upload-ticket (путь messenger/<uid>/...). */
+export function ownsMedia(url: string, uid: string): boolean {
+  try {
+    return new URL(url).pathname.startsWith(`/messenger/${uid}/`);
+  } catch {
+    return false;
+  }
+}
+
+/** Оставляет только безопасные числовые метаданные медиа. */
+export function cleanMediaMeta(b: any, kind: MessageKind): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const num = (v: unknown, max: number) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v * 10) / 10 : undefined);
+  if (kind === "voice" || kind === "videoNote") {
+    const d = num(b?.duration, kind === "voice" ? 600 : 60);
+    if (d !== undefined) out.duration = d;
+  }
+  if (kind === "voice" && Array.isArray(b?.waveform)) {
+    out.waveform = b.waveform.slice(0, 64).map((n: unknown) => Math.max(0, Math.min(255, Math.round(Number(n) || 0))));
+  }
+  if (kind === "image" || kind === "videoNote") {
+    const w = num(b?.width, 10000);
+    const h = num(b?.height, 10000);
+    if (w !== undefined) out.width = Math.round(w);
+    if (h !== undefined) out.height = Math.round(h);
+  }
+  return out;
+}
+
+/** В личном чате: заблокировал ли кто-то из двоих другого. */
+export async function isDmBlocked(chat: MessengerChat, uid: string): Promise<boolean> {
+  if (chat.type !== "dm") return false;
+  const other = chat.members.find((m) => m !== uid);
+  if (!other) return false; // «Избранное»
+  const db = adminDb();
+  const [a, b] = await db.getAll(db.collection("messengerBlocks").doc(uid).collection("blocked").doc(other), db.collection("messengerBlocks").doc(other).collection("blocked").doc(uid));
+  return a.exists || b.exists;
+}
+
+/** Канал: писать могут только админы. Возвращает текст ошибки или null. */
+export function canPost(chat: MessengerChat, uid: string): string | null {
+  if (chat.type === "channel" && !chat.admins.includes(uid)) return "В канале пишут только админы";
+  return null;
 }

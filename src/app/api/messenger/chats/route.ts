@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
-import { dmChatId, fail, requireMessenger, uidByHandle } from "@/lib/messenger/server";
+import { dmChatId, fail, HANDLE_RE, requireMessenger, uidByHandle } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
-/** Создать чат. dm: { type:"dm", memberHandles:[handle] } (свой handle = «Избранное»); group: { type:"group", title, memberHandles:[...] }. */
+/**
+ * Создать чат.
+ *  dm:      { type:"dm", memberHandles:[handle] }  (свой handle = «Избранное»)
+ *  group:   { type:"group", title, memberHandles:[...] }
+ *  channel: { type:"channel", title, description?, handle?, memberHandles?:[...] }
+ *           handle задан — публичный канал (@handle, поиск, вход по ссылке); без handle — приватный (вход по пригласительной ссылке).
+ */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -15,7 +21,8 @@ export async function POST(req: NextRequest) {
   const handles: string[] = Array.isArray(b.memberHandles)
     ? (Array.from(new Set(b.memberHandles.map((h: unknown) => String(h).toLowerCase().replace(/^@/, "")))) as string[])
     : [];
-  if (handles.length === 0 || handles.length > 100) return fail("Укажи от 1 до 100 участников");
+  if (handles.length > 200) return fail("Не больше 200 участников при создании");
+  if (b.type !== "channel" && handles.length === 0) return fail("Укажи хотя бы одного участника");
 
   const uids: string[] = [];
   for (const h of handles) {
@@ -36,13 +43,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ chatId });
   }
 
-  if (b.type === "group") {
+  if (b.type === "group" || b.type === "channel") {
     const title = String(b.title ?? "").trim();
-    if (title.length < 2 || title.length > 60) return fail("Название группы — от 2 до 60 символов");
+    if (title.length < 2 || title.length > 60) return fail("Название — от 2 до 60 символов");
+    const description = String(b.description ?? "").slice(0, 300);
     const members = Array.from(new Set([me.uid, ...uids]));
     const ref = db.collection("messengerChats").doc();
-    await ref.set({ type: "group", title, members, admins: [me.uid], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
+    const base = { type: b.type, title, description, members, admins: [me.uid], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
+
+    const handle = b.type === "channel" && b.handle ? String(b.handle).trim().toLowerCase().replace(/^@/, "") : "";
+    if (handle) {
+      if (!HANDLE_RE.test(handle)) return fail("@адрес канала: 4–24 символа, латиница, цифры и _, начинается с буквы");
+      const hRef = db.collection("messengerHandles").doc(handle);
+      try {
+        await db.runTransaction(async (tx) => {
+          if ((await tx.get(hRef)).exists) throw new Error("handle-taken");
+          tx.set(hRef, { chatId: ref.id, kind: "channel" });
+          tx.set(ref, { ...base, handle });
+        });
+      } catch (e: any) {
+        if (e?.message === "handle-taken") return fail("Этот адрес уже занят", 409);
+        throw e;
+      }
+    } else {
+      await ref.set(base);
+    }
     return NextResponse.json({ chatId: ref.id });
   }
-  return fail("Тип чата: dm или group");
+  return fail("Тип чата: dm, group или channel");
 }

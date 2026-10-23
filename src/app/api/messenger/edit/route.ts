@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (m.from !== me.uid) return fail("Можно менять только свои сообщения", 403);
   if (!["text", "image"].includes(m.kind)) return fail("Это сообщение нельзя изменить");
   await ref.update({ text, editedAt: Date.now() });
-  if (loaded.chat.lastMessage?.at === m.createdAt && loaded.chat.lastMessage.from === me.uid) {
+  if (loaded.chat.lastMessage?.at === m.createdAt && loaded.chat.lastMessage?.from === me.uid) {
     await chatRef.update({ "lastMessage.text": previewOf(m.kind, text) });
   }
   return NextResponse.json({ ok: true });
