@@ -5,6 +5,7 @@ import { Search, ShieldBan, BadgeCheck, Flag } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { useToast } from "@/lib/toastContext";
 import { StickerAdmin } from "./StickerAdmin";
+import { BroadcastAdmin } from "./BroadcastAdmin";
 
 type Account = { uid: string; handle: string; displayName: string; banned?: boolean; verified?: boolean; createdAt: number; lastSeenAt: number };
 type Report = { id: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string | null; reason: string; createdAt: number };
@@ -92,6 +93,7 @@ export default function AdminMessengerPage() {
           </div>
         ))}
       </div>
+      <BroadcastAdmin />
       <StickerAdmin />
     </div>
   );

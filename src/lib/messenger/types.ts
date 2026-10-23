@@ -43,6 +43,7 @@ export interface MessengerChat {
   adminTitles?: Record<string, string>; // подпись админа («Модератор»)
   restricted?: Record<string, MemberRestriction>;
   banned?: string[];
+  service?: boolean; // служебный чат «MiliGram Push»: только читать, отвечать нельзя
 }
 
 export interface MessengerMessage {

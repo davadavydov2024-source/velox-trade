@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const snap = await adminDb().collection("messengerAccounts").where("handle", ">=", q).where("handle", "<=", q + "\uf8ff").limit(15).get();
   const users = snap.docs
     .map((d) => d.data())
-    .filter((a) => !a.banned && a.uid !== me.uid)
+    .filter((a) => !a.banned && a.uid !== me.uid && a.uid !== "miligram")
     .slice(0, 10)
     .map((a) => ({ uid: a.uid, handle: a.handle, displayName: a.displayName, photoURL: a.photoURL ?? null, verified: !!a.verified }));
   return NextResponse.json({ users });

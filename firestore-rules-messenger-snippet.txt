@@ -47,3 +47,7 @@ match /messengerChats/{chatId}/messages/{msgId}/votes/{uid} {
   allow write: if false;
 }
 match /messengerJoinRequests/{id} { allow read, write: if false; }
+
+// Сеансы (устройства) и рассылки — только через API.
+match /messengerSessions/{uid}/list/{id} { allow read, write: if false; }
+match /messengerBroadcasts/{id}          { allow read, write: if false; }

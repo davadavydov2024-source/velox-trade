@@ -35,6 +35,9 @@ export async function requireMessenger(req: NextRequest): Promise<MessengerAuth 
   if (!snap.exists) return { error: fail("Аккаунт мессенджера не создан", 403) };
   const account = snap.data() as MessengerAccount;
   if (account.banned) return { error: fail("Доступ к мессенджеру закрыт", 403) };
+  // Если клиент прислал id своего устройства (заголовок X-Miligram-Device) — завершённый сеанс больше не пускаем
+  const dev = req.headers.get("x-miligram-device");
+  if (dev && DEVICE_RE.test(dev) && (await isSessionRevoked(uid, dev))) return { error: NextResponse.json({ error: "Сеанс завершён. Войди заново.", revoked: true }, { status: 401 }) };
   return { uid, account };
 }
 
@@ -94,6 +97,7 @@ export function verifyGateToken(token: unknown): boolean {
 
 /** Создаёт аккаунт мессенджера и резервирует @handle (уникальность — через messengerHandles). */
 export async function createAccount(uid: string, handle: string, displayName: string, photoURL: string | null = null) {
+  if (RESERVED_HANDLES.has(handle)) throw new Error("handle-taken");
   const db = adminDb();
   const handleRef = db.collection("messengerHandles").doc(handle);
   const accRef = db.collection("messengerAccounts").doc(uid);
@@ -303,3 +307,58 @@ export function canDo(chat: MessengerChat, uid: string, action: Action): boolean
 }
 
 export const isChatAdmin = (chat: MessengerChat, uid: string) => chat.createdBy === uid || chat.admins.includes(uid);
+
+// ---- Служебный аккаунт «MiliGram Push» (как чат «Telegram» с уведомлениями о входе и рассылками) ----
+
+export const SERVICE_UID = "miligram";
+export const RESERVED_HANDLES = new Set(["miligram", "miligrampush", "admin", "support", "velox", "moderator", "telegram", "official"]);
+export const DEVICE_RE = /^[A-Za-z0-9_-]{16,64}$/;
+
+let svcCache: MessengerAuth | null = null;
+export async function ensureServiceAccount(): Promise<MessengerAuth> {
+  if (svcCache) return svcCache;
+  const db = adminDb();
+  const ref = db.collection("messengerAccounts").doc(SERVICE_UID);
+  const snap = await ref.get();
+  let account = snap.data() as MessengerAccount | undefined;
+  if (!account) {
+    const now = Date.now();
+    account = { uid: SERVICE_UID, handle: "miligram", displayName: "MiliGram Push", photoURL: "/miligram/icon-192.png", bio: "Официальные уведомления MiliGram", createdAt: now, lastSeenAt: now, showLastSeen: false, banned: false, verified: true };
+    await ref.set(account);
+    await db.collection("messengerHandles").doc("miligram").set({ uid: SERVICE_UID }, { merge: true });
+  }
+  svcCache = { uid: SERVICE_UID, account };
+  return svcCache;
+}
+
+/** Служебное сообщение пользователю от «MiliGram Push»: создаёт закреплённый служебный чат (если его нет), пушит, считает непрочитанное. */
+export async function sendServiceMessage(uid: string, text: string, opts: { silent?: boolean } = {}): Promise<void> {
+  const svc = await ensureServiceAccount();
+  const ref = adminDb().collection("messengerChats").doc(dmChatId(SERVICE_UID, uid));
+  let snap = await ref.get();
+  if (!snap.exists) {
+    await ref.set({ type: "dm", members: [SERVICE_UID, uid], admins: [], createdBy: SERVICE_UID, service: true, updatedAt: Date.now(), readBy: {}, pinnedMessageIds: [] });
+    snap = await ref.get();
+  }
+  const chat = { id: ref.id, ...snap.data() } as MessengerChat;
+  await postMessage({ chat, sender: svc, kind: "text", text: text.slice(0, 3900), silent: opts.silent });
+}
+
+// ---- Сеансы (устройства) ----
+
+const revokedCache = new Map<string, { v: boolean; at: number }>();
+export async function isSessionRevoked(uid: string, deviceId: string): Promise<boolean> {
+  const key = `${uid}/${deviceId}`;
+  const hit = revokedCache.get(key);
+  if (hit && Date.now() - hit.at < 20_000) return hit.v;
+  const v = (await adminDb().collection("messengerSessions").doc(uid).collection("list").doc(deviceId).get()).data()?.revoked === true;
+  revokedCache.set(key, { v, at: Date.now() });
+  return v;
+}
+
+/** Короткое описание устройства из User-Agent: «iPhone · Safari», «Windows · Chrome». */
+export function describeDevice(ua: string): string {
+  const os = /iPhone|iPad/.test(ua) ? (/iPad/.test(ua) ? "iPad" : "iPhone") : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS X|Macintosh/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "Устройство";
+  const br = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /YaBrowser/.test(ua) ? "Яндекс Браузер" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\/|CriOS/.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "браузер";
+  return `${os} · ${br}`;
+}

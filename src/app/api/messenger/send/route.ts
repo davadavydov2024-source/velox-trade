@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   if ("error" in loaded) return loaded.error;
   const { chat } = loaded;
 
+  if (chat.service) return fail("В служебном чате отвечать нельзя", 403);
   const kind: MessageKind = b.kind in NEED ? b.kind : "text";
   if (!canDo(chat, me.uid, NEED[kind])) return fail(chat.type === "channel" ? "В канале пишут только админы" : "Тебе запрещено отправлять это в группе", 403);
   if (await isDmBlocked(chat, me.uid)) return fail("Нельзя писать этому пользователю", 403);

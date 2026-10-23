@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
-import { dmChatId, fail, HANDLE_RE, requireMessenger, uidByHandle } from "@/lib/messenger/server";
+import { dmChatId, fail, HANDLE_RE, SERVICE_UID, requireMessenger, uidByHandle } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     if (!u) return fail(`Пользователь @${h} не найден`, 404);
     if (!uids.includes(u)) uids.push(u);
   }
+  if (uids.includes(SERVICE_UID)) return fail("Это служебный аккаунт — ему писать нельзя", 403);
   const db = adminDb();
   const now = Date.now();
 
