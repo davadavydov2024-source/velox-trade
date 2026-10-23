@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { fail, loadChat, requireMessenger } from "@/lib/messenger/server";
+import { canDo, fail, loadChat, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
 /**
- * POST { chatId, msgId } — удалить сообщение У ВСЕХ (своё; в группе админ может любое).
- * «Удалить только у себя» пока не реализовано: клиент может скрывать сообщение локально.
+ * POST { chatId, msgId, forMe?: boolean }
+ *  forMe: true — «удалить только у меня» (любое сообщение; клиент скрывает сообщения, где uid в hiddenFor);
+ *  иначе — у всех: своё, либо чужое при праве «удалять сообщения» (админ/создатель).
  */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
@@ -20,10 +21,14 @@ export async function POST(req: NextRequest) {
   const ref = chatRef.collection("messages").doc(b.msgId);
   const m = (await ref.get()).data();
   if (!m || m.deletedForAll) return fail("Сообщение не найдено", 404);
-  const isAdmin = loaded.chat.type !== "dm" && loaded.chat.admins.includes(me.uid);
-  if (m.from !== me.uid && !isAdmin) return fail("Нет прав удалить это сообщение", 403);
 
-  await ref.update({ deletedForAll: true, text: FieldValue.delete(), mediaUrl: FieldValue.delete(), mediaUrls: FieldValue.delete(), reactions: {} });
+  if (b.forMe === true) {
+    await ref.update({ hiddenFor: FieldValue.arrayUnion(me.uid) });
+    return NextResponse.json({ ok: true });
+  }
+  if (m.from !== me.uid && !canDo(loaded.chat, me.uid, "deleteMessages")) return fail("Нет прав удалить это сообщение у всех", 403);
+
+  await ref.update({ deletedForAll: true, text: FieldValue.delete(), mediaUrl: FieldValue.delete(), mediaUrls: FieldValue.delete(), poll: FieldValue.delete(), reactions: {} });
   const upd: Record<string, unknown> = { pinnedMessageIds: FieldValue.arrayRemove(b.msgId) };
   if (loaded.chat.lastMessage?.at === m.createdAt) upd["lastMessage.text"] = "Сообщение удалено";
   await chatRef.update(upd);

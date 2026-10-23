@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
-import { createAccount, fail, HANDLE_RE, requireFirebaseUid, verifyGateToken } from "@/lib/messenger/server";
+import { createAccount, fail, HANDLE_RE, requireFirebaseUid, gatePassed } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   if (!uid) return fail("Нужно войти в аккаунт", 401);
   if (!(await rateLimit(`msgr_join_${clientIp(req)}`, 10, 60 * 60_000))) return fail("Слишком много попыток", 429);
   const b = await req.json().catch(() => ({}));
-  if (!verifyGateToken(b.gateToken)) return fail("Сначала введи код доступа", 403);
+  if (!gatePassed(b.gateToken)) return fail("Нужен код доступа", 403);
   if ((await adminDb().collection("messengerAccounts").doc(uid).get()).exists) return NextResponse.json({ ok: true, existed: true });
 
   const handle = String(b.handle ?? "").trim().toLowerCase().replace(/^@/, "");

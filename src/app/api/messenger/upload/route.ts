@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { safeEqual } from "@/lib/messenger/server";
+import { safeEqual, signingSecret } from "@/lib/messenger/server";
 import { UPLOAD_KINDS, UploadKind } from "@/lib/messenger/uploads";
 
 export const runtime = "nodejs";
 
 function verifyTicket(raw: string | null): { uid: string; kind: UploadKind } | null {
-  const secret = process.env.MESSENGER_GATE_SECRET;
+  const secret = signingSecret();
   if (!secret || !raw) return null;
   const parts = raw.split(".");
   if (parts.length !== 4) return null;

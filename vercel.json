@@ -1,12 +1,7 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/reminders",
-      "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/release-payouts",
-      "schedule": "0 0 * * *"
-    }
+    { "path": "/api/cron/reminders", "schedule": "0 12 * * *" },
+    { "path": "/api/cron/release-payouts", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/messenger-cleanup", "schedule": "30 3 * * *" }
   ]
 }

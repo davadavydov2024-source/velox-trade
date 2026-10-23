@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
-import { createAccount, fail, HANDLE_RE, verifyGateToken } from "@/lib/messenger/server";
+import { createAccount, fail, HANDLE_RE, gatePassed } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   if (!(await rateLimit(`msgr_register_${clientIp(req)}`, 5, 60 * 60_000))) return fail("Слишком много попыток, попробуй позже", 429);
   const b = await req.json().catch(() => ({}));
-  if (!verifyGateToken(b.gateToken)) return fail("Сначала введи код доступа", 403);
+  if (!gatePassed(b.gateToken)) return fail("Нужен код доступа", 403);
 
   const email = String(b.email ?? "").trim().toLowerCase();
   const password = String(b.password ?? "");

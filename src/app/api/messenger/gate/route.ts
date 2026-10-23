@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
-import { accessCodeConfigured, checkAccessCode, signGateToken, fail } from "@/lib/messenger/server";
+import { accessCodeConfigured, checkAccessCode, registrationOpen, signGateToken, fail } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
-/** Проверка кода доступа. Код задаётся на Vercel: MESSENGER_ACCESS_CODE (+ MESSENGER_GATE_SECRET, 16+ символов). */
+/** GET -> { open: boolean }: нужен ли код доступа для регистрации (open: true — код НЕ нужен, показывать сразу форму почты и пароля). */
+export async function GET() {
+  return NextResponse.json({ open: registrationOpen() });
+}
+
+/**
+ * POST { code } — проверка кода доступа. Нужна только если на Vercel задан MESSENGER_ACCESS_CODE;
+ * по умолчанию (переменной нет) регистрация открыта и этот шаг пропускается.
+ */
 export async function POST(req: NextRequest) {
+  if (registrationOpen()) return NextResponse.json({ open: true });
   if (!accessCodeConfigured()) return fail("Мессенджер ещё не настроен", 503);
   const ip = clientIp(req);
   if (!(await rateLimit(`msgr_gate_${ip}`, 8, 10 * 60_000))) return fail("Слишком много попыток, подожди несколько минут", 429);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
-import { canPost, fail, isDmBlocked, loadChat, postMessage, requireMessenger } from "@/lib/messenger/server";
+import { canDo, fail, isDmBlocked, loadChat, postMessage, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -17,12 +17,12 @@ export async function POST(req: NextRequest) {
 
   const from = await loadChat(b.fromChatId, me.uid);
   if ("error" in from) return from.error;
+  if (from.chat.noForwards) return fail("Автор запретил пересылку из этого чата", 403);
   const targets = [];
   for (const id of toIds) {
     const t = await loadChat(id, me.uid);
     if ("error" in t) return t.error;
-    const noPost = canPost(t.chat, me.uid);
-    if (noPost) return fail(noPost, 403);
+    if (!canDo(t.chat, me.uid, "sendMessages")) return fail("Тебе нельзя писать в один из выбранных чатов", 403);
     if (await isDmBlocked(t.chat, me.uid)) return fail("Нельзя писать этому пользователю", 403);
     targets.push(t.chat);
   }

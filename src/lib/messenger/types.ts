@@ -1,7 +1,7 @@
 /** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
-export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "system";
+export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system";
 
 export interface MessengerAccount {
   uid: string;
@@ -16,6 +16,7 @@ export interface MessengerAccount {
   banned: boolean;
   verified?: boolean;
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
+  privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
 }
 
 export interface MessengerChat {
@@ -33,6 +34,15 @@ export interface MessengerChat {
   pinnedMessageIds: string[];
   handle?: string; // публичный @канал (поиск, вступление по ссылке /m?join=@handle)
   inviteCode?: string; // пригласительная ссылка /m?join=<код>
+  permissions?: Partial<ChatPermissions>; // права участников по умолчанию (группа)
+  slowModeSec?: number; // медленный режим: 0, 10, 30, 60, 300, 900, 3600
+  noForwards?: boolean; // «защищённый контент»: пересылка и копирование запрещены
+  autoDeleteSec?: number; // автоудаление сообщений: 0, 86400, 604800, 2678400
+  joinByRequest?: boolean; // вступление по ссылке только с одобрения админа
+  adminRights?: Record<string, AdminRights>;
+  adminTitles?: Record<string, string>; // подпись админа («Модератор»)
+  restricted?: Record<string, MemberRestriction>;
+  banned?: string[];
 }
 
 export interface MessengerMessage {
@@ -54,6 +64,10 @@ export interface MessengerMessage {
   deletedForAll?: boolean;
   views?: number; // просмотры поста в канале
   sticker?: { pack: string; index: number };
+  poll?: MessengerPoll;
+  mentions?: string[]; // uid упомянутых через @handle
+  expireAt?: number; // автоудаление: после этого времени сообщение скрыть
+  hiddenFor?: string[]; // «удалить у себя»: этим пользователям сообщение не показывать
 }
 
 /** Личные настройки чата: messengerUserChats/{uid}/chats/{chatId} */
@@ -65,6 +79,9 @@ export interface MessengerUserChat {
   muted?: boolean;
   mutedUntil?: number;
   folderIds?: string[];
+  mentions?: number; // непрочитанные упоминания (значок @)
+  markedUnread?: boolean; // «отметить непрочитанным»
+  clearedAt?: number; // «очистить историю у себя»: сообщения старше не показывать
 }
 
 export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"] as const;
@@ -111,4 +128,30 @@ export interface MessengerStickerPack {
   stickers: { url: string; emoji: string }[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface AdminRights {
+  changeInfo?: boolean; deleteMessages?: boolean; banUsers?: boolean; inviteUsers?: boolean;
+  pinMessages?: boolean; addAdmins?: boolean; postMessages?: boolean; editMessages?: boolean;
+}
+export const ADMIN_RIGHT_KEYS = ["changeInfo", "deleteMessages", "banUsers", "inviteUsers", "pinMessages", "addAdmins", "postMessages", "editMessages"] as const;
+
+export interface ChatPermissions {
+  sendMessages: boolean; sendMedia: boolean; sendStickers: boolean; sendPolls: boolean;
+  addMembers: boolean; pinMessages: boolean; changeInfo: boolean;
+}
+export const DEFAULT_PERMISSIONS: ChatPermissions = { sendMessages: true, sendMedia: true, sendStickers: true, sendPolls: true, addMembers: true, pinMessages: false, changeInfo: false };
+export const PERMISSION_KEYS = Object.keys(DEFAULT_PERMISSIONS) as (keyof ChatPermissions)[];
+
+/** Ограничение участника: false = запрещено до until. */
+export interface MemberRestriction { until: number; sendMessages?: boolean; sendMedia?: boolean; sendStickers?: boolean; sendPolls?: boolean }
+
+export interface MessengerPoll {
+  question: string;
+  options: { text: string; count: number }[]; // голоса — только счётчики; свой выбор — messages/{id}/votes/{uid}
+  multiple: boolean;
+  anonymous: boolean;
+  quiz: boolean; // правильный ответ хранится на сервере и отдаётся после голосования
+  closed: boolean;
+  total: number; // сколько человек проголосовало
 }

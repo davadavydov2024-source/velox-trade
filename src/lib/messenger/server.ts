@@ -3,7 +3,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { sendWebPush } from "@/lib/webPushServer";
-import type { MessengerAccount, MessengerChat, MessageKind } from "./types";
+import { DEFAULT_PERMISSIONS, type MessengerAccount, type MessengerChat, type MessageKind } from "./types";
 
 export const HANDLE_RE = /^[a-z][a-z0-9_]{3,23}$/;
 export const GATE_TTL_MS = 15 * 60 * 1000;
@@ -45,13 +45,25 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(sha(a), sha(b));
 }
 
-function gateSecret(): string | null {
-  const s = process.env.MESSENGER_GATE_SECRET;
-  return s && s.length >= 16 ? s : null;
+/** Секрет подписи токенов (билеты загрузки, токен шлюза). Отдельной переменной не требует: берётся MESSENGER_GATE_SECRET или уже существующий BLOB_READ_WRITE_TOKEN. */
+export function signingSecret(): string | null {
+  const s = process.env.MESSENGER_GATE_SECRET || process.env.BLOB_READ_WRITE_TOKEN;
+  return s && s.length >= 16 ? createHash("sha256").update("miligram:" + s).digest("hex") : null;
+}
+const gateSecret = signingSecret;
+
+/** Регистрация открыта для всех, пока на Vercel НЕ задан MESSENGER_ACCESS_CODE (по умолчанию — открыта, без пароля). */
+export function registrationOpen(): boolean {
+  return !process.env.MESSENGER_ACCESS_CODE;
 }
 
 export function accessCodeConfigured(): boolean {
   return !!process.env.MESSENGER_ACCESS_CODE && !!gateSecret();
+}
+
+/** Прошёл ли «шлюз»: если регистрация открыта — токен не нужен, иначе нужен верный gateToken. */
+export function gatePassed(token: unknown): boolean {
+  return registrationOpen() || verifyGateToken(token);
 }
 
 export function checkAccessCode(code: string): boolean {
@@ -129,6 +141,7 @@ export function previewOf(kind: MessageKind, text?: string): string {
   if (kind === "videoNote") return "📹 Видеосообщение";
   if (kind === "file") return "📎 Файл";
   if (kind === "sticker") return "🖼 Стикер";
+  if (kind === "poll") return `📊 ${(text ?? "Опрос").slice(0, 100)}`;
   return (text ?? "").trim().slice(0, 120);
 }
 
@@ -140,10 +153,13 @@ interface PostOpts {
   mediaUrl?: string;
   replyTo?: { msgId: string; from: string; preview: string };
   forwardedFrom?: { name: string; uid?: string };
-  extra?: Record<string, unknown>; // duration, waveform, width, height (после cleanMediaMeta)
+  extra?: Record<string, unknown>; // duration, waveform, width, height, sticker, poll
+  silent?: boolean; // отправить без уведомления
 }
 
-/** Единая точка записи сообщения: сообщение + lastMessage + счётчики непрочитанных + пуши. */
+const PUSH_CAP = 1000; // в больших каналах пушим не больше этого числа подписчиков за пост
+
+/** Единая точка записи сообщения: сообщение + lastMessage + счётчики непрочитанных/упоминаний + пуши. */
 export async function postMessage(o: PostOpts): Promise<string> {
   const db = adminDb();
   const { chat, sender } = o;
@@ -158,26 +174,55 @@ export async function postMessage(o: PostOpts): Promise<string> {
   if (o.forwardedFrom) data.forwardedFrom = o.forwardedFrom;
   if (o.extra) Object.assign(data, o.extra);
   if (chat.type === "channel") data.views = 0;
+  if (chat.autoDeleteSec) data.expireAt = now + chat.autoDeleteSec * 1000;
   const preview = previewOf(o.kind, o.text);
 
-  const batch = db.batch();
-  batch.set(msgRef, data);
-  batch.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now });
-  const others = chat.members.filter((m) => m !== sender.uid);
-  for (const m of others) {
-    batch.set(db.collection("messengerUserChats").doc(m).collection("chats").doc(chat.id), { unread: FieldValue.increment(1) }, { merge: true });
+  // @упоминания (только в группах): находим участников по @handle
+  const mentionUids: string[] = [];
+  if (o.text && chat.type === "group") {
+    const found = Array.from(new Set((o.text.match(/@([a-zA-Z][a-zA-Z0-9_]{3,23})/g) ?? []).map((h) => h.slice(1).toLowerCase()))).slice(0, 10);
+    if (found.length) {
+      const docs = await db.getAll(...found.map((h) => db.collection("messengerHandles").doc(h)));
+      docs.forEach((d) => {
+        const u = d.data()?.uid;
+        if (typeof u === "string" && u !== sender.uid && chat.members.includes(u) && !mentionUids.includes(u)) mentionUids.push(u);
+      });
+    }
   }
-  await batch.commit();
+  if (mentionUids.length) data.mentions = mentionUids;
 
-  // Пуши (не для чатов «без звука»); сбой пуша не должен ломать отправку.
+  const others = chat.members.filter((m) => m !== sender.uid);
+  const unreadRef = (uid: string) => db.collection("messengerUserChats").doc(uid).collection("chats").doc(chat.id);
+  const unreadPatch = (uid: string) => ({ unread: FieldValue.increment(1), markedUnread: false, ...(mentionUids.includes(uid) ? { mentions: FieldValue.increment(1) } : {}) });
+
+  // Первая пачка: сообщение + чат + первые 400 счётчиков; остальное (большие каналы) — следующими пачками (лимит батча Firestore — 500).
+  const first = db.batch();
+  first.set(msgRef, data);
+  first.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now });
+  others.slice(0, 400).forEach((uid) => first.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
+  await first.commit();
+  for (let i = 400; i < others.length; i += 400) {
+    const b = db.batch();
+    others.slice(i, i + 400).forEach((uid) => b.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
+    await b.commit();
+  }
+
+  // Пуши: не для «без звука» (кроме упоминаний) и не при тихой отправке; сбой пуша не ломает отправку.
+  if (o.silent) return msgRef.id;
   try {
-    const settings = await db.getAll(...others.map((m) => db.collection("messengerUserChats").doc(m).collection("chats").doc(chat.id)));
-    const title = chat.type === "dm" ? sender.account.displayName : `${sender.account.displayName} в ${chat.title ?? "чате"}`;
-    const targets = others.filter((_, i) => {
-      const s = settings[i].data();
-      return !(s?.muted && (!s.mutedUntil || s.mutedUntil > now));
-    });
-    await Promise.allSettled(targets.map((uid) => sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m?chat=${chat.id}` }, "messages")));
+    const targets = others.slice(0, PUSH_CAP);
+    const settings = await db.getAll(...targets.map(unreadRef));
+    const base = chat.type === "dm" ? sender.account.displayName : `${sender.account.displayName} в ${chat.title ?? "чате"}`;
+    await Promise.allSettled(
+      targets.map((uid, i) => {
+        const st = settings[i].data();
+        const mentioned = mentionUids.includes(uid);
+        const muted = !!(st?.muted && (!st.mutedUntil || st.mutedUntil > now));
+        if (muted && !mentioned) return Promise.resolve();
+        const title = mentioned ? `${sender.account.displayName} упомянул(а) вас в ${chat.title ?? "чате"}` : base;
+        return sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m?chat=${chat.id}` }, "messages");
+      })
+    );
   } catch (err) {
     console.error("messenger push error:", err);
   }
@@ -230,3 +275,31 @@ export function canPost(chat: MessengerChat, uid: string): string | null {
   if (chat.type === "channel" && !chat.admins.includes(uid)) return "В канале пишут только админы";
   return null;
 }
+
+// ---- Права в группах и каналах (как в Telegram) ----
+
+export type Action =
+  | "sendMessages" | "sendMedia" | "sendStickers" | "sendPolls" | "addMembers" | "pinMessages" | "changeInfo"
+  | "deleteMessages" | "banUsers" | "inviteUsers" | "addAdmins" | "postMessages" | "editMessages";
+
+const ADMIN_ONLY = new Set<Action>(["deleteMessages", "banUsers", "inviteUsers", "addAdmins", "postMessages", "editMessages"]);
+
+/** Может ли uid сделать action в чате. Создатель — всё; админ — по своим правам (по умолчанию все, кроме addAdmins); участник — по правам группы и своим ограничениям. */
+export function canDo(chat: MessengerChat, uid: string, action: Action): boolean {
+  if (!chat.members.includes(uid)) return false;
+  if (chat.type === "dm") return ["sendMessages", "sendMedia", "sendStickers", "sendPolls", "pinMessages"].includes(action);
+  if (chat.createdBy === uid) return true;
+  let act: Action = action;
+  if (chat.type === "channel" && action.startsWith("send")) act = "postMessages"; // в канале пишут только админы
+  if (act === "addMembers") act = "inviteUsers";
+  const isAdmin = chat.admins.includes(uid);
+  const rights = (chat.adminRights?.[uid] ?? {}) as Record<string, boolean | undefined>;
+  if (isAdmin && (rights[act] ?? act !== "addAdmins")) return true;
+  if (ADMIN_ONLY.has(act) || chat.type === "channel") return action === "addMembers" && chat.type === "group" ? !!{ ...DEFAULT_PERMISSIONS, ...(chat.permissions ?? {}) }.addMembers : false;
+  const perms = { ...DEFAULT_PERMISSIONS, ...(chat.permissions ?? {}) } as Record<string, boolean>;
+  const r = chat.restricted?.[uid] as Record<string, any> | undefined;
+  if (r && r.until > Date.now() && r[action] === false) return false;
+  return !!perms[action];
+}
+
+export const isChatAdmin = (chat: MessengerChat, uid: string) => chat.createdBy === uid || chat.admins.includes(uid);

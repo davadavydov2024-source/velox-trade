@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { fail, loadChat, requireMessenger } from "@/lib/messenger/server";
+import { canDo, fail, loadChat, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 const MAX_PINS = 5;
 
-/** POST { chatId, msgId, pinned: boolean } — закрепить/открепить сообщение (в группе — только админы). */
+/** POST { chatId, msgId, pinned: boolean } — закрепить/открепить сообщение (в группе — по праву «закреплять», в канале — админы). */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const loaded = await loadChat(b.chatId, me.uid);
   if ("error" in loaded) return loaded.error;
   const { chat } = loaded;
-  if (chat.type !== "dm" && !chat.admins.includes(me.uid)) return fail("Закреплять могут только админы", 403);
+  if (!canDo(chat, me.uid, "pinMessages")) return fail("У тебя нет права закреплять сообщения", 403);
   if (typeof b.msgId !== "string" || !b.msgId || b.msgId.includes("/")) return fail("msgId обязателен");
 
   const chatRef = adminDb().collection("messengerChats").doc(chat.id);

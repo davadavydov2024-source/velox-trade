@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const now = Date.now();
   const batch = db.batch();
   batch.update(db.collection("messengerChats").doc(loaded.chat.id), { [`readBy.${me.uid}`]: now });
-  batch.set(db.collection("messengerUserChats").doc(me.uid).collection("chats").doc(loaded.chat.id), { unread: 0 }, { merge: true });
+  batch.set(db.collection("messengerUserChats").doc(me.uid).collection("chats").doc(loaded.chat.id), { unread: 0, mentions: 0, markedUnread: false }, { merge: true });
   batch.update(db.collection("messengerAccounts").doc(me.uid), { lastSeenAt: now });
   await batch.commit();
   return NextResponse.json({ ok: true });

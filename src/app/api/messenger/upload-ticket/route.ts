@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { rateLimit } from "@/lib/rateLimit";
-import { fail, requireMessenger } from "@/lib/messenger/server";
+import { fail, requireMessenger, signingSecret } from "@/lib/messenger/server";
 import { UPLOAD_KINDS, UploadKind } from "@/lib/messenger/uploads";
 
 export const runtime = "nodejs";
@@ -16,8 +16,8 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
-  const secret = process.env.MESSENGER_GATE_SECRET;
-  if (!secret || secret.length < 16) return fail("Мессенджер ещё не настроен", 503);
+  const secret = signingSecret();
+  if (!secret) return fail("Не настроено хранилище файлов (BLOB_READ_WRITE_TOKEN)", 503);
   if (!(await rateLimit(`msgr_upload_${me.uid}`, 60, 60 * 60_000))) return fail("Слишком много загрузок, попробуй позже", 429);
   const { kind } = await req.json().catch(() => ({}));
   if (typeof kind !== "string" || !(kind in UPLOAD_KINDS)) return fail("Неизвестный тип загрузки");

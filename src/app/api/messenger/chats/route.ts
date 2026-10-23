@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
     const chatId = dmChatId(me.uid, uids[0]);
     const ref = db.collection("messengerChats").doc(chatId);
     if (!(await ref.get()).exists) {
+      const target = (await db.collection("messengerAccounts").doc(uids[0]).get()).data();
+      if (uids[0] !== me.uid && (!target || target.banned)) return fail("Пользователь недоступен", 404);
+      if (uids[0] !== me.uid && target?.privacy?.whoCanMessage === "nobody") return fail("Этот пользователь не принимает новые сообщения", 403);
       await ref.set({ type: "dm", members: Array.from(new Set([me.uid, uids[0]])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
     }
     return NextResponse.json({ chatId });
@@ -47,7 +50,9 @@ export async function POST(req: NextRequest) {
     const title = String(b.title ?? "").trim();
     if (title.length < 2 || title.length > 60) return fail("Название — от 2 до 60 символов");
     const description = String(b.description ?? "").slice(0, 300);
-    const members = Array.from(new Set([me.uid, ...uids]));
+    const accDocs = uids.length ? await db.getAll(...uids.map((u) => db.collection("messengerAccounts").doc(u))) : [];
+    const allowed = uids.filter((_, i) => accDocs[i].data()?.privacy?.whoCanAddToGroups !== "nobody"); // уважаем приватность
+    const members = Array.from(new Set([me.uid, ...allowed]));
     const ref = db.collection("messengerChats").doc();
     const base = { type: b.type, title, description, members, admins: [me.uid], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
 

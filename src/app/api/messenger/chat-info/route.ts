@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { fail, isOwnMediaUrl, loadChat, requireMessenger } from "@/lib/messenger/server";
+import { canDo, fail, isOwnMediaUrl, loadChat, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if ("error" in loaded) return loaded.error;
   const { chat } = loaded;
   if (chat.type === "dm") return fail("У личного чата нет настроек");
-  if (!chat.admins.includes(me.uid)) return fail("Только админы", 403);
+  if (!canDo(chat, me.uid, "changeInfo")) return fail("Нет права менять информацию", 403);
   const upd: Record<string, unknown> = {};
   if ("title" in b) {
     const t = String(b.title ?? "").trim();

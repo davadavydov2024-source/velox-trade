@@ -4,7 +4,7 @@ import { fail, isOwnMediaUrl, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
-/** POST { displayName?, bio?, photoURL?, showLastSeen?, birthday? (ММ-ДД) } — изменить свой профиль мессенджера. */
+/** POST { displayName?, bio?, photoURL?, showLastSeen?, birthday? (ММ-ДД), privacy?: { whoCanMessage, whoCanAddToGroups } (everyone|nobody) } — изменить свой профиль мессенджера. */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -27,6 +27,12 @@ export async function POST(req: NextRequest) {
     if (v === null || v === "") upd.birthday = null;
     else if (typeof v === "string" && /^\d{2}-\d{2}$/.test(v)) upd.birthday = v;
     else return fail("Дата рождения: ММ-ДД");
+  }
+  if ("privacy" in b) {
+    const p = b.privacy ?? {};
+    const ok = (v: unknown) => v === "everyone" || v === "nobody";
+    if (!ok(p.whoCanMessage) || !ok(p.whoCanAddToGroups)) return fail("Приватность: everyone или nobody");
+    upd.privacy = { whoCanMessage: p.whoCanMessage, whoCanAddToGroups: p.whoCanAddToGroups };
   }
   if (Object.keys(upd).length === 0) return fail("Нечего менять");
   await adminDb().collection("messengerAccounts").doc(me.uid).update(upd);

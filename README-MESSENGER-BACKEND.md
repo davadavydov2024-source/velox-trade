@@ -59,3 +59,35 @@
   Премиум-стикер без Premium отправить нельзя (403 `needPremium`), увидеть чужой — можно всем.
 ## Что сделать вам
 Распаковать архив поверх проекта, заново вставить `firestore-rules-messenger-snippet.txt`, задеплоить. Новых переменных не нужно.
+
+---
+# Обновление 4: MiliGram без пароля, группы и функции как в Telegram
+
+## Что поменялось в доступе
+- **Кнопка MiliGram** (плавающая иконка, `components/MiliGramLauncher.tsx`, подключена в `app/providers.tsx` двумя строками) ведёт на `/m` и видна всем. Пароля и кода НЕТ.
+  Если ваш `providers.tsx` менялся — просто добавьте 2 строки: `import { MiliGramLauncher } ...` и `<MiliGramLauncher />` рядом с `<EnableNotificationsPrompt />`.
+- Регистрация открыта по умолчанию. `GET /api/messenger/gate` -> `{ open: true }`; `register`/`join` не требуют `gateToken`.
+  Захотите закрыть регистрацию кодом — задайте на Vercel `MESSENGER_ACCESS_CODE`, и всё заработает как раньше (шаг с кодом включится сам).
+- `MESSENGER_GATE_SECRET` больше не обязателен: подпись берётся из уже существующего `BLOB_READ_WRITE_TOKEN`. Новых переменных не требуется.
+## Название и иконка
+MiliGram. Файлы в `public/miligram/`: `icon-192/512/1024.png`, `icon-maskable-*.png`, `apple-touch-icon.png`, `favicon-48.png`, `miligram-icon.svg`,
+`manifest.webmanifest` (готовый PWA-манифест: `scope: /m/`, `start_url: /m`). Подключение — для сессии B: `<link rel="manifest" href="/miligram/manifest.webmanifest">` и `<link rel="apple-touch-icon" href="/miligram/apple-touch-icon.png">` в layout `/m`.
+Иконка — улыбающийся чат-пузырь на оранжево-розовом градиенте (оригинальный рисунок, не копия чужих логотипов).
+
+## Группы: права и роли как в Telegram
+- **Права участников** (`chat-permissions`): писать, медиа, стикеры, опросы, добавлять участников, закреплять, менять информацию. **Медленный режим** (10 с … 1 ч), **защищённый контент** (запрет пересылки), **автоудаление** (1 день / неделя / месяц), **вступление по заявке**.
+- **Админы** (`member-rights`): `setAdmin` с набором прав (инфо, удаление сообщений, баны, приглашения, закрепы, назначение админов, посты и правка в канале) и подписью («Модератор»); `removeAdmin`, `setTitle`.
+- **Ограничения и баны** (`member-rights`): `restrict` (мьют или запрет медиа/стикеров/опросов до даты), `unrestrict`, `ban`/`unban`; исключение (`members remove`, `ban:true` — с баном).
+- **Заявки на вступление**: `join-chat` вернёт `requested:true`; админы видят `GET join-requests?chatId=`, принимают/отклоняют `POST join-requests { chatId, uid, approve }`; админам уходит пуш.
+- Создатель: удаление чата целиком (`members deleteChat`), выйти он может только после удаления/передачи (в чате остаётся минимум он сам).
+## Сообщения
+- **Опросы и викторины**: `send { kind:"poll", poll:{ question, options[], multiple?, anonymous?, quiz?:{correct, explanation?} } }`; голосование `poll { action: vote|retract|close }`; правильный ответ викторины приходит после голоса; список голосовавших `GET poll?chatId=&msgId=` (не анонимные).
+- **@упоминания** в группах: `@handle` в тексте -> у упомянутого растёт `mentions` в `messengerUserChats`, ему идёт пуш даже при «без звука».
+- **Тихая отправка**: `send { silent:true }` — без пуша. **Удалить у себя**: `delete { forMe:true }` (клиент скрывает сообщения с вашим uid в `hiddenFor`). **Очистить историю у себя** и **отметить непрочитанным**: `chat-settings { clearHistory:true }`, `{ markedUnread:true }`.
+- **Поиск по сообщениям**: `GET search-messages?q=&chatId?`. **Приватность**: `profile { privacy:{ whoCanMessage, whoCanAddToGroups } }` (`everyone`/`nobody`), учитывается при создании чатов и добавлении в группы.
+- Автоудаление: клиент скрывает сообщения с `expireAt` в прошлом; физически чистит cron `/api/cron/messenger-cleanup` раз в сутки (заменить `vercel.json` на приложенный, `CRON_SECRET` уже есть).
+- Большие каналы: счётчики непрочитанных пишутся пачками, пуши получают первые 1000 подписчиков (ограничение производительности).
+## Чего в MiliGram НЕТ (честно)
+Голосовые и видеозвонки, секретные чаты со сквозным шифрованием, боты, темы форумов, комментарии к постам канала, отложенная отправка (Vercel cron на бесплатном плане срабатывает раз в сутки), телефонная регистрация.
+## Что сделать вам
+Распаковать поверх проекта (включая `public/` и `vercel.json`), заново вставить правила Firestore, `git push`. Новых переменных не нужно.

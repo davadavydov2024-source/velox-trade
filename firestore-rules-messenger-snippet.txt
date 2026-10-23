@@ -39,3 +39,11 @@ match /messengerInvites/{code}          { allow read, write: if false; }
 match /messengerStickerPacks/{slug}     { allow read, write: if false; }
 match /messengerUserStickers/{uid}      { allow read, write: if false; }
 // views подколлекция сообщений канала (messengerChats/{id}/messages/{msgId}/views) закрыта общим запретом: отдельный match не нужен.
+
+// Опросы: свой голос читает только сам проголосовавший; ответ викторины (secret) и slow/views закрыты по умолчанию.
+match /messengerChats/{chatId}/messages/{msgId}/votes/{uid} {
+  allow read: if request.auth != null && request.auth.uid == uid
+    && request.auth.uid in get(/databases/$(database)/documents/messengerChats/$(chatId)).data.members;
+  allow write: if false;
+}
+match /messengerJoinRequests/{id} { allow read, write: if false; }

@@ -6,7 +6,7 @@ import { limitsFor } from "@/lib/messenger/premium";
 export const runtime = "nodejs";
 const MAX_PINNED_CHATS = 5;
 
-/** POST { chatId, pinned?, archived?, muted?, mutedUntil?, folderIds? } — личные настройки чата (видны только мне). */
+/** POST { chatId, pinned?, archived?, muted?, mutedUntil?, folderIds?, markedUnread?, clearHistory? } — личные настройки чата (видны только мне). */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     }
   }
   if ("archived" in b) upd.archived = b.archived === true;
+  if ("markedUnread" in b) upd.markedUnread = b.markedUnread === true; // «отметить непрочитанным»
+  if (b.clearHistory === true) upd.clearedAt = Date.now(); // «очистить историю» (только у меня): клиент скрывает сообщения старше clearedAt
   if ("muted" in b) {
     upd.muted = b.muted === true;
     upd.mutedUntil = b.muted === true && typeof b.mutedUntil === "number" && b.mutedUntil > Date.now() ? b.mutedUntil : null;

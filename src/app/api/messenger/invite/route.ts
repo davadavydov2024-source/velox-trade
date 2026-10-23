@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { fail, loadChat, requireMessenger } from "@/lib/messenger/server";
+import { canDo, fail, loadChat, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if ("error" in loaded) return loaded.error;
   const { chat } = loaded;
   if (chat.type === "dm") return fail("У личного чата нет ссылки");
-  if (!chat.admins.includes(me.uid)) return fail("Только админы", 403);
+  if (!canDo(chat, me.uid, "inviteUsers")) return fail("Нет права приглашать", 403);
   const db = adminDb();
   const ref = db.collection("messengerChats").doc(chat.id);
 
