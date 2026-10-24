@@ -32,8 +32,6 @@ export interface MChat {
   updatedAt: number;
   readBy?: Record<string, number>;
   pinnedMessageIds?: string[];
-  /** {uid: время последнего "печатает"} — см. NOTES-B.md (нужно поле от сессии A) */
-  typing?: Record<string, number>;
 }
 
 export interface MMessage {

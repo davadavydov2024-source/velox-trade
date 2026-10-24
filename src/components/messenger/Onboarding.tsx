@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
+import { sendEmailVerification } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { mApi, mApiPublic, mUpload } from "./api";
 import { Avatar, Spinner } from "./ui";
@@ -11,7 +12,7 @@ import { InstallSteps } from "./SettingsPane";
 import { readGateToken, saveGateToken } from "./MessengerEntry";
 import { useMyAccount } from "./hooks";
 
-type Step = "login" | "code" | "account" | "verify" | "profile" | "avatar" | "done";
+type Step = "login" | "code" | "account" | "profile" | "verify" | "avatar" | "done";
 
 const HANDLE_RE = /^[a-z][a-z0-9_]{4,31}$/;
 
@@ -28,7 +29,7 @@ function Shell({ title, subtitle, children, onBack }: { title: string; subtitle?
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-10 w-full max-w-[400px] mx-auto">
         <div className="mx-step w-full flex flex-col items-center text-center" key={title}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/m/icon-192.png" alt="" width={96} height={96} className="rounded-[26px] mb-5" style={{ boxShadow: "0 10px 40px -10px var(--mx-accent)" }} />
+          <img src="/m/logo.png" alt="" width={104} height={104} className="mb-5" style={{ filter: "drop-shadow(0 12px 28px rgba(255,120,40,0.35))" }} />
           <h1 className="text-[26px] font-bold mb-2">{title}</h1>
           {subtitle && <p className="mx-muted text-[15px] mb-6 max-w-[320px] leading-snug">{subtitle}</p>}
           <div className="w-full space-y-3 text-left">{children}</div>
@@ -59,10 +60,10 @@ export function Onboarding() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
-  const [verifyCode, setVerifyCode] = useState("");
   const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -86,6 +87,7 @@ export function Onboarding() {
 
   const go = (s: Step) => {
     setError("");
+    setInfo("");
     setBusy(false);
     setStep(s);
   };
@@ -113,35 +115,38 @@ export function Onboarding() {
     }
   };
 
-  const submitAccount = async (e: React.FormEvent) => {
+  const submitAccount = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Проверь адрес почты");
     if (password.length < 8) return setError("Пароль — минимум 8 символов");
     if (password !== password2) return setError("Пароли не совпадают");
-    setBusy(true);
+    go("profile");
+  };
+
+  const sendVerification = async () => {
+    const u = auth.currentUser;
+    if (!u) return;
     try {
-      const res = await fetch("/api/auth/email-code/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim().toLowerCase() }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Не удалось отправить код на почту");
-      go("verify");
+      await sendEmailVerification(u);
+      setInfo("Письмо отправлено. Проверь почту, в том числе папку «Спам».");
     } catch (err: any) {
-      setError(err?.message || "Не удалось отправить код");
-      setBusy(false);
+      setError(err?.code === "auth/too-many-requests" ? "Слишком часто. Подожди пару минут и попробуй снова." : "Не удалось отправить письмо");
     }
   };
 
-  const submitVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkVerified = async () => {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/email-code/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim().toLowerCase(), code: verifyCode.trim() }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Неверный код");
-      go("profile");
-    } catch (err: any) {
-      setError(err?.message || "Неверный код");
+      await auth.currentUser?.reload();
+      if (auth.currentUser?.emailVerified) go("avatar");
+      else {
+        setError("Почта пока не подтверждена. Перейди по ссылке в письме и нажми снова.");
+        setBusy(false);
+      }
+    } catch {
+      setError("Не удалось проверить. Попробуй ещё раз.");
       setBusy(false);
     }
   };
@@ -158,11 +163,16 @@ export function Onboarding() {
     try {
       if (user) {
         await mApi("join", { gateToken, handle: h, displayName: name.trim() });
+        go("avatar");
       } else {
         await mApiPublic("register", { gateToken, email: email.trim().toLowerCase(), password, handle: h, displayName: name.trim() });
         await login(email.trim().toLowerCase(), password);
+        // письмо подтверждения почты шлёт клиент (Firebase); сбой письма не должен ломать регистрацию
+        try {
+          if (auth.currentUser && !auth.currentUser.emailVerified) await sendEmailVerification(auth.currentUser);
+        } catch {}
+        go("verify");
       }
-      go("avatar");
     } catch (err: any) {
       setError(err?.message || "Не удалось создать аккаунт");
       setBusy(false);
@@ -247,13 +257,13 @@ export function Onboarding() {
 
   if (step === "account") {
     return (
-      <Shell title="Твой аккаунт" subtitle="Укажи почту и придумай пароль. На почту придёт код подтверждения." onBack={() => go("code")}>
+      <Shell title="Твой аккаунт" subtitle="Укажи почту и придумай пароль. Письмо для подтверждения почты придёт после регистрации." onBack={() => go("code")}>
         <form onSubmit={submitAccount} className="space-y-3">
           <input className="mx-input" type="email" placeholder="Почта" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
           <input className="mx-input" type="password" placeholder="Пароль (минимум 8 символов)" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           <input className="mx-input" type="password" placeholder="Повтори пароль" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} />
           {err}
-          <button className="mx-btn" disabled={busy || !email || !password}>{busy ? "Отправляю код…" : "Продолжить"}</button>
+          <button className="mx-btn" disabled={!email || !password}>Продолжить</button>
         </form>
       </Shell>
     );
@@ -261,20 +271,19 @@ export function Onboarding() {
 
   if (step === "verify") {
     return (
-      <Shell title="Код из письма" subtitle={`Мы отправили 6-значный код на ${email}. Проверь и папку «Спам».`} onBack={() => go("account")}>
-        <form onSubmit={submitVerify} className="space-y-3">
-          <input className="mx-input" style={{ textAlign: "center", letterSpacing: "0.4em", fontSize: 24 }} inputMode="numeric" maxLength={6} placeholder="······" autoComplete="one-time-code" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))} autoFocus />
-          {err}
-          <button className="mx-btn" disabled={busy || verifyCode.length !== 6}>{busy ? "Проверяю…" : "Подтвердить"}</button>
-          <button type="button" className="mx-btn mx-btn-ghost" onClick={submitAccount as any}>Отправить код ещё раз</button>
-        </form>
+      <Shell title="Подтверди почту" subtitle={`Мы отправили письмо на ${email || "твою почту"}. Перейди по ссылке в письме — это защитит аккаунт.`}>
+        {err}
+        {info && <p className="text-[14px] px-1 mx-muted">{info}</p>}
+        <button className="mx-btn" onClick={checkVerified} disabled={busy}>{busy ? "Проверяю…" : "Я подтвердил(а)"}</button>
+        <button type="button" className="mx-btn mx-btn-ghost" onClick={sendVerification}>Отправить письмо ещё раз</button>
+        <button type="button" className="mx-btn mx-btn-ghost" style={{ color: "var(--mx-muted)" }} onClick={() => go("avatar")}>Подтвержу позже</button>
       </Shell>
     );
   }
 
   if (step === "profile") {
     return (
-      <Shell title="Как тебя зовут?" subtitle="Имя увидят собеседники. По @username тебя смогут найти." onBack={user ? undefined : () => go("verify")}>
+      <Shell title="Как тебя зовут?" subtitle="Имя увидят собеседники. По @username тебя смогут найти." onBack={user ? undefined : () => go("account")}>
         <form onSubmit={submitProfile} className="space-y-3">
           <input className="mx-input" placeholder="Имя" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           <div className="relative">

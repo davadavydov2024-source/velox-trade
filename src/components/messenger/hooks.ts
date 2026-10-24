@@ -233,3 +233,32 @@ export function useViewportHeight(): void {
     };
   }, []);
 }
+
+function toMs(v: any): number {
+  if (typeof v === "number") return v;
+  if (v?.toMillis) return v.toMillis();
+  if (typeof v?.seconds === "number") return v.seconds * 1000;
+  return 0;
+}
+
+/** Кто печатает: документы messengerChats/{id}/typing/{uid} с полем at; свежим считаем at не старше 5 с. */
+export function useTyping(chatId: string | null, me: string): string[] {
+  const [map, setMap] = useState<Record<string, number>>({});
+  const now = useNow(1000);
+  useEffect(() => {
+    setMap({});
+    if (!chatId) return;
+    return onSnapshot(
+      collection(db, "messengerChats", chatId, "typing"),
+      (snap) => {
+        const next: Record<string, number> = {};
+        snap.docs.forEach((d) => (next[d.id] = toMs(d.data()?.at)));
+        setMap(next);
+      },
+      () => {}
+    );
+  }, [chatId]);
+  return Object.entries(map)
+    .filter(([uid, at]) => uid !== me && now - at < 5000)
+    .map(([uid]) => uid);
+}

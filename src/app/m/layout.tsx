@@ -1,27 +1,27 @@
 import type { Metadata, Viewport } from "next";
-import { ReactNode } from "react";
+import { MxRoot } from "@/components/messenger/MxRoot";
 
 export const metadata: Metadata = {
-  title: "MiliGram",
-  description: "MiliGram — мессенджер Velox Trade",
-  manifest: "/miligram/manifest.webmanifest",
-  icons: { icon: "/miligram/favicon-48.png", apple: "/miligram/apple-touch-icon.png" },
-  appleWebApp: { capable: true, title: "MiliGram", statusBarStyle: "black-translucent" },
+  title: "Velox Chat",
+  description: "Velox Chat",
+  manifest: "/m/manifest.webmanifest",
+  robots: { index: false, follow: false },
+  icons: {
+    icon: [{ url: "/m/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/m/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: { capable: true, title: "Velox Chat", statusBarStyle: "black-translucent" },
+  other: { "mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d1017",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
+  themeColor: "#0b0b0d",
 };
 
-/** Мессенджер занимает весь экран поверх шапки и нижней навигации сайта (их не нужно править). */
-export default function MessengerLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[200] bg-bg text-white overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-      {children}
-    </div>
-  );
+export default function MessengerLayout({ children }: { children: React.ReactNode }) {
+  return <MxRoot>{children}</MxRoot>;
 }

@@ -1,118 +1,198 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
-import { MessageCircle, Settings as SettingsIcon } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
-import { useToast } from "@/lib/toastContext";
-import type { MessengerAccount, MessengerChat, MessengerFolder, MessengerUserChat } from "@/lib/messenger/types";
-import { allUnread } from "@/lib/messenger/folders";
-import { MApiError, getDeviceId, mApi, setCachedAccount, useAccounts } from "@/lib/messenger/client";
-import { AuthScreens, JoinScreen } from "./AuthScreens";
-import { ChatList } from "./ChatList";
+import { isPushSupported } from "@/lib/webPush";
+import { mApi } from "./api";
+import { Avatar, Spinner } from "./ui";
+import { ChatListPane, totalUnread } from "./ChatListPane";
 import { ChatView } from "./ChatView";
-import { NewChat } from "./NewChat";
-import { SettingsPanel } from "./SettingsPanel";
-import { Splash, UnreadBadge, cx } from "./ui";
+import { SettingsPane } from "./SettingsPane";
+import { ContactsPane } from "./ContactsPane";
+import { NewChatSheet } from "./NewChatSheet";
+import { groupStories, StoryCreator, StoryViewer } from "./Stories";
+import { useAccounts, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
 
-export default function MessengerApp({ initialChat, joinParam }: { initialChat: string | null; joinParam: string | null }) {
-  const { user, loading, profile } = useAuth();
-  const [acc, setAcc] = useState<MessengerAccount | null | undefined>(undefined);
+type Tab = "contacts" | "chats" | "settings";
 
+export function MessengerApp() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
+  const me = user?.uid ?? null;
+  const { account, loading: accLoading } = useMyAccount(me);
+  const { chats, loading: chatsLoading } = useMyChats(account && !account.banned ? me : null);
+  const userChats = useUserChats(account && !account.banned ? me : null);
+  const folders = useFolders(account && !account.banned ? me : null);
+  const { stories, reload: reloadStories } = useStories(!!account && !account.banned);
+
+  const [tab, setTab] = useState<Tab>("chats");
+  const [newChat, setNewChat] = useState(false);
+  const [storyUid, setStoryUid] = useState<string | null>(null);
+  const [creator, setCreator] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<"notifications" | undefined>(undefined);
+  const [pushHint, setPushHint] = useState(false);
+  const openedFromList = useRef(false);
+
+  const chatId = sp.get("chat");
+  const activeChat = chatId ? chats.find((c) => c.id === chatId) ?? null : null;
+
+  // --- доступ: нет входа → на экран входа; нет аккаунта мессенджера → на регистрацию ---
   useEffect(() => {
-    if (!user) { setAcc(undefined); return; }
-    return onSnapshot(doc(db, "messengerAccounts", user.uid), (s) => {
-      const a = s.exists() ? (s.data() as MessengerAccount) : null;
-      if (a) setCachedAccount(a);
-      setAcc(a);
-    }, () => setAcc(null));
-  }, [user]);
+    if (authLoading) return;
+    if (!user) router.replace("/m/start?mode=login");
+    else if (!accLoading && !account) router.replace("/m/start");
+  }, [authLoading, user, accLoading, account, router]);
 
-  if (loading || (user && acc === undefined)) return <Splash />;
-  if (!user) return <AuthScreens />;
-  if (!acc) return <JoinScreen defaultName={profile?.displayName ?? user.displayName ?? ""} onLogout={() => signOut(auth)} />;
-  if (acc.banned) return <div className="h-full flex items-center justify-center text-center px-6 text-white/60">Доступ к MiliGram для этого аккаунта закрыт.</div>;
-  return <Messenger uid={user.uid} account={acc} initialChat={initialChat} joinParam={joinParam} />;
-}
-
-function Messenger({ uid, account, initialChat, joinParam }: { uid: string; account: MessengerAccount; initialChat: string | null; joinParam: string | null }) {
-  const { toast } = useToast();
-  const [chats, setChats] = useState<MessengerChat[]>([]);
-  const [ucs, setUcs] = useState<Record<string, MessengerUserChat>>({});
-  const [folders, setFolders] = useState<MessengerFolder[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(initialChat);
-  const [view, setView] = useState<"chats" | "settings">("chats");
-  const [newOpen, setNewOpen] = useState(false);
-
-  // Регистрируем это устройство (при новом входе приходит уведомление от «MiliGram Push»)
-  useEffect(() => { mApi("session", { deviceId: getDeviceId() }).catch(() => {}); }, []);
-
-  useEffect(() => onSnapshot(query(collection(db, "messengerChats"), where("members", "array-contains", uid)), (s) => setChats(s.docs.map((d) => ({ id: d.id, ...d.data() }) as MessengerChat)), (e) => console.error("chats", e)), [uid]);
-  useEffect(() => onSnapshot(collection(db, "messengerUserChats", uid, "chats"), (s) => { const m: Record<string, MessengerUserChat> = {}; s.docs.forEach((d) => (m[d.id] = d.data() as MessengerUserChat)); setUcs(m); }, () => {}), [uid]);
-  useEffect(() => onSnapshot(collection(db, "messengerUserFolders", uid, "folders"), (s) => setFolders(s.docs.map((d) => ({ id: d.id, ...d.data() }) as MessengerFolder).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))), () => {}), [uid]);
-
-  // Ссылка-приглашение /m?join=@канал или /m?join=<код>
+  // --- присутствие: «в сети» (нужна поддержка на сервере — см. NOTES-B.md) ---
   useEffect(() => {
-    if (!joinParam) return;
-    (async () => {
-      try {
-        const p = joinParam.startsWith("@") ? `handle=${encodeURIComponent(joinParam)}` : `code=${encodeURIComponent(joinParam)}`;
-        const info = await mApi<{ chatId: string; title: string; isMember: boolean }>(`channel-preview?${p}`);
-        if (!info.isMember) {
-          if (!confirm(`Вступить в «${info.title}»?`)) return;
-          const r = await mApi<{ chatId: string; requested?: boolean }>("join-chat", joinParam.startsWith("@") ? { handle: joinParam } : { code: joinParam });
-          if (r.requested) return toast("success", "Заявка отправлена админам");
-        }
-        setActiveId(info.chatId);
-      } catch (e: any) { toast("error", e instanceof MApiError ? e.message : "Ссылка недействительна"); }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [joinParam]);
+    if (!account || account.banned) return;
+    const ping = () => document.visibilityState === "visible" && mApi("presence", {}).catch(() => {});
+    ping();
+    const t = setInterval(ping, 60_000);
+    document.addEventListener("visibilitychange", ping);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", ping);
+    };
+  }, [account]);
 
-  useEffect(() => { history.replaceState(history.state, "", activeId ? `/m?chat=${activeId}` : "/m"); }, [activeId]);
+  const unread = totalUnread(chats, userChats);
 
-  const accUids = useMemo(() => Array.from(new Set(chats.flatMap((c) => (c.type === "dm" ? c.members : [c.lastMessage?.from ?? ""])).filter(Boolean))).slice(0, 200), [chats]);
-  const accs = useAccounts(accUids);
-  const active = chats.find((c) => c.id === activeId) ?? null;
-  const unread = allUnread(chats, ucs).chats;
+  // --- бейдж на иконке PWA и в заголовке вкладки ---
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread}) Velox Chat` : "Velox Chat";
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (unread > 0) nav.setAppBadge?.(unread).catch(() => {});
+    else nav.clearAppBadge?.().catch(() => {});
+  }, [unread]);
 
-  async function openPerson(handle: string) {
-    try { setActiveId((await mApi<{ chatId: string }>("chats", { type: "dm", memberHandles: [handle] })).chatId); } catch (e: any) { toast("error", e?.message || "Не удалось открыть чат"); }
+  // --- подсказка про уведомления ---
+  useEffect(() => {
+    try {
+      if (isPushSupported() && Notification.permission === "default" && !localStorage.getItem("mx-push-hint-dismissed")) setPushHint(true);
+    } catch {}
+  }, []);
+
+  const openChat = useCallback(
+    (id: string) => {
+      openedFromList.current = true;
+      router.push(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
+    },
+    [router]
+  );
+  const closeChat = useCallback(() => {
+    if (openedFromList.current) {
+      openedFromList.current = false;
+      router.back();
+    } else router.replace("/m");
+  }, [router]);
+
+  const groups = useMemo(() => (me ? groupStories(stories, me) : []), [stories, me]);
+  const storyAccounts = useAccounts(groups.map((g) => g.uid));
+
+  if (authLoading || (user && accLoading) || !user || !account || !me) {
+    return <div className="h-full flex items-center justify-center"><Spinner size={30} /></div>;
   }
+
+  if (account.banned) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center px-8 gap-3">
+        <p className="text-[22px] font-bold">Аккаунт заблокирован</p>
+        <p className="mx-muted max-w-sm">Доступ к мессенджеру для этого аккаунта закрыт администрацией.</p>
+      </div>
+    );
+  }
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "contacts", label: "Контакты", icon: <Users size={24} /> },
+    { id: "chats", label: "Чаты", icon: <MessageCircle size={24} /> },
+    { id: "settings", label: "Настройки", icon: <Settings size={24} /> },
+  ];
 
   return (
     <div className="h-full flex">
-      <div className={cx("h-full w-full lg:w-[380px] lg:border-r border-border flex flex-col", activeId && "hidden lg:flex")}>
-        {view === "chats"
-          ? <ChatList uid={uid} chats={chats} ucs={ucs} folders={folders} accs={accs} activeId={activeId} onOpen={setActiveId} onNew={() => setNewOpen(true)} onOpenPerson={openPerson} />
-          : <SettingsPanel uid={uid} account={account} folders={folders} />}
-        <nav className="shrink-0 flex border-t border-border bg-surface/80" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-          {([["chats", "Чаты", MessageCircle], ["settings", "Настройки", SettingsIcon]] as const).map(([id, label, Icon]) => (
-            <button key={id} onClick={() => setView(id)} className={cx("flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px] relative", view === id ? "text-accent" : "text-white/50")}>
-              <Icon size={22} /> {label}
-              {id === "chats" && unread > 0 && <span className="absolute top-1 left-[55%]"><UnreadBadge n={unread} /></span>}
+      {/* ---- левая панель ---- */}
+      <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--mx-line)" }}>
+        {pushHint && tab === "chats" && (
+          <div className="absolute z-30 left-3 right-3 mx-glass rounded-2xl px-3 py-2.5 flex items-center gap-3 mx-pop" style={{ top: "calc(env(safe-area-inset-top) + 56px)" }}>
+            <Bell size={20} style={{ color: "var(--mx-accent)" }} />
+            <button className="flex-1 text-left text-[14px]" onClick={() => { setSettingsPage("notifications"); setTab("settings"); setPushHint(false); }}>
+              Включи уведомления, чтобы не пропускать сообщения
             </button>
-          ))}
-        </nav>
-      </div>
-
-      <div className={cx("h-full flex-1 min-w-0", !activeId && "hidden lg:flex")}>
-        {activeId && active ? (
-          <ChatView key={active.id} uid={uid} account={account} chat={active} uc={ucs[active.id]} allChats={chats} ucs={ucs} onBack={() => setActiveId(null)} />
-        ) : activeId ? (
-          <Splash />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-white/30 gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/miligram/icon-192.png" alt="" className="w-24 h-24 rounded-[24px] opacity-60" />
-            <p className="text-sm">Выбери чат или начни новый</p>
+            <button onClick={() => { setPushHint(false); try { localStorage.setItem("mx-push-hint-dismissed", "1"); } catch {} }} className="mx-muted p-1" aria-label="Закрыть"><X size={17} /></button>
           </div>
         )}
-      </div>
 
-      {newOpen && <NewChat myHandle={account.handle} onClose={() => setNewOpen(false)} onOpen={setActiveId} />}
+        <div className="flex-1 min-h-0">
+          {tab === "chats" && (
+            <ChatListPane
+              me={me}
+              myAccount={account}
+              chats={chats}
+              userChats={userChats}
+              folders={folders}
+              loading={chatsLoading}
+              activeId={chatId}
+              storyGroups={groups}
+              storyAccounts={storyAccounts}
+              onOpenChat={openChat}
+              onNewChat={() => setNewChat(true)}
+              onOpenStory={setStoryUid}
+              onCreateStory={() => setCreator(true)}
+            />
+          )}
+          {tab === "contacts" && <ContactsPane me={me} chats={chats} onOpenChat={(id) => { setTab("chats"); openChat(id); }} onNewChat={() => setNewChat(true)} />}
+          {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/m/start?mode=login")} />}
+        </div>
+
+        {/* нижняя плавающая стеклянная панель */}
+        <nav className="absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
+          {tabs.map((t) => {
+            const on = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
+                className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
+                style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: on ? "var(--mx-surface2)" : "transparent" }}
+              >
+                {t.id === "settings" ? (
+                  <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>
+                ) : (
+                  t.icon
+                )}
+                {t.label}
+                {t.id === "chats" && unread > 0 && <span className="mx-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* ---- правая панель: чат ---- */}
+      <main className={`${chatId ? "" : "max-[899px]:hidden"} flex-1 min-w-0 h-full`}>
+        {activeChat ? (
+          <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} onBack={closeChat} onOpenChat={openChat} />
+        ) : chatId ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 mx-muted">
+            {chatsLoading ? <Spinner /> : <><MessagesSquare size={40} /><p>Чат не найден или у вас нет доступа</p><button className="mx-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={closeChat}>К чатам</button></>}
+          </div>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center gap-3 mx-muted max-[899px]:hidden">
+            <MessagesSquare size={44} />
+            <p className="text-[15px]">Выбери чат, чтобы начать общение</p>
+          </div>
+        )}
+      </main>
+
+      <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
+      <StoryCreator open={creator} onClose={() => setCreator(false)} onCreated={reloadStories} />
+      {storyUid && groups.length > 0 && (
+        <StoryViewer groups={groups} startUid={storyUid} me={me} onClose={() => setStoryUid(null)} onChanged={reloadStories} onOpenChat={openChat} />
+      )}
     </div>
   );
 }

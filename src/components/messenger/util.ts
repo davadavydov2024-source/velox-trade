@@ -1,8 +1,11 @@
+import { ALLOWED_REACTIONS } from "@/lib/messenger/types";
 import { MAccount, MChat, MMsgKind } from "./mtypes";
 
 export const dmChatId = (a: string, b: string) => [a, b].sort().join("_");
 
-export const QUICK_REACTIONS = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🙏"];
+/** Реакции разрешены только из списка сервера (lib/messenger/types.ts → ALLOWED_REACTIONS). */
+export const QUICK_REACTIONS: string[] = Array.from(ALLOWED_REACTIONS as Iterable<string>);
+export const DOUBLE_TAP_REACTION: string = QUICK_REACTIONS.includes("❤️") ? "❤️" : QUICK_REACTIONS[0] ?? "👍";
 
 export function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });

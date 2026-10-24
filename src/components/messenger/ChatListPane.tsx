@@ -133,7 +133,7 @@ export function ChatListPane({
     const muted = isChatMuted(uc?.muted, uc?.mutedUntil, now);
     const unread = uc?.unread ?? 0;
     const last = c.lastMessage;
-    const typing = Object.entries(c.typing ?? {}).some(([u, ts]) => u !== me && now - ts < 6000);
+    const typing = false; // «печатает» берётся из подколлекции чата только в открытом чате (см. ChatView)
     const draft = activeId === c.id ? "" : readDraft(c.id);
     const mineLast = last?.from === me;
     const readByPeer = mineLast && last ? (c.type === "dm" ? (c.readBy?.[peerUid(c, me)] ?? 0) >= last.at : c.members.some((u) => u !== me && (c.readBy?.[u] ?? 0) >= last.at)) : false;

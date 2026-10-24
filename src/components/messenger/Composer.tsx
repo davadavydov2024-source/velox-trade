@@ -7,6 +7,7 @@ import { EmojiPanel } from "./EmojiPanel";
 import { MenuList, Sheet } from "./ui";
 import { RecordedAudio, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } from "./Recorders";
 import { useMxPrefs } from "./prefs";
+import { MX_FEATURES } from "./features";
 import { formatDuration } from "./util";
 
 export interface ComposerReply {
@@ -312,6 +313,10 @@ export function Composer({
           <button onClick={submit} className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 mx-pop" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }} aria-label="Отправить">
             {editing ? <Check size={22} /> : <Send size={20} className="ml-0.5" />}
           </button>
+        ) : !MX_FEATURES.upload ? (
+          <button disabled className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 opacity-40" style={{ background: "var(--mx-surface)", color: "var(--mx-muted)" }} aria-label="Отправить">
+            <Send size={20} className="ml-0.5" />
+          </button>
         ) : locked ? (
           <button onClick={sendLocked} className="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }} aria-label="Отправить голосовое">
             <Send size={20} className="ml-0.5" />
@@ -342,17 +347,17 @@ export function Composer({
 
       {emojiOpen && <EmojiPanel onPick={insertEmoji} />}
 
-      <input ref={mediaInput} type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
-      <input ref={cameraInput} type="file" accept="image/*,video/*" capture="environment" hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
+      <input ref={mediaInput} type="file" accept={MX_FEATURES.upload ? "image/*,video/mp4,video/quicktime,video/webm" : "image/*"} multiple hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
+      <input ref={cameraInput} type="file" accept={MX_FEATURES.upload ? "image/*,video/*" : "image/*"} capture="environment" hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
       <input ref={fileInput} type="file" hidden onChange={(e) => { pickFiles(e.target.files, "file"); e.target.value = ""; }} />
 
       <Sheet open={attachOpen} onClose={() => setAttachOpen(false)}>
         <MenuList
           onDone={() => setAttachOpen(false)}
           items={[
-            { label: "Фото или видео", icon: <ImageIcon size={21} />, onPress: () => mediaInput.current?.click() },
+            { label: MX_FEATURES.upload ? "Фото или видео" : "Фото", icon: <ImageIcon size={21} />, onPress: () => mediaInput.current?.click() },
             { label: "Камера", icon: <Camera size={21} />, onPress: () => cameraInput.current?.click() },
-            { label: "Файл", icon: <FileIcon size={21} />, onPress: () => fileInput.current?.click() },
+            { label: "Файл", icon: <FileIcon size={21} />, hidden: !MX_FEATURES.upload, onPress: () => fileInput.current?.click() },
           ]}
         />
       </Sheet>

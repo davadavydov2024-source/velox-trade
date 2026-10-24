@@ -9,6 +9,7 @@ import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, Sheet } from "./ui";
 import { useAccounts } from "./hooks";
 import { MAccount, MStory } from "./mtypes";
+import { MX_FEATURES } from "./features";
 import { formatTime } from "./util";
 
 export interface StoryGroup {
@@ -301,6 +302,7 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
     const isVideo = f.type.startsWith("video/");
     if (f.size > 25 * 1024 * 1024) return toast("error", "Файл слишком большой (максимум 25 МБ)");
     if (!isVideo) return setFile(f);
+    if (!MX_FEATURES.upload) return toast("info", "Видео в историях появится позже — пока можно фото");
     const v = document.createElement("video");
     v.preload = "metadata";
     v.onloadedmetadata = () => {
@@ -332,7 +334,7 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
   return (
     <Sheet open={open} onClose={() => { reset(); onClose(); }} title="Новая история" full>
       <div className="p-4 space-y-3 pb-8">
-        <input ref={input} type="file" accept="image/*,video/mp4,video/quicktime,video/webm" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+        <input ref={input} type="file" accept={MX_FEATURES.upload ? "image/*,video/mp4,video/quicktime,video/webm" : "image/*"} hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
         {previewUrl && file ? (
           <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center" style={{ height: 360 }}>
             {file.type.startsWith("video/") ? (

@@ -1,4 +1,6 @@
 import { auth } from "@/lib/firebase";
+import { uploadImage, ImageUploadError } from "@/lib/storage";
+import { MX_FEATURES } from "./features";
 
 export class MApiError extends Error {
   status: number;
@@ -55,12 +57,65 @@ export interface UploadResult {
   height?: number;
 }
 
+/** Сжимает фото до maxSide px по длинной стороне (JPEG), чтобы влезть в лимит загрузки 4 МБ. GIF не трогаем. */
+async function prepareImage(file: Blob, name: string, maxSide: number): Promise<{ file: File; width: number; height: number }> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("bad image"));
+      i.src = url;
+    });
+    const w0 = img.naturalWidth;
+    const h0 = img.naturalHeight;
+    if (file.type === "image/gif") return { file: new File([file], name, { type: "image/gif" }), width: w0, height: h0 };
+    const scale = Math.min(1, maxSide / Math.max(w0, h0));
+    const width = Math.round(w0 * scale);
+    const height = Math.round(h0 * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("blob"))), "image/jpeg", 0.86));
+    return { file: new File([blob], name.replace(/\.[a-z0-9]+$/i, "") + ".jpg", { type: "image/jpeg" }), width, height };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Пока на сервере нет POST /api/messenger/upload: фото уходят через существующий uploadImage
+ * (Vercel Blob, /api/blob/upload). Голосовые, видео и файлы так загрузить нельзя — понятная ошибка.
+ */
+async function uploadViaBlob(file: Blob, kind: UploadKind, opts: { fileName?: string; onProgress?: (p: number) => void }): Promise<UploadResult> {
+  if (!file.type.startsWith("image/") || (kind !== "image" && kind !== "avatar" && kind !== "story")) {
+    throw new MApiError("Голосовые, видео и файлы появятся после запуска загрузки медиа. Пока можно отправлять фото.", 400);
+  }
+  try {
+    opts.onProgress?.(0.1);
+    const prepared = await prepareImage(file, opts.fileName ?? "photo.jpg", kind === "avatar" ? 512 : 1920);
+    opts.onProgress?.(0.4);
+    const url = await uploadImage(prepared.file, kind === "avatar" ? "avatars" : "dm-photos");
+    opts.onProgress?.(1);
+    return { url, width: prepared.width, height: prepared.height };
+  } catch (err) {
+    if (err instanceof ImageUploadError) throw new MApiError(err.message, 400);
+    if (err instanceof MApiError) throw err;
+    throw new MApiError("Не удалось загрузить фото", 0);
+  }
+}
+
 /** Загрузка файла (multipart) с прогрессом. Ответ сервера: { url, width?, height? }. */
 export async function mUpload(
   file: Blob,
   kind: UploadKind,
   opts: { duration?: number; fileName?: string; onProgress?: (p: number) => void } = {}
 ): Promise<UploadResult> {
+  if (!MX_FEATURES.upload) return uploadViaBlob(file, kind, opts);
   const token = await idToken();
   const form = new FormData();
   form.append("file", file, opts.fileName ?? (file instanceof File ? file.name : `${kind}.bin`));
