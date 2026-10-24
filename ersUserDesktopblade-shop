@@ -1,0 +1,46 @@
+--- b58e34f
+
+public/m/logo.png
+src/components/messenger/features.ts
+--- 8272a3f
+
+src/components/messenger/AuthScreens.tsx
+src/components/messenger/ChatList.tsx
+src/components/messenger/NewChat.tsx
+src/components/messenger/SettingsPanel.tsx
+--- 2ebf85d
+
+public/m/apple-touch-icon.png
+public/m/icon-192.png
+public/m/icon-512.png
+public/m/icon-maskable-512.png
+src/app/m/layout.tsx
+src/app/m/manifest.webmanifest/route.ts
+src/app/m/page.tsx
+src/app/m/start/page.tsx
+src/components/messenger/ChatInfoSheet.tsx
+src/components/messenger/ChatListPane.tsx
+src/components/messenger/ChatView.tsx
+src/components/messenger/Composer.tsx
+src/components/messenger/ContactsPane.tsx
+src/components/messenger/EmojiPanel.tsx
+src/components/messenger/ForwardSheet.tsx
+src/components/messenger/ImageViewer.tsx
+src/components/messenger/MediaPlayers.tsx
+src/components/messenger/MessageBubble.tsx
+src/components/messenger/MessengerApp.tsx
+src/components/messenger/MessengerEntry.tsx
+src/components/messenger/MxRoot.tsx
+src/components/messenger/NewChatSheet.tsx
+src/components/messenger/Onboarding.tsx
+src/components/messenger/Recorders.tsx
+src/components/messenger/SettingsPane.tsx
+src/components/messenger/Stories.tsx
+src/components/messenger/SwipeRow.tsx
+src/components/messenger/api.ts
+src/components/messenger/hooks.ts
+src/components/messenger/messenger.css
+src/components/messenger/mtypes.ts
+src/components/messenger/prefs.ts
+src/components/messenger/ui.tsx
+src/components/messenger/util.ts
