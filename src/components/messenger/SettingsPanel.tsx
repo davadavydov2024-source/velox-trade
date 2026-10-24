@@ -8,7 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
 import { getDeviceId, mApi, uploadMedia } from "@/lib/messenger/client";
 import type { MessengerAccount, MessengerFolder } from "@/lib/messenger/types";
-import { Avatar, cx, fmtListTime } from "./ui";
+import { Avatar, cx, fmtListTime } from "./mui";
 
 type Session = { id: string; deviceName: string; city: string; country: string; ip: string; lastActiveAt: number; current: boolean };
 type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number };

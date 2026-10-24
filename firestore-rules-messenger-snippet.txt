@@ -51,3 +51,6 @@ match /messengerJoinRequests/{id} { allow read, write: if false; }
 // Сеансы (устройства) и рассылки — только через API.
 match /messengerSessions/{uid}/list/{id} { allow read, write: if false; }
 match /messengerBroadcasts/{id}          { allow read, write: if false; }
+
+// Регистрация через Telegram: ожидающие регистрации — только сервер.
+match /messengerPending/{uid} { allow read, write: if false; }

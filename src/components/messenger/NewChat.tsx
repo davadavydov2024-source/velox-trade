@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Bookmark, Megaphone, Users, X, MessageCircle } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "@/lib/messenger/client";
-import { Avatar, Sheet, cx } from "./ui";
+import { Avatar, Sheet, cx } from "./mui";
 
 type Person = { uid: string; handle: string; displayName: string; photoURL: string | null };
 type Channel = { chatId: string; handle: string; title: string; description: string; photoURL: string | null; subscribers: number };

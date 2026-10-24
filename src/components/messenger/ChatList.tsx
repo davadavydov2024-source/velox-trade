@@ -5,7 +5,7 @@ import { Archive, BadgeCheck, BellOff, Pin, Search, SquarePen, CheckCheck, Star 
 import type { MessengerChat, MessengerFolder, MessengerUserChat } from "@/lib/messenger/types";
 import { allUnread, chatInFolder, folderUnread } from "@/lib/messenger/folders";
 import { mApi } from "@/lib/messenger/client";
-import { Accs, Avatar, UnreadBadge, chatMeta, cx, fmtListTime } from "./ui";
+import { Accs, Avatar, UnreadBadge, chatMeta, cx, fmtListTime } from "./mui";
 
 type Person = { uid: string; handle: string; displayName: string; photoURL: string | null };
 

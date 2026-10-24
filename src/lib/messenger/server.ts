@@ -362,3 +362,24 @@ export function describeDevice(ua: string): string {
   const br = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /YaBrowser/.test(ua) ? "Яндекс Браузер" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\/|CriOS/.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "браузер";
   return `${os} · ${br}`;
 }
+
+// ---- Регистрация только через Telegram-бота ----
+
+export const TG_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
+
+/** Заявка на привязку Telegram (её понимает существующий вебхук бота: t.me/<бот>?start=<код> -> telegramLinks/{uid}). */
+export async function createLinkRequest(uid: string): Promise<{ code: string; botUrl: string }> {
+  const code = randomBytes(18).toString("base64url");
+  await adminDb().collection("telegramLinkRequests").doc(code).set({ uid, createdAt: Date.now(), source: "miligram" });
+  return { code, botUrl: `https://t.me/${TG_BOT}?start=${code}` };
+}
+
+/** Один Telegram — один аккаунт MiliGram: true, если этот чат уже привязан к ДРУГОМУ существующему аккаунту. */
+export async function telegramConflict(uid: string, chatId: number): Promise<boolean> {
+  const db = adminDb();
+  const snap = await db.collection("telegramLinks").where("chatId", "==", chatId).limit(5).get();
+  for (const d of snap.docs) {
+    if (d.id !== uid && (await db.collection("messengerAccounts").doc(d.id).get()).exists) return true;
+  }
+  return false;
+}
