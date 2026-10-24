@@ -1,218 +1,92 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { BadgeCheck, ChevronLeft, X } from "lucide-react";
-import { gradientFor, initials } from "./util";
+import { ReactNode } from "react";
+import { X } from "lucide-react";
+import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
+import { isPremium } from "@/lib/messenger/premium";
 
-export function Avatar({
-  src,
-  name,
-  seed,
-  size = 48,
-  online,
-  ring,
-  children,
-}: {
-  src?: string | null;
-  name: string;
-  seed?: string;
-  size?: number;
-  online?: boolean;
-  ring?: "unseen" | "seen";
-  children?: ReactNode;
-}) {
-  const [bad, setBad] = useState(false);
-  const [c1, c2] = gradientFor(seed ?? name);
-  const inner = (
-    <div
-      className="relative rounded-full overflow-hidden flex items-center justify-center text-white font-semibold shrink-0 select-none"
-      style={{ width: size, height: size, background: src && !bad ? "var(--mx-surface2)" : `linear-gradient(135deg, ${c1}, ${c2})`, fontSize: size * 0.38 }}
-    >
-      {src && !bad ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="w-full h-full object-cover" onError={() => setBad(true)} draggable={false} />
-      ) : (
-        children ?? initials(name)
-      )}
-    </div>
-  );
+export type Accs = Record<string, MessengerAccount | undefined>;
+export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(" ");
+
+const COLORS = ["#e17076", "#faa774", "#a695e7", "#7bc862", "#6ec9cb", "#65aadd", "#ee7aae"];
+
+export function Avatar({ name, src, size = 48, className }: { name: string; src?: string | null; size?: number; className?: string }) {
+  const ok = !!src && (src.startsWith("https://") || src.startsWith("/"));
+  if (ok) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src!} alt="" width={size} height={size} style={{ width: size, height: size }} className={cx("rounded-full object-cover shrink-0 bg-black/30", className)} />;
+  }
+  const c = COLORS[Array.from(name || "?").reduce((s, ch) => s + ch.charCodeAt(0), 0) % COLORS.length];
   return (
-    <div className="relative shrink-0" style={{ width: ring ? size + 8 : size, height: ring ? size + 8 : size }}>
-      {ring ? (
-        <div className={`mx-story-ring ${ring === "seen" ? "seen" : ""}`}>
-          <div className="rounded-full p-[2px]" style={{ background: "var(--mx-bg)" }}>{inner}</div>
-        </div>
-      ) : (
-        inner
-      )}
-      {online && (
-        <span
-          className="absolute rounded-full"
-          style={{ width: size * 0.26, height: size * 0.26, right: ring ? 2 : 0, bottom: ring ? 2 : 0, background: "#34c759", border: "2.5px solid var(--mx-bg)" }}
-        />
-      )}
+    <div style={{ width: size, height: size, background: `linear-gradient(135deg, ${c}, ${c}aa)`, fontSize: size * 0.4 }} className={cx("rounded-full flex items-center justify-center font-bold text-white shrink-0", className)}>
+      {(name || "?").trim().charAt(0).toUpperCase()}
     </div>
   );
 }
 
-export function VerifiedBadge({ size = 15 }: { size?: number }) {
-  return <BadgeCheck size={size} className="shrink-0" style={{ color: "var(--mx-accent)" }} />;
+const pad = (n: number) => String(n).padStart(2, "0");
+export const fmtClock = (ts: number) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+export function fmtListTime(ts?: number) {
+  if (!ts) return "";
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return fmtClock(ts);
+  if (now.getTime() - ts < 6 * 86400_000) return ["вс", "пн", "вт", "ср", "чт", "пт", "сб"][d.getDay()];
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${String(d.getFullYear()).slice(2)}`;
+}
+export function fmtDay(ts: number) {
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Сегодня";
+  if (now.getTime() - ts < 2 * 86400_000 && new Date(now.getTime() - 86400_000).toDateString() === d.toDateString()) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+}
+export function lastSeenText(a?: MessengerAccount): string {
+  if (!a) return "";
+  if (a.uid === "miligram") return "служебный аккаунт";
+  const diff = Date.now() - (a.lastSeenAt ?? 0);
+  if (a.showLastSeen === false) return "был(а) недавно";
+  if (diff < 2 * 60_000) return "в сети";
+  if (diff < 3600_000) return `был(а) ${Math.floor(diff / 60_000)} мин. назад`;
+  if (new Date(a.lastSeenAt).toDateString() === new Date().toDateString()) return `был(а) в ${fmtClock(a.lastSeenAt)}`;
+  return `был(а) ${fmtListTime(a.lastSeenAt)}`;
 }
 
-/** Точка монтирования для шторок и меню — внутри .mx-root, чтобы работали CSS-переменные темы. */
-function usePortalTarget(): HTMLElement | null {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  useEffect(() => setEl(document.getElementById("mx-root")), []);
-  return el;
+export function chatMeta(chat: MessengerChat, uid: string, accs: Accs) {
+  if (chat.type === "dm") {
+    const other = chat.members.find((m) => m !== uid);
+    const a = other ? accs[other] : undefined;
+    return { title: other ? a?.displayName ?? "…" : "Избранное", photoURL: other ? a?.photoURL ?? null : null, verified: !!a?.verified, premium: isPremium(a), other, account: a, self: !other };
+  }
+  return { title: chat.title ?? "Чат", photoURL: chat.photoURL ?? null, verified: false, premium: false, other: undefined, account: undefined, self: false };
 }
 
-export function Sheet({
-  open,
-  onClose,
-  title,
-  children,
-  full,
-  zIndex = 50,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title?: string;
-  children: ReactNode;
-  full?: boolean;
-  zIndex?: number;
-}) {
-  const target = usePortalTarget();
-  if (!open || !target) return null;
-  return createPortal(
-    <div className="absolute inset-0 flex flex-col justify-end mx-fade" style={{ zIndex, background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
-      <div
-        className="mx-sheet mx-safe-bottom flex flex-col"
-        style={{ background: "var(--mx-surface)", borderRadius: "22px 22px 0 0", maxHeight: full ? "94%" : "86%", height: full ? "94%" : undefined }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mx-auto mt-2 mb-1 h-1 w-9 rounded-full shrink-0" style={{ background: "var(--mx-line)" }} />
+export function UnreadBadge({ n, muted, mention }: { n: number; muted?: boolean; mention?: boolean }) {
+  if (n <= 0 && !mention) return null;
+  return <span className={cx("min-w-[22px] h-[22px] px-1.5 rounded-full text-[12px] font-semibold flex items-center justify-center", muted ? "bg-white/20 text-white" : "bg-accent text-black")}>{mention && n <= 0 ? "@" : n > 99 ? "99+" : n}</span>;
+}
+
+/** Нижняя шторка (на телефоне) / окно по центру (на широком экране). */
+export function Sheet({ onClose, title, children }: { onClose: () => void; title?: string; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md bg-surface rounded-t-[28px] sm:rounded-[24px] max-h-[88dvh] overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="sm:hidden mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-white/20" />
         {title && (
-          <div className="flex items-center justify-between px-5 pt-2 pb-2 shrink-0">
-            <p className="font-semibold text-[17px]">{title}</p>
-            <button onClick={onClose} className="mx-muted p-1" aria-label="Закрыть">
-              <X size={20} />
-            </button>
+          <div className="flex items-center justify-between px-5 pt-3 pb-1">
+            <p className="font-bold">{title}</p>
+            <button onClick={onClose} className="text-white/50 hover:text-white"><X size={20} /></button>
           </div>
         )}
-        <div className="mx-scroll flex-1 min-h-0">{children}</div>
-      </div>
-    </div>,
-    target
-  );
-}
-
-export interface MenuItem {
-  label: string;
-  icon?: ReactNode;
-  danger?: boolean;
-  onPress: () => void;
-  hidden?: boolean;
-}
-
-export function MenuList({ items, onDone }: { items: MenuItem[]; onDone: () => void }) {
-  return (
-    <div className="pb-3">
-      {items
-        .filter((i) => !i.hidden)
-        .map((item) => (
-          <button
-            key={item.label}
-            onClick={() => {
-              onDone();
-              item.onPress();
-            }}
-            className="w-full flex items-center gap-3.5 px-5 py-3.5 text-left active:bg-white/5"
-            style={{ color: item.danger ? "var(--mx-danger)" : undefined }}
-          >
-            <span className="w-6 flex justify-center opacity-80">{item.icon}</span>
-            <span className="text-[16px]">{item.label}</span>
-          </button>
-        ))}
-    </div>
-  );
-}
-
-export function Switch({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className="relative shrink-0 rounded-full transition-colors disabled:opacity-40"
-      style={{ width: 50, height: 30, background: on ? "#34c759" : "var(--mx-surface2)" }}
-    >
-      <span className="absolute top-[3px] left-[3px] rounded-full bg-white transition-transform shadow" style={{ width: 24, height: 24, transform: on ? "translateX(20px)" : "none" }} />
-    </button>
-  );
-}
-
-export function IconBox({ color, children }: { color: string; children: ReactNode }) {
-  return (
-    <span className="mx-icon-box" style={{ background: color }}>
-      {children}
-    </span>
-  );
-}
-
-export function Spinner({ size = 20 }: { size?: number }) {
-  return (
-    <span
-      className="inline-block rounded-full animate-spin"
-      style={{ width: size, height: size, border: "2.5px solid var(--mx-line)", borderTopColor: "var(--mx-accent)" }}
-    />
-  );
-}
-
-export function PageHeader({ title, onBack, right }: { title: string; onBack?: () => void; right?: ReactNode }) {
-  return (
-    <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
-      <div className="h-12 px-2 flex items-center relative">
-        {onBack ? (
-          <button onClick={onBack} className="flex items-center gap-0.5 px-2 py-2" style={{ color: "var(--mx-accent)" }}>
-            <ChevronLeft size={24} /> <span className="text-[16px]">Назад</span>
-          </button>
-        ) : (
-          <span className="w-16" />
-        )}
-        <p className="absolute left-1/2 -translate-x-1/2 font-semibold text-[17px] pointer-events-none">{title}</p>
-        <div className="ml-auto pr-2">{right}</div>
+        {children}
       </div>
     </div>
   );
 }
 
-export function Section({ children, title, footer }: { children: ReactNode; title?: string; footer?: string }) {
+export function Splash() {
   return (
-    <div className="px-4 mb-5">
-      {title && <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">{title}</p>}
-      <div className="mx-card">{children}</div>
-      {footer && <p className="mx-muted text-[13px] px-3 mt-1.5">{footer}</p>}
+    <div className="h-full flex items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/miligram/icon-192.png" alt="MiliGram" className="w-20 h-20 rounded-[22px] animate-pulse" />
     </div>
   );
-}
-
-/** Закрытие по нажатию вне элемента. */
-export function useClickOutside(ref: React.RefObject<HTMLElement>, onOutside: () => void, active: boolean) {
-  const cb = useRef(onOutside);
-  cb.current = onOutside;
-  useEffect(() => {
-    if (!active) return;
-    const h = (e: MouseEvent | TouchEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) cb.current();
-    };
-    document.addEventListener("mousedown", h);
-    document.addEventListener("touchstart", h);
-    return () => {
-      document.removeEventListener("mousedown", h);
-      document.removeEventListener("touchstart", h);
-    };
-  }, [ref, active]);
 }
