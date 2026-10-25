@@ -1,0 +1,583 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Список UID админов. Уже вписаны два аккаунта — при необходимости добавляй ещё строки через запятую.
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        "s4Cbs8BFRwd9CrPYNkQBQzbVlQG3",
+        "DAdWBqr7i8UWc1nT0NVVMuJ1DJQ2"
+      ];
+    }
+
+    // Персонал без доступа к админке (см. staffRole на профиле, назначается в /admin/users).
+    // Менеджер отвечает на обращения в поддержку; помощник помогает выдавать призы колеса.
+    function isManager() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.staffRole == "manager";
+    }
+    function isHelper() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.staffRole == "helper";
+    }
+
+    // Защита на уровне сервера: даже если кто-то обойдёт проверку в браузере, забаненный
+    // аккаунт не сможет создавать заказы/тикеты/заявки напрямую через Firestore API.
+    function isNotBanned() {
+      return !isSignedIn() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.banned != true;
+    }
+
+    // --- users ---
+    // Пользователь может читать/писать только свой профиль, и НЕ может менять баланс или метки себе сам.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      // Новый профиль можно создать только "чистым": нулевой баланс, обычный бейдж, без привилегий.
+      // Раньше можно было создать себе профиль с любым балансом/бейджем/staffRole.
+      allow create: if isOwner(userId) &&
+        request.resource.data.balance == 0 &&
+        request.resource.data.badges == ["user"] &&
+        request.resource.data.banned == false &&
+        !request.resource.data.keys().hasAny(["staffRole","starsBalance","ratingSum","ratingCount","claimedEventIds","unlockedAchievements","twoFactorEnabled","nameColor","nameFont","referredBy","lastWheelSpinAt","wheelSpinsCount","banReason","banUntil","forceReloadAt"]);
+      allow update: if isAdmin() ||
+        // Владелец не может трогать защищённые поля: баланс, бейджи, бан, роль персонала, рейтинг,
+        // Stars, награды/достижения (иначе их можно получить повторно), кулдаун колеса, флаг 2FA и т.д.
+        (isOwner(userId) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["balance","badges","banned","banReason","banUntil","staffRole","ratingSum","ratingCount","starsBalance","referredBy","claimedEventIds","unlockedAchievements","lastWheelSpinAt","wheelSpinsCount","twoFactorEnabled","nameColor","nameFont","forceReloadAt","createdAt","uid"]))
+        ||
+        // Покупатель после отзыва: рейтинг продавца можно только увеличить на одну оценку 1-5,
+        // и нельзя накручивать себе (раньше можно было записать любые значения кому угодно).
+        (isSignedIn() && request.auth.uid != userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["ratingSum", "ratingCount"]) &&
+          request.resource.data.ratingCount == resource.data.get("ratingCount", 0) + 1 &&
+          request.resource.data.ratingSum >= resource.data.get("ratingSum", 0) + 1 &&
+          request.resource.data.ratingSum <= resource.data.get("ratingSum", 0) + 5);
+      allow delete: if isAdmin();
+    }
+
+    // --- products / games ---
+    // Каталог читают все, но изменять может только админ.
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      // Продавец может удалить свой собственный товар без одобрения админа — редактирование
+      // же по-прежнему только через заявку (productEditRequests) и одобрение админом.
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
+    }
+    // productEditRequests: продавец предлагает правки своего товара, применяет их только админ.
+    match /productEditRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // events: сезонные/тематические ивенты (оформление сайта + бонус на баланс) — читают все, пишет только админ.
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- orders ---
+    // Пользователь создаёт только свои заказы и видит только свои; админ видит и меняет всё.
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sellerId == request.auth.uid));
+      // Заказы создаёт ТОЛЬКО сервер (api/orders/checkout, Stars, обмены — Admin SDK обходит правила).
+      // Раньше клиент мог сам создать заказ с любой суммой/статусом.
+      allow create: if isAdmin();
+      // Покупатель меняет только status/confirmedAt/reviewSubmitted; продавец — только status (спор).
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "confirmedAt", "reviewSubmitted"]) &&
+          (
+            (resource.data.status == "pending_confirmation" && request.resource.data.status == "confirmed") ||
+            (resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed") ||
+            (request.resource.data.status == resource.data.status && request.resource.data.reviewSubmitted == true)
+          )) ||
+        (isSignedIn() && resource.data.sellerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]) &&
+          resource.data.status == "pending_confirmation" && request.resource.data.status == "disputed");
+      allow delete: if isAdmin();
+    }
+
+    // --- topups (заявки на пополнение/вывод) ---
+    // Пользователь создаёт свои заявки, статус и зачисление баланса меняет только админ.
+    match /topups/{topupId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned()
+        && request.resource.data.status == "pending";
+      allow update, delete: if isAdmin();
+    }
+
+    // --- заявки на продажу предметов ---
+    match /sellRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned()
+        && request.resource.data.status == "pending";
+      allow update, delete: if isAdmin();
+    }
+
+    // --- платежи через CactusPay ---
+    // Полностью серверная логика (создание и подтверждение — через Admin SDK в API-роутах),
+    // клиент только читает свои собственные платежи, чтобы показать статус в личном кабинете.
+    match /payments/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // --- ads ---
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Публичный счётчик для главной страницы (сделок и т.п.) — пишется только с сервера
+    // через Admin SDK (правила Firestore на него не действуют), с клиента — только чтение.
+    match /stats/{statId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Отзывы о самом сайте (не о товаре) — читают все, пишет автор, удаляет только админ.
+    match /siteReviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // История цены товара — для графика на странице товара. Читают все, добавляет только админ
+    // (при сохранении товара в /admin/products), менять/удалять точки задним числом нельзя.
+    match /priceHistory/{id} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Подписки браузера на Web Push — сам endpoint/ключи никому кроме владельца и сервера
+    // (Admin SDK при отправке) не нужны, поэтому читать может только владелец.
+    match /pushSubscriptions/{id} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // Копия корзины в Firestore — только для серверного напоминания о брошенной корзине,
+    // сама корзина по-прежнему работает через localStorage.
+    match /carts/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+    }
+
+    // Настраиваемые "закрывающие" экраны (тех.перерыв, поддержка/пополнение недоступны, 404).
+    match /siteScreens/{screenId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- промокоды ---
+    // Читать может кто угодно (нужно, чтобы найти документ по полю "code" ещё до применения кода).
+    // Создавать/удалять/менять условия — только админ. Единственное исключение для обычного пользователя:
+    // при активации кода можно дописать СВОЙ uid в массив usedBy и больше ничего не менять —
+    // так каждый код помечается использованным конкретным человеком ровно один раз.
+    match /promoCodes/{codeId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() ||
+        (isSignedIn() && isNotBanned() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["usedBy"]) &&
+          request.resource.data.usedBy.size() == resource.data.usedBy.size() + 1 &&
+          request.resource.data.usedBy.hasAll(resource.data.usedBy) &&
+          request.resource.data.usedBy.hasAny([request.auth.uid]) &&
+          !resource.data.usedBy.hasAny([request.auth.uid]));
+    }
+
+    // --- канал «Velox Trade Новости» (раздел «Чаты») ---
+    // Читают все (это публичный канал-лента), постить/удалять посты может только админ.
+    match /newsPosts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- settings (тема сайта) ---
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- вход через Telegram ---
+    // telegramLinkRequests: пользователь сам создаёт временный код привязки для себя же.
+    // Обрабатывается вебхуком через Firebase Admin SDK (в обход правил), поэтому read/update/delete с клиента не нужны.
+    match /telegramLinkRequests/{linkCode} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+    // telegramLinks: пользователь может прочитать свою привязку (статус в профиле), но не менять напрямую —
+    // запись делает только сервер (вебхук/API-роут) через Admin SDK.
+    match /telegramLinks/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+    // loginCodes: одноразовые коды входа — полностью серверная логика, клиенту сюда доступа нет вообще.
+    match /loginCodes/{uid} {
+      allow read, write: if false;
+    }
+    // mail: очередь писем для расширения Firebase "Trigger Email from Firestore" —
+    // только админ может ставить письма в очередь, само расширение обрабатывает их Admin SDK.
+    match /mail/{docId} {
+      allow create: if isAdmin();
+      allow read, update, delete: if false;
+    }
+    // vkLoginTokens: одноразовый код для завершения входа через VK — полностью серверная логика.
+    match /vkLoginTokens/{code} {
+      allow read, write: if false;
+    }
+    // referralCodes: код -> uid владельца. Создаёт сам пользователь себе (при регистрации или
+    // при первом заходе на страницу с реферальной ссылкой), дальше не меняется.
+    match /referralCodes/{code} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
+    // telegramRegisterRequests: регистрация через Telegram происходит ДО входа, поэтому создание открыто всем.
+    // Обрабатывается вебхуком через Admin SDK (в обход правил); статус проверяется через отдельный API-роут,
+    // а не напрямую из Firestore, поэтому прямое чтение с клиента не нужно.
+    match /telegramRegisterRequests/{code} {
+      allow create: if request.resource.data.status == "pending";
+      allow read, update, delete: if false;
+    }
+
+    // Состояние диалога с Telegram-ботом (какое меню сейчас открыто у пользователя) — полностью серверное.
+    match /telegramBotState/{chatId} {
+      allow read, write: if false;
+    }
+
+    // --- поддержка (тикеты) ---
+    // Пользователь создаёт и читает только свои тикеты и может дописывать сообщения в них;
+    // менять статус (закрыть/переоткрыть) может только админ. Админ видит и отвечает во всех тикетах.
+    match /tickets/{ticketId} {
+      allow read: if isAdmin() || isManager() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
+      allow update: if isAdmin() || isManager() ||
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.status != "closed");
+      allow delete: if isAdmin();
+    }
+
+    // --- юзернеймы (для публичных ссылок на профиль продавца) ---
+    // Читать может кто угодно (нужно для поиска продавца по нику).
+    // Создать можно только на своё имя, и только если username ещё свободен (Firestore трактует
+    // запись поверх существующего документа как update, а не create — allow create этого не разрешает).
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // --- чат по заказу между покупателем и продавцом, админ видит и может писать в любой ---
+    match /orderChats/{orderId} {
+      // resource == null: чат заказа создаётся ЛЕНИВО, только при первом реальном сообщении
+      // (см. sendOrderChatMessage). Пока сообщений ещё не было, документа физически не существует —
+      // без этого условия Firestore падает с "permission-denied" при попытке ЧИТАТЬ ДО первого
+      // сообщения (обращение к resource.data на несуществующем документе), из-за чего кнопка
+      // "Чат" у продавца/покупателя выглядела нерабочей на свежих заказах. Отдавать "документа
+      // нет" не раскрывает никаких данных, поэтому разрешать это безопасно для любого — сам факт
+      // существования пустого чата ничего не говорит о содержимом заказа.
+      allow read: if isAdmin() || resource == null ||
+        (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId)) ||
+        (isHelper() && get(/databases/$(database)/documents/deliveries/$(orderId)).data.source == "wheel");
+      // Чат можно создать только для реального заказа/выдачи и только с настоящими участниками
+      // (раньше любой мог "занять" чужой orderId с самим собой в роли покупателя).
+      allow create: if isAdmin() ||
+        (isSignedIn() && (request.auth.uid == request.resource.data.buyerId || request.auth.uid == request.resource.data.sellerId) &&
+          (
+            (exists(/databases/$(database)/documents/orders/$(orderId)) &&
+              get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.resource.data.buyerId &&
+              get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.resource.data.sellerId) ||
+            (exists(/databases/$(database)/documents/deliveries/$(orderId)) &&
+              get(/databases/$(database)/documents/deliveries/$(orderId)).data.buyerId == request.resource.data.buyerId &&
+              get(/databases/$(database)/documents/deliveries/$(orderId)).data.sellerId == request.resource.data.sellerId)
+          ));
+      // Участники не могут менять состав чата и не могут удалять сообщения (массив только растёт).
+      allow update: if isAdmin() ||
+        (isSignedIn() && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId) &&
+          request.resource.data.buyerId == resource.data.buyerId &&
+          request.resource.data.sellerId == resource.data.sellerId &&
+          request.resource.data.messages.size() >= resource.data.messages.size()) ||
+        (isHelper() && get(/databases/$(database)/documents/deliveries/$(orderId)).data.source == "wheel");
+      allow delete: if isAdmin();
+    }
+
+    // --- личные переписки (не привязанные к заказу) — раздел "Чаты" -> ЛС с продавцом/покупателем ---
+    // Документ создаётся лениво при первом сообщении (см. sendDirectMessage в lib/directMessages.ts),
+    // id документа = отсортированные uid обоих участников через "_". Сами сообщения хранятся массивом
+    // в поле messages ПРЯМО В ЭТОМ документе (не отдельная подколлекция).
+    match /directConversations/{conversationId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() && request.auth.uid in resource.data.participants);
+      // Ровно два участника, один из них — автор, и id документа содержит его uid
+      // (нельзя создать переписку "за двоих" под чужим id).
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.size() == 2 &&
+        conversationId.matches('.*' + request.auth.uid + '.*');
+      // Разрешаем дописать ровно одно новое сообщение в конец messages (никогда не удалять и не
+      // редактировать старые), обновить lastMessage/updatedAt и свои собственные записи в
+      // participantNames/participantPhotos — но не тронуть список участников и чужие сообщения.
+      // Дописать сообщение можно только от своего имени (message.from == свой uid).
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.auth.uid in resource.data.participants &&
+          request.resource.data.participants == resource.data.participants &&
+          request.resource.data.messages.size() == resource.data.messages.size() + 1 &&
+          request.resource.data.messages[request.resource.data.messages.size() - 1].from == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // --- отзывы ---
+    // Читают все (публичные профили продавцов), создаёт только покупатель на своё имя;
+    // серверная проверка "заказ подтверждён и отзыв ещё не оставлен" — на уровне кода (lib/reviews.ts),
+    // здесь фиксируем базовое условие авторства.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.rating in [1, 2, 3, 4, 5] &&
+        exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.userId == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.sellerId == request.resource.data.sellerId &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status == "confirmed";
+      allow update, delete: if isAdmin();
+    }
+
+    // --- сессии устройств (Профиль → Безопасность, "как в Telegram") ---
+    // id документа = `${uid}_${deviceId}`. Устройство читает/создаёт/обновляет только свою же
+    // запись (heartbeat последней активности). Пометка revoked=true (завершение сессии С ДРУГОГО
+    // устройства) и проверка правила "не раньше 25 часов после первого входа" живут только в
+    // серверном роуте /api/sessions/terminate (Admin SDK, в обход правил) — с клиента так нельзя.
+    match /sessions/{sessionId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.revoked == false;
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == resource.data.uid &&
+          (
+            // heartbeat при повторном заходе с уже известного устройства
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["lastActiveAt", "deviceLabel"]) ||
+            // "оживление" сессии после завершения — сюда уже нельзя попасть без пароля/входа через Firebase Auth заново
+            (resource.data.revoked == true && request.resource.data.revoked == false)
+          ));
+      allow delete: if isAdmin();
+    }
+
+    // favorites: избранные товары — владелец видит и правит только свои.
+    match /favorites/{favId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+    // wheelPrizes: призы Колеса Фортуны — читают все (чтобы показать колесо на сайте), пишет только админ.
+    // Само вращение и списание идёт через сервер (api/wheel/spin), не напрямую с клиента.
+    match /wheelPrizes/{prizeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // publicActivity: обезличенная лента "кто что купил" на главной странице (ник замаскирован,
+    // см. src/lib/maskNickname.ts). Пишется только с сервера (Admin SDK, в момент создания заказа) —
+    // прямая запись с клиента запрещена, чтобы никто не мог накрутить фейковую ленту.
+    match /publicActivity/{activityId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // deviceLogins: быстрый вход с другого устройства по QR-коду (как в Roblox). Устройство без
+    // входа создаёт запись с случайным id (сам id — это и есть секрет, как токен) и ждёт, пока
+    // владелец аккаунта не подтвердит вход с уже залогиненного телефона. Подтверждение (кастомный
+    // токен входа) пишет ТОЛЬКО сервер (Admin SDK, см. /api/auth/device-login/confirm) — с клиента
+    // менять статус нельзя, иначе можно было бы подделать подтверждение входа без реальной сессии.
+    match /deviceLogins/{code} {
+      allow create: if request.resource.data.status == "pending" && request.resource.data.expiresAt is number;
+      // ТОЛЬКО get по точному id: раньше был полный read, и любой мог выгрузить список всех
+      // deviceLogins вместе с выданными кастомными токенами входа и войти в чужой аккаунт.
+      allow get: if true;
+      allow list: if false;
+      allow update: if false;
+      // Удалить может только тот, кто только что реально вошёл этим кодом (сверяем uid,
+      // который сервер прописал при подтверждении, с uid уже аутентифицированного запроса) —
+      // это подчищает использованный токен сразу после входа, а не оставляет висеть в базе.
+      allow delete: if isSignedIn() && resource.data.approvedByUid == request.auth.uid;
+    }
+
+    // --- боты-посредники для выдачи товаров и заявки на выдачу (эскроу-механика) ---
+    // botAccounts: игровые аккаунты-посредники, читает/пишет только админ (обычным пользователям
+    // не нужно видеть список напрямую — конкретный назначенный бот приходит внутри самой Delivery).
+    match /botAccounts/{botId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    // deliveries: одна запись на заказ (id документа = orderId). Покупатель и продавец читают только
+    // свою — админ читает все. Все изменения статуса идут через серверные API-роуты (Admin SDK
+    // обходит правила), это правило — просто защита от прямой записи с клиента в обход бизнес-логики.
+    match /deliveries/{orderId} {
+      // Помощник видит и читает только заявки от призов колеса фортуны (source == "wheel") —
+      // не обычные покупки и не обмены между игроками. Реальные изменения статуса всё равно
+      // идут через серверный роут (см. api/admin/deliveries/update-status), это правило только
+      // разрешает КЛИЕНТСКОЕ чтение (список, живая подписка) — write у помощника нет вовсе,
+      // он работает через тот же защищённый API, что и админ.
+      allow read: if isAdmin() ||
+        (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid)) ||
+        (isHelper() && resource.data.source == "wheel");
+      allow write: if isAdmin();
+    }
+
+    // --- прямой обмен предметами между игроками ---
+    // Создание заявки и все переходы статуса (принять/отклонить, списание баланса, создание
+    // Delivery на каждую сторону) идут ТОЛЬКО через серверные API-роуты (Admin SDK) — там же
+    // проверяется реальное владение предложенным товаром, наличие на складе и что товар не
+    // заперт под колесо фортуны. Прямая запись с клиента запрещена полностью.
+    match /tradeOffers/{tradeId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
+      allow write: if isAdmin();
+    }
+    match /tradeChats/{tradeId} {
+      // resource == null — та же причина, что и в orderChats выше: чат обмена тоже создаётся
+      // лениво при первом сообщении, без этого условия чтение до первого сообщения падало бы
+      // с permission-denied.
+      allow read: if isAdmin() || resource == null || (isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid));
+      allow create: if isAdmin() || (isSignedIn() && (request.auth.uid == request.resource.data.fromUserId || request.auth.uid == request.resource.data.toUserId) &&
+        exists(/databases/$(database)/documents/tradeOffers/$(tradeId)) &&
+        get(/databases/$(database)/documents/tradeOffers/$(tradeId)).data.fromUserId == request.resource.data.fromUserId &&
+        get(/databases/$(database)/documents/tradeOffers/$(tradeId)).data.toUserId == request.resource.data.toUserId);
+      allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId) &&
+        request.resource.data.fromUserId == resource.data.fromUserId &&
+        request.resource.data.toUserId == resource.data.toUserId &&
+        request.resource.data.messages.size() >= resource.data.messages.size());
+      allow delete: if isAdmin();
+    }
+
+    // --- жалобы на сделки ---
+    match /disputes/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));
+      // Жалобу можно подать только по реальному заказу и только его участнику.
+      allow create: if isSignedIn() && (request.resource.data.buyerId == request.auth.uid || request.resource.data.sellerId == request.auth.uid) &&
+        exists(/databases/$(database)/documents/orders/$(orderId)) &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.resource.data.buyerId &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.resource.data.sellerId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // rateLimits: счётчики частоты запросов (lib/rateLimit.ts) — только сервер через Admin SDK.
+    match /rateLimits/{id} {
+      allow read, write: if false;
+    }
+
+    // --- Telegram Stars: покупка товара и вывод накопленных Stars продавцом ---
+    // Оба процесса полностью серверные (создание счёта/зачисление/раздача подарками — только
+    // через Admin SDK в api/telegram/stars/invoice, lib/starsOrders.ts, lib/telegramAdminPanel.ts),
+    // клиенту не нужно ни читать, ни тем более писать сюда напрямую.
+    match /starsInvoices/{invoiceId} {
+      allow read, write: if false;
+    }
+    match /starsWithdrawals/{withdrawalId} {
+      allow read, write: if false;
+    }
+
+
+    // ===== MiliGram (мессенджер): пишет только сервер через Admin SDK =====
+    // ВСТАВИТЬ в firestore.rules внутрь match /databases/{database}/documents { ... }.
+    // Мессенджерное ПИШЕТ только сервер (Admin SDK обходит правила), клиент только читает свои данные.
+
+    match /messengerAccounts/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /messengerHandles/{handle} {
+      allow read, write: if false;
+    }
+    match /messengerChats/{chatId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+      allow write: if false;
+      match /messages/{msgId} {
+        allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/messengerChats/$(chatId)).data.members;
+        allow write: if false;
+      }
+      match /typing/{uid} {
+        allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/messengerChats/$(chatId)).data.members;
+        allow write: if false;
+      }
+    }
+    match /messengerUserChats/{uid}/chats/{chatId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /messengerUserFolders/{uid}/folders/{folderId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Этап 2–3: истории читаются ТОЛЬКО через API (нужна фильтрация по контактам), остальное только сервер.
+    match /messengerStories/{id}   { allow read, write: if false; }
+    match /messengerReports/{id}   { allow read, write: if false; }
+    match /messengerBlocks/{uid}/blocked/{other} { allow read, write: if false; }
+
+    // Каналы, Mili Premium, стикеры: всё через API.
+    match /messengerInvites/{code}          { allow read, write: if false; }
+    match /messengerStickerPacks/{slug}     { allow read, write: if false; }
+    match /messengerUserStickers/{uid}      { allow read, write: if false; }
+    // views подколлекция сообщений канала (messengerChats/{id}/messages/{msgId}/views) закрыта общим запретом: отдельный match не нужен.
+
+    // Опросы: свой голос читает только сам проголосовавший; ответ викторины (secret) и slow/views закрыты по умолчанию.
+    match /messengerChats/{chatId}/messages/{msgId}/votes/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid
+        && request.auth.uid in get(/databases/$(database)/documents/messengerChats/$(chatId)).data.members;
+      allow write: if false;
+    }
+    match /messengerJoinRequests/{id} { allow read, write: if false; }
+
+    // Сеансы (устройства) и рассылки — только через API.
+    match /messengerSessions/{uid}/list/{id} { allow read, write: if false; }
+    match /messengerBroadcasts/{id}          { allow read, write: if false; }
+
+    // Регистрация через Telegram: ожидающие регистрации — только сервер.
+    match /messengerPending/{uid} { allow read, write: if false; }
+
+    // ===== Кейсы =====
+    // ДОБАВИТЬ этот блок в свой firestore.rules (внутри match /databases/{database}/documents { ... }),
+    // рядом с остальными match-блоками для коллекций. Не заменяет файл целиком — просто вставить.
+    //
+    // Если у тебя helper-функции isAdmin()/isSignedIn() называются иначе — поправь имена вызовов ниже
+    // под свои (в этом проекте раньше уже встречались похожие проверки для orderChats/directConversations).
+
+    match /cases/{caseId} {
+      // Публичная страница /case и /case/{id} читают кейсы без авторизации — открывать список товаров
+      // может кто угодно, даже не залогиненный.
+      allow read: if true;
+      // Создавать/редактировать кейсы и предметы внутри них может только админ (см. /admin/cases).
+      allow write: if isAdmin();
+    }
+
+    match /caseOpenings/{openingId} {
+      // Историю открытий видит либо сам открывший (для /profile/case-history), либо админ.
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // Пишет ТОЛЬКО сервер через Firebase Admin SDK (см. api/cases/open) — Admin SDK обходит
+      // Security Rules полностью, так что allow write: if false тут не мешает серверной записи,
+      // а просто гарантированно запрещает подделку результатов открытия напрямую с клиента.
+      allow write: if false;
+    }
+  }
+}

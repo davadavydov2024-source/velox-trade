@@ -335,10 +335,6 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                   <Switch on={account.showLastSeen !== false} onChange={setShowLastSeen} />
                 </div>
               </div>
-              <div className="vc-card"><div className="px-4 py-3.5 text-[14px] vc-muted leading-relaxed">
-                <p className="font-semibold mb-1" style={{ color: "var(--vc-text)" }}>Про безопасность сообщений</p>
-                Сообщения не шифруются сквозным образом: сервер и администрация технически могут их читать (например, при разборе жалоб). Не пересылай в чатах пароли, коды из СМС и данные карт.
-              </div></div>
             </div>
           )}
           {page === "general" && (

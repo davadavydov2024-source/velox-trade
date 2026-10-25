@@ -1,7 +1,1 @@
-{
-  "projects": {
-    "defoalt": "blade-shoop"
-  },
-  "targets": {},
-  "etags": {}
-}
+{ "projects": { "default": "blade-shoop" } }
