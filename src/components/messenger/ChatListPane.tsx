@@ -308,7 +308,19 @@ export function ChatListPane({
               </>
             )}
 
-            {loading && chats.length === 0 && <p className="mx-muted text-center py-10">Загрузка…</p>}
+            {loading && chats.length === 0 && (
+              <div>
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ opacity: 1 - i * 0.1 }}>
+                    <div className="mx-skel rounded-full shrink-0" style={{ width: 56, height: 56 }} />
+                    <div className="flex-1 space-y-2">
+                      <div className="mx-skel rounded-md" style={{ width: `${40 + (i % 3) * 14}%`, height: 14 }} />
+                      <div className="mx-skel rounded-md" style={{ width: `${62 + (i % 4) * 8}%`, height: 12 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {visible.map(row)}
             {!loading && visible.length === 0 && archived.length === 0 && (
               <div className="text-center px-10 py-14">

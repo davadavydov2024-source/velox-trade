@@ -34,7 +34,7 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
     const width = Math.min(280, Math.round(Math.min(1, 360 * ratio / 280) * 280));
     const video = isVideoUrl(url);
     return (
-      <button onClick={() => onOpen(url)} className="relative block rounded-[15px] overflow-hidden" style={{ width: Math.max(140, width), aspectRatio: String(Math.max(0.6, Math.min(1.8, ratio))), background: "var(--mx-surface2)" }}>
+      <button onClick={() => onOpen(url)} className="relative block rounded-[15px] overflow-hidden" style={{ width: `min(${Math.max(140, width)}px, 72vw)`, maxWidth: "100%", aspectRatio: String(Math.max(0.6, Math.min(1.8, ratio))), background: "var(--mx-surface2)" }}>
         {video ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption
           <video src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
@@ -54,7 +54,7 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
   }
   const shown = urls.slice(0, 4);
   return (
-    <div className="grid gap-[3px] rounded-[15px] overflow-hidden" style={{ gridTemplateColumns: "1fr 1fr", width: 260 }}>
+    <div className="grid gap-[3px] rounded-[15px] overflow-hidden" style={{ gridTemplateColumns: "1fr 1fr", width: "min(260px, 72vw)", maxWidth: "100%" }}>
       {shown.map((u, i) => (
         <button key={i} onClick={() => onOpen(u)} className="relative aspect-square" style={{ background: "var(--mx-surface2)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -280,7 +280,7 @@ export function MessageRow({
     );
   }
 
-  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""}`;
+  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""} ${pending?.status === "sending" ? "sending" : ""} ${pending?.status === "failed" ? "failed" : ""}`;
 
   return (
     <div

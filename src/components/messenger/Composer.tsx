@@ -352,7 +352,7 @@ export function Composer({
             onTouchStart={() => { if (!editing) holdSend.current = setTimeout(() => { navigator.vibrate?.(8); setSilentOpen(true); holdSend.current = null; }, 450); }}
             onTouchEnd={(e) => { if (!holdSend.current) e.preventDefault(); clearTimeout(holdSend.current); }}
             onTouchMove={() => clearTimeout(holdSend.current)}
-            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 mx-pop select-none"
+            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 mx-send-pop select-none active:scale-90 transition-transform"
             style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", WebkitTouchCallout: "none" }}
             aria-label="Отправить"
           >

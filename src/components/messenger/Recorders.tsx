@@ -254,7 +254,8 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
   };
 
   if (!target) return null;
-  const SIZE = 280;
+  // размер кружка подстраивается под экран — раньше фиксированные 280 px вылезали на узких телефонах
+  const SIZE = Math.max(180, Math.min(280, (typeof window !== "undefined" ? Math.min(window.innerWidth - 56, window.innerHeight - 260) : 280)));
   const r = SIZE / 2 + 8;
   const c = 2 * Math.PI * r;
   return createPortal(

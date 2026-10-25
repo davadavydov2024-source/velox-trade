@@ -15,6 +15,7 @@ export interface MessengerAccount {
   showLastSeen: boolean;
   banned: boolean;
   verified?: boolean;
+  bannerURL?: string | null; // баннер профиля (обложка)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
 }

@@ -199,7 +199,7 @@ export function ChatView({
     setPinIndex(0);
   }, [chat.id]);
 
-  const total = messages.length + pending.length;
+  const total = messages.length + pending.filter((p) => !(p.serverId && messages.some((m) => m.id === p.serverId))).length;
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -222,7 +222,8 @@ export function ChatView({
     prevCount.current = total;
     if (added <= 0) return;
     const last = messages[messages.length - 1];
-    if (atBottom.current || last?.from === me || pending.length > 0) scrollToBottom(true);
+    const livePending = pending.some((p) => !(p.serverId && messages.some((m) => m.id === p.serverId)));
+    if (atBottom.current || last?.from === me || livePending) scrollToBottom(true);
     else setUnreadNew((n) => n + added);
   }, [total, messages, pending.length, me, scrollToBottom]);
 
@@ -251,8 +252,10 @@ export function ChatView({
     async (tempId: string, payload: Record<string, unknown>) => {
       try {
         const res = await mApi<{ id?: string }>("send", { chatId: chat.id, ...payload });
-        // оставляем плашку «отправляется», пока настоящее сообщение не придёт из Firestore (или 1.2 с)
-        setTimeout(() => setPending((p) => p.filter((x) => x.tempId !== tempId)), res?.id ? 1200 : 400);
+        // Плашка остаётся на месте и сама превращается в настоящее сообщение, когда оно придёт из Firestore
+        // (тот же ключ строки — без мигания и повторной анимации). Если id нет — убираем через 0.4 с.
+        if (res?.id) setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, serverId: res.id } : x)));
+        setTimeout(() => setPending((p) => p.filter((x) => x.tempId !== tempId)), res?.id ? 25_000 : 400);
       } catch (err) {
         const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
         toast("error", msg);
@@ -465,12 +468,34 @@ export function ChatView({
     return chat.type === "dm" ? (chat.readBy?.[others[0]] ?? 0) >= m.createdAt : others.some((u) => (chat.readBy?.[u] ?? 0) >= m.createdAt);
   };
 
-  const pendingAsMessages: { msg: MMessage; pending: MPending }[] = pending.map((p) => ({
+  // плашки, чьё настоящее сообщение уже пришло, скрываем (а ключ строки берём от плашки — без перерисовки)
+  const realIds = new Set(messages.map((m) => m.id));
+  const serverToTemp = new Map<string, string>();
+  pending.forEach((p) => p.serverId && serverToTemp.set(p.serverId, p.tempId));
+  const visiblePending = pending.filter((p) => !(p.serverId && realIds.has(p.serverId)));
+  const pendingAsMessages: { msg: MMessage; pending: MPending }[] = visiblePending.map((p) => ({
     pending: p,
     msg: { id: p.tempId, from: me, kind: p.kind, text: p.text, mediaUrl: p.mediaUrl, duration: p.duration, waveform: p.waveform, createdAt: p.createdAt, reactions: {} },
   }));
 
   const rows: { msg: MMessage; pending?: MPending }[] = [...messages.map((m) => ({ msg: m })), ...pendingAsMessages];
+
+  // анимация появления — только у НОВЫХ строк (не у истории при открытии чата)
+  const knownRows = useRef<Set<string>>(new Set());
+  const rowsReady = useRef(false);
+  useEffect(() => {
+    knownRows.current = new Set();
+    rowsReady.current = false;
+  }, [chat.id]);
+  useEffect(() => {
+    if (loading) return;
+    rows.forEach((r) => {
+      knownRows.current.add(r.msg.id);
+      const k = serverToTemp.get(r.msg.id);
+      if (k) knownRows.current.add(k);
+    });
+    rowsReady.current = true;
+  });
 
   const selecting = selection !== null;
   const toggleSelect = (id: string) =>
@@ -567,7 +592,15 @@ export function ChatView({
       {/* ---- сообщения ---- */}
       <div ref={scrollRef} onScroll={onScroll} className="mx-scroll flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
-        {loading && messages.length === 0 && <div className="flex justify-center py-10"><Spinner /></div>}
+        {loading && messages.length === 0 && (
+          <div className="px-3 pt-4 space-y-2.5">
+            {[["in", 58], ["in", 36], ["out", 46], ["in", 70], ["out", 30], ["out", 52]].map(([side, w], i) => (
+              <div key={i} className={`flex ${side === "out" ? "justify-end" : "justify-start"}`}>
+                <div className="mx-skel rounded-[18px]" style={{ width: `${w}%`, height: 38 + (i % 3) * 8, animationDelay: `${i * 90}ms` }} />
+              </div>
+            ))}
+          </div>
+        )}
         {!loading && rows.length === 0 && (
           <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
             {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
@@ -579,8 +612,10 @@ export function ChatView({
           const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
           const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
           const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
+          const rowKey = serverToTemp.get(msg.id) ?? msg.id;
+          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
           return (
-            <div key={msg.id}>
+            <div key={rowKey} className={isNewRow ? "mx-msg-in" : undefined}>
               {newDay && (
                 <div className="flex justify-center my-2.5">
                   <span className="text-[12.5px] px-3 py-1 rounded-full mx-glass font-medium">{dayLabel(msg.createdAt, now)}</span>

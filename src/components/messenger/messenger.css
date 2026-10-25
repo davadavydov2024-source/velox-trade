@@ -175,3 +175,16 @@
 .mx-hero-banner { height: 92px; background: linear-gradient(135deg, var(--mx-accent), #e879f9 55%, #4a6cf7); opacity: 0.95; }
 .mx-hero-body { padding: 0 20px 20px; margin-top: -48px; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .mx-status-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: color-mix(in srgb, var(--mx-accent) 16%, transparent); color: var(--mx-accent); }
+
+/* ===== Плавность: появление сообщений, отправка, скелетоны ===== */
+@keyframes mx-msg-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+.mx-msg-in { animation: mx-msg-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.mx-bubble { transition: opacity 0.25s ease, filter 0.25s ease; }
+.mx-bubble.sending { opacity: 0.72; }
+.mx-bubble.failed { outline: 1.5px solid var(--mx-danger); outline-offset: 2px; }
+@keyframes mx-shimmer { 0% { background-position: -240px 0; } 100% { background-position: 240px 0; } }
+.mx-skel { background: linear-gradient(90deg, var(--mx-surface) 0%, var(--mx-surface2) 50%, var(--mx-surface) 100%); background-size: 480px 100%; animation: mx-shimmer 1.3s linear infinite; }
+@keyframes mx-send-pop { 0% { transform: scale(0.6) rotate(-20deg); opacity: 0; } 70% { transform: scale(1.1); } 100% { transform: none; opacity: 1; } }
+.mx-send-pop { animation: mx-send-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.mx-hero-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (prefers-reduced-motion: reduce) { .mx-msg-in, .mx-skel, .mx-send-pop { animation: none !important; } }

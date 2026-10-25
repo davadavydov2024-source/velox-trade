@@ -29,5 +29,6 @@ export interface MPending {
   createdAt: number;
   status: "sending" | "failed";
   progress?: number;
+  serverId?: string; // id настоящего сообщения после ответа сервера — по нему плашка «отправляется» плавно заменяется
   retry?: () => void;
 }

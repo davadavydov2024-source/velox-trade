@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
     else if (isOwnMediaUrl(b.photoURL)) upd.photoURL = b.photoURL;
     else return fail("Некорректная ссылка на фото");
   }
+  if ("bannerURL" in b) {
+    if (b.bannerURL === null || b.bannerURL === "") upd.bannerURL = null;
+    else if (isOwnMediaUrl(b.bannerURL)) upd.bannerURL = b.bannerURL;
+    else return fail("Некорректная ссылка на баннер");
+  }
   if ("showLastSeen" in b) upd.showLastSeen = b.showLastSeen === true;
   if ("birthday" in b) {
     const v = b.birthday;

@@ -48,7 +48,13 @@ export function ChatInfoSheet({
 
   return (
     <Sheet open={open} onClose={() => { onClose(); setAdding(false); }} full>
-      <div className="flex flex-col items-center pt-3 pb-5 px-6">
+      {chat.type === "dm" && peer?.bannerURL && (
+        <div className="mx-4 mt-2 h-28 rounded-2xl overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={peer.bannerURL} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+      <div className={`flex flex-col items-center ${chat.type === "dm" && peer?.bannerURL ? "-mt-10" : "pt-3"} pb-5 px-6`}>
         <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={96}>
           {saved ? "🔖" : undefined}
         </Avatar>
