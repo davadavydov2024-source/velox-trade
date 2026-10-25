@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { ExternalLink, Loader2, MessageCircle, Send, ShieldCheck, Zap } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, MessageCircle, Send, ShieldCheck, Zap } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { mApi } from "@/lib/messenger/client";
 
@@ -66,6 +66,16 @@ async function getGateToken(open: boolean, code: string): Promise<string | undef
 /** Шаг «подтверди в Telegram»: открыть бота, нажать «Старт» — дальше всё автоматически. */
 function TelegramStep({ botUrl, onCancel, poll }: { botUrl: string; onCancel: () => void; poll: () => Promise<"done" | "wait" | string> }) {
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  let botName = "";
+  let startCode = "";
+  try { const u = new URL(botUrl); botName = u.pathname.replace(/^\//, ""); startCode = u.searchParams.get("start") ?? ""; } catch {}
+  const tgDeepLink = botName && startCode ? `tg://resolve?domain=${botName}&start=${startCode}` : "";
+  const startCmd = startCode ? `/start ${startCode}` : "";
+  const copy = (text: string) => {
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 2000); };
+    try { navigator.clipboard.writeText(text).then(done).catch(() => {}); } catch {}
+  };
   const pollRef = useRef(poll);
   pollRef.current = poll;
   useEffect(() => {
@@ -95,6 +105,15 @@ function TelegramStep({ botUrl, onCancel, poll }: { botUrl: string; onCancel: ()
           </div>
         </div>
         <a href={botUrl} target="_blank" rel="noopener noreferrer" className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2"><ExternalLink size={18} /> Открыть бота в Telegram</a>
+        {tgDeepLink && <a href={tgDeepLink} className="btn-secondary w-full py-3 text-sm flex items-center justify-center gap-2"><Send size={16} /> Открыть в приложении Telegram</a>}
+        <div className="rounded-btn bg-black/30 border border-white/10 p-3 space-y-2">
+          <p className="text-xs text-white/50">Не открывается? Скопируй ссылку и вставь в браузер или в Telegram:</p>
+          <p className="text-xs break-all text-white/80 select-all">{botUrl}</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => copy(botUrl)} className="btn-secondary flex-1 py-2 text-xs flex items-center justify-center gap-1.5">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Скопировано" : "Скопировать ссылку"}</button>
+          </div>
+          {startCmd && <p className="text-[11px] text-white/40">Или открой @{botName} в Telegram и отправь ему: <span className="text-white/70 select-all">{startCmd}</span></p>}
+        </div>
         {error ? (
           <p className="text-sm text-red-300 text-center">{error}</p>
         ) : (
@@ -206,6 +225,7 @@ export function JoinScreen({ defaultName, onLogout }: { defaultName: string; onL
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [botUrl, setBotUrl] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const gateRef = useRef<string | undefined>(undefined);
 
   async function join(e?: FormEvent) {
@@ -217,10 +237,21 @@ export function JoinScreen({ defaultName, onLogout }: { defaultName: string; onL
       gateRef.current = gateRef.current ?? (await getGateToken(open, code));
       const r = await mApi<{ ok?: boolean; needTelegram?: boolean; botUrl?: string }>("join", { gateToken: gateRef.current, handle, displayName: name });
       if (r.needTelegram && r.botUrl) setBotUrl(r.botUrl);
+      else if (r.ok) { setDone(true); return; } // аккаунт создан: MessengerApp подхватит его сам (onSnapshot)
+      else setError("Сервер не вернул ссылку на бота. Попробуй ещё раз");
     } catch (err: any) { console.error("join", err); setError(errText(err)); }
     setBusy(false);
   }
 
+  if (done) {
+    return (
+      <Shell>
+        <Logo subtitle="Аккаунт создан" />
+        <p className="text-sm text-white/60 text-center flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" /> Открываю мессенджер…</p>
+        <button onClick={() => window.location.reload()} className="block mx-auto mt-4 text-xs text-white/40">Не открылось? Обновить</button>
+      </Shell>
+    );
+  }
   if (botUrl) {
     return (
       <TelegramStep
@@ -230,6 +261,7 @@ export function JoinScreen({ defaultName, onLogout }: { defaultName: string; onL
           const r = await mApi<{ telegramLinked: boolean }>("join");
           if (!r.telegramLinked) return "wait";
           await mApi("join", { gateToken: gateRef.current, handle, displayName: name });
+          setDone(true);
           return "done";
         }}
       />

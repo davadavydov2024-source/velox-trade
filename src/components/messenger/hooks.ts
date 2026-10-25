@@ -19,9 +19,11 @@ export function useNow(intervalMs = 30_000): number {
 export function useMyAccount(uid?: string | null) {
   const [account, setAccount] = useState<MAccount | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!uid) {
       setAccount(null);
+      setError(null);
       setLoading(false);
       return;
     }
@@ -29,16 +31,21 @@ export function useMyAccount(uid?: string | null) {
     return onSnapshot(
       doc(db, "messengerAccounts", uid),
       (snap) => {
+        setError(null);
         setAccount(snap.exists() ? ({ uid, ...snap.data() } as MAccount) : null);
         setLoading(false);
       },
-      () => {
+      (err) => {
+        // Раньше ошибка (например permission-denied из-за правил Firestore) молча превращалась в «аккаунта нет»,
+        // и после успешной регистрации человек снова видел форму. Теперь показываем причину.
+        console.error("messengerAccounts read error:", err);
+        setError((err as { code?: string })?.code || "unknown");
         setAccount(null);
         setLoading(false);
       }
     );
   }, [uid]);
-  return { account, loading };
+  return { account, loading, error };
 }
 
 /** Один аккаунт с живым статусом «в сети» (для открытого чата). */

@@ -26,7 +26,7 @@ export function MessengerApp() {
   const sp = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const me = user?.uid ?? null;
-  const { account, loading: accLoading } = useMyAccount(me);
+  const { account, loading: accLoading, error: accError } = useMyAccount(me);
   const { chats, loading: chatsLoading } = useMyChats(account && !account.banned ? me : null);
   const userChats = useUserChats(account && !account.banned ? me : null);
   const folders = useFolders(account && !account.banned ? me : null);
@@ -116,6 +116,18 @@ export function MessengerApp() {
   }
   // не вошёл → приветствие/вход/регистрация; вошёл на сайте, но без аккаунта MiliGram → выбор @username
   if (!user) return <AuthScreens />;
+  if (accError) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center px-8 gap-3">
+        <p className="text-[20px] font-bold">Не удаётся загрузить аккаунт MiliGram</p>
+        <p className="mx-muted max-w-sm text-sm">
+          Код ошибки: {accError}. {accError === "permission-denied" ? "Похоже, в Firestore не задеплоены правила для мессенджера (messengerAccounts). Сообщи администратору." : "Проверь интернет и попробуй ещё раз."}
+        </p>
+        <button className="btn-primary px-5 py-2.5 text-sm" onClick={() => window.location.reload()}>Обновить</button>
+        <button className="text-xs text-white/40" onClick={() => { signOut(auth).catch(() => {}); }}>Выйти из аккаунта</button>
+      </div>
+    );
+  }
   if (!account || !me) return <JoinScreen defaultName={user.displayName ?? ""} onLogout={() => { signOut(auth).catch(() => {}); }} />;
 
   if (account.banned) {
