@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useRef } from "react";
-import { Check, CheckCheck, Clock, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
@@ -122,6 +122,7 @@ export function MessageRow({
   }
 
   const isNote = msg.kind === "videoNote";
+  const isSticker = msg.kind === "sticker" && !!msg.mediaUrl;
   const isMedia = msg.kind === "image";
   const urls = msg.mediaUrls?.length ? msg.mediaUrls : msg.mediaUrl ? [msg.mediaUrl] : [];
 
@@ -154,6 +155,9 @@ export function MessageRow({
 
   const meta: ReactNode = (
     <span className="mx-meta">
+      {chatType === "channel" && typeof msg.views === "number" && (
+        <span className="inline-flex items-center gap-0.5"><Eye size={13} />{msg.views}</span>
+      )}
       {msg.editedAt && <span>изменено</span>}
       <span>{formatTime(msg.createdAt)}</span>
       {mine &&
@@ -170,6 +174,46 @@ export function MessageRow({
   let content: ReactNode;
   if (msg.deletedForAll) {
     content = <p className="italic opacity-70">Сообщение удалено</p>;
+  } else if (msg.kind === "poll" && msg.poll) {
+    const poll = msg.poll;
+    const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
+    content = (
+      <>
+        <p className="font-semibold mb-0.5">{poll.question}</p>
+        <p className="text-[12px] opacity-70 mb-2">
+          {poll.closed ? "Опрос завершён" : poll.quiz ? "Викторина" : poll.anonymous ? "Анонимный опрос" : "Публичный опрос"}
+          {poll.multiple ? " · несколько ответов" : ""}
+        </p>
+        <div className="space-y-1.5" style={{ minWidth: 200 }}>
+          {poll.options.map((o, i) => {
+            const pct = Math.round((o.count / total) * 100);
+            return (
+              <div key={i} className="relative rounded-lg overflow-hidden px-2.5 py-1.5" style={{ background: "rgba(127,127,127,0.18)" }}>
+                <span className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: "rgba(127,127,127,0.28)" }} />
+                <span className="relative flex items-center justify-between gap-3 text-[14px]"><span>{o.text}</span><span className="opacity-75 text-[12.5px]">{o.count > 0 ? `${pct}%` : ""}</span></span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[12px] opacity-70 mt-2">Проголосовало: {poll.total}</p>
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
+  } else if (msg.kind === "sticker") {
+    content = msg.mediaUrl ? (
+      <div className="relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={safeImageSrc(msg.mediaUrl)} alt="" width={160} height={160} className="block" style={{ width: 160, height: 160, objectFit: "contain" }} draggable={false} />
+        <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}</span>
+      </div>
+    ) : (
+      <>
+        <span className="text-[34px] leading-none">🧩</span> <span className="opacity-80">Стикер</span>
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
   } else if (msg.kind === "voice" && msg.mediaUrl) {
     content = (
       <>
@@ -236,7 +280,7 @@ export function MessageRow({
     );
   }
 
-  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""}`;
+  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""}`;
 
   return (
     <div
@@ -264,7 +308,7 @@ export function MessageRow({
       )}
       <div className="flex flex-col min-w-0" style={{ alignItems: mine ? "flex-end" : "flex-start", maxWidth: "100%" }}>
         <div className={bubbleClass} onClick={handleClick}>
-          {!mine && chatType !== "dm" && showAuthor && !isNote && (
+          {!mine && chatType !== "dm" && showAuthor && !isNote && !isSticker && (
             <p className="text-[13px] font-semibold mb-0.5" style={{ color: nameColor }}>
               {author?.displayName ?? "Участник"}
             </p>

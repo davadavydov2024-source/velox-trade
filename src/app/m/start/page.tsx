@@ -1,12 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { Suspense } from "react";
-import { Onboarding } from "@/components/messenger/Onboarding";
-
-export default function MessengerStartPage() {
-  return (
-    <Suspense fallback={null}>
-      <Onboarding />
-    </Suspense>
-  );
+// Старый адрес входа: теперь вход и регистрация показываются прямо на /m.
+export default function MessengerStartRedirect() {
+  redirect("/m");
 }

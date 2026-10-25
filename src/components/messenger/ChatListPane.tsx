@@ -261,7 +261,7 @@ export function ChatListPane({
                     acc={a}
                     onPress={async () => {
                       try {
-                        const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", members: [a.uid] });
+                        const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [a.handle] });
                         const id = res.chatId ?? res.id;
                         if (id) {
                           setQ("");

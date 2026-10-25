@@ -1,20 +1,21 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Camera } from "lucide-react";
-import { useAuth } from "@/lib/authContext";
-import { sendEmailVerification } from "firebase/auth";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { mApi, mApiPublic, mUpload } from "./api";
-import { Avatar, Spinner } from "./ui";
+import { mApi } from "./api";
+import { Spinner } from "./ui";
 import { InstallSteps } from "./SettingsPane";
-import { readGateToken, saveGateToken } from "./MessengerEntry";
-import { useMyAccount } from "./hooks";
 
-type Step = "login" | "code" | "account" | "profile" | "verify" | "avatar" | "done";
+const HANDLE_RE = /^[a-z0-9_]{4,24}$/;
 
-const HANDLE_RE = /^[a-z][a-z0-9_]{4,31}$/;
+const authError = (code?: string) =>
+  code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"
+    ? "Неверная почта или пароль"
+    : code === "auth/too-many-requests"
+    ? "Слишком много попыток, подожди немного"
+    : "Не удалось войти";
 
 function Shell({ title, subtitle, children, onBack }: { title: string; subtitle?: string; children: ReactNode; onBack?: () => void }) {
   return (
@@ -29,7 +30,7 @@ function Shell({ title, subtitle, children, onBack }: { title: string; subtitle?
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-10 w-full max-w-[400px] mx-auto">
         <div className="mx-step w-full flex flex-col items-center text-center" key={title}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/m/logo.png" alt="" width={104} height={104} className="mb-5" style={{ filter: "drop-shadow(0 12px 28px rgba(255,120,40,0.35))" }} />
+          <img src="/miligram/logo.png" alt="MiliGram" width={104} height={104} className="mb-5" style={{ filter: "drop-shadow(0 12px 28px rgba(255,120,40,0.35))" }} />
           <h1 className="text-[26px] font-bold mb-2">{title}</h1>
           {subtitle && <p className="mx-muted text-[15px] mb-6 max-w-[320px] leading-snug">{subtitle}</p>}
           <div className="w-full space-y-3 text-left">{children}</div>
@@ -48,282 +49,153 @@ function isStandalone(): boolean {
   return (window.navigator as any).standalone === true || window.matchMedia("(display-mode: standalone)").matches;
 }
 
-/** Регистрация и вход как в Telegram: логотип по центру, одно главное действие на экране, плавная смена шагов. */
-export function Onboarding() {
-  const router = useRouter();
-  const sp = useSearchParams();
-  const { user, loading: authLoading, login } = useAuth();
-  const { account, loading: accLoading } = useMyAccount(user?.uid);
+/** Нужен ли код доступа: GET gate → { open }. По умолчанию регистрация открыта. */
+function useGate() {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    mApi<{ open: boolean }>("gate").then((d) => setOpen(d.open)).catch(() => {});
+  }, []);
+  return open;
+}
 
-  const [step, setStep] = useState<Step | null>(null);
-  const [code, setCode] = useState("");
+async function getGateToken(open: boolean, code: string): Promise<string | undefined> {
+  if (open) return undefined;
+  const d = await mApi<{ gateToken: string }>("gate", { code: code.trim() });
+  return d.gateToken;
+}
+
+/** Экраны для тех, кто ещё не вошёл: приветствие → вход / регистрация. Дальше MessengerApp сам видит вход и открывает чаты. */
+export function Onboarding() {
+  const [mode, setMode] = useState<"welcome" | "login" | "register">("welcome");
+  const open = useGate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [password2, setPassword2] = useState("");
   const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState("");
 
-  // выбор стартового шага, когда известно состояние входа
-  useEffect(() => {
-    if (step !== null || authLoading) return;
-    if (user && accLoading) return;
-    if (user && account) {
-      router.replace("/m");
-      return;
-    }
-    const want = sp.get("step") as Step | null;
-    const hasGate = !!readGateToken();
-    if (sp.get("mode") === "login") setStep("login");
-    else if (want === "account" && hasGate && !user) setStep("account");
-    else if (want === "profile" && hasGate && user) setStep("profile");
-    else if (user && hasGate) setStep("profile");
-    else setStep("code");
-  }, [step, authLoading, user, accLoading, account, sp, router]);
-
-  const go = (s: Step) => {
-    setError("");
-    setInfo("");
-    setBusy(false);
-    setStep(s);
-  };
-
-  const gateOrBack = (): string | null => {
-    const t = readGateToken();
-    if (!t) {
-      setError("Код доступа устарел. Введи его ещё раз.");
-      setStep("code");
-    }
-    return t;
-  };
-
-  const submitCode = async (e: React.FormEvent) => {
+  const login = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const res = await mApiPublic<{ gateToken: string }>("gate", { code: code.trim() });
-      saveGateToken(res.gateToken);
-      go(user ? "profile" : "account");
+      await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (err: any) {
-      setError(err?.message || "Неверный код доступа");
+      setError(authError(err?.code));
       setBusy(false);
     }
   };
 
-  const submitAccount = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Проверь адрес почты");
-    if (password.length < 8) return setError("Пароль — минимум 8 символов");
-    if (password !== password2) return setError("Пароли не совпадают");
-    go("profile");
-  };
-
-  const sendVerification = async () => {
-    const u = auth.currentUser;
-    if (!u) return;
-    try {
-      await sendEmailVerification(u);
-      setInfo("Письмо отправлено. Проверь почту, в том числе папку «Спам».");
-    } catch (err: any) {
-      setError(err?.code === "auth/too-many-requests" ? "Слишком часто. Подожди пару минут и попробуй снова." : "Не удалось отправить письмо");
-    }
-  };
-
-  const checkVerified = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      await auth.currentUser?.reload();
-      if (auth.currentUser?.emailVerified) go("avatar");
-      else {
-        setError("Почта пока не подтверждена. Перейди по ссылке в письме и нажми снова.");
-        setBusy(false);
-      }
-    } catch {
-      setError("Не удалось проверить. Попробуй ещё раз.");
-      setBusy(false);
-    }
-  };
-
-  const submitProfile = async (e: React.FormEvent) => {
+  const register = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     const h = handle.trim().replace(/^@/, "").toLowerCase();
     if (name.trim().length < 2) return setError("Введи имя (минимум 2 символа)");
-    if (!HANDLE_RE.test(h)) return setError("Имя пользователя: 5–32 символа, латиница, цифры и _, начинается с буквы");
-    const gateToken = gateOrBack();
-    if (!gateToken) return;
+    if (!HANDLE_RE.test(h)) return setError("@username: 4–24 символа, латиница, цифры и «_»");
+    if (password.length < 8) return setError("Пароль — минимум 8 символов");
     setBusy(true);
     try {
-      if (user) {
-        await mApi("join", { gateToken, handle: h, displayName: name.trim() });
-        go("avatar");
-      } else {
-        await mApiPublic("register", { gateToken, email: email.trim().toLowerCase(), password, handle: h, displayName: name.trim() });
-        await login(email.trim().toLowerCase(), password);
-        // письмо подтверждения почты шлёт клиент (Firebase); сбой письма не должен ломать регистрацию
-        try {
-          if (auth.currentUser && !auth.currentUser.emailVerified) await sendEmailVerification(auth.currentUser);
-        } catch {}
-        go("verify");
-      }
+      const gateToken = await getGateToken(open, code);
+      await mApi("register", { gateToken, email: email.trim(), password, handle: h, displayName: name.trim() });
+      await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (err: any) {
       setError(err?.message || "Не удалось создать аккаунт");
       setBusy(false);
     }
   };
 
-  const pickPhoto = async (f: File | undefined) => {
-    if (!f) return;
-    setBusy(true);
-    try {
-      const url = URL.createObjectURL(f);
-      const img = await new Promise<HTMLImageElement>((res, rej) => {
-        const i = new Image();
-        i.onload = () => res(i);
-        i.onerror = rej;
-        i.src = url;
-      });
-      const side = Math.min(img.naturalWidth, img.naturalHeight);
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = Math.min(512, side);
-      canvas.getContext("2d")!.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("blob"))), "image/jpeg", 0.88));
-      const up = await mUpload(blob, "avatar", { fileName: "avatar.jpg" });
-      await mApi("profile", { photoURL: up.url });
-      setPhoto(up.url);
-    } catch (err: any) {
-      setError(err?.message || "Не удалось загрузить фото");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await login(email.trim().toLowerCase(), password);
-      router.replace("/m");
-    } catch (err: any) {
-      setError(err?.message?.includes("auth/") ? "Неверная почта или пароль" : err?.message || "Не удалось войти");
-      setBusy(false);
-    }
-  };
-
-  const pwdOk = useMemo(() => password.length >= 8, [password]);
-  void pwdOk;
-
-  if (step === null) {
-    return <div className="h-full flex items-center justify-center"><Spinner size={28} /></div>;
-  }
-
   const err = error && <p className="text-[14px] px-1" style={{ color: "var(--mx-danger)" }}>{error}</p>;
 
-  if (step === "login") {
+  if (mode === "welcome") {
     return (
-      <Shell title="Вход" subtitle="Войди в Velox Chat по почте и паролю." onBack={() => router.replace("/")}>
-        <form onSubmit={submitLogin} className="space-y-3">
+      <Shell title="MiliGram" subtitle="Быстрый и милый мессенджер Velox Trade.">
+        <button className="mx-btn" onClick={() => setMode("register")}>Создать аккаунт</button>
+        <button className="mx-btn" style={{ background: "var(--mx-surface)", color: "var(--mx-text)" }} onClick={() => setMode("login")}>У меня уже есть аккаунт</button>
+        {isIos() && !isStandalone() && (
+          <div className="mx-card"><div className="px-4 py-3"><p className="font-semibold mb-2">Совет для iPhone</p><InstallSteps /></div></div>
+        )}
+        <p className="text-[12px] mx-muted text-center pt-2">Сообщения не имеют сквозного шифрования: сервер технически может их читать.</p>
+      </Shell>
+    );
+  }
+
+  if (mode === "login") {
+    return (
+      <Shell title="Вход" subtitle="Почта и пароль от аккаунта MiliGram." onBack={() => { setMode("welcome"); setError(""); }}>
+        <form onSubmit={login} className="space-y-3">
           <input className="mx-input" type="email" placeholder="Почта" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
           <input className="mx-input" type="password" placeholder="Пароль" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           {err}
           <button className="mx-btn" disabled={busy || !email || !password}>{busy ? "Вхожу…" : "Войти"}</button>
-          <button type="button" className="mx-btn mx-btn-ghost" onClick={() => go("code")}>Создать аккаунт</button>
+          <button type="button" className="mx-btn mx-btn-ghost" onClick={() => { setMode("register"); setError(""); }}>Создать аккаунт</button>
         </form>
-      </Shell>
-    );
-  }
-
-  if (step === "code") {
-    return (
-      <Shell title="Velox Chat" subtitle="Закрытый мессенджер. Чтобы создать аккаунт, введи код доступа." onBack={() => router.replace("/")}>
-        <form onSubmit={submitCode} className="space-y-3">
-          <input className="mx-input" type="password" placeholder="Код доступа" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} autoFocus />
-          {err}
-          <button className="mx-btn" disabled={busy || !code.trim()}>{busy ? "Проверяю…" : "Продолжить"}</button>
-          <button type="button" className="mx-btn mx-btn-ghost" onClick={() => go("login")}>У меня уже есть аккаунт</button>
-        </form>
-      </Shell>
-    );
-  }
-
-  if (step === "account") {
-    return (
-      <Shell title="Твой аккаунт" subtitle="Укажи почту и придумай пароль. Письмо для подтверждения почты придёт после регистрации." onBack={() => go("code")}>
-        <form onSubmit={submitAccount} className="space-y-3">
-          <input className="mx-input" type="email" placeholder="Почта" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
-          <input className="mx-input" type="password" placeholder="Пароль (минимум 8 символов)" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <input className="mx-input" type="password" placeholder="Повтори пароль" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} />
-          {err}
-          <button className="mx-btn" disabled={!email || !password}>Продолжить</button>
-        </form>
-      </Shell>
-    );
-  }
-
-  if (step === "verify") {
-    return (
-      <Shell title="Подтверди почту" subtitle={`Мы отправили письмо на ${email || "твою почту"}. Перейди по ссылке в письме — это защитит аккаунт.`}>
-        {err}
-        {info && <p className="text-[14px] px-1 mx-muted">{info}</p>}
-        <button className="mx-btn" onClick={checkVerified} disabled={busy}>{busy ? "Проверяю…" : "Я подтвердил(а)"}</button>
-        <button type="button" className="mx-btn mx-btn-ghost" onClick={sendVerification}>Отправить письмо ещё раз</button>
-        <button type="button" className="mx-btn mx-btn-ghost" style={{ color: "var(--mx-muted)" }} onClick={() => go("avatar")}>Подтвержу позже</button>
-      </Shell>
-    );
-  }
-
-  if (step === "profile") {
-    return (
-      <Shell title="Как тебя зовут?" subtitle="Имя увидят собеседники. По @username тебя смогут найти." onBack={user ? undefined : () => go("account")}>
-        <form onSubmit={submitProfile} className="space-y-3">
-          <input className="mx-input" placeholder="Имя" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 mx-muted text-[16px]">@</span>
-            <input className="mx-input" style={{ paddingLeft: 34 }} placeholder="username" maxLength={32} autoCapitalize="none" autoCorrect="off" value={handle} onChange={(e) => setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))} />
-          </div>
-          <p className="mx-muted text-[13px] px-1">5–32 символа: латиница, цифры и «_».</p>
-          {err}
-          <button className="mx-btn" disabled={busy || !name.trim() || !handle}>{busy ? "Создаю аккаунт…" : "Создать аккаунт"}</button>
-        </form>
-      </Shell>
-    );
-  }
-
-  if (step === "avatar") {
-    return (
-      <Shell title="Добавь фото" subtitle="Так тебя будут узнавать. Можно пропустить и сделать это позже.">
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ""; }} />
-        <div className="flex justify-center py-2">
-          <button onClick={() => fileRef.current?.click()} disabled={busy} className="relative">
-            <Avatar src={photo} name={name || "?"} size={120} />
-            <span className="absolute bottom-1 right-1 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "3px solid var(--mx-bg)" }}>
-              {busy ? <Spinner size={16} /> : <Camera size={18} />}
-            </span>
-          </button>
-        </div>
-        {err}
-        <button className="mx-btn" onClick={() => go("done")} disabled={busy}>{photo ? "Продолжить" : "Пропустить"}</button>
       </Shell>
     );
   }
 
   return (
-    <Shell title="Готово!" subtitle="Аккаунт создан. Добро пожаловать в Velox Chat.">
-      {isIos() && !isStandalone() && (
-        <div className="mx-card"><div className="px-4 py-3"><p className="font-semibold mb-2">Совет для iPhone</p><InstallSteps /></div></div>
-      )}
-      <button className="mx-btn" onClick={() => router.replace("/m")}>Открыть чаты</button>
+    <Shell title="Новый аккаунт" subtitle="Имя увидят собеседники, по @username тебя смогут найти." onBack={() => { setMode("welcome"); setError(""); }}>
+      <form onSubmit={register} className="space-y-3">
+        <input className="mx-input" placeholder="Имя" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 mx-muted">@</span>
+          <input className="mx-input" style={{ paddingLeft: 34 }} placeholder="username" maxLength={24} autoCapitalize="none" autoCorrect="off" value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+        </div>
+        <input className="mx-input" type="email" placeholder="Почта" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="mx-input" type="password" placeholder="Пароль (от 8 символов)" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {!open && <input className="mx-input" placeholder="Код доступа" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />}
+        {err}
+        <button className="mx-btn" disabled={busy || !name || !handle || !email || !password}>{busy ? "Создаю аккаунт…" : "Создать аккаунт"}</button>
+      </form>
     </Shell>
   );
 }
 
-void auth;
+/** Человек уже вошёл на сайте Velox, но аккаунта MiliGram ещё нет — достаточно имени и @username. */
+export function JoinScreen({ defaultName }: { defaultName: string }) {
+  const open = useGate();
+  const [name, setName] = useState(defaultName);
+  const [handle, setHandle] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const join = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const h = handle.trim().replace(/^@/, "").toLowerCase();
+    if (name.trim().length < 2) return setError("Введи имя (минимум 2 символа)");
+    if (!HANDLE_RE.test(h)) return setError("@username: 4–24 символа, латиница, цифры и «_»");
+    setBusy(true);
+    try {
+      const gateToken = await getGateToken(open, code);
+      await mApi("join", { gateToken, handle: h, displayName: name.trim() });
+      // аккаунт появится в Firestore — MessengerApp подхватит его сам (onSnapshot)
+    } catch (err: any) {
+      setError(err?.message || "Не удалось создать аккаунт");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Shell title="Ещё один шаг" subtitle="Выбери имя и @username для MiliGram.">
+      <form onSubmit={join} className="space-y-3">
+        <input className="mx-input" placeholder="Имя" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 mx-muted">@</span>
+          <input className="mx-input" style={{ paddingLeft: 34 }} placeholder="username" maxLength={24} autoCapitalize="none" autoCorrect="off" value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+        </div>
+        {!open && <input className="mx-input" placeholder="Код доступа" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />}
+        {error && <p className="text-[14px] px-1" style={{ color: "var(--mx-danger)" }}>{error}</p>}
+        <button className="mx-btn" disabled={busy || !name || !handle}>{busy ? "Создаю…" : "Продолжить"}</button>
+        <button type="button" className="mx-btn mx-btn-ghost" style={{ color: "var(--mx-muted)" }} onClick={() => signOut(auth)}>Выйти из аккаунта</button>
+      </form>
+    </Shell>
+  );
+}
+
+export function OnboardingLoading() {
+  return <div className="h-full flex items-center justify-center"><Spinner size={28} /></div>;
+}

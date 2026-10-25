@@ -41,6 +41,17 @@ function Logo({ subtitle = "Быстрый и милый мессенджер Ve
   );
 }
 
+const HANDLE_OK = /^[a-z][a-z0-9_]{3,23}$/;
+const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function checkFields(f: { name: string; handle: string; email?: string; password?: string }): string {
+  if (f.name.trim().length < 2) return "Имя — минимум 2 символа";
+  if (!HANDLE_OK.test(f.handle)) return "@username: 4–24 символа, только латиница, цифры и _, начинается с буквы";
+  if (f.email !== undefined && !EMAIL_OK.test(f.email.trim())) return "Проверь почту — она записана неверно";
+  if (f.password !== undefined && f.password.length < 8) return "Пароль — минимум 8 символов";
+  return "";
+}
+const errText = (e: any) => (e?.message && e.message !== "Failed to fetch" ? e.message : "Нет связи с сервером. Проверь интернет и попробуй ещё раз") + (e?.status >= 500 ? ` (ошибка сервера ${e.status})` : "");
+
 /** Нужен ли код доступа: по умолчанию НЕТ (регистрация открыта). */
 function useGate() {
   const [open, setOpen] = useState(true);
@@ -116,11 +127,13 @@ export function AuthScreens() {
 
   async function register(e: FormEvent) {
     e.preventDefault();
+    const bad = checkFields({ name, handle, email, password });
+    if (bad) return setError(bad);
     setBusy(true); setError("");
     try {
       const gateToken = await getGateToken(open, code);
       setTg(await mApi<{ code: string; botUrl: string }>("signup", { gateToken, email: email.trim(), password, handle, displayName: name }));
-    } catch (err: any) { setError(err?.message || "Не удалось создать аккаунт"); }
+    } catch (err: any) { console.error("signup", err); setError(errText(err)); }
     setBusy(false);
   }
 
@@ -160,7 +173,7 @@ export function AuthScreens() {
   return (
     <Shell>
       <Logo subtitle={isReg ? "Создание аккаунта" : "С возвращением"} />
-      <form onSubmit={isReg ? register : login} className="card p-5 space-y-3">
+      <form noValidate onSubmit={isReg ? register : login} className="card p-5 space-y-3">
         {isReg && (
           <>
             <input autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" maxLength={40} className="input-field" required />
@@ -172,7 +185,7 @@ export function AuthScreens() {
         {isReg && !open && <input autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Код доступа" className="input-field" required />}
         {isReg && <p className="text-xs text-white/40 flex gap-1.5"><Send size={13} className="shrink-0 mt-0.5 text-[#229ED9]" /> Следующим шагом нужно будет подтвердить аккаунт через Telegram-бота.</p>}
         {error && <p className="text-sm text-red-300">{error}</p>}
-        <button disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
+        <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
           {busy && <Loader2 size={18} className="animate-spin" />} {isReg ? "Продолжить" : "Войти"}
         </button>
       </form>
@@ -197,12 +210,14 @@ export function JoinScreen({ defaultName, onLogout }: { defaultName: string; onL
 
   async function join(e?: FormEvent) {
     e?.preventDefault();
+    const bad = checkFields({ name, handle });
+    if (bad) return setError(bad);
     setBusy(true); setError("");
     try {
       gateRef.current = gateRef.current ?? (await getGateToken(open, code));
       const r = await mApi<{ ok?: boolean; needTelegram?: boolean; botUrl?: string }>("join", { gateToken: gateRef.current, handle, displayName: name });
       if (r.needTelegram && r.botUrl) setBotUrl(r.botUrl);
-    } catch (err: any) { setError(err?.message || "Не удалось создать аккаунт"); }
+    } catch (err: any) { console.error("join", err); setError(errText(err)); }
     setBusy(false);
   }
 
@@ -223,13 +238,13 @@ export function JoinScreen({ defaultName, onLogout }: { defaultName: string; onL
   return (
     <Shell>
       <Logo subtitle="Ещё один шаг" />
-      <form onSubmit={join} className="card p-5 space-y-3">
+      <form noValidate onSubmit={join} className="card p-5 space-y-3">
         <p className="text-sm text-white/60">Выбери имя и @username для MiliGram. Затем подтвердим аккаунт через Telegram-бота.</p>
         <input autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" maxLength={40} className="input-field" required />
         <input autoComplete="off" value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/^@/, ""))} placeholder="@username (латиница, 4–24)" maxLength={24} className="input-field" required />
         {!open && <input autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Код доступа" className="input-field" required />}
         {error && <p className="text-sm text-red-300">{error}</p>}
-        <button disabled={busy} className="btn-primary w-full py-3.5 text-base disabled:opacity-60">{busy ? "..." : "Продолжить"}</button>
+        <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base disabled:opacity-60">{busy ? "..." : "Продолжить"}</button>
       </form>
       <button onClick={onLogout} className="block mx-auto mt-4 text-xs text-white/40">Выйти из аккаунта</button>
     </Shell>

@@ -161,7 +161,9 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
     if (!text || !group) return;
     setReply("");
     try {
-      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", members: [group.uid] });
+      const handle = accounts[group.uid]?.handle;
+      if (!handle) throw new Error("Не удалось определить получателя");
+      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [handle] });
       const chatId = res.chatId ?? res.id;
       if (!chatId) throw new Error("no chat");
       await mApi("send", { chatId, kind: "text", text: `Ответ на историю: ${text}` });

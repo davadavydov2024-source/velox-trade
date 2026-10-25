@@ -1,18 +1,18 @@
 "use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Palette, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download } from "lucide-react";
+import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
-import { canManageSessions, getCurrentSession, getDeviceId, listSessions, msUntilCanManage, terminateSession } from "@/lib/sessions";
-import { UserSession } from "@/types";
+import { getDeviceId } from "@/lib/messenger/client";
+import { isPremium } from "@/lib/messenger/premium";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch } from "./ui";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -104,10 +104,10 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
           <p className="mx-muted text-[13px]">Нажми, чтобы сменить фото</p>
         </div>
         <label className="block"><span className="mx-muted text-[13px] px-1">Имя</span><input className="mx-input mt-1" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="block"><span className="mx-muted text-[13px] px-1">Имя пользователя</span><input className="mx-input mt-1" value={handle} maxLength={32} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.replace(/[^a-zA-Z0-9_@]/g, ""))} /></label>
+        <label className="block"><span className="mx-muted text-[13px] px-1">Имя пользователя</span><input className="mx-input mt-1" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
         <label className="block"><span className="mx-muted text-[13px] px-1">О себе</span><textarea className="mx-input mt-1" rows={3} maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} /></label>
         <label className="block"><span className="mx-muted text-[13px] px-1">День рождения</span><input type="date" className="mx-input mt-1" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></label>
-        <button className="mx-btn" disabled={busy || name.trim().length < 2 || handle.replace("@", "").length < 5} onClick={() => save()}>{busy ? "Сохраняю…" : "Сохранить"}</button>
+        <button className="mx-btn" disabled={busy || name.trim().length < 2 || handle.replace("@", "").length < 4} onClick={() => save()}>{busy ? "Сохраняю…" : "Сохранить"}</button>
       </div>
     </Sheet>
   );
@@ -132,8 +132,8 @@ function FoldersPage({ folders, onBack }: { folders: MFolder[]; onBack: () => vo
     setBusy(true);
     try {
       const base = { name: name.trim(), emoji: emoji.trim() || undefined, includeTypes: types };
-      if (edit === "new") await mApi("folders", { action: "create", folder: { ...base, order: folders.length } });
-      else if (edit) await mApi("folders", { action: "update", folderId: edit.id, folder: { ...base, order: edit.order } });
+      if (edit === "new") await mApi("folders", { action: "create", ...base });
+      else if (edit) await mApi("folders", { action: "update", id: edit.id, ...base });
       setEdit(null);
     } catch (err) {
       toast("error", err instanceof MApiError ? err.message : "Не удалось сохранить папку");
@@ -145,7 +145,7 @@ function FoldersPage({ folders, onBack }: { folders: MFolder[]; onBack: () => vo
   const remove = async (f: MFolder) => {
     if (!confirm(`Удалить папку «${f.name}»? Чаты останутся на месте.`)) return;
     try {
-      await mApi("folders", { action: "delete", folderId: f.id });
+      await mApi("folders", { action: "delete", id: f.id });
     } catch (err) {
       toast("error", err instanceof MApiError ? err.message : "Не удалось удалить");
     }
@@ -195,18 +195,18 @@ function FoldersPage({ folders, onBack }: { folders: MFolder[]; onBack: () => vo
   );
 }
 
-function DevicesPage({ uid, onBack }: { uid: string; onBack: () => void }) {
+type MxSession = { id: string; deviceName: string; city: string; country: string; ip: string; lastActiveAt: number; current: boolean };
+
+/** Устройства MiliGram: список сеансов с этого аккаунта, завершение отдельного или всех остальных. */
+function DevicesPage({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
-  const [sessions, setSessions] = useState<UserSession[]>([]);
-  const [current, setCurrent] = useState<UserSession | null>(null);
+  const [sessions, setSessions] = useState<MxSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const deviceId = typeof window !== "undefined" ? getDeviceId() : "";
 
   const load = async () => {
     try {
-      const [list, cur] = await Promise.all([listSessions(uid), getCurrentSession(uid)]);
-      setSessions(list);
-      setCurrent(cur);
+      const d = await mApi<{ sessions: MxSession[] }>(`session?deviceId=${getDeviceId()}`);
+      setSessions(d.sessions ?? []);
     } catch {
       toast("error", "Не удалось загрузить список устройств");
     } finally {
@@ -216,46 +216,93 @@ function DevicesPage({ uid, onBack }: { uid: string; onBack: () => void }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid]);
+  }, []);
 
-  const can = canManageSessions(current);
-  const wait = msUntilCanManage(current);
-
-  const end = async (target: string | "all") => {
-    if (!confirm(target === "all" ? "Завершить все остальные сеансы?" : "Завершить этот сеанс?")) return;
+  const end = async (body: Record<string, unknown>, ask: string) => {
+    if (!confirm(ask)) return;
     try {
-      await terminateSession(target);
+      await mApi("session/terminate", body);
       await load();
     } catch (err: any) {
       toast("error", err?.message || "Не удалось завершить сеанс");
     }
   };
 
+  const current = sessions.find((s) => s.current);
+  const others = sessions.filter((s) => !s.current);
+  const place = (s: MxSession) => [s.city, s.country].filter(Boolean).join(", ");
   return (
     <>
       <PageHeader title="Устройства" onBack={onBack} />
       <div className="mx-scroll flex-1 pt-3 pb-24">
-        <Section title="Этот сеанс">
-          {sessions.filter((s) => s.deviceId === deviceId).map((s) => (
-            <div key={s.deviceId} className="flex items-center gap-3 px-4 py-3">
+        <Section title="Это устройство">
+          {current ? (
+            <div className="flex items-center gap-3 px-4 py-3">
               <IconBox color="#34c759"><Laptop size={17} /></IconBox>
-              <div><p>{s.deviceLabel}</p><p className="text-[13px] mx-muted">Сейчас в сети</p></div>
+              <div><p>{current.deviceName}</p><p className="text-[13px] mx-muted">{place(current)} · сейчас в сети</p></div>
             </div>
-          ))}
-          {!loading && !sessions.some((s) => s.deviceId === deviceId) && <p className="px-4 py-3 mx-muted">Текущий сеанс ещё не зарегистрирован</p>}
+          ) : (
+            <p className="px-4 py-3 mx-muted">{loading ? "Загрузка…" : "Текущий сеанс ещё не зарегистрирован"}</p>
+          )}
         </Section>
-        <Section title="Активные сеансы" footer={!can ? `Завершать другие сеансы можно через ${Math.ceil(wait / 3_600_000)} ч. после входа на этом устройстве — так аккаунт защищён, если им завладел чужой человек.` : undefined}>
-          {sessions.filter((s) => s.deviceId !== deviceId).map((s) => (
-            <div key={s.deviceId} className="flex items-center gap-3 px-4 py-3">
+        <Section title="Активные сеансы" footer="Если видишь незнакомое устройство — заверши сеанс и смени пароль.">
+          {others.map((s) => (
+            <div key={s.id} className="flex items-center gap-3 px-4 py-3">
               <IconBox color="#3390ec"><Smartphone size={17} /></IconBox>
-              <div className="flex-1 min-w-0"><p className="truncate">{s.deviceLabel}</p><p className="text-[13px] mx-muted">Активность: {new Date(s.lastActiveAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p></div>
-              <button disabled={!can} onClick={() => end(s.deviceId)} className="text-[14px] disabled:opacity-40" style={{ color: "var(--mx-danger)" }}>Завершить</button>
+              <div className="flex-1 min-w-0">
+                <p className="truncate">{s.deviceName}</p>
+                <p className="text-[13px] mx-muted truncate">{place(s)}{place(s) ? " · " : ""}{new Date(s.lastActiveAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+              </div>
+              <button onClick={() => end({ id: s.id }, "Завершить этот сеанс?")} className="text-[14px]" style={{ color: "var(--mx-danger)" }}>Завершить</button>
             </div>
           ))}
-          {sessions.filter((s) => s.deviceId !== deviceId).length === 0 && <p className="px-4 py-3 mx-muted">Других сеансов нет</p>}
+          {others.length === 0 && <p className="px-4 py-3 mx-muted">Других сеансов нет</p>}
         </Section>
-        {sessions.length > 1 && (
-          <div className="px-4"><button disabled={!can} onClick={() => end("all")} className="mx-btn" style={{ background: "var(--mx-surface)", color: "var(--mx-danger)" }}>Завершить все остальные сеансы</button></div>
+        {others.length > 0 && (
+          <div className="px-4">
+            <button onClick={() => end({ others: true, currentDeviceId: getDeviceId() }, "Завершить все остальные сеансы?")} className="mx-btn" style={{ background: "var(--mx-surface)", color: "var(--mx-danger)" }}>Завершить все остальные сеансы</button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number };
+
+function PremiumPage({ onBack }: { onBack: () => void }) {
+  const { toast } = useToast();
+  const [info, setInfo] = useState<PremiumInfo | null>(null);
+  const load = () => mApi<PremiumInfo>("premium").then(setInfo).catch(() => {});
+  useEffect(() => {
+    load();
+  }, []);
+  const buy = async () => {
+    if (!info || !confirm(`Купить Mili Premium на ${info.days} дн. за ${info.priceStars} ⭐?`)) return;
+    try {
+      await mApi("premium", { action: "buy" });
+      toast("success", "Mili Premium активен ⭐");
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не получилось");
+    }
+  };
+  return (
+    <>
+      <PageHeader title="Mili Premium" onBack={onBack} />
+      <div className="mx-scroll flex-1 pt-4 pb-24 px-4 space-y-4">
+        <div className="mx-card"><div className="px-5 py-6 text-center">
+          <div className="text-5xl mb-2">⭐</div>
+          <p className="text-[19px] font-semibold mb-1">{info?.premium ? "Premium активен" : "Mili Premium"}</p>
+          <p className="mx-muted text-[14px]">{info?.premium && info.premiumUntil ? `До ${new Date(info.premiumUntil).toLocaleDateString("ru-RU")}` : "Премиум-стикеры, больше папок и закреплённых чатов."}</p>
+        </div></div>
+        {info ? (
+          <>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
+            <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
+          </>
+        ) : (
+          <p className="mx-muted text-center">Загрузка…</p>
         )}
       </div>
     </>
@@ -273,7 +320,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    listSessions(me).then((l) => setSessionCount(l.length)).catch(() => {});
+    mApi<{ sessions: unknown[] }>(`session?deviceId=${getDeviceId()}`).then((d) => setSessionCount(d.sessions?.length ?? 0)).catch(() => {});
   }, [me]);
 
   const setShowLastSeen = async (v: boolean) => {
@@ -304,7 +351,8 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const back = () => setPage(null);
 
   if (page === "folders") return <div className="flex flex-col h-full"><FoldersPage folders={folders} onBack={back} /></div>;
-  if (page === "devices") return <div className="flex flex-col h-full"><DevicesPage uid={me} onBack={back} /></div>;
+  if (page === "devices") return <div className="flex flex-col h-full"><DevicesPage onBack={back} /></div>;
+  if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} /></div>;
 
   if (page) {
     return (
@@ -335,6 +383,25 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                   <Switch on={account.showLastSeen !== false} onChange={setShowLastSeen} />
                 </div>
               </div>
+              {(["whoCanMessage", "whoCanAddToGroups"] as const).map((k) => {
+                const privacy = account.privacy ?? { whoCanMessage: "everyone", whoCanAddToGroups: "everyone" };
+                return (
+                  <div key={k} className="mx-card">
+                    <div className="flex items-center justify-between px-4 py-3.5 gap-4">
+                      <span>{k === "whoCanMessage" ? "Кто может мне писать" : "Кто может добавлять меня в группы"}</span>
+                      <select
+                        value={privacy[k]}
+                        onChange={(e) => mApi("profile", { privacy: { ...privacy, [k]: e.target.value } }).catch((err) => toast("error", err?.message || "Не удалось сохранить"))}
+                        className="mx-input"
+                        style={{ width: "auto", padding: "8px 12px" }}
+                      >
+                        <option value="everyone">Все</option>
+                        <option value="nobody">Никто</option>
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
               <div className="mx-card"><div className="px-4 py-3.5 text-[14px] mx-muted leading-relaxed">
                 <p className="font-semibold mb-1" style={{ color: "var(--mx-text)" }}>Про безопасность сообщений</p>
                 Сообщения не шифруются сквозным образом: сервер и администрация технически могут их читать (например, при разборе жалоб). Не пересылай в чатах пароли, коды из СМС и данные карт.
@@ -426,6 +493,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<LockKeyhole size={17} />} color="#8e8e93" label="Конфиденциальность" onClick={() => setPage("privacy")} />
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
+          <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
         </Section>
 
