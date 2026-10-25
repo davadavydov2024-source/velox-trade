@@ -11,7 +11,9 @@ import { Avatar, Spinner } from "./ui";
 import { ChatListPane, totalUnread } from "./ChatListPane";
 import { ChatView } from "./ChatView";
 import { SettingsPane } from "./SettingsPane";
-import { JoinScreen, Onboarding } from "./Onboarding";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { AuthScreens, JoinScreen } from "./AuthScreens";
 import { ContactsPane } from "./ContactsPane";
 import { NewChatSheet } from "./NewChatSheet";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
@@ -113,8 +115,8 @@ export function MessengerApp() {
     return <div className="h-full flex items-center justify-center"><Spinner size={30} /></div>;
   }
   // не вошёл → приветствие/вход/регистрация; вошёл на сайте, но без аккаунта MiliGram → выбор @username
-  if (!user) return <Onboarding />;
-  if (!account || !me) return <JoinScreen defaultName={user.displayName ?? ""} />;
+  if (!user) return <AuthScreens />;
+  if (!account || !me) return <JoinScreen defaultName={user.displayName ?? ""} onLogout={() => { signOut(auth).catch(() => {}); }} />;
 
   if (account.banned) {
     return (
