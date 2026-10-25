@@ -158,3 +158,20 @@
 @media (min-width: 900px) {
   .mx-sheet { max-width: 480px; margin: 0 auto; border-radius: 22px 22px 0 0; }
 }
+
+/* ===== Редизайн: список чатов, истории, профиль ===== */
+.mx-chat-row { position: relative; transition: background 0.15s; }
+.mx-chat-row::after { content: ""; position: absolute; left: 84px; right: 0; bottom: 0; height: 1px; background: var(--mx-line); }
+.mx-chat-row:active { background: var(--mx-surface); }
+.mx-chip { height: 34px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; background: var(--mx-surface); color: var(--mx-muted); border: 1px solid var(--mx-line); transition: background 0.15s, color 0.15s, transform 0.1s; }
+.mx-chip:active { transform: scale(0.96); }
+.mx-chip.on { background: var(--mx-accent); color: var(--mx-accent-text); border-color: transparent; box-shadow: 0 6px 18px -8px var(--mx-accent); }
+.mx-icon-btn { width: 38px; height: 38px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--mx-surface); border: 1px solid var(--mx-line); color: var(--mx-accent); transition: transform 0.1s; }
+.mx-icon-btn:active { transform: scale(0.92); }
+.mx-search { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; border-radius: 16px; background: var(--mx-surface); border: 1px solid transparent; transition: border-color 0.15s; }
+.mx-search:focus-within { border-color: var(--mx-accent); }
+.mx-story-ring:not(.seen) { box-shadow: 0 0 16px -4px var(--mx-accent); }
+.mx-hero { position: relative; margin: 0 16px 16px; border-radius: 26px; overflow: hidden; background: var(--mx-surface); border: 1px solid var(--mx-line); }
+.mx-hero-banner { height: 92px; background: linear-gradient(135deg, var(--mx-accent), #e879f9 55%, #4a6cf7); opacity: 0.95; }
+.mx-hero-body { padding: 0 20px 20px; margin-top: -48px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.mx-status-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: color-mix(in srgb, var(--mx-accent) 16%, transparent); color: var(--mx-accent); }

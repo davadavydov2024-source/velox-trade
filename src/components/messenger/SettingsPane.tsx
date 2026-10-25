@@ -8,7 +8,7 @@ import { PushToggleCard } from "@/components/PushToggleCard";
 import { getDeviceId } from "@/lib/messenger/client";
 import { isPremium } from "@/lib/messenger/premium";
 import { mApi, mUpload, MApiError } from "./api";
-import { Avatar, IconBox, PageHeader, Section, Sheet, Switch } from "./ui";
+import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
@@ -317,6 +317,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const [editProfile, setEditProfile] = useState(false);
   const [installHelp, setInstallHelp] = useState(false);
   const [sessionCount, setSessionCount] = useState<number | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -340,11 +341,15 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
 
   const pickAvatarQuick = async (f: File | undefined) => {
     if (!f) return;
+    setAvatarBusy(true);
     try {
       const up = await mUpload(await squareAvatar(f), "avatar", { fileName: "avatar.jpg" });
       await mApi("profile", { photoURL: up.url });
+      toast("success", "Фото обновлено");
     } catch (err) {
       toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить фото");
+    } finally {
+      setAvatarBusy(false);
     }
   };
 
@@ -467,14 +472,29 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     <div className="flex flex-col h-full">
       <PageHeader title="Настройки" />
       <div className="mx-scroll flex-1 pb-28">
-        <div className="flex flex-col items-center pt-2 pb-5 px-6">
-          <button onClick={() => fileRef.current?.click()} className="relative">
-            <Avatar src={account.photoURL} name={account.displayName} seed={me} size={96} />
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
-          <p className="text-[22px] font-semibold mt-3">{account.displayName}</p>
-          <p className="text-[14px]" style={{ color: "var(--mx-accent)" }}>{status}</p>
-          <button onClick={() => setEditProfile(true)} className="mt-3 px-5 py-2 rounded-full text-[14.5px] font-medium" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Изменить профиль</button>
+        <div className="mx-hero">
+          <div className="mx-hero-banner" />
+          <div className="mx-hero-body">
+            <button onClick={() => fileRef.current?.click()} className="relative rounded-full" disabled={avatarBusy} aria-label="Сменить фото" style={{ border: "4px solid var(--mx-surface)" }}>
+              <Avatar src={account.photoURL} name={account.displayName} seed={me} size={96} />
+              <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "3px solid var(--mx-surface)" }}>
+                <Camera size={15} />
+              </span>
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
+            <p className="text-[23px] font-bold mt-3 flex items-center gap-1.5 justify-center">
+              {account.displayName} {account.verified && <VerifiedBadge size={18} />}
+            </p>
+            <p className="mx-muted text-[14.5px] mt-0.5">@{account.handle}</p>
+            <div className="flex items-center gap-2 mt-2.5 flex-wrap justify-center">
+              <span className="mx-status-chip"><span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--mx-accent)" }} />{status}</span>
+              {isPremium(account) && <span className="mx-status-chip" style={{ background: "rgba(255,180,0,0.16)", color: "#ffb400" }}><Star size={12} /> Premium</span>}
+            </div>
+            {account.bio && <p className="text-[14.5px] mt-3 leading-snug" style={{ color: "var(--mx-text)", opacity: 0.85 }}>{account.bio}</p>}
+            <button onClick={() => setEditProfile(true)} className="mt-4 w-full max-w-[260px] h-11 rounded-full text-[15px] font-semibold" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }}>
+              Изменить профиль
+            </button>
+          </div>
         </div>
 
         <Section>

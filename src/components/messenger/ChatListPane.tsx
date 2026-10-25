@@ -110,6 +110,7 @@ export function ChatListPane({
     });
   }, [chats, userChats, activeFolder]);
 
+  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived ? 1 : 0), 0);
   const archived = chats.filter((c) => userChats[c.id]?.archived);
   const archivedUnread = archived.reduce((s, c) => s + (userChats[c.id]?.unread ?? 0), 0);
 
@@ -156,7 +157,7 @@ export function ChatListPane({
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
         onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
+        <div className="mx-chat-row flex items-center gap-3 px-4 py-3" style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
           {editMode && (
             <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected.has(c.id) ? "var(--mx-accent)" : "var(--mx-muted)", background: selected.has(c.id) ? "var(--mx-accent)" : "transparent" }}>
               {selected.has(c.id) && <Check size={14} color="var(--mx-accent-text)" />}
@@ -167,17 +168,17 @@ export function ChatListPane({
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="font-semibold truncate text-[16.5px] flex items-center gap-1">
+              <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>
                 {title} {peer?.verified && <VerifiedBadge size={14} />}
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
-              <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px] mx-muted">
+              <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
                 {mineLast && last && (readByPeer || saved ? <CheckCheck size={16} style={{ color: "var(--mx-accent)" }} /> : <Check size={16} />)}
                 {last ? formatListTime(last.at, now) : ""}
               </span>
             </div>
             <div className="flex items-start gap-2 mt-0.5">
-              <p className="text-[14.5px] mx-muted flex-1 min-w-0" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
+              <p className="text-[14.5px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
                 {typing ? (
                   <span style={{ color: "var(--mx-accent)" }}>печатает…</span>
                 ) : draft ? (
@@ -218,30 +219,25 @@ export function ChatListPane({
     <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
       <div className="mx-safe-top shrink-0">
-        <div className="h-12 flex items-center px-3 relative">
-          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="text-[16px] px-2 py-1.5" style={{ color: "var(--mx-accent)" }}>
-            {editMode ? "Готово" : "Изм."}
-          </button>
-          <p className="absolute left-1/2 -translate-x-1/2 font-semibold text-[17px] pointer-events-none">Чаты</p>
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={onCreateStory} className="w-9 h-9 rounded-full mx-glass flex items-center justify-center" style={{ color: "var(--mx-accent)" }} aria-label="Новая история">
-              <Camera size={18} />
-            </button>
-            <button onClick={onNewChat} className="w-9 h-9 rounded-full mx-glass flex items-center justify-center" style={{ color: "var(--mx-accent)" }} aria-label="Новое сообщение">
-              <SquarePen size={18} />
-            </button>
+        <div className="px-4 pt-2 pb-2 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[30px] font-bold leading-none tracking-tight">Чаты</h1>
+            {unreadTotal > 0 && <p className="text-[13px] mx-muted mt-1">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
           </div>
+          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-chip" style={editMode ? { background: "var(--mx-accent)", color: "var(--mx-accent-text)" } : undefined}>
+            {editMode ? "Готово" : "Изменить"}
+          </button>
+          <button onClick={onCreateStory} className="mx-icon-btn" aria-label="Новая история"><Camera size={18} /></button>
+          <button onClick={onNewChat} className="mx-icon-btn" aria-label="Новое сообщение"><SquarePen size={18} /></button>
         </div>
       </div>
 
       <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 96 }}>
-        {storyGroups.length > 0 || true ? (
-          <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
-        ) : null}
+        <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
 
         {/* поиск */}
         <div className="px-4 pb-2 pt-1">
-          <div className="flex items-center gap-2 rounded-[14px] px-3 h-10" style={{ background: "var(--mx-surface)" }}>
+          <div className="mx-search">
             <Search size={17} className="mx-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск чатов и людей" className="bg-transparent outline-none flex-1 text-[16px]" autoCapitalize="none" />
             {q && <button onClick={() => setQ("")} className="mx-muted" aria-label="Очистить"><X size={17} /></button>}
@@ -281,20 +277,17 @@ export function ChatListPane({
           <>
             {/* папки */}
             {folders.length > 0 && (
-              <div className="px-4 pb-2">
-                <div className="mx-glass rounded-full p-1 flex gap-1 overflow-x-auto mx-noscrollbar">
+              <div className="pb-2">
+                <div className="flex gap-2 overflow-x-auto mx-noscrollbar px-4 py-1">
                   {[{ id: "all", name: "Все", emoji: "" } as MFolder, ...folders].map((f) => {
                     const on = f.id === folderId;
                     const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
                     return (
-                      <button
-                        key={f.id}
-                        onClick={() => setFolderId(f.id)}
-                        className="px-3.5 h-8 rounded-full text-[14px] font-medium whitespace-nowrap flex items-center gap-1.5 shrink-0"
-                        style={{ background: on ? "var(--mx-surface2)" : "transparent", color: on ? "var(--mx-text)" : "var(--mx-muted)" }}
-                      >
+                      <button key={f.id} onClick={() => setFolderId(f.id)} className={`mx-chip ${on ? "on" : ""}`}>
                         {f.emoji} {f.name}
-                        {count > 0 && <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{count}</span>}
+                        {count > 0 && (
+                          <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent-text)" : "var(--mx-accent)", color: on ? "var(--mx-accent)" : "var(--mx-accent-text)" }}>{count}</span>
+                        )}
                       </button>
                     );
                   })}
@@ -319,7 +312,8 @@ export function ChatListPane({
             {visible.map(row)}
             {!loading && visible.length === 0 && archived.length === 0 && (
               <div className="text-center px-10 py-14">
-                <p className="text-[17px] font-semibold mb-1.5">Чатов пока нет</p>
+                <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}><SquarePen size={26} /></div>
+                <p className="text-[18px] font-semibold mb-1.5">Чатов пока нет</p>
                 <p className="mx-muted text-[14px] mb-5">Найди человека по @username или создай группу.</p>
                 <button className="mx-btn" style={{ width: "auto", padding: "12px 24px" }} onClick={onNewChat}>Новое сообщение</button>
               </div>
