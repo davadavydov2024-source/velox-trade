@@ -63,6 +63,8 @@ export function kindLabel(kind: MMsgKind): string {
       return "Видеосообщение";
     case "file":
       return "Файл";
+    case "gift":
+      return "Подарок 🎁";
     default:
       return "";
   }

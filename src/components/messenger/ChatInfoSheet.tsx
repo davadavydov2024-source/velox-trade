@@ -6,6 +6,7 @@ import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, VerifiedBadge } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
+import { GiftsProfileTab } from "./Gifts";
 import { MAccount, MChat } from "./mtypes";
 import { chatPhoto, chatTitle, isSavedMessages, lastSeenText, peerUid, plural } from "./util";
 
@@ -76,6 +77,26 @@ export function ChatInfoSheet({
           {chat.description && (
             <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">Описание</p><p className="whitespace-pre-wrap">{chat.description}</p></div>
           )}
+        </div>
+      )}
+
+      {chat.type === "dm" && !saved && peer && (
+        <div className="mb-2">
+          <p className="mx-muted text-[13px] uppercase tracking-wide px-7 mb-2">Подарки</p>
+          <GiftsProfileTab uid={peerUid(chat, me)} mine={false} name={title} />
+        </div>
+      )}
+
+      {chat.type !== "dm" && (
+        <div className="mx-card" style={{ margin: "0 16px 16px" }}>
+          {chat.handle && (
+            <button className="w-full px-4 py-3 text-left" onClick={() => { const l = `${location.origin}/m?join=@${chat.handle}`; navigator.clipboard?.writeText(l).then(() => toast("success", "Ссылка скопирована")).catch(() => {}); }}>
+              <p className="mx-muted text-[12.5px]">Ссылка</p><p className="truncate" style={{ color: "var(--mx-accent)" }}>{typeof location !== "undefined" ? location.origin : ""}/m?join=@{chat.handle}</p>
+            </button>
+          )}
+          <div className="flex items-center justify-between px-4 py-3"><span>Администраторы</span><span className="mx-muted">{Array.from(new Set([chat.createdBy, ...(chat.admins ?? [])])).length}</span></div>
+          <div className="flex items-center justify-between px-4 py-3"><span>{chat.type === "channel" ? "Подписчики" : "Участники"}</span><span className="mx-muted">{chat.members.length}</span></div>
+          {isAdmin && (chat.banned?.length ?? 0) > 0 && <div className="flex items-center justify-between px-4 py-3"><span>Чёрный список</span><span className="mx-muted">{chat.banned!.length}</span></div>}
         </div>
       )}
 

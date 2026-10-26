@@ -145,6 +145,7 @@ export function previewOf(kind: MessageKind, text?: string): string {
   if (kind === "videoNote") return "📹 Видеосообщение";
   if (kind === "file") return "📎 Файл";
   if (kind === "sticker") return "🖼 Стикер";
+  if (kind === "gift") return "🎁 Подарок";
   if (kind === "poll") return `📊 ${(text ?? "Опрос").slice(0, 100)}`;
   return (text ?? "").trim().slice(0, 120);
 }

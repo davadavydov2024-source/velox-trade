@@ -1,7 +1,7 @@
 /** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
-export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system";
+export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift";
 
 export interface MessengerAccount {
   uid: string;
@@ -66,6 +66,7 @@ export interface MessengerMessage {
   deletedForAll?: boolean;
   views?: number; // просмотры поста в канале
   sticker?: { pack: string; index: number };
+  gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean }; // kind: "gift", подпись — в text
   poll?: MessengerPoll;
   mentions?: string[]; // uid упомянутых через @handle
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
