@@ -1,19 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Ban, Megaphone, ShieldAlert, Star } from "lucide-react";
+import { BadgeCheck, Ban, Gift, Megaphone, ShieldAlert, Sparkles, Star, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { useToast } from "@/lib/toastContext";
 import { Avatar, PageHeader, Spinner } from "./ui";
 import type { MAccount } from "./mtypes";
+import { GIFTS, giftById } from "@/lib/messenger/gifts";
+import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS } from "@/lib/messenger/nft";
 
 type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number };
 type Report = { id: string; reporterUid: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string; reason: string; createdAt: number };
 type ReadMsg = { id: string; from: string; kind: string; text: string; mediaUrl: string | null; createdAt: number; deleted: boolean };
 type ReadResult = { chat: { id: string; type: string; title: string | null }; messages: ReadMsg[]; accounts: Record<string, { displayName: string; handle: string }>; highlightAt: number | null };
+type GrantInfo = { account: { uid: string; handle: string; displayName: string; premiumUntil: number; verified: boolean; banned: boolean }; wallet: number; gifts: { id: string; giftId: string; at: number; nft: { number: number; supply: number; model: string; backdrop: string; symbol: string } | null; byAdmin: boolean }[] };
 type Past = { id: string; text: string; target: string; sent: number; createdAt: number; done: boolean };
 const TARGETS: [string, string][] = [["all", "Всем"], ["premium", "Только Mili Premium"], ["verified", "Только с галочкой"]];
-const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["reports", "Жалобы"], ["chats", "Чаты"], ["stickers", "Стикеры"]] as const;
+const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["stickers", "Стикеры"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 async function call<T = any>(url: string, body?: unknown): Promise<T> {
@@ -41,6 +44,17 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [sent, setSent] = useState(0);
   const [past, setPast] = useState<Past[]>([]);
 
+  // «Выдать»: премиум, ⭐, подарки и NFT
+  const [giveTo, setGiveTo] = useState<MAccount | null>(null);
+  const [info, setInfo] = useState<GrantInfo | null>(null);
+  const [busyKey, setBusyKey] = useState("");
+  const [giftId, setGiftId] = useState("rocket");
+  const [giftMsg, setGiftMsg] = useState("");
+  const [giftCount, setGiftCount] = useState(1);
+  const [giftFrom, setGiftFrom] = useState<"service" | "me">("service");
+  const [traits, setTraits] = useState({ model: "", backdrop: "", symbol: "" });
+  const [starsAmount, setStarsAmount] = useState("");
+
   // чтение переписки (только по жалобе или с указанием причины; всё пишется в журнал)
   const [ra, setRa] = useState("");
   const [rb, setRb] = useState("");
@@ -67,6 +81,21 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const act = async (body: Record<string, unknown>, ok: string) => {
     try { await call("/api/admin/messenger", body); toast("success", ok); load(q); } catch (e: any) { toast("error", e.message); }
   };
+
+  const loadInfo = useCallback(async (uid: string) => {
+    try { setInfo(await call<GrantInfo>(`/api/admin/messenger/grant?uid=${encodeURIComponent(uid)}`)); } catch (e: any) { toast("error", e.message); }
+  }, [toast]);
+  const pickTarget = (a: MAccount) => { setGiveTo(a); setInfo(null); loadInfo(a.uid); };
+  const grant = async (key: string, body: Record<string, unknown>, ok: string) => {
+    if (!giveTo) return;
+    setBusyKey(key);
+    try {
+      await call("/api/admin/messenger/grant", { uid: giveTo.uid, ...body });
+      toast("success", ok);
+      await loadInfo(giveTo.uid);
+    } catch (e: any) { toast("error", e.message); } finally { setBusyKey(""); }
+  };
+  const selGift = giftById(giftId);
 
   const start = async () => {
     if (!text.trim()) return toast("warning", "Напиши текст рассылки");
@@ -149,6 +178,126 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
               ))}
               {!loading && people.length === 0 && <p className="mx-muted px-4 py-4 text-[14px]">Никого не найдено</p>}
             </div>
+          </>
+        )}
+
+        {tab === "give" && (
+          <>
+            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.giveTo.value); if (e.giveTo.value.trim().length >= 2 || !e.giveTo.value.trim()) load(e.giveTo.value); }} autoCapitalize="none" />
+            {!giveTo && loading && <div className="flex justify-center"><Spinner /></div>}
+            {!giveTo && (
+              <div className="mx-card">
+                {people.map((a) => (
+                  <button key={a.uid} onClick={() => pickTarget(a)} className="w-full text-left px-4 py-3 flex items-center gap-3">
+                    <Avatar src={a.photoURL} name={a.displayName} seed={a.uid} size={40} />
+                    <div className="min-w-0 flex-1"><p className="truncate font-semibold">{a.displayName}</p><p className="mx-muted text-[12.5px]">@{a.handle}</p></div>
+                    <span className="mx-muted text-[13px]">Выбрать</span>
+                  </button>
+                ))}
+                {!loading && people.length === 0 && <p className="mx-muted px-4 py-4 text-[14px]">Никого не найдено</p>}
+              </div>
+            )}
+
+            {giveTo && (
+              <>
+                <div className="mx-card px-4 py-3 flex items-center gap-3">
+                  <Avatar src={giveTo.photoURL} name={giveTo.displayName} seed={giveTo.uid} size={46} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{giveTo.displayName}</p>
+                    <p className="mx-muted text-[12.5px]">@{giveTo.handle}</p>
+                    <p className="text-[12.5px] mt-0.5" style={{ color: "var(--mx-accent)" }}>
+                      {info ? `${info.wallet} ⭐ · ${info.account.premiumUntil > Date.now() ? `Premium до ${new Date(info.account.premiumUntil).toLocaleDateString("ru-RU")}` : "без Premium"}` : "Загружаю…"}
+                    </p>
+                  </div>
+                  <button className="mx-chip" onClick={() => { setGiveTo(null); setInfo(null); }}>Другой</button>
+                </div>
+
+                <div className="mx-card p-4 space-y-3">
+                  <p className="font-semibold flex items-center gap-2"><Star size={16} style={{ color: "var(--mx-accent)" }} /> Mili Premium</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[7, 30, 90, 365].map((d) => (
+                      <button key={d} className="mx-chip" disabled={!!busyKey} onClick={() => grant(`p${d}`, { action: "premium", days: d }, `Premium +${d} дн.`)}>{busyKey === `p${d}` ? "…" : `+${d} дн.`}</button>
+                    ))}
+                    <button className="mx-chip" disabled={!!busyKey} onClick={() => confirm("Снять Premium?") && grant("pr", { action: "premiumRevoke" }, "Premium снят")}>Снять</button>
+                  </div>
+                </div>
+
+                <div className="mx-card p-4 space-y-3">
+                  <p className="font-semibold">⭐ Звёзды в кошелёк</p>
+                  <div className="flex gap-2">
+                    <input className="mx-input flex-1" type="number" inputMode="numeric" min={1} placeholder="Сколько ⭐" value={starsAmount} onChange={(e) => setStarsAmount(e.giveTo.value)} />
+                    <button className="mx-btn" disabled={!!busyKey || !starsAmount} onClick={() => grant("st", { action: "stars", amount: Number(starsAmount) }, `Начислено ${starsAmount} ⭐`).then(() => setStarsAmount(""))}>{busyKey === "st" ? "…" : "Начислить"}</button>
+                  </div>
+                </div>
+
+                <div className="mx-card p-4 space-y-3">
+                  <p className="font-semibold flex items-center gap-2"><Gift size={16} style={{ color: "var(--mx-accent)" }} /> Подарок или NFT</p>
+                  <select className="mx-input w-full" value={giftId} onChange={(e) => setGiftId(e.giveTo.value)}>
+                    <optgroup label="✨ NFT (уникальные)">
+                      {GIFTS.filter((g) => g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · тираж {g.limited}</option>)}
+                    </optgroup>
+                    <optgroup label="Обычные подарки">
+                      {GIFTS.filter((g) => !g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · {g.price} ⭐</option>)}
+                    </optgroup>
+                  </select>
+                  {selGift?.nft && (
+                    <div className="space-y-2">
+                      <p className="mx-muted text-[12.5px] flex items-center gap-1"><Sparkles size={13} /> Признаки NFT — по умолчанию выпадают случайно, можно выбрать свои</p>
+                      {([["model", "Модель", NFT_MODELS], ["backdrop", "Фон", NFT_BACKDROPS], ["symbol", "Узор", NFT_SYMBOLS]] as const).map(([key, label, list]) => (
+                        <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.giveTo.value }))}>
+                          <option value="">{label}: случайно</option>
+                          {list.map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
+                        </select>
+                      ))}
+                    </div>
+                  )}
+                  <input className="mx-input w-full" maxLength={120} placeholder="Подпись к подарку (необязательно)" value={giftMsg} onChange={(e) => setGiftMsg(e.giveTo.value)} />
+                  <div className="flex gap-2">
+                    <select className="mx-input flex-1" value={giftFrom} onChange={(e) => setGiftFrom(e.giveTo.value as "service" | "me")}>
+                      <option value="service">От «MiliGram»</option>
+                      <option value="me">От меня</option>
+                    </select>
+                    <select className="mx-input w-24" value={giftCount} onChange={(e) => setGiftCount(Number(e.giveTo.value))}>
+                      {[1, 2, 3, 5, 10].map((n) => <option key={n} value={n}>× {n}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    className="mx-btn w-full"
+                    disabled={!!busyKey}
+                    onClick={() => grant("g", { action: "gift", giftId, count: giftCount, message: giftMsg, from: giftFrom, ...(selGift?.nft ? { nft: traits } : {}) }, "Подарок выдан").then(() => setGiftMsg(""))}
+                  >
+                    {busyKey === "g" ? "Дарю…" : `Подарить${giftCount > 1 ? ` × ${giftCount}` : ""}`}
+                  </button>
+                  <p className="mx-muted text-[12px]">Бесплатно для тебя. Подарки от администрации нельзя обменять на ⭐. NFT занимает номер в тираже.</p>
+                </div>
+
+                <div className="mx-card">
+                  <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Подарки у человека{info ? ` · ${info.gifts.length}` : ""}</p>
+                  {info && info.gifts.length === 0 && <p className="mx-muted px-4 py-3 text-[14px]">Пока нет</p>}
+                  {info?.gifts.map((g) => {
+                    const def = giftById(g.giftId);
+                    return (
+                      <div key={g.id} className="px-4 py-2 flex items-center gap-3">
+                        <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[14.5px]">{def?.title ?? g.giftId}{g.nft ? ` · №${g.nft.number}/${g.nft.supply}` : ""}{g.byAdmin ? " · от админа" : ""}</p>
+                          {g.nft && <p className="mx-muted text-[12px] truncate">{g.nft.model} · {g.nft.backdrop} · {g.nft.symbol}</p>}
+                        </div>
+                        <button className="p-2" aria-label="Забрать подарок" disabled={!!busyKey} onClick={() => confirm("Забрать этот подарок у человека?") && grant(`r${g.id}`, { action: "revokeGift", giftDocId: g.id }, "Подарок забран")}><Trash2 size={16} /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mx-card p-4 space-y-2">
+                  <p className="font-semibold">Остальное</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button className="mx-chip" onClick={() => act({ action: info?.account.verified ? "unverify" : "verify", uid: giveTo.uid }, "Готово").then(() => loadInfo(giveTo.uid))}><BadgeCheck size={14} /> {info?.account.verified ? "Снять галочку" : "Выдать галочку"}</button>
+                    <button className="mx-chip" onClick={() => act({ action: info?.account.banned ? "unban" : "ban", uid: giveTo.uid }, info?.account.banned ? "Разбанен" : "Забанен").then(() => loadInfo(giveTo.uid))}><Ban size={14} /> {info?.account.banned ? "Разбан" : "Бан"}</button>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
 
