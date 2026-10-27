@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText } from "lucide-react";
@@ -452,7 +452,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
       <div className="flex flex-col h-full">
         <PageHeader
           onBack={back}
-          title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши" }[page]}
+          title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши", admin: "Админ-панель", docs: "Документы" }[page]}
         />
         <div className="mx-scroll flex-1 pt-3 pb-24 px-4">
           {page === "notifications" && (
@@ -652,3 +652,4 @@ export function InstallSteps() {
     </div>
   );
 }
+
