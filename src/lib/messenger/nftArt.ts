@@ -15,6 +15,8 @@ export function nftTier(nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): Nf
   return r <= 20 ? "legendary" : r <= 50 ? "epic" : "common";
 }
 
+export const NFT_TIER_LABEL: Record<NftTier, string> = { legendary: "Легендарный", epic: "Эпический", common: "Обычный" };
+
 const f = (n: number) => Math.round(n * 100) / 100;
 
 function starPath(points: number, ro: number, ri: number, rot = -90): string {
@@ -37,6 +39,9 @@ const SYMBOL_PATHS: Record<string, string> = {
   "Кристаллы": "M0,-10 L7.5,0 L0,10 L-7.5,0Z",
   "Короны": "M-9,6 L-10,-5 L-4.5,0 L0,-8 L4.5,0 L10,-5 L9,6Z",
 };
+
+/** Контур иконки узора (рисуется вокруг (0,0), viewBox -12 -12 24 24) — для плиток «Узоры» в каталоге. */
+export const nftSymbolPath = (name: string): string => SYMBOL_PATHS[name] ?? SYMBOL_PATHS["Звёзды"];
 
 /** Где стоят иконки узора: x, y, поворот, масштаб. Центр оставлен свободным под фигурку. */
 const PATTERN: [number, number, number, number][] = [
