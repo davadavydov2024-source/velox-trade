@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
   const body = await req.json().catch(() => ({}));
-  const id = body?.id ?? body?.storyId; // клиент шлёт storyId — раньше из-за этого просмотры вообще не засчитывались
+  const id = body.id ?? body.storyId; // клиент шлёт storyId
   if (typeof id !== "string" || !id || id.includes("/")) return fail("id обязателен");
   const db = adminDb();
   const ref = db.collection("messengerStories").doc(id);

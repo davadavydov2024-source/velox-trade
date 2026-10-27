@@ -1,7 +1,7 @@
 /** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
-export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system";
+export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift";
 
 export interface MessengerAccount {
   uid: string;
@@ -16,6 +16,8 @@ export interface MessengerAccount {
   banned: boolean;
   verified?: boolean;
   bannerURL?: string | null; // баннер профиля (обложка)
+  status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
+  channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
 }
@@ -66,6 +68,7 @@ export interface MessengerMessage {
   deletedForAll?: boolean;
   views?: number; // просмотры поста в канале
   sticker?: { pack: string; index: number };
+  gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
   poll?: MessengerPoll;
   mentions?: string[]; // uid упомянутых через @handle
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
@@ -128,6 +131,8 @@ export interface MessengerStickerPack {
   premium: boolean; // добавить и отправлять могут только с Mili Premium
   published: boolean;
   stickers: { url: string; emoji: string }[];
+  createdBy?: string; // кто привёз набор
+  tgName?: string; // имя набора в Telegram (t.me/addstickers/<tgName>), если импортирован
   createdAt: number;
   updatedAt: number;
 }

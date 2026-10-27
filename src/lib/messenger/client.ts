@@ -34,7 +34,7 @@ export class MApiError extends Error {
 }
 
 /** Запрос к /api/messenger/<path>. Без тела — GET, с телом — POST. Завершённый сеанс (401 revoked) сам выходит из аккаунта. */
-export async function mApi<T = any>(path: string, body?: unknown, method?: "GET" | "POST" | "PATCH" | "DELETE"): Promise<T> {
+export async function mApi<T = any>(path: string, body?: unknown, method?: "GET" | "POST" | "DELETE"): Promise<T> {
   const token = await auth.currentUser?.getIdToken().catch(() => undefined);
   const res = await fetch(`/api/messenger/${path}`, {
     method: method ?? (body === undefined ? "GET" : "POST"),
