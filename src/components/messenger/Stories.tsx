@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { Eye, Plus, Send, Trash2, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { safeImageSrc } from "@/lib/safeImage";
 import { mApi, mUpload, MApiError } from "./api";
@@ -11,7 +11,6 @@ import { useAccounts } from "./hooks";
 import { MAccount, MStory } from "./mtypes";
 import { MX_FEATURES } from "./features";
 import { formatTime } from "./util";
-import { DrawEditor } from "./StoryDraw";
 
 export interface StoryGroup {
   uid: string;
@@ -80,7 +79,6 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   const [paused, setPaused] = useState(false);
   const [reply, setReply] = useState("");
   const [viewersOpen, setViewersOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const holdTimer = useRef<any>(null);
   const heldRef = useRef(false);
@@ -116,7 +114,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
 
   // отметка «просмотрено»
   useEffect(() => {
-    if (story && !mine && !story.viewers?.includes(me)) mApi("stories/view", { id: story.id }).then(onChanged).catch(() => {});
+    if (story && !mine && !story.viewers?.includes(me)) mApi("stories/view", { storyId: story.id }).then(onChanged).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
@@ -130,7 +128,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   // таймер прогресса. next() вызывается ровно один раз и НЕ из setState-апдейтера
   // (раньше из-за этого история могла перескакивать через одну или закрываться раньше времени)
   useEffect(() => {
-    if (!story || paused || viewersOpen || editOpen) return;
+    if (!story || paused || viewersOpen) return;
     let raf = 0;
     let finished = false;
     let last = performance.now();
@@ -153,14 +151,14 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story?.id, story?.kind, paused, viewersOpen, editOpen, next]);
+  }, [story?.id, story?.kind, paused, viewersOpen, next]);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (paused || viewersOpen || editOpen) v.pause();
+    if (paused || viewersOpen) v.pause();
     else v.play().catch(() => {});
-  }, [paused, viewersOpen, editOpen, story?.id]);
+  }, [paused, viewersOpen, story?.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -192,7 +190,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   const remove = async () => {
     if (!story || !confirm("Удалить эту историю?")) return;
     try {
-      await mApi(`stories?id=${encodeURIComponent(story.id)}`, { id: story.id }, "DELETE");
+      await mApi("stories", { storyId: story.id }, "DELETE");
       onChanged();
       if (group.stories.length <= 1) onClose();
       else next();
@@ -251,7 +249,6 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
               <p className="font-semibold text-[14.5px] truncate">{mine ? "Моя история" : author?.displayName}</p>
               <p className="text-[12px] opacity-75">{formatTime(story.createdAt)}</p>
             </div>
-            {mine && <button onClick={() => setEditOpen(true)} className="p-2" aria-label="Изменить"><Pencil size={20} /></button>}
             {mine && <button onClick={remove} className="p-2" aria-label="Удалить"><Trash2 size={20} /></button>}
             <button onClick={onClose} className="p-2" aria-label="Закрыть"><X size={24} /></button>
           </div>
@@ -288,7 +285,6 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
         )}
       </div>
 
-      <StoryEditSheet open={editOpen} story={story} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); onChanged(); }} />
       <Sheet open={viewersOpen} onClose={() => setViewersOpen(false)} title="Просмотры" zIndex={95}>
         <div className="pb-6">
           {(story.viewers ?? []).length === 0 && <p className="mx-muted text-center py-6">Пока никто не смотрел</p>}
@@ -305,64 +301,6 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   );
 }
 
-/** Редактирование своей истории: подпись + рисование поверх картинки. */
-function StoryEditSheet({ open, story, onClose, onSaved }: { open: boolean; story: MStory | undefined; onClose: () => void; onSaved: () => void }) {
-  const { toast } = useToast();
-  const [caption, setCaption] = useState("");
-  const [drawing, setDrawing] = useState(false);
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [busy, setBusy] = useState(false);
-  const blobUrl = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
-  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
-  useEffect(() => {
-    if (open && story) { setCaption(story.caption ?? ""); setBlob(null); setDrawing(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, story?.id]);
-  if (!story) return null;
-  const isImage = story.kind === "image";
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      const body: Record<string, unknown> = { id: story.id, caption: caption.trim() };
-      if (blob) body.mediaUrl = (await mUpload(blob, "story")).url;
-      await mApi("stories", body, "PATCH");
-      toast("success", "История обновлена");
-      onSaved();
-    } catch (err) {
-      toast("error", err instanceof MApiError ? err.message : "Не удалось сохранить");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <Sheet open={open && !drawing} onClose={onClose} title="Изменить историю" zIndex={95}>
-        <div className="p-4 space-y-3 pb-8">
-          <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center" style={{ height: 240 }}>
-            {isImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={blobUrl ?? safeImageSrc(story.mediaUrl)} alt="" className="max-h-full max-w-full object-contain" />
-            ) : (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
-              <video src={safeImageSrc(story.mediaUrl)} muted playsInline className="max-h-full max-w-full" />
-            )}
-          </div>
-          {isImage && (
-            <button className="mx-btn mx-btn-ghost flex items-center justify-center gap-2" disabled={busy} onClick={() => setDrawing(true)}>
-              <Pencil size={18} /> {blob ? "Рисовать дальше" : "Нарисовать на картинке"}
-            </button>
-          )}
-          <input className="mx-input" placeholder="Подпись (необязательно)" maxLength={120} value={caption} onChange={(e) => setCaption(e.target.value)} />
-          <button className="mx-btn" disabled={busy} onClick={save}>{busy ? "Сохраняю…" : "Сохранить"}</button>
-        </div>
-      </Sheet>
-      {drawing && isImage && <DrawEditor src={blobUrl ?? story.mediaUrl} onCancel={() => setDrawing(false)} onDone={(b) => { setBlob(b); setDrawing(false); }} />}
-    </>
-  );
-}
-
 export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -370,7 +308,6 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const [drawing, setDrawing] = useState(false);
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
@@ -411,8 +348,6 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
   };
 
   return (
-    <>
-    {drawing && previewUrl && file && <DrawEditor src={previewUrl} onCancel={() => setDrawing(false)} onDone={(b) => { setFile(new File([b], "story.jpg", { type: "image/jpeg" })); setDrawing(false); }} />}
     <Sheet open={open} onClose={() => { reset(); onClose(); }} title="Новая история" full>
       <div className="p-4 space-y-3 pb-8">
         <input ref={input} type="file" accept={MX_FEATURES.upload ? "image/*,video/mp4,video/quicktime,video/webm" : "image/*"} hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
@@ -434,9 +369,6 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
         )}
         {file && (
           <>
-            {!file.type.startsWith("video/") && (
-              <button className="mx-btn mx-btn-ghost flex items-center justify-center gap-2" disabled={busy} onClick={() => setDrawing(true)}><Pencil size={18} /> Нарисовать на картинке</button>
-            )}
             <input className="mx-input" placeholder="Подпись (необязательно)" maxLength={120} value={caption} onChange={(e) => setCaption(e.target.value)} />
             {busy && <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--mx-surface2)" }}><div className="h-full" style={{ width: `${Math.round(progress * 100)}%`, background: "var(--mx-accent)" }} /></div>}
             <button className="mx-btn" disabled={busy} onClick={publish}>{busy ? "Публикую…" : "Опубликовать"}</button>
@@ -446,6 +378,5 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
         <p className="mx-muted text-[13px] text-center">История исчезнет через 24 часа. Её увидят ваши контакты.</p>
       </div>
     </Sheet>
-    </>
   );
 }

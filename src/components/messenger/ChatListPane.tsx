@@ -5,6 +5,7 @@ import { Archive, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, Check
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
@@ -157,19 +158,17 @@ export function ChatListPane({
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
         onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className="mx-chat-row flex items-center gap-3 px-4 py-3" style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
-          {editMode && (
-            <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected.has(c.id) ? "var(--mx-accent)" : "var(--mx-muted)", background: selected.has(c.id) ? "var(--mx-accent)" : "transparent" }}>
-              {selected.has(c.id) && <Check size={14} color="var(--mx-accent-text)" />}
-            </span>
-          )}
-          <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={isOnline(peer, now)}>
-            {saved ? "🔖" : undefined}
-          </Avatar>
+        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
+          <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
+            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={!editMode && isOnline(peer, now)}>
+              {saved ? "🔖" : undefined}
+            </Avatar>
+            <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>
-                {title} {peer?.verified && <VerifiedBadge size={14} />}
+                {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
               <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
@@ -335,14 +334,14 @@ export function ChatListPane({
       </div>
 
       {editMode && (
-        <div className="absolute left-4 right-4 flex p-1.5 rounded-[28px] mx-pop" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)", zIndex: 30, background: "var(--mx-surface)", border: "1px solid var(--mx-line)", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }}>
+        <div className="absolute inset-x-0 bottom-0 mx-glass mx-safe-bottom flex" style={{ borderWidth: "1px 0 0", zIndex: 20 }}>
           {[
             { label: "Прочитано", icon: <ReadIcon size={20} />, run: () => { markRead(selectedIds); exitEdit(); } },
             { label: "Закрепить", icon: <Pin size={20} />, run: () => bulk({ pinned: true }) },
             { label: "Без звука", icon: <BellOff size={20} />, run: () => { setMuteFor(chats.filter((c) => selected.has(c.id))); } },
             { label: "В архив", icon: <Archive size={20} />, run: () => bulk({ archived: true }) },
           ].map((b) => (
-            <button key={b.label} disabled={selected.size === 0} onClick={b.run} className="flex-1 flex flex-col items-center gap-1 py-2 text-[11.5px] rounded-[22px] active:bg-white/5 disabled:opacity-35" style={{ color: "var(--mx-accent)" }}>
+            <button key={b.label} disabled={selected.size === 0} onClick={b.run} className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[11.5px] disabled:opacity-35" style={{ color: "var(--mx-accent)" }}>
               {b.icon}
               {b.label}
             </button>

@@ -44,3 +44,71 @@ src/components/messenger/mtypes.ts
 src/components/messenger/prefs.ts
 src/components/messenger/ui.tsx
 src/components/messenger/util.ts
+warning: in the working copy of 'src/app/api/admin/messenger/broadcast/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/admin/messenger/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/admin/messenger/stickers/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/admin/messenger/stickers/upload/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/messenger/contact/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/messenger/gifts/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/messenger/profile/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/messenger/stickers/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/messenger/stories/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/messenger/stories/view/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/privacy/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/AuthScreens.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ChannelAdmin.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ChatInfoSheet.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ChatListPane.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ChatView.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/Composer.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ContactsPane.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/EmojiPanel.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ForwardSheet.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/Gifts.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ImageViewer.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/MediaPlayers.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/MessageBubble.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/MessengerApp.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/MessengerEntry.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/MessengerPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/MxRoot.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/NewChatSheet.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/Recorders.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/SettingsPane.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/Stories.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/SwipeRow.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/features.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/hooks.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/messenger.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/mtypes.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/prefs.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/ui.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/messenger/util.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/folders.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/gifts.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/nft.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/premium.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/server.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/types.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messenger/uploads.ts', LF will be replaced by CRLF the next time Git touches it
+ src/app/api/admin/messenger/route.ts        |   7 [32m+[m[31m-[m
+ src/app/api/messenger/profile/route.ts      |  32 [32m++[m[31m-[m
+ src/app/api/messenger/stickers/route.ts     |  90 [32m++++++++[m[31m-[m
+ src/app/api/messenger/stories/route.ts      |  43 [32m++[m[31m--[m
+ src/app/api/messenger/stories/view/route.ts |   2 [32m+[m[31m-[m
+ src/app/privacy/page.tsx                    |   3 [32m+[m
+ src/components/messenger/ChatInfoSheet.tsx  | 291 [32m++++++++++++++++++[m[31m----------[m
+ src/components/messenger/ChatListPane.tsx   |  23 [32m++[m[31m-[m
+ src/components/messenger/ChatView.tsx       |  31 [32m++[m[31m-[m
+ src/components/messenger/Composer.tsx       |   4 [32m+[m[31m-[m
+ src/components/messenger/EmojiPanel.tsx     |  21 [32m+[m[31m-[m
+ src/components/messenger/MessageBubble.tsx  |   9 [32m+[m
+ src/components/messenger/NewChatSheet.tsx   |   3 [32m+[m[31m-[m
+ src/components/messenger/SettingsPane.tsx   |  55 [32m+++++[m[31m-[m
+ src/components/messenger/Stories.tsx        |  83 [32m+[m[31m-------[m
+ src/components/messenger/messenger.css      |  11 [32m+[m[31m-[m
+ src/lib/messenger/client.ts                 |   2 [32m+[m[31m-[m
+ src/lib/messenger/premium.ts                |  14 [32m++[m
+ src/lib/messenger/types.ts                  |   7 [32m+[m[31m-[m
+ 19 files changed, 492 insertions(+), 239 deletions(-)

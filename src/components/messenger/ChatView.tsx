@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut,
+  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark,
 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
@@ -279,6 +280,15 @@ export function ChatView({
     send(tempId, payload);
   };
 
+  const sendSticker = async (pack: string, index: number) => {
+    try {
+      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: replyPayload() });
+      setReply(null);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось отправить стикер");
+    }
+  };
+
   const failUpload = (tempId: string, err: unknown) => {
     toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить файл");
     patchPending(tempId, { status: "failed", retry: () => setPending((l) => l.filter((x) => x.tempId !== tempId)) });
@@ -508,6 +518,18 @@ export function ChatView({
 
   const selectedMsgs = selecting ? messages.filter((m) => selection!.has(m.id)) : [];
 
+  // «Сохранить»: переслать в Избранное (чат с самим собой), как в Telegram
+  const saveToFavorites = async (ids: string[]) => {
+    try {
+      const r = await mApi<{ chatId: string }>("chats", { type: "dm", memberHandles: [myAccount.handle] });
+      await mApi("forward", { fromChatId: chat.id, msgIds: ids, toChatIds: [r.chatId] });
+      setSelection(null);
+      toast("success", ids.length > 1 ? `Сохранено в Избранное: ${ids.length} 🔖` : "Сохранено в Избранное 🔖");
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось сохранить");
+    }
+  };
+
   // ---- меню сообщения ----
   const menuItems = (m: MMessage) => {
     const mine = m.from === me;
@@ -518,6 +540,7 @@ export function ChatView({
       { label: "Изменить", icon: <Pencil size={20} />, onPress: () => { setReply(null); setEditing({ msgId: m.id, text: m.text ?? "" }); }, hidden: !mine || m.kind !== "text" || !!m.deletedForAll },
       { label: isPinned ? "Открепить" : "Закрепить", icon: isPinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => togglePin(m), hidden: chat.type !== "dm" && !isAdmin },
       { label: "Переслать", icon: <Forward size={20} />, onPress: () => setForwardIds([m.id]), hidden: !!m.deletedForAll || !!chat.noForwards },
+      { label: "Сохранить", icon: <Bookmark size={20} />, onPress: () => saveToFavorites([m.id]), hidden: saved || !!m.deletedForAll || !!chat.noForwards },
       { label: "Выбрать", icon: <CheckSquare size={20} />, onPress: () => setSelection(new Set([m.id])) },
       { label: "Удалить", icon: <Trash2 size={20} />, danger: true, onPress: () => setDeleteMsgs([m]) },
     ];
@@ -542,6 +565,7 @@ export function ChatView({
             <button onClick={() => setSelection(null)} className="p-2" aria-label="Отмена"><X size={22} /></button>
             <p className="font-semibold flex-1">{selection!.size} {plural(selection!.size, "сообщение", "сообщения", "сообщений")}</p>
             <button onClick={() => copyText(selectedMsgs)} className="p-2.5" aria-label="Копировать"><Copy size={21} /></button>
+            {!saved && !chat.noForwards && <button onClick={() => saveToFavorites(selectedMsgs.map((m) => m.id))} className="p-2.5" aria-label="Сохранить в Избранное"><Bookmark size={21} /></button>}
             <button onClick={() => setForwardIds(selectedMsgs.map((m) => m.id))} className="p-2.5" aria-label="Переслать"><Forward size={21} /></button>
             <button onClick={() => setDeleteMsgs(selectedMsgs)} className="p-2.5" style={{ color: "var(--mx-danger)" }} aria-label="Удалить"><Trash2 size={21} /></button>
           </div>
@@ -557,7 +581,7 @@ export function ChatView({
               <div className="min-w-0">
                 <p className="font-semibold truncate flex items-center gap-1 text-[16px]">
                   {title}
-                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}
+                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
                 </p>
                 <p className="text-[13px] truncate" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
@@ -672,6 +696,7 @@ export function ChatView({
         onCancelReply={() => setReply(null)}
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
+        onSendSticker={sendSticker}
         mentionables={chat.type === "group" ? (chat.members.filter((u) => u !== me).map((u) => accountsAll[u]).filter(Boolean) as MAccount[]) : []}
         onSaveEdit={saveEdit}
         onSendMedia={sendMedia}
@@ -775,7 +800,7 @@ export function ChatView({
         }}
       />
 
-      <ChatInfoSheet open={info} onClose={() => setInfo(false)} chat={chat} me={me} accounts={accountsAll} peer={peer} isAdmin={isAdmin} onLeave={leaveChat} />
+      <ChatInfoSheet open={info} onClose={() => setInfo(false)} chat={chat} me={me} accounts={accountsAll} peer={peer} isAdmin={isAdmin} onLeave={leaveChat} messages={allMessages} muted={muted} onToggleMute={() => (muted ? chatSetting({ muted: false, mutedUntil: 0 }) : setMuteMenu(true))} onSearch={() => { setSearchQ(""); setSearchOpen(true); }} />
 
       {viewer && <ImageViewer items={viewer.items} start={viewer.start} onClose={() => setViewer(null)} />}
     </div>

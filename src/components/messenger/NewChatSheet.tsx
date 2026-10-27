@@ -5,6 +5,7 @@ import { Bookmark, Check, Megaphone, Search, Users, UserRound, X } from "lucide-
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { cacheAccounts } from "./hooks";
 import { MAccount, MChatType } from "./mtypes";
 import { lastSeenText } from "./util";
@@ -44,7 +45,7 @@ export function PersonRow({ acc, selected, onPress, right }: { acc: MAccount; se
       <Avatar src={acc.photoURL} name={acc.displayName} seed={acc.uid} size={46} />
       <div className="min-w-0 flex-1">
         <p className="font-medium truncate flex items-center gap-1">
-          {acc.displayName} {acc.verified && <VerifiedBadge />}
+          {acc.displayName} {acc.verified && <VerifiedBadge />}<StatusBadge acc={acc} />
         </p>
         <p className="text-[13px] mx-muted truncate">@{acc.handle} · {lastSeenText(acc)}</p>
       </div>

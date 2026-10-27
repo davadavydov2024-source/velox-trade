@@ -33,6 +33,7 @@ export function Composer({
   onSendFile,
   onSendVoice,
   onSendVideoNote,
+  onSendSticker,
   onTyping,
 }: {
   chatId: string;
@@ -49,6 +50,7 @@ export function Composer({
   onSendFile: (file: File) => void;
   onSendVoice: (a: RecordedAudio) => void;
   onSendVideoNote: (v: RecordedVideo) => void;
+  onSendSticker?: (pack: string, index: number) => void;
   onTyping: () => void;
 }) {
   const { toast } = useToast();
@@ -401,7 +403,7 @@ export function Composer({
         </div>
       )}
 
-      {emojiOpen && <EmojiPanel onPick={insertEmoji} />}
+      {emojiOpen && <EmojiPanel onPick={insertEmoji} onSticker={onSendSticker} />}
 
       <Sheet open={silentOpen} onClose={() => setSilentOpen(false)}>
         <MenuList
