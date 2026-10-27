@@ -4,7 +4,6 @@ import { ReactNode, useRef } from "react";
 import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
-import { GiftMessageCard } from "./Gifts";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
@@ -118,14 +117,6 @@ export function MessageRow({
     return (
       <div className="flex justify-center my-2" data-mid={msg.id}>
         <span className="text-[12.5px] px-3 py-1 rounded-full mx-glass mx-muted">{msg.text}</span>
-      </div>
-    );
-  }
-
-  if (msg.kind === "gift" && msg.gift) {
-    return (
-      <div data-mid={msg.id}>
-        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
       </div>
     );
   }

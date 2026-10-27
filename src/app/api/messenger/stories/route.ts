@@ -13,7 +13,6 @@ export async function GET(req: NextRequest) {
   if ("error" in me) return me.error;
   const db = adminDb();
   const now = Date.now();
-  const onlyUid = req.nextUrl.searchParams.get("uid");
 
   const chats = await db.collection("messengerChats").where("members", "array-contains", me.uid).limit(300).get();
   const uids = new Set<string>([me.uid]);
@@ -21,26 +20,19 @@ export async function GET(req: NextRequest) {
     const c = d.data();
     if (c.type === "dm") (c.members as string[]).forEach((m) => uids.add(m));
   });
-  if (onlyUid) {
-    if (onlyUid.includes("/") || !uids.has(onlyUid)) return NextResponse.json({ groups: [], stories: [] }); // чужие истории — только у контактов
-    uids.clear();
-    uids.add(onlyUid);
-  }
   const list = Array.from(uids);
   const snaps = [];
   for (let i = 0; i < list.length; i += 30) snaps.push(await db.collection("messengerStories").where("uid", "in", list.slice(i, i + 30)).get());
 
   const byUid = new Map<string, any[]>();
-  const flat: any[] = []; // тот же список в формате клиента (MStory): viewers у чужих — только «я смотрел», у своих — все
   const expired: FirebaseFirestore.DocumentReference[] = [];
   for (const s of snaps) {
     for (const d of s.docs) {
       const st = d.data();
       if (st.expiresAt <= now) { expired.push(d.ref); continue; }
       const arr = byUid.get(st.uid) ?? [];
-      arr.push({ id: d.id, kind: st.kind, mediaUrl: st.mediaUrl, caption: st.caption ?? "", createdAt: st.createdAt, expiresAt: st.expiresAt, seen: (st.viewers ?? []).includes(me.uid) });
+      arr.push({ id: d.id, kind: st.kind, mediaUrl: st.mediaUrl, caption: st.caption ?? "", createdAt: st.createdAt, expiresAt: st.expiresAt, seen: (st.viewers ?? []).includes(me.uid), viewers: st.uid === me.uid ? (st.viewers ?? []) : undefined });
       byUid.set(st.uid, arr);
-      flat.push({ id: d.id, uid: st.uid, kind: st.kind, mediaUrl: st.mediaUrl, caption: st.caption ?? "", createdAt: st.createdAt, expiresAt: st.expiresAt, viewers: st.uid === me.uid ? st.viewers ?? [] : (st.viewers ?? []).includes(me.uid) ? [me.uid] : [] });
     }
   }
   expired.slice(0, 20).forEach((r) => r.delete().catch(() => {})); // уборка просроченных (без ожидания)
@@ -53,7 +45,21 @@ export async function GET(req: NextRequest) {
     return { uid, handle: a.handle ?? "", displayName: a.displayName ?? "Пользователь", photoURL: a.photoURL ?? null, stories, allSeen: stories.every((s) => s.seen), latest: stories[stories.length - 1].createdAt };
   });
   groups.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : Number(a.allSeen) - Number(b.allSeen) || b.latest - a.latest));
-  return NextResponse.json({ groups, stories: flat.sort((a, b) => a.createdAt - b.createdAt) });
+  // Плоский список в формате, который читает клиент (uid + viewers): у своих историй — реальные зрители,
+  // у чужих — только «я смотрел или нет» (чужих зрителей никому не показываем).
+  const stories = groups.flatMap((g) =>
+    g.stories.map((st: any) => ({
+      id: st.id,
+      uid: g.uid,
+      kind: st.kind,
+      mediaUrl: st.mediaUrl,
+      caption: st.caption,
+      createdAt: st.createdAt,
+      expiresAt: st.expiresAt,
+      viewers: g.uid === me.uid ? (st.viewers ?? []) : st.seen ? [me.uid] : [],
+    }))
+  );
+  return NextResponse.json({ groups, stories });
 }
 
 /** POST { kind: "image"|"video", mediaUrl, caption? } — выложить историю (живёт 24 часа). Файл — через upload-ticket (story-image / story-video). */
@@ -74,13 +80,38 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
+  // id берём и из адреса (?id=), и из тела ({ id } / { storyId }) — клиент раньше слал в теле, и удаление не работало
   const body = await req.json().catch(() => ({}));
-  const id = req.nextUrl.searchParams.get("id") ?? (typeof body.storyId === "string" ? body.storyId : typeof body.id === "string" ? body.id : "");
+  const id = req.nextUrl.searchParams.get("id") ?? String(body?.id ?? body?.storyId ?? "");
   if (!id || id.includes("/")) return fail("id обязателен");
   const ref = adminDb().collection("messengerStories").doc(id);
   const s = (await ref.get()).data();
   if (!s) return fail("История не найдена", 404);
   if (s.uid !== me.uid) return fail("Это не ваша история", 403);
   await ref.delete();
+  return NextResponse.json({ ok: true });
+}
+
+/** PATCH { id, caption?, mediaUrl? } — исправить свою историю (подпись и/или картинку после рисования). Срок жизни не меняется. */
+export async function PATCH(req: NextRequest) {
+  const me = await requireMessenger(req);
+  if ("error" in me) return me.error;
+  const b = await req.json().catch(() => ({}));
+  const id = String(b?.id ?? b?.storyId ?? "");
+  if (!id || id.includes("/")) return fail("id обязателен");
+  const ref = adminDb().collection("messengerStories").doc(id);
+  const s = (await ref.get()).data();
+  if (!s || s.expiresAt <= Date.now()) return fail("История не найдена", 404);
+  if (s.uid !== me.uid) return fail("Это не ваша история", 403);
+  const upd: Record<string, unknown> = {};
+  if (typeof b.caption === "string") upd.caption = b.caption.slice(0, 200);
+  if (b.mediaUrl !== undefined) {
+    if (s.kind !== "image") return fail("Менять картинку можно только у фото-истории");
+    if (typeof b.mediaUrl !== "string" || !ownsMedia(b.mediaUrl, me.uid)) return fail("Файл нужно загрузить через мессенджер");
+    upd.mediaUrl = b.mediaUrl;
+    upd.viewers = []; // картинка изменилась — просмотры считаем заново
+  }
+  if (!Object.keys(upd).length) return fail("Нечего менять");
+  await ref.update(upd);
   return NextResponse.json({ ok: true });
 }
