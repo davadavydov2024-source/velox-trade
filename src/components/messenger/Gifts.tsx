@@ -1,16 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { EyeOff, Eye, Gift, Repeat } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
-import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftCategory, type GiftDef, type GiftView } from "@/lib/messenger/gifts";
+import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
+import { NFT_SYMBOL_CHARS, backdropOf, modelOf, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
 import { MAccount } from "./mtypes";
 
-/** Плитка подарка: эмодзи на тёмном градиенте. Для NFT позже сюда придёт готовая картинка (imageUrl). */
-export function GiftArt({ gift, size = 96, imageUrl, badge }: { gift: GiftDef; size?: number; imageUrl?: string; badge?: React.ReactNode }) {
+const PATTERN: [number, number, number][] = [[28, 30, -12], [100, 20, 8], [172, 32, 14], [18, 96, 10], [182, 100, -10], [30, 160, 12], [100, 176, -8], [172, 158, -14]];
+
+/** NFT-карточка: фон, узор, фигурка с оттенком модели и номер. Рисуется по признакам — картинку хранить не нужно. */
+export function NftArt({ gift, nft, size = 96, sample }: { gift: GiftDef; nft: GiftNft; size?: number | string; sample?: boolean }) {
+  const uid = useId().replace(/:/g, "");
+  const b = backdropOf(nft.backdrop);
+  const m = modelOf(nft.model);
+  const ch = NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦";
+  return (
+    <svg viewBox="0 0 200 200" width={size} height={size} style={{ borderRadius: "18%", display: "block" }} role="img" aria-label={`${gift.title} №${nft.number}`}>
+      <defs>
+        <radialGradient id={`bg${uid}`} cx="50%" cy="38%" r="78%"><stop offset="0" stopColor={b.colors[0]} /><stop offset="1" stopColor={b.colors[1]} /></radialGradient>
+        <radialGradient id={`gl${uid}`} cx="50%" cy="50%" r="50%"><stop offset="0" stopColor="#fff" stopOpacity="0.28" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
+      </defs>
+      <rect width="200" height="200" fill={`url(#bg${uid})`} />
+      {PATTERN.map(([x, y, r], i) => (
+        <text key={i} x={x} y={y} fontSize="20" fill="#fff" opacity="0.14" textAnchor="middle" transform={`rotate(${r} ${x} ${y})`}>{ch}</text>
+      ))}
+      <circle cx="100" cy="95" r="70" fill={`url(#gl${uid})`} />
+      <text x="100" y="124" fontSize="88" textAnchor="middle" style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) drop-shadow(0 6px 10px rgba(0,0,0,.5))`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}>{gift.emoji}</text>
+      <rect x="62" y="166" width="76" height="22" rx="11" fill="#000" opacity="0.35" />
+      <text x="100" y="182" fontSize="13" fontWeight="700" fill="#fff" textAnchor="middle">{sample ? "NFT" : `#${nft.number}`}</text>
+    </svg>
+  );
+}
+
+/** Плитка подарка: эмодзи на тёмном градиенте; для NFT — карточка по признакам. */
+export function GiftArt({ gift, size = 96, imageUrl, badge, nft }: { gift: GiftDef; size?: number; imageUrl?: string; badge?: React.ReactNode; nft?: GiftNft }) {
+  if (nft && !imageUrl) return <div className="relative shrink-0" style={{ width: size, height: size }}><NftArt gift={gift} nft={nft} size={size} />{badge}</div>;
   return (
     <div className="relative rounded-2xl flex items-center justify-center shrink-0 select-none overflow-hidden" style={{ width: size, height: size, background: `radial-gradient(circle at 50% 35%, ${gift.colors[0]}, ${gift.colors[1]})` }}>
       {imageUrl ? (
@@ -20,6 +48,23 @@ export function GiftArt({ gift, size = 96, imageUrl, badge }: { gift: GiftDef; s
         <span style={{ fontSize: size * 0.52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{gift.emoji}</span>
       )}
       {badge}
+    </div>
+  );
+}
+
+/** Признаки NFT списком: модель, фон, узор + шанс выпадения. */
+export function NftTraits({ nft }: { nft: GiftNft }) {
+  const rows: [string, string, number][] = [
+    ["Модель", nft.model, modelOf(nft.model).rarity],
+    ["Фон", nft.backdrop, backdropOf(nft.backdrop).rarity],
+    ["Узор", nft.symbol, symbolOf(nft.symbol).rarity],
+  ];
+  return (
+    <div className="mx-card w-full mt-4">
+      <div className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">Номер</span><span>#{nft.number} из {nft.supply}</span></div>
+      {rows.map(([k, v, r]) => (
+        <div key={k} className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">{k}</span><span>{v} <span className="mx-muted text-[12.5px]">{rarityPct(r)}</span></span></div>
+      ))}
     </div>
   );
 }
@@ -38,6 +83,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
   const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
+  const sample = useMemo(() => rollNft(1, 1), [picked?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [target, setTarget] = useState<{ uid: string; name: string } | null>(toUid ? { uid: toUid, name: toName ?? "" } : null);
   const { results } = usePeopleSearch(q, open && !target);
 
@@ -54,9 +100,9 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
     if (!picked || !target || busy) return;
     setBusy(true);
     try {
-      const r = await mApi<{ wallet: number }>("gifts", { action: "send", toUid: target.uid, giftId: picked.id, message, anonymous });
+      const r = await mApi<{ wallet: number; nft?: GiftNft }>("gifts", { action: "send", toUid: target.uid, giftId: picked.id, message, anonymous });
       setWallet(r.wallet);
-      toast("success", `Подарок «${picked.title}» отправлен 🎁`);
+      toast("success", r.nft ? `NFT «${picked.title}» №${r.nft.number} отправлен ✨` : `Подарок «${picked.title}» отправлен 🎁`);
       onSent?.();
       onClose();
     } catch (err) {
@@ -81,9 +127,10 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
         </div>
       ) : picked ? (
         <div className="px-5 pb-6 flex flex-col items-center">
-          <GiftArt gift={picked} size={150} />
-          <p className="text-[19px] font-semibold mt-3">{picked.title}</p>
+          {picked.nft ? <NftArt gift={picked} nft={sample} size={150} sample /> : <GiftArt gift={picked} size={150} />}
+          <p className="text-[19px] font-semibold mt-3">{picked.title}{picked.nft ? " · NFT" : ""}</p>
           <p className="mx-muted text-[14px]">{money(picked.price)}{picked.limited ? ` · тираж ${picked.limited}` : ""}</p>
+          {picked.nft && <p className="mx-muted text-[13px] text-center mt-1">Номер, модель, фон и узор выпадут случайно — у каждого экземпляра они свои.</p>}
           <textarea className="mx-input mt-4 w-full" rows={2} maxLength={GIFT_MESSAGE_MAX} placeholder="Добавить подпись (необязательно)" value={message} onChange={(e) => setMessage(e.target.value)} />
           <div className="mx-card w-full mt-3 px-4 py-3 flex items-center justify-between">
             <span>Скрыть моё имя</span>
@@ -105,7 +152,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
               const left = g.limited ? g.limited - (stock[g.id] ?? 0) : null;
               return (
                 <button key={g.id} onClick={() => setPicked(g)} className="flex flex-col items-center rounded-2xl p-2 active:scale-95 transition-transform" style={{ background: "var(--mx-surface2)" }}>
-                  <GiftArt gift={g} size={84} />
+                  <GiftArt gift={g} size={84} badge={g.nft ? <span className="absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,.45)", color: "#fff" }}>NFT</span> : undefined} />
                   <span className="text-[13px] mt-1.5 truncate max-w-full">{g.title}</span>
                   <span className="text-[13px] font-semibold" style={{ color: "var(--mx-accent)" }}>{money(g.price)}</span>
                   {left !== null && <span className="mx-muted text-[11px]">осталось {left}</span>}
@@ -177,6 +224,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
                 {g.nft?.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={g.nft.imageUrl} alt="" className="w-full h-full object-cover" draggable={false} />
+                ) : g.nft ? (
+                  <NftArt gift={d} nft={g.nft} size="100%" />
                 ) : (
                   <span style={{ fontSize: 52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{d.emoji}</span>
                 )}
@@ -196,8 +245,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
       <Sheet open={!!open && !!def} onClose={() => setOpen(null)} zIndex={65}>
         {open && def && (
           <div className="px-5 pb-8 flex flex-col items-center">
-            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} />
-            <p className="text-[20px] font-semibold mt-3">{def.title}</p>
+            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
+            <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
             <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
             <div className="flex items-center gap-2 mt-3">
               {open.from ? (
@@ -207,6 +256,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
               )}
             </div>
             {open.anonymous && open.from && <p className="mx-muted text-[12.5px] mt-1">Отправлен анонимно — другие не видят имя</p>}
+            {open.nft && <NftTraits nft={open.nft} />}
             {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
             {mine && (
               <div className="w-full mt-5 flex flex-col gap-2">
@@ -223,7 +273,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
 
 /* ───────────── Карточка подарка в чате ───────────── */
 
-export function GiftMessageCard({ giftId, text, price, mine, senderName, anonymous, toName }: { giftId: string; text?: string; price: number; mine: boolean; senderName: string; anonymous?: boolean; toName: string }) {
+export function GiftMessageCard({ giftId, text, price, mine, senderName, anonymous, toName, nft }: { giftId: string; text?: string; price: number; mine: boolean; senderName: string; anonymous?: boolean; toName: string; nft?: GiftNft }) {
   const g = giftById(giftId);
   if (!g) return null;
   const who = mine ? "Вы отправили подарок" : anonymous ? "Вам отправили подарок" : `${senderName} отправил(а) подарок`;
@@ -231,8 +281,8 @@ export function GiftMessageCard({ giftId, text, price, mine, senderName, anonymo
     <div className="flex justify-center my-3">
       <div className="mx-glass rounded-2xl px-6 py-4 flex flex-col items-center text-center" style={{ maxWidth: 260 }}>
         <p className="text-[13.5px] mx-muted">{mine ? `${who} — ${toName}` : who}</p>
-        <div className="my-2"><GiftArt gift={g} size={120} /></div>
-        <p className="font-semibold">{g.title}</p>
+        <div className="my-2"><GiftArt gift={g} size={120} nft={nft} /></div>
+        <p className="font-semibold">{g.title}{nft ? ` #${nft.number}` : ""}</p>
         <p className="mx-muted text-[12.5px]">{money(price)}</p>
         {text && <p className="mt-2 text-[14px] whitespace-pre-wrap">{text}</p>}
       </div>

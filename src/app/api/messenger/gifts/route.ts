@@ -3,6 +3,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { dmChatId, fail, isDmBlocked, postMessage, requireMessenger, SERVICE_UID } from "@/lib/messenger/server";
+import { randomInt } from "crypto";
+import { rollNft } from "@/lib/messenger/nft";
+import type { GiftNft } from "@/lib/messenger/gifts";
 import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
 
@@ -127,6 +130,7 @@ export async function POST(req: NextRequest) {
   const giftRef = db.collection("messengerGifts").doc();
   const now = Date.now();
   let wallet = 0;
+  let minted = undefined as GiftNft | undefined;
   try {
     wallet = await db.runTransaction(async (tx) => {
       const [user, stock] = await Promise.all([tx.get(userRef), gift.limited ? tx.get(stockRef) : Promise.resolve(null)]);
@@ -136,10 +140,12 @@ export async function POST(req: NextRequest) {
         const sold = (stock?.data()?.sold as number | undefined) ?? 0;
         if (sold >= gift.limited) throw new Error("sold-out");
         tx.set(stockRef, { sold: sold + 1 }, { merge: true });
+        // NFT: номер = порядковый в тираже, признаки выпадают случайно (криптослучайность)
+        if (gift.nft) minted = rollNft(sold + 1, gift.limited, () => randomInt(0, 1_000_000) / 1_000_000);
       }
       tx.set(userRef, { starsWallet: FieldValue.increment(-gift.price) }, { merge: true });
       tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, at: now });
-      tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
+      tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, ...(minted ? { nft: minted } : {}), ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
       return have - gift.price;
     });
   } catch (e: any) {
@@ -155,10 +161,10 @@ export async function POST(req: NextRequest) {
       await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
       chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
     }
-    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, ...(anonymous ? { anonymous: true } : {}) } } });
+    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
   } catch (err) {
     console.error("gift chat message error:", err);
   }
-  return NextResponse.json({ ok: true, id: giftRef.id, wallet });
+  return NextResponse.json({ ok: true, id: giftRef.id, wallet, ...(minted ? { nft: minted } : {}) });
 }
 

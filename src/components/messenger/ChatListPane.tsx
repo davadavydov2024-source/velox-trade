@@ -157,15 +157,13 @@ export function ChatListPane({
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
         onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className="mx-chat-row flex items-center gap-3 px-4 py-3" style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
-          {editMode && (
-            <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected.has(c.id) ? "var(--mx-accent)" : "var(--mx-muted)", background: selected.has(c.id) ? "var(--mx-accent)" : "transparent" }}>
-              {selected.has(c.id) && <Check size={14} color="var(--mx-accent-text)" />}
-            </span>
-          )}
-          <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={isOnline(peer, now)}>
-            {saved ? "🔖" : undefined}
-          </Avatar>
+        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
+          <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
+            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={!editMode && isOnline(peer, now)}>
+              {saved ? "🔖" : undefined}
+            </Avatar>
+            <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>

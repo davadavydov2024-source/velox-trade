@@ -5,7 +5,7 @@
  * NFT-подарки (уникальные, с номером/моделью/фоном/узором) добавим позже: под них уже есть тип GiftNft и поле `nft` у выданного подарка.
  */
 
-export type GiftCategory = "bears" | "hearts" | "roses" | "gems" | "party" | "rare";
+export type GiftCategory = "bears" | "hearts" | "roses" | "gems" | "party" | "rare" | "nft";
 
 export interface GiftDef {
   id: string;
@@ -15,6 +15,7 @@ export interface GiftDef {
   category: GiftCategory;
   colors: [string, string]; // градиент плитки
   limited?: number; // тираж; без поля — безлимит
+  nft?: boolean; // уникальный NFT-подарок: при покупке выпадают номер, модель, фон и узор (limited = тираж)
 }
 
 export const GIFT_MIN_PRICE = 5;
@@ -29,7 +30,8 @@ export const GIFT_CATEGORIES: { id: "all" | GiftCategory; label: string }[] = [
   { id: "bears", label: "🧸 Мишки" },
   { id: "gems", label: "💎 Драгоценности" },
   { id: "party", label: "🎉 Праздник" },
-  { id: "rare", label: "🔥 Редкие" },
+  { id: "rare", label: "🏆 Редкие" },
+  { id: "nft", label: "✨ NFT" },
 ];
 
 export const GIFTS: GiftDef[] = [
@@ -52,9 +54,13 @@ export const GIFTS: GiftDef[] = [
   // — драгоценности и редкие, до 50 ⭐
   { id: "diamond", emoji: "💎", title: "Алмаз", price: 50, category: "gems", colors: ["#123a4a", "#0a1a21"] },
   { id: "ring", emoji: "💍", title: "Кольцо", price: 50, category: "gems", colors: ["#2d2a4a", "#14122a"] },
-  { id: "rocket", emoji: "🚀", title: "Ракета", price: 25, category: "rare", colors: ["#1b2c4a", "#0d1424"], limited: 5000 },
-  { id: "crown", emoji: "👑", title: "Корона", price: 50, category: "rare", colors: ["#4a3a10", "#211a08"], limited: 1000 },
-  { id: "dragon", emoji: "🐉", title: "Дракон Velox", price: 50, category: "rare", colors: ["#16401f", "#0a1d0e"], limited: 500 },
+  { id: "rocket", emoji: "🚀", title: "Ракета", price: 25, category: "nft", nft: true, colors: ["#1b2c4a", "#0d1424"], limited: 5000 },
+  { id: "crown", emoji: "👑", title: "Корона", price: 50, category: "nft", nft: true, colors: ["#4a3a10", "#211a08"], limited: 1000 },
+  { id: "dragon", emoji: "🐉", title: "Дракон Velox", price: 50, category: "nft", nft: true, colors: ["#16401f", "#0a1d0e"], limited: 500 },
+  { id: "nft-bear", emoji: "🧸", title: "Королевский мишка", price: 30, category: "nft", nft: true, colors: ["#41301d", "#1e160d"], limited: 3000 },
+  { id: "nft-heart", emoji: "💘", title: "Вечное сердце", price: 40, category: "nft", nft: true, colors: ["#4a1c3a", "#1f0e1a"], limited: 2000 },
+  { id: "nft-diamond", emoji: "💠", title: "Кристалл Velox", price: 50, category: "nft", nft: true, colors: ["#123a4a", "#0a1a21"], limited: 777 },
+  { id: "nft-clover", emoji: "🍀", title: "Клевер удачи", price: 25, category: "nft", nft: true, colors: ["#16401f", "#0a1d0e"], limited: 4000 },
 ];
 
 export const giftById = (id: string): GiftDef | undefined => GIFTS.find((g) => g.id === id);
@@ -80,7 +86,7 @@ export interface GiftNft {
   model: string; // вариант фигурки
   backdrop: string; // фон
   symbol: string; // узор
-  imageUrl?: string; // готовая картинка (сгенерируем позже)
+  imageUrl?: string; // необязательно: готовая картинка вместо отрисовки по признакам
 }
 
 /** Запись в ответе GET /api/messenger/gifts?uid= */

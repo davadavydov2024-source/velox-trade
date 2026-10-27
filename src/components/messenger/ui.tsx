@@ -38,10 +38,10 @@ export function Avatar({
     </div>
   );
   return (
-    <div className="relative shrink-0" style={{ width: ring ? size + 8 : size, height: ring ? size + 8 : size }}>
+    <div className="relative shrink-0 aspect-square" style={{ width: ring ? size + 8 : size, height: ring ? size + 8 : size }}>
       {ring ? (
         <div className={`mx-story-ring ${ring === "seen" ? "seen" : ""}`}>
-          <div className="rounded-full p-[2px]" style={{ background: "var(--mx-bg)" }}>{inner}</div>
+          <div className="rounded-full p-[2px] box-border" style={{ background: "var(--mx-bg)", width: "100%", height: "100%" }}>{inner}</div>
         </div>
       ) : (
         inner

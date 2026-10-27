@@ -67,6 +67,7 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
   const [handle, setHandle] = useState(account.handle);
   const [bio, setBio] = useState(account.bio ?? "");
   const [birthday, setBirthday] = useState(account.birthday ?? "");
+  const [channel, setChannel] = useState(account.channelHandle ?? "");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
@@ -77,13 +78,14 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
       setHandle(account.handle);
       setBio(account.bio ?? "");
       setBirthday(account.birthday ?? "");
+      setChannel(account.channelHandle ?? "");
     }
   }, [open, account]);
 
   const save = async (extra: Record<string, unknown> = {}) => {
     setBusy(true);
     try {
-      await mApi("profile", { displayName: name.trim(), handle: handle.trim().replace(/^@/, ""), bio: bio.trim(), birthday: birthday || undefined, ...extra });
+      await mApi("profile", { displayName: name.trim(), handle: handle.trim().replace(/^@/, ""), bio: bio.trim(), birthday: birthday || undefined, channelHandle: channel.trim().replace(/^@/, ""), ...extra });
       toast("success", "Профиль сохранён");
       onClose();
     } catch (err) {
@@ -163,6 +165,7 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
         <label className="block"><span className="mx-muted text-[13px] px-1">Имя пользователя</span><input className="mx-input mt-1" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
         <label className="block"><span className="mx-muted text-[13px] px-1">О себе</span><textarea className="mx-input mt-1" rows={3} maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} /></label>
         <label className="block"><span className="mx-muted text-[13px] px-1">День рождения</span><input type="date" className="mx-input mt-1" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></label>
+        <label className="block"><span className="mx-muted text-[13px] px-1">Мой канал (@адрес, показывается в профиле)</span><input className="mx-input mt-1" value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
         <button className="mx-btn" disabled={busy || name.trim().length < 2 || handle.replace("@", "").length < 4} onClick={() => save()}>{busy ? "Сохраняю…" : "Сохранить"}</button>
       </div>
     </Sheet>

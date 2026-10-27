@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   if ("error" in me) return me.error;
   const db = adminDb();
   const now = Date.now();
+  const onlyUid = req.nextUrl.searchParams.get("uid");
 
   const chats = await db.collection("messengerChats").where("members", "array-contains", me.uid).limit(300).get();
   const uids = new Set<string>([me.uid]);
@@ -20,11 +21,17 @@ export async function GET(req: NextRequest) {
     const c = d.data();
     if (c.type === "dm") (c.members as string[]).forEach((m) => uids.add(m));
   });
+  if (onlyUid) {
+    if (onlyUid.includes("/") || !uids.has(onlyUid)) return NextResponse.json({ groups: [], stories: [] }); // чужие истории — только у контактов
+    uids.clear();
+    uids.add(onlyUid);
+  }
   const list = Array.from(uids);
   const snaps = [];
   for (let i = 0; i < list.length; i += 30) snaps.push(await db.collection("messengerStories").where("uid", "in", list.slice(i, i + 30)).get());
 
   const byUid = new Map<string, any[]>();
+  const flat: any[] = []; // тот же список в формате клиента (MStory): viewers у чужих — только «я смотрел», у своих — все
   const expired: FirebaseFirestore.DocumentReference[] = [];
   for (const s of snaps) {
     for (const d of s.docs) {
@@ -33,6 +40,7 @@ export async function GET(req: NextRequest) {
       const arr = byUid.get(st.uid) ?? [];
       arr.push({ id: d.id, kind: st.kind, mediaUrl: st.mediaUrl, caption: st.caption ?? "", createdAt: st.createdAt, expiresAt: st.expiresAt, seen: (st.viewers ?? []).includes(me.uid) });
       byUid.set(st.uid, arr);
+      flat.push({ id: d.id, uid: st.uid, kind: st.kind, mediaUrl: st.mediaUrl, caption: st.caption ?? "", createdAt: st.createdAt, expiresAt: st.expiresAt, viewers: st.uid === me.uid ? st.viewers ?? [] : (st.viewers ?? []).includes(me.uid) ? [me.uid] : [] });
     }
   }
   expired.slice(0, 20).forEach((r) => r.delete().catch(() => {})); // уборка просроченных (без ожидания)
@@ -45,7 +53,7 @@ export async function GET(req: NextRequest) {
     return { uid, handle: a.handle ?? "", displayName: a.displayName ?? "Пользователь", photoURL: a.photoURL ?? null, stories, allSeen: stories.every((s) => s.seen), latest: stories[stories.length - 1].createdAt };
   });
   groups.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : Number(a.allSeen) - Number(b.allSeen) || b.latest - a.latest));
-  return NextResponse.json({ groups });
+  return NextResponse.json({ groups, stories: flat.sort((a, b) => a.createdAt - b.createdAt) });
 }
 
 /** POST { kind: "image"|"video", mediaUrl, caption? } — выложить историю (живёт 24 часа). Файл — через upload-ticket (story-image / story-video). */
@@ -66,7 +74,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
-  const id = req.nextUrl.searchParams.get("id") ?? "";
+  const body = await req.json().catch(() => ({}));
+  const id = req.nextUrl.searchParams.get("id") ?? (typeof body.storyId === "string" ? body.storyId : typeof body.id === "string" ? body.id : "");
   if (!id || id.includes("/")) return fail("id обязателен");
   const ref = adminDb().collection("messengerStories").doc(id);
   const s = (await ref.get()).data();
