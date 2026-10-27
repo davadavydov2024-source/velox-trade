@@ -183,7 +183,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
         {tab === "give" && (
           <>
-            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.giveTo.value); if (e.giveTo.value.trim().length >= 2 || !e.giveTo.value.trim()) load(e.giveTo.value); }} autoCapitalize="none" />
+            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value.trim().length >= 2 || !e.target.value.trim()) load(e.target.value); }} autoCapitalize="none" />
             {!giveTo && loading && <div className="flex justify-center"><Spinner /></div>}
             {!giveTo && (
               <div className="mx-card">
@@ -225,14 +225,14 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                 <div className="mx-card p-4 space-y-3">
                   <p className="font-semibold">⭐ Звёзды в кошелёк</p>
                   <div className="flex gap-2">
-                    <input className="mx-input flex-1" type="number" inputMode="numeric" min={1} placeholder="Сколько ⭐" value={starsAmount} onChange={(e) => setStarsAmount(e.giveTo.value)} />
+                    <input className="mx-input flex-1" type="number" inputMode="numeric" min={1} placeholder="Сколько ⭐" value={starsAmount} onChange={(e) => setStarsAmount(e.target.value)} />
                     <button className="mx-btn" disabled={!!busyKey || !starsAmount} onClick={() => grant("st", { action: "stars", amount: Number(starsAmount) }, `Начислено ${starsAmount} ⭐`).then(() => setStarsAmount(""))}>{busyKey === "st" ? "…" : "Начислить"}</button>
                   </div>
                 </div>
 
                 <div className="mx-card p-4 space-y-3">
                   <p className="font-semibold flex items-center gap-2"><Gift size={16} style={{ color: "var(--mx-accent)" }} /> Подарок или NFT</p>
-                  <select className="mx-input w-full" value={giftId} onChange={(e) => setGiftId(e.giveTo.value)}>
+                  <select className="mx-input w-full" value={giftId} onChange={(e) => setGiftId(e.target.value)}>
                     <optgroup label="✨ NFT (уникальные)">
                       {GIFTS.filter((g) => g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · тираж {g.limited}</option>)}
                     </optgroup>
@@ -244,20 +244,20 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     <div className="space-y-2">
                       <p className="mx-muted text-[12.5px] flex items-center gap-1"><Sparkles size={13} /> Признаки NFT — по умолчанию выпадают случайно, можно выбрать свои</p>
                       {([["model", "Модель", NFT_MODELS], ["backdrop", "Фон", NFT_BACKDROPS], ["symbol", "Узор", NFT_SYMBOLS]] as const).map(([key, label, list]) => (
-                        <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.giveTo.value }))}>
+                        <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.target.value }))}>
                           <option value="">{label}: случайно</option>
                           {list.map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
                         </select>
                       ))}
                     </div>
                   )}
-                  <input className="mx-input w-full" maxLength={120} placeholder="Подпись к подарку (необязательно)" value={giftMsg} onChange={(e) => setGiftMsg(e.giveTo.value)} />
+                  <input className="mx-input w-full" maxLength={120} placeholder="Подпись к подарку (необязательно)" value={giftMsg} onChange={(e) => setGiftMsg(e.target.value)} />
                   <div className="flex gap-2">
-                    <select className="mx-input flex-1" value={giftFrom} onChange={(e) => setGiftFrom(e.giveTo.value as "service" | "me")}>
+                    <select className="mx-input flex-1" value={giftFrom} onChange={(e) => setGiftFrom(e.target.value as "service" | "me")}>
                       <option value="service">От «MiliGram»</option>
                       <option value="me">От меня</option>
                     </select>
-                    <select className="mx-input w-24" value={giftCount} onChange={(e) => setGiftCount(Number(e.giveTo.value))}>
+                    <select className="mx-input w-24" value={giftCount} onChange={(e) => setGiftCount(Number(e.target.value))}>
                       {[1, 2, 3, 5, 10].map((n) => <option key={n} value={n}>× {n}</option>)}
                     </select>
                   </div>
