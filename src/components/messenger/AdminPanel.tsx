@@ -8,6 +8,7 @@ import { Avatar, PageHeader, Spinner } from "./ui";
 import type { MAccount } from "./mtypes";
 import { GIFTS, giftById } from "@/lib/messenger/gifts";
 import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS } from "@/lib/messenger/nft";
+import { NftArt } from "./Gifts";
 
 type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number };
 type Report = { id: string; reporterUid: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string; reason: string; createdAt: number };
@@ -96,6 +97,10 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
     } catch (e: any) { toast("error", e.message); } finally { setBusyKey(""); }
   };
   const selGift = giftById(giftId);
+  // предпросмотр NFT: выбранные признаки, а где «случайно» — первый вариант из списка
+  const previewNft = selGift?.nft
+    ? { number: 1, supply: selGift.limited ?? 1, model: traits.model || NFT_MODELS[0].name, backdrop: traits.backdrop || NFT_BACKDROPS[0].name, symbol: traits.symbol || NFT_SYMBOLS[0].name }
+    : null;
 
   const start = async () => {
     if (!text.trim()) return toast("warning", "Напиши текст рассылки");
@@ -183,7 +188,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
         {tab === "give" && (
           <>
-            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value.trim().length >= 2 || !e.target.value.trim()) load(e.target.value); }} autoCapitalize="none" />
+            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value.trim().length >= 2 || !e.target.value.trim()) load(e.target.value.trim()); }} autoCapitalize="none" />
             {!giveTo && loading && <div className="flex justify-center"><Spinner /></div>}
             {!giveTo && (
               <div className="mx-card">
@@ -242,6 +247,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                   </select>
                   {selGift?.nft && (
                     <div className="space-y-2">
+                      {previewNft && <div className="flex justify-center py-1"><NftArt gift={selGift} nft={previewNft} size={150} sample /></div>}
                       <p className="mx-muted text-[12.5px] flex items-center gap-1"><Sparkles size={13} /> Признаки NFT — по умолчанию выпадают случайно, можно выбрать свои</p>
                       {([["model", "Модель", NFT_MODELS], ["backdrop", "Фон", NFT_BACKDROPS], ["symbol", "Узор", NFT_SYMBOLS]] as const).map(([key, label, list]) => (
                         <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.target.value }))}>
@@ -278,7 +284,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     const def = giftById(g.giftId);
                     return (
                       <div key={g.id} className="px-4 py-2 flex items-center gap-3">
-                        <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>
+                        {g.nft && def ? <NftArt gift={def} nft={g.nft} size={40} /> : <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>}
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14.5px]">{def?.title ?? g.giftId}{g.nft ? ` · №${g.nft.number}/${g.nft.supply}` : ""}{g.byAdmin ? " · от админа" : ""}</p>
                           {g.nft && <p className="mx-muted text-[12px] truncate">{g.nft.model} · {g.nft.backdrop} · {g.nft.symbol}</p>}

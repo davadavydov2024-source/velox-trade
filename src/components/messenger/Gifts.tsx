@@ -4,36 +4,21 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { EyeOff, Eye, Gift, Repeat } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
-import { NFT_SYMBOL_CHARS, backdropOf, modelOf, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
+import { backdropOf, modelOf, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
+import { nftArtMarkup } from "@/lib/messenger/nftArt";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
 import { MAccount } from "./mtypes";
 
-const PATTERN: [number, number, number][] = [[28, 30, -12], [100, 20, 8], [172, 32, 14], [18, 96, 10], [182, 100, -10], [30, 160, 12], [100, 176, -8], [172, 158, -14]];
-
-/** NFT-карточка: фон, узор, фигурка с оттенком модели и номер. Рисуется по признакам — картинку хранить не нужно. */
+/** NFT-карточка: фон, узор, векторная фигурка с оттенком модели и номер. Рисуется по признакам — картинку хранить не нужно. */
 export function NftArt({ gift, nft, size = 96, sample }: { gift: GiftDef; nft: GiftNft; size?: number | string; sample?: boolean }) {
   const uid = useId().replace(/:/g, "");
-  const b = backdropOf(nft.backdrop);
-  const m = modelOf(nft.model);
-  const ch = NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦";
-  return (
-    <svg viewBox="0 0 200 200" width={size} height={size} style={{ borderRadius: "18%", display: "block" }} role="img" aria-label={`${gift.title} №${nft.number}`}>
-      <defs>
-        <radialGradient id={`bg${uid}`} cx="50%" cy="38%" r="78%"><stop offset="0" stopColor={b.colors[0]} /><stop offset="1" stopColor={b.colors[1]} /></radialGradient>
-        <radialGradient id={`gl${uid}`} cx="50%" cy="50%" r="50%"><stop offset="0" stopColor="#fff" stopOpacity="0.28" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
-      </defs>
-      <rect width="200" height="200" fill={`url(#bg${uid})`} />
-      {PATTERN.map(([x, y, r], i) => (
-        <text key={i} x={x} y={y} fontSize="20" fill="#fff" opacity="0.14" textAnchor="middle" transform={`rotate(${r} ${x} ${y})`}>{ch}</text>
-      ))}
-      <circle cx="100" cy="95" r="70" fill={`url(#gl${uid})`} />
-      <text x="100" y="124" fontSize="88" textAnchor="middle" style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) drop-shadow(0 6px 10px rgba(0,0,0,.5))`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}>{gift.emoji}</text>
-      <rect x="62" y="166" width="76" height="22" rx="11" fill="#000" opacity="0.35" />
-      <text x="100" y="182" fontSize="13" fontWeight="700" fill="#fff" textAnchor="middle">{sample ? "NFT" : `#${nft.number}`}</text>
-    </svg>
+  const markup = useMemo(
+    () => nftArtMarkup({ uid, giftId: gift.id, emoji: gift.emoji, label: sample ? "NFT" : `#${nft.number}`, nft }),
+    [uid, gift.id, gift.emoji, sample, nft],
   );
+  return <svg viewBox="0 0 200 200" width={size} height={size} style={{ borderRadius: "18%", display: "block" }} role="img" aria-label={`${gift.title} №${nft.number}`} dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
 /** Плитка подарка: эмодзи на тёмном градиенте; для NFT — карточка по признакам. */
