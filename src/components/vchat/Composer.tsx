@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
+import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { EmojiPanel } from "./EmojiPanel";
 import { MenuList, Sheet } from "./ui";
@@ -9,6 +9,8 @@ import { RecordedAudio, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } fro
 import { useMxPrefs } from "./prefs";
 import { MX_FEATURES } from "./features";
 import { formatDuration } from "./util";
+import { Avatar } from "./ui";
+import type { MAccount } from "./mtypes";
 
 export interface ComposerReply {
   msgId: string;
@@ -25,6 +27,7 @@ export function Composer({
   onCancelReply,
   onCancelEdit,
   onSendText,
+  mentionables = [],
   onSaveEdit,
   onSendMedia,
   onSendFile,
@@ -38,7 +41,9 @@ export function Composer({
   editing: { msgId: string; text: string } | null;
   onCancelReply: () => void;
   onCancelEdit: () => void;
-  onSendText: (text: string) => void;
+  onSendText: (text: string, opts?: { silent?: boolean }) => void;
+  /** участники группы для подсказок @упоминаний (в личных чатах и каналах — пусто) */
+  mentionables?: MAccount[];
   onSaveEdit: (msgId: string, text: string) => void;
   onSendMedia: (files: File[], caption: string) => void;
   onSendFile: (file: File) => void;
@@ -96,7 +101,38 @@ export function Composer({
   }, []);
   useEffect(autosize, [text, autosize]);
 
-  const submit = () => {
+  const [silentOpen, setSilentOpen] = useState(false);
+  const holdSend = useRef<any>(null);
+  const [caret, setCaret] = useState(0);
+
+  // подсказки @упоминаний: слово после @ перед курсором
+  const mentionQuery = (() => {
+    if (mentionables.length === 0) return null;
+    const m = /(^|\s)@([a-z0-9_]*)$/i.exec(text.slice(0, caret));
+    return m ? m[2].toLowerCase() : null;
+  })();
+  const mentionList =
+    mentionQuery === null
+      ? []
+      : mentionables.filter((a) => a.handle.startsWith(mentionQuery) || a.displayName.toLowerCase().includes(mentionQuery)).slice(0, 5);
+  const pickMention = (a: MAccount) => {
+    const before = text.slice(0, caret).replace(/@[a-z0-9_]*$/i, "");
+    const next = `${before}@${a.handle} ${text.slice(caret)}`;
+    setText(next);
+    const pos = before.length + a.handle.length + 2;
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (el) {
+        el.focus();
+        el.selectionStart = el.selectionEnd = pos;
+        setCaret(pos);
+      }
+    });
+  };
+
+  const [fly, setFly] = useState(false);
+
+  const submit = (silent = false) => {
     const value = text.trim();
     if (!value) return;
     if (editing) {
@@ -104,7 +140,10 @@ export function Composer({
       setText("");
       return;
     }
-    onSendText(value);
+    setFly(true);
+    setTimeout(() => setFly(false), 340);
+    navigator.vibrate?.(6);
+    onSendText(value, silent ? { silent: true } : undefined);
     setText("");
     try {
       localStorage.removeItem(draftKey);
@@ -236,7 +275,7 @@ export function Composer({
   const recordingUi = voice.recording;
 
   return (
-    <div className="shrink-0 vc-safe-bottom" style={{ background: "var(--vc-bg)" }}>
+    <div className="shrink-0 vc-safe-bottom relative" style={{ background: "var(--vc-bg)" }}>
       {(reply || editing) && (
         <div className="flex items-center gap-3 px-4 py-2 vc-fade" style={{ borderTop: "1px solid var(--vc-line)", background: "var(--vc-surface)" }}>
           <div className="w-[3px] self-stretch rounded-full" style={{ background: "var(--vc-accent)" }} />
@@ -295,8 +334,10 @@ export function Composer({
                 className="vc-composer-input"
                 onChange={(e) => {
                   setText(e.target.value);
+                  setCaret(e.target.selectionStart ?? e.target.value.length);
                   if (e.target.value) onTyping();
                 }}
+                onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
                 onFocus={() => setEmojiOpen(false)}
@@ -309,8 +350,17 @@ export function Composer({
           </>
         )}
 
-        {hasText || editing ? (
-          <button onClick={submit} className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 vc-pop" style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)" }} aria-label="Отправить">
+        {hasText || editing || fly ? (
+          <button
+            onClick={() => submit()}
+            onContextMenu={(e) => { if (!editing) { e.preventDefault(); setSilentOpen(true); } }}
+            onTouchStart={() => { if (!editing) holdSend.current = setTimeout(() => { navigator.vibrate?.(8); setSilentOpen(true); holdSend.current = null; }, 450); }}
+            onTouchEnd={(e) => { if (!holdSend.current) e.preventDefault(); clearTimeout(holdSend.current); }}
+            onTouchMove={() => clearTimeout(holdSend.current)}
+            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 vc-pop select-none ${fly ? "vc-fly" : ""}`}
+            style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)", WebkitTouchCallout: "none" }}
+            aria-label="Отправить"
+          >
             {editing ? <Check size={22} /> : <Send size={20} className="ml-0.5" />}
           </button>
         ) : !MX_FEATURES.upload ? (
@@ -345,19 +395,40 @@ export function Composer({
         <p className="text-center text-[12px] vc-muted pb-1">Потяни вверх — зафиксировать, влево — отменить</p>
       )}
 
+      {mentionList.length > 0 && (
+        <div className="vc-glass vc-pop absolute left-2 right-2 bottom-[calc(100%-4px)] rounded-2xl overflow-hidden" style={{ zIndex: 30 }}>
+          {mentionList.map((a) => (
+            <button key={a.uid} onMouseDown={(e) => e.preventDefault()} onClick={() => pickMention(a)} className="w-full flex items-center gap-3 px-3 py-2 text-left active:bg-white/5">
+              <Avatar src={a.photoURL} name={a.displayName} seed={a.uid} size={32} />
+              <span className="min-w-0"><span className="block text-[14.5px] truncate">{a.displayName}</span><span className="block text-[12px] vc-muted">@{a.handle}</span></span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {emojiOpen && <EmojiPanel onPick={insertEmoji} />}
 
-      <input ref={mediaInput} type="file" accept={MX_FEATURES.upload ? "image/*,video/mp4,video/quicktime,video/webm" : "image/*"} multiple hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
-      <input ref={cameraInput} type="file" accept={MX_FEATURES.upload ? "image/*,video/*" : "image/*"} capture="environment" hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
-      <input ref={fileInput} type="file" hidden onChange={(e) => { pickFiles(e.target.files, "file"); e.target.value = ""; }} />
+      <Sheet open={silentOpen} onClose={() => setSilentOpen(false)}>
+        <MenuList
+          onDone={() => setSilentOpen(false)}
+          items={[
+            { label: "Отправить без звука", icon: <BellOff size={20} />, onPress: () => submit(true) },
+            { label: "Отправить", icon: <Send size={20} />, onPress: () => submit() },
+          ]}
+        />
+      </Sheet>
+
+      <input ref={mediaInput} type="file" accept="image/*" multiple hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
+      <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pickFiles(e.target.files, "media"); e.target.value = ""; }} />
+      <input ref={fileInput} type="file" accept=".pdf,.zip,.txt,application/pdf,application/zip,text/plain" hidden onChange={(e) => { pickFiles(e.target.files, "file"); e.target.value = ""; }} />
 
       <Sheet open={attachOpen} onClose={() => setAttachOpen(false)}>
         <MenuList
           onDone={() => setAttachOpen(false)}
           items={[
-            { label: MX_FEATURES.upload ? "Фото или видео" : "Фото", icon: <ImageIcon size={21} />, onPress: () => mediaInput.current?.click() },
+            { label: "Фото", icon: <ImageIcon size={21} />, onPress: () => mediaInput.current?.click() },
             { label: "Камера", icon: <Camera size={21} />, onPress: () => cameraInput.current?.click() },
-            { label: "Файл", icon: <FileIcon size={21} />, hidden: !MX_FEATURES.upload, onPress: () => fileInput.current?.click() },
+            { label: "Файл (PDF, ZIP, TXT)", icon: <FileIcon size={21} />, onPress: () => fileInput.current?.click() },
           ]}
         />
       </Sheet>

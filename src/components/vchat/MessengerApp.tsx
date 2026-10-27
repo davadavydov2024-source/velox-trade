@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
-import { mApi } from "./api";
+import { mApi, MApiError } from "./api";
+import { useToast } from "@/lib/toastContext";
 import { Avatar, Spinner } from "./ui";
 import { ChatListPane, totalUnread } from "./ChatListPane";
 import { ChatView } from "./ChatView";
 import { SettingsPane } from "./SettingsPane";
+import { JoinScreen, Onboarding } from "./Onboarding";
 import { ContactsPane } from "./ContactsPane";
 import { NewChatSheet } from "./NewChatSheet";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
@@ -35,16 +37,11 @@ export function MessengerApp() {
   const [settingsPage, setSettingsPage] = useState<"notifications" | undefined>(undefined);
   const [pushHint, setPushHint] = useState(false);
   const openedFromList = useRef(false);
+  const { toast } = useToast();
+  const joinHandled = useRef<string | null>(null);
 
   const chatId = sp.get("chat");
   const activeChat = chatId ? chats.find((c) => c.id === chatId) ?? null : null;
-
-  // --- доступ: нет входа → на экран входа; нет аккаунта мессенджера → на регистрацию ---
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) router.replace("/vc/start?mode=login");
-    else if (!accLoading && !account) router.replace("/vc/start");
-  }, [authLoading, user, accLoading, account, router]);
 
   // --- присутствие: «в сети» (нужна поддержка на сервере — см. NOTES-B.md) ---
   useEffect(() => {
@@ -58,6 +55,25 @@ export function MessengerApp() {
       document.removeEventListener("visibilitychange", ping);
     };
   }, [account]);
+
+  // ссылки-приглашения: /m?join=@канал или /m?join=<код>
+  const joinParam = sp.get("join");
+  useEffect(() => {
+    if (!joinParam || !account || account.banned || joinHandled.current === joinParam) return;
+    joinHandled.current = joinParam;
+    const body = joinParam.startsWith("@") ? { handle: joinParam.slice(1) } : { inviteCode: joinParam };
+    mApi<{ chatId?: string; id?: string; pending?: boolean }>("join-chat", body)
+      .then((res) => {
+        const id = res.chatId ?? res.id;
+        if (res.pending) toast("info", "Заявка отправлена — админ должен её одобрить");
+        if (id) router.replace(`/vc?chat=${encodeURIComponent(id)}`, { scroll: false });
+        else router.replace("/vc", { scroll: false });
+      })
+      .catch((err) => {
+        toast("error", err instanceof MApiError ? err.message : "Не удалось вступить по ссылке");
+        router.replace("/vc", { scroll: false });
+      });
+  }, [joinParam, account, router, toast]);
 
   const unread = totalUnread(chats, userChats);
 
@@ -93,9 +109,12 @@ export function MessengerApp() {
   const groups = useMemo(() => (me ? groupStories(stories, me) : []), [stories, me]);
   const storyAccounts = useAccounts(groups.map((g) => g.uid));
 
-  if (authLoading || (user && accLoading) || !user || !account || !me) {
+  if (authLoading || (user && accLoading)) {
     return <div className="h-full flex items-center justify-center"><Spinner size={30} /></div>;
   }
+  // не вошёл → приветствие/вход/регистрация; вошёл на сайте, но без аккаунта MiliGram → выбор @username
+  if (!user) return <Onboarding />;
+  if (!account || !me) return <JoinScreen defaultName={user.displayName ?? ""} />;
 
   if (account.banned) {
     return (
@@ -145,7 +164,7 @@ export function MessengerApp() {
             />
           )}
           {tab === "contacts" && <ContactsPane me={me} chats={chats} onOpenChat={(id) => { setTab("chats"); openChat(id); }} onNewChat={() => setNewChat(true)} />}
-          {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/vc/start?mode=login")} />}
+          {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/vc")} />}
         </div>
 
         {/* нижняя плавающая стеклянная панель */}
@@ -188,7 +207,7 @@ export function MessengerApp() {
         )}
       </main>
 
-      <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
+      <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} myHandle={account.handle} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
       <StoryCreator open={creator} onClose={() => setCreator(false)} onCreated={reloadStories} />
       {storyUid && groups.length > 0 && (
         <StoryViewer groups={groups} startUid={storyUid} me={me} onClose={() => setStoryUid(null)} onChanged={reloadStories} onOpenChat={openChat} />

@@ -29,38 +29,37 @@ export function groupStories(stories: MStory[], me: string): StoryGroup[] {
   return groups.sort((a, b) => (a.uid === me ? -1 : b.uid === me ? 1 : Number(a.allSeen) - Number(b.allSeen)));
 }
 
-/** Ряд аватарок историй с цветным кольцом; «Моя история» с плюсом. */
+/** Ряд аватарок историй: «Моя история» с плюсом первой, дальше контакты (непросмотренные — с цветным кольцом). */
 export function StoriesRow({ groups, me, myAccount, accounts, onOpen, onCreate }: { groups: StoryGroup[]; me: string; myAccount: MAccount; accounts: Record<string, MAccount | null>; onOpen: (uid: string) => void; onCreate: () => void }) {
   const mine = groups.find((g) => g.uid === me);
   const others = groups.filter((g) => g.uid !== me);
   return (
-    <div className="flex gap-3.5 overflow-x-auto vc-noscrollbar px-4 pb-2 pt-1">
-      <button onClick={() => (mine ? onOpen(me) : onCreate())} className="flex flex-col items-center gap-1 shrink-0 w-[64px]">
-        <div className="relative">
-          <Avatar src={myAccount.photoURL} name={myAccount.displayName} seed={me} size={56} ring={mine ? "unseen" : undefined} />
-          {!mine && (
-            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)", border: "2px solid var(--vc-bg)" }}>
-              <Plus size={13} strokeWidth={3} />
-            </span>
-          )}
-        </div>
-        <span className="text-[11.5px] vc-muted truncate w-full text-center">Моя история</span>
-      </button>
-      {mine && (
-        <button onClick={onCreate} className="flex flex-col items-center gap-1 shrink-0 w-[64px] self-start" aria-label="Добавить историю">
-          <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "var(--vc-surface2)", color: "var(--vc-accent)" }}><Plus size={24} /></span>
-          <span className="text-[11.5px] vc-muted">Добавить</span>
-        </button>
-      )}
-      {others.map((g) => {
-        const a = accounts[g.uid];
-        return (
-          <button key={g.uid} onClick={() => onOpen(g.uid)} className="flex flex-col items-center gap-1 shrink-0 w-[64px]">
-            <Avatar src={a?.photoURL} name={a?.displayName ?? "?"} seed={g.uid} size={56} ring={g.allSeen ? "seen" : "unseen"} />
-            <span className="text-[11.5px] truncate w-full text-center" style={{ color: g.allSeen ? "var(--vc-muted)" : "var(--vc-text)" }}>{a?.displayName?.split(" ")[0] ?? "…"}</span>
+    <div className="relative">
+      <div className="flex gap-3 overflow-x-auto vc-noscrollbar px-4 pb-3 pt-1" style={{ scrollSnapType: "x proximity" }}>
+        <div className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]" style={{ scrollSnapAlign: "start" }}>
+          <button onClick={() => (mine ? onOpen(me) : onCreate())} className="relative" aria-label="Моя история">
+            <Avatar src={myAccount.photoURL} name={myAccount.displayName} seed={me} size={56} ring={mine ? "unseen" : undefined} />
           </button>
-        );
-      })}
+          <button
+            onClick={onCreate}
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ width: 22, height: 22, marginTop: 38, marginLeft: 40, background: "var(--vc-accent)", color: "var(--vc-accent-text)", border: "2.5px solid var(--vc-bg)" }}
+            aria-label="Добавить историю"
+          >
+            <Plus size={13} strokeWidth={3.2} />
+          </button>
+          <span className="text-[11.5px] vc-muted truncate w-full text-center">Моя история</span>
+        </div>
+        {others.map((g) => {
+          const a = accounts[g.uid];
+          return (
+            <button key={g.uid} onClick={() => onOpen(g.uid)} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]" style={{ scrollSnapAlign: "start" }}>
+              <Avatar src={a?.photoURL} name={a?.displayName ?? "?"} seed={g.uid} size={56} ring={g.allSeen ? "seen" : "unseen"} />
+              <span className="text-[11.5px] truncate w-full text-center" style={{ color: g.allSeen ? "var(--vc-muted)" : "var(--vc-text)", fontWeight: g.allSeen ? 400 : 600 }}>{a?.displayName?.split(" ")[0] ?? "…"}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -115,7 +114,15 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
-  // таймер прогресса
+  // таймер прогресса: время копится в ref, переход вперёд срабатывает ровно один раз (раньше мог перескакивать через историю)
+  const elapsed = useRef(0);
+  const finished = useRef(false);
+  useEffect(() => {
+    elapsed.current = 0;
+    finished.current = false;
+    setProgress(0);
+  }, [story?.id]);
+
   useEffect(() => {
     if (!story || paused || viewersOpen) return;
     let raf = 0;
@@ -123,21 +130,23 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
     const tick = (t: number) => {
       const dt = t - last;
       last = t;
+      elapsed.current += dt;
       const v = videoRef.current;
-      const total = story.kind === "video" && v && Number.isFinite(v.duration) && v.duration > 0 ? Math.min(v.duration, 15) * 1000 : IMAGE_MS;
-      setProgress((p) => {
-        const np = p + dt / total;
-        if (np >= 1) {
-          queueMicrotask(next);
-          return 1;
-        }
-        return np;
-      });
+      let p: number;
+      if (story.kind === "video" && v && Number.isFinite(v.duration) && v.duration > 0) p = v.currentTime / Math.min(v.duration, 15);
+      else p = elapsed.current / IMAGE_MS;
+      p = Math.max(0, Math.min(1, p));
+      setProgress(p);
+      if (p >= 1 && !finished.current) {
+        finished.current = true;
+        next();
+        return;
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [story, paused, viewersOpen, next]);
+  }, [story?.id, paused, viewersOpen, next]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const v = videoRef.current;
@@ -161,7 +170,9 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
     if (!text || !group) return;
     setReply("");
     try {
-      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", members: [group.uid] });
+      const handle = accounts[group.uid]?.handle;
+      if (!handle) throw new Error("Не удалось определить получателя");
+      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [handle] });
       const chatId = res.chatId ?? res.id;
       if (!chatId) throw new Error("no chat");
       await mApi("send", { chatId, kind: "text", text: `Ответ на историю: ${text}` });
@@ -203,7 +214,8 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   };
 
   return createPortal(
-    <div className="absolute inset-0 flex flex-col vc-fade" style={{ zIndex: 90, background: "#000" }}>
+    <div className="absolute inset-0 flex items-center justify-center vc-fade" style={{ zIndex: 90, background: "#000" }} onContextMenu={(e) => e.preventDefault()}>
+     <div className="flex flex-col w-full h-full min-[900px]:h-[min(100%,860px)] min-[900px]:max-w-[480px] min-[900px]:rounded-[22px] overflow-hidden relative select-none" style={{ background: "#000", WebkitTouchCallout: "none" }}>
       <div className="relative flex-1 min-h-0">
         {story.kind === "video" ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -269,6 +281,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
         )}
       </div>
 
+     </div>
       <Sheet open={viewersOpen} onClose={() => setViewersOpen(false)} title="Просмотры" zIndex={95}>
         <div className="pb-6">
           {(story.viewers ?? []).length === 0 && <p className="vc-muted text-center py-6">Пока никто не смотрел</p>}

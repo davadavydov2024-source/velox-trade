@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Megaphone, Search, Users, UserRound, X } from "lucide-react";
+import { Bookmark, Check, Megaphone, Search, Users, UserRound, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
@@ -60,7 +60,7 @@ export function PersonRow({ acc, selected, onPress, right }: { acc: MAccount; se
 
 type Mode = "menu" | "dm" | "group" | "channel";
 
-export function NewChatSheet({ open, onClose, me, onOpenChat }: { open: boolean; onClose: () => void; me: string; onOpenChat: (chatId: string) => void }) {
+export function NewChatSheet({ open, onClose, me, myHandle, onOpenChat }: { open: boolean; onClose: () => void; me: string; myHandle: string; onOpenChat: (chatId: string) => void }) {
   const { toast } = useToast();
   const [mode, setMode] = useState<Mode>("menu");
   const [q, setQ] = useState("");
@@ -69,7 +69,20 @@ export function NewChatSheet({ open, onClose, me, onOpenChat }: { open: boolean;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
+  const [chHandle, setChHandle] = useState("");
+  const [channels, setChannels] = useState<{ chatId: string; handle: string; title: string; photoURL: string | null; subscribers: number }[]>([]);
   const { results, loading } = usePeopleSearch(q, mode !== "menu");
+
+  // публичные каналы ищутся вместе с людьми (только в режиме «Написать человеку»)
+  useEffect(() => {
+    const t = q.trim().replace(/^@/, "");
+    if (mode !== "dm" || t.length < 2) return setChannels([]);
+    const h = setTimeout(() => {
+      mApi<{ channels: typeof channels }>(`channel-search?q=${encodeURIComponent(t)}`).then((d) => setChannels(d.channels ?? [])).catch(() => setChannels([]));
+    }, 350);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, mode]);
 
   const reset = () => {
     setMode("menu");
@@ -78,6 +91,8 @@ export function NewChatSheet({ open, onClose, me, onOpenChat }: { open: boolean;
     setStep("pick");
     setTitle("");
     setDescription("");
+    setChHandle("");
+    setChannels([]);
     setBusy(false);
   };
   const close = () => {
@@ -85,10 +100,30 @@ export function NewChatSheet({ open, onClose, me, onOpenChat }: { open: boolean;
     reset();
   };
 
-  const create = async (type: MChatType, members: string[]) => {
+  const joinChannel = async (handle: string) => {
     setBusy(true);
     try {
-      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type, members, title: title.trim() || undefined, description: description.trim() || undefined });
+      const res = await mApi<{ chatId?: string; id?: string }>("join-chat", { handle });
+      const id = res.chatId ?? res.id;
+      close();
+      if (id) onOpenChat(id);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось подписаться");
+      setBusy(false);
+    }
+  };
+
+  /** members — @username людей (сервер сам находит их по handle). */
+  const create = async (type: MChatType, memberHandles: string[]) => {
+    setBusy(true);
+    try {
+      const res = await mApi<{ chatId?: string; id?: string }>("chats", {
+        type,
+        memberHandles,
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
+        handle: type === "channel" && chHandle.trim() ? chHandle.trim().replace(/^@/, "").toLowerCase() : undefined,
+      });
       const id = res.chatId ?? res.id;
       close();
       if (id) onOpenChat(id);
@@ -120,8 +155,11 @@ export function NewChatSheet({ open, onClose, me, onOpenChat }: { open: boolean;
         <div className="p-4 space-y-3 pb-8">
           <input className="vc-input" placeholder={mode === "group" ? "Название группы" : "Название канала"} value={title} maxLength={64} onChange={(e) => setTitle(e.target.value)} autoFocus />
           <textarea className="vc-input" placeholder="Описание (необязательно)" value={description} maxLength={300} rows={3} onChange={(e) => setDescription(e.target.value)} />
+          {mode === "channel" && (
+            <input className="vc-input" placeholder="@адрес — чтобы канал был публичным (необязательно)" value={chHandle} maxLength={24} autoCapitalize="none" onChange={(e) => setChHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+          )}
           <p className="vc-muted text-[13px]">{picked.length} {picked.length === 1 ? "участник" : "участников"} кроме вас</p>
-          <button className="vc-btn" disabled={busy || title.trim().length < 2} onClick={() => create(mode === "group" ? "group" : "channel", picked.map((p) => p.uid))}>
+          <button className="vc-btn" disabled={busy || title.trim().length < 2} onClick={() => create(mode === "group" ? "group" : "channel", picked.map((p) => p.handle))}>
             {busy ? "Создаю…" : mode === "group" ? "Создать группу" : "Создать канал"}
           </button>
           <button className="vc-btn vc-btn-ghost" onClick={() => setStep("pick")}>Назад</button>
@@ -144,15 +182,28 @@ export function NewChatSheet({ open, onClose, me, onOpenChat }: { open: boolean;
               ))}
             </div>
           )}
-          {q.trim().length < 2 && <p className="vc-muted text-center py-8 text-[14px] px-8">Введи минимум 2 символа, чтобы найти человека по имени или @username.</p>}
+          {mode === "dm" && q.trim().length < 2 && (
+            <button onClick={() => !busy && create("dm", [myHandle])} className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-white/5">
+              <span className="w-[46px] h-[46px] rounded-full flex items-center justify-center text-white" style={{ background: "linear-gradient(135deg,#6ec1ff,#3578e5)" }}><Bookmark size={21} /></span>
+              <span className="font-medium">Избранное</span>
+            </button>
+          )}
+          {q.trim().length < 2 && <p className="vc-muted text-center py-8 text-[14px] px-8">Введи минимум 2 символа, чтобы найти человека по @username или публичный канал.</p>}
           {q.trim().length >= 2 && !loading && people.length === 0 && <p className="vc-muted text-center py-8">Никого не найдено</p>}
           {people.map((a) =>
             mode === "dm" ? (
-              <PersonRow key={a.uid} acc={a} onPress={() => !busy && create("dm", [a.uid])} />
+              <PersonRow key={a.uid} acc={a} onPress={() => !busy && create("dm", [a.handle])} />
             ) : (
               <PersonRow key={a.uid} acc={a} selected={picked.some((x) => x.uid === a.uid)} onPress={() => togglePick(a)} />
             )
           )}
+          {mode === "dm" && channels.length > 0 && <p className="vc-muted text-[13px] uppercase tracking-wide px-5 pt-3 pb-1">Каналы</p>}
+          {mode === "dm" && channels.map((c) => (
+            <button key={c.chatId} disabled={busy} onClick={() => joinChannel(c.handle)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-white/5">
+              <Avatar src={c.photoURL} name={c.title} seed={c.chatId} size={46} />
+              <div className="min-w-0 flex-1"><p className="font-medium truncate">{c.title}</p><p className="text-[13px] vc-muted truncate">@{c.handle} · {c.subscribers} подписчиков · нажми, чтобы подписаться</p></div>
+            </button>
+          ))}
           {mode !== "dm" && (
             <div className="fixed-bottom sticky bottom-0 p-4" style={{ background: "linear-gradient(transparent, var(--vc-surface) 35%)" }}>
               <button className="vc-btn" disabled={mode === "group" && picked.length === 0} onClick={() => setStep("details")}>

@@ -1,7 +1,7 @@
 "use client";
 
-import { ReactNode, useRef } from "react";
-import { Check, CheckCheck, Clock, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
@@ -27,7 +27,45 @@ function Linkified({ text }: { text: string }) {
   );
 }
 
-function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: number; onOpen: (url: string) => void }) {
+/** blob: (локальное превью) показываем как есть, остальное — через safeImageSrc. */
+const imgSrc = (u: string) => (u.startsWith("blob:") ? u : safeImageSrc(u));
+
+/** Картинка, которая меняет адрес без мигания: новый src сначала загружается в фоне, потом подменяется. */
+function SmoothImg({ src, className, style }: { src: string; className?: string; style?: React.CSSProperties }) {
+  const [shown, setShown] = useState(src);
+  useEffect(() => {
+    if (src === shown) return;
+    let alive = true;
+    const img = new Image();
+    img.onload = () => alive && setShown(src);
+    img.onerror = () => alive && setShown(src);
+    img.src = src;
+    return () => {
+      alive = false;
+    };
+  }, [src, shown]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={shown} alt="" className={className} style={style} loading="lazy" draggable={false} />;
+}
+
+/** Кольцо прогресса поверх загружаемого медиа. */
+function UploadRing({ progress }: { progress?: number }) {
+  const r = 18;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0.06, Math.min(1, progress ?? 0.06));
+  return (
+    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }}>
+        <svg width="44" height="44" viewBox="0 0 44 44" className="animate-spin" style={{ animationDuration: "1.6s" }}>
+          <circle cx="22" cy="22" r={r} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="3" />
+          <circle cx="22" cy="22" r={r} fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - p)} transform="rotate(-90 22 22)" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
+function MediaGrid({ urls, w, h, onOpen, uploading, progress }: { urls: string[]; w?: number; h?: number; onOpen: (url: string) => void; uploading?: boolean; progress?: number }) {
   if (urls.length === 1) {
     const url = urls[0];
     const ratio = w && h ? w / h : 1;
@@ -39,9 +77,9 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
           // eslint-disable-next-line jsx-a11y/media-has-caption
           <video src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={safeImageSrc(url)} alt="" className="w-full h-full object-cover" loading="lazy" draggable={false} />
+          <SmoothImg src={imgSrc(url)} className="w-full h-full object-cover" />
         )}
+        {uploading && <UploadRing progress={progress} />}
         {video && (
           <span className="absolute inset-0 flex items-center justify-center">
             <span className="w-12 h-12 rounded-full flex items-center justify-center text-white" style={{ background: "rgba(0,0,0,0.5)" }}>
@@ -57,8 +95,7 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
     <div className="grid gap-[3px] rounded-[15px] overflow-hidden" style={{ gridTemplateColumns: "1fr 1fr", width: 260 }}>
       {shown.map((u, i) => (
         <button key={i} onClick={() => onOpen(u)} className="relative aspect-square" style={{ background: "var(--vc-surface2)" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={safeImageSrc(u)} alt="" className="w-full h-full object-cover" loading="lazy" draggable={false} />
+          <SmoothImg src={imgSrc(u)} className="w-full h-full object-cover" />
           {i === 3 && urls.length > 4 && (
             <span className="absolute inset-0 flex items-center justify-center text-white text-xl font-semibold" style={{ background: "rgba(0,0,0,0.5)" }}>
               +{urls.length - 4}
@@ -122,6 +159,7 @@ export function MessageRow({
   }
 
   const isNote = msg.kind === "videoNote";
+  const isSticker = msg.kind === "sticker" && !!msg.mediaUrl;
   const isMedia = msg.kind === "image";
   const urls = msg.mediaUrls?.length ? msg.mediaUrls : msg.mediaUrl ? [msg.mediaUrl] : [];
 
@@ -154,22 +192,68 @@ export function MessageRow({
 
   const meta: ReactNode = (
     <span className="vc-meta">
+      {chatType === "channel" && typeof msg.views === "number" && (
+        <span className="inline-flex items-center gap-0.5"><Eye size={13} />{msg.views}</span>
+      )}
       {msg.editedAt && <span>изменено</span>}
       <span>{formatTime(msg.createdAt)}</span>
-      {mine &&
-        (pending ? (
-          pending.status === "failed" ? <AlertCircle size={13} color="var(--vc-danger)" /> : <Clock size={12} />
-        ) : read ? (
-          <CheckCheck size={15} />
-        ) : (
-          <Check size={15} />
-        ))}
+      {mine && (
+        <span key={pending ? pending.status : read ? "read" : "sent"} className="vc-tick inline-flex">
+          {pending ? (
+            pending.status === "failed" ? <AlertCircle size={13} color="var(--vc-danger)" /> : pending.status === "sent" ? <Check size={15} /> : <Clock size={12} />
+          ) : read ? (
+            <CheckCheck size={15} />
+          ) : (
+            <Check size={15} />
+          )}
+        </span>
+      )}
     </span>
   );
 
   let content: ReactNode;
   if (msg.deletedForAll) {
     content = <p className="italic opacity-70">Сообщение удалено</p>;
+  } else if (msg.kind === "poll" && msg.poll) {
+    const poll = msg.poll;
+    const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
+    content = (
+      <>
+        <p className="font-semibold mb-0.5">{poll.question}</p>
+        <p className="text-[12px] opacity-70 mb-2">
+          {poll.closed ? "Опрос завершён" : poll.quiz ? "Викторина" : poll.anonymous ? "Анонимный опрос" : "Публичный опрос"}
+          {poll.multiple ? " · несколько ответов" : ""}
+        </p>
+        <div className="space-y-1.5" style={{ minWidth: 200 }}>
+          {poll.options.map((o, i) => {
+            const pct = Math.round((o.count / total) * 100);
+            return (
+              <div key={i} className="relative rounded-lg overflow-hidden px-2.5 py-1.5" style={{ background: "rgba(127,127,127,0.18)" }}>
+                <span className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: "rgba(127,127,127,0.28)" }} />
+                <span className="relative flex items-center justify-between gap-3 text-[14px]"><span>{o.text}</span><span className="opacity-75 text-[12.5px]">{o.count > 0 ? `${pct}%` : ""}</span></span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[12px] opacity-70 mt-2">Проголосовало: {poll.total}</p>
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
+  } else if (msg.kind === "sticker") {
+    content = msg.mediaUrl ? (
+      <div className="relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={safeImageSrc(msg.mediaUrl)} alt="" width={160} height={160} className="block" style={{ width: 160, height: 160, objectFit: "contain" }} draggable={false} />
+        <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}</span>
+      </div>
+    ) : (
+      <>
+        <span className="text-[34px] leading-none">🧩</span> <span className="opacity-80">Стикер</span>
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
   } else if (msg.kind === "voice" && msg.mediaUrl) {
     content = (
       <>
@@ -207,7 +291,7 @@ export function MessageRow({
   } else if (isMedia && urls.length > 0) {
     content = (
       <>
-        <MediaGrid urls={urls} w={msg.width} h={msg.height} onOpen={onOpenMedia} />
+        <MediaGrid urls={urls} w={msg.width} h={msg.height} onOpen={onOpenMedia} uploading={pending?.status === "sending"} progress={pending?.progress} />
         {msg.text && (
           <p className="px-2 pt-1.5 pb-0.5 whitespace-pre-wrap">
             <Linkified text={msg.text} />
@@ -236,7 +320,7 @@ export function MessageRow({
     );
   }
 
-  const bubbleClass = `vc-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "vc-hl" : ""}`;
+  const bubbleClass = `vc-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "vc-hl" : ""} ${pending && pending.status !== "failed" ? "sending" : ""}`;
 
   return (
     <div
@@ -264,7 +348,7 @@ export function MessageRow({
       )}
       <div className="flex flex-col min-w-0" style={{ alignItems: mine ? "flex-end" : "flex-start", maxWidth: "100%" }}>
         <div className={bubbleClass} onClick={handleClick}>
-          {!mine && chatType !== "dm" && showAuthor && !isNote && (
+          {!mine && chatType !== "dm" && showAuthor && !isNote && !isSticker && (
             <p className="text-[13px] font-semibold mb-0.5" style={{ color: nameColor }}>
               {author?.displayName ?? "Участник"}
             </p>

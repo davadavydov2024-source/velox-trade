@@ -156,7 +156,11 @@ export function ChatListPane({
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
         onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: activeId === c.id ? "var(--vc-surface)" : "var(--vc-bg)" }}>
+        <div
+          className="relative flex items-center gap-3 px-4 py-2.5 transition-colors"
+          style={{ background: activeId === c.id ? "var(--vc-surface2)" : uc?.pinned ? "color-mix(in srgb, var(--vc-surface) 60%, var(--vc-bg))" : "var(--vc-bg)" }}
+        >
+          <span className="absolute bottom-0 right-0 h-px" style={{ left: 84, background: "var(--vc-line)" }} />
           {editMode && (
             <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected.has(c.id) ? "var(--vc-accent)" : "var(--vc-muted)", background: selected.has(c.id) ? "var(--vc-accent)" : "transparent" }}>
               {selected.has(c.id) && <Check size={14} color="var(--vc-accent-text)" />}
@@ -171,13 +175,13 @@ export function ChatListPane({
                 {title} {peer?.verified && <VerifiedBadge size={14} />}
               </p>
               {muted && <BellOff size={13} className="vc-muted shrink-0" />}
-              <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px] vc-muted">
+              <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--vc-accent)" : "var(--vc-muted)", fontWeight: unread > 0 && !muted ? 600 : 400 }}>
                 {mineLast && last && (readByPeer || saved ? <CheckCheck size={16} style={{ color: "var(--vc-accent)" }} /> : <Check size={16} />)}
                 {last ? formatListTime(last.at, now) : ""}
               </span>
             </div>
             <div className="flex items-start gap-2 mt-0.5">
-              <p className="text-[14.5px] vc-muted flex-1 min-w-0" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
+              <p className="text-[14.5px] flex-1 min-w-0" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.32, color: unread > 0 && !muted ? "var(--vc-text)" : "var(--vc-muted)" }}>
                 {typing ? (
                   <span style={{ color: "var(--vc-accent)" }}>печатает…</span>
                 ) : draft ? (
@@ -217,7 +221,7 @@ export function ChatListPane({
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--vc-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="vc-safe-top shrink-0">
+      <div className="vc-safe-top shrink-0 vc-glass" style={{ borderWidth: "0 0 1px", zIndex: 5 }}>
         <div className="h-12 flex items-center px-3 relative">
           <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="text-[16px] px-2 py-1.5" style={{ color: "var(--vc-accent)" }}>
             {editMode ? "Готово" : "Изм."}
@@ -261,7 +265,7 @@ export function ChatListPane({
                     acc={a}
                     onPress={async () => {
                       try {
-                        const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", members: [a.uid] });
+                        const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [a.handle] });
                         const id = res.chatId ?? res.id;
                         if (id) {
                           setQ("");

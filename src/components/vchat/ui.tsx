@@ -37,19 +37,23 @@ export function Avatar({
       )}
     </div>
   );
+  const box = ring ? size + 10 : size;
   return (
-    <div className="relative shrink-0" style={{ width: ring ? size + 8 : size, height: ring ? size + 8 : size }}>
+    <div className="relative shrink-0" style={{ width: box, height: box }}>
       {ring ? (
-        <div className={`vc-story-ring ${ring === "seen" ? "seen" : ""}`}>
-          <div className="rounded-full p-[2px]" style={{ background: "var(--vc-bg)" }}>{inner}</div>
-        </div>
+        <>
+          {/* градиентное кольцо → зазор цвета фона → аватар: все три слоя строго концентрические */}
+          <span className={`vc-story-ring ${ring === "seen" ? "seen" : ""} absolute inset-0 rounded-full`} />
+          <span className="absolute rounded-full" style={{ inset: 3, background: "var(--vc-bg)" }} />
+          <span className="absolute" style={{ inset: 5 }}>{inner}</span>
+        </>
       ) : (
         inner
       )}
       {online && (
         <span
           className="absolute rounded-full"
-          style={{ width: size * 0.26, height: size * 0.26, right: ring ? 2 : 0, bottom: ring ? 2 : 0, background: "#34c759", border: "2.5px solid var(--vc-bg)" }}
+          style={{ width: size * 0.26, height: size * 0.26, right: ring ? 3 : 0, bottom: ring ? 3 : 0, background: "#34c759", border: "2.5px solid var(--vc-bg)" }}
         />
       )}
     </div>

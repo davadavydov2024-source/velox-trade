@@ -20,7 +20,7 @@ export function ContactsPane({ me, chats, onOpenChat, onNewChat }: { me: string;
 
   const openDm = async (a: MAccount) => {
     try {
-      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", members: [a.uid] });
+      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [a.handle] });
       const id = res.chatId ?? res.id;
       if (id) onOpenChat(id);
     } catch (err) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, ChevronDown, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut,
+  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut,
 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
@@ -13,10 +13,10 @@ import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
 import { ChatInfoSheet } from "./ChatInfoSheet";
 import { useAccounts, useLiveAccount, useMessages, useNow, useTyping } from "./hooks";
-import { MX_FEATURES } from "./features";
 import { MAccount, MChat, MMessage, MPending, MUserChat } from "./mtypes";
-import { chatPhoto, chatTitle, dayLabel, DOUBLE_TAP_REACTION, extFromMime, isChatMuted, isOnline, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural, previewText, QUICK_REACTIONS, sameDay, shortCount } from "./util";
+import { formatTime, chatPhoto, chatTitle, dayLabel, DOUBLE_TAP_REACTION, extFromMime, isChatMuted, isOnline, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural, previewText, QUICK_REACTIONS, sameDay, shortCount } from "./util";
 import type { RecordedAudio, RecordedVideo } from "./Recorders";
+import { DEFAULT_PERMISSIONS } from "@/lib/messenger/types";
 
 const NEAR_BOTTOM = 140;
 
@@ -63,17 +63,12 @@ export function ChatView({
   const { toast } = useToast();
   const now = useNow(15_000);
   const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
-  // «Удалить у себя» в API нет — такие сообщения просто скрываем на этом устройстве
-  const hiddenKey = `vc-hidden-${chat.id}`;
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    try {
-      setHiddenIds(new Set(JSON.parse(localStorage.getItem(hiddenKey) ?? "[]")));
-    } catch {
-      setHiddenIds(new Set());
-    }
-  }, [hiddenKey]);
-  const messages = useMemo(() => allMessages.filter((m) => !hiddenIds.has(m.id)), [allMessages, hiddenIds]);
+  // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
+  const clearedAt = userChat?.clearedAt ?? 0;
+  const messages = useMemo(
+    () => allMessages.filter((m) => !m.hiddenFor?.includes(me) && !(m.expireAt && m.expireAt < now) && m.createdAt > clearedAt),
+    [allMessages, me, now, clearedAt]
+  );
   const typingUids = useTyping(chat.id, me);
   const accounts = useAccounts(Array.from(new Set([...chat.members, ...messages.map((m) => m.from)])));
   const peer = useLiveAccount(chat.type === "dm" && !isSavedMessages(chat, me) ? peerUid(chat, me) : null);
@@ -92,6 +87,12 @@ export function ChatView({
   const [info, setInfo] = useState(false);
   const [pinIndex, setPinIndex] = useState(0);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [dividerId, setDividerId] = useState<string | null>(null);
+  const dividerSet = useRef(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchRes, setSearchRes] = useState<MMessage[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
@@ -100,13 +101,30 @@ export function ChatView({
   const prevCount = useRef(0);
   const initialized = useRef(false);
   const lastTypingSent = useRef(0);
+  const keyMap = useRef(new Map<string, string>()); // id настоящего сообщения → key его плашки «отправляется»
+  const seen = useRef(new Set<string>());
+  const ready = useRef(false);
   const prevHeight = useRef(0);
 
   const title = chatTitle(chat, me, accountsAll);
   const photo = chatPhoto(chat, me, accountsAll);
   const saved = isSavedMessages(chat, me);
   const isAdmin = chat.admins?.includes(me) || chat.createdBy === me;
-  const canPost = chat.type !== "channel" || isAdmin;
+  const perms = { ...DEFAULT_PERMISSIONS, ...(chat.permissions ?? {}) };
+  const restriction = chat.restricted?.[me];
+  const restrictedNow = !!restriction && restriction.until > now && restriction.sendMessages === false;
+  const blockedReason = chat.service
+    ? "Это служебный чат — отвечать в нём нельзя"
+    : chat.banned?.includes(me)
+    ? "Вы заблокированы в этом чате"
+    : chat.type === "channel" && !isAdmin
+    ? "Только администраторы могут писать в канал"
+    : chat.type === "group" && !isAdmin && !perms.sendMessages
+    ? "В этой группе писать могут только администраторы"
+    : restrictedNow
+    ? `Вам ограничена отправка сообщений до ${new Date(restriction!.until).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+    : undefined;
+  const canPost = !blockedReason;
   const muted = isChatMuted(userChat?.muted, userChat?.mutedUntil, now);
 
   // ---- статус под названием ----
@@ -138,6 +156,41 @@ export function ChatView({
     }
   };
 
+  // разделитель «Новые сообщения»: ставим один раз при открытии чата перед первым непрочитанным
+  useEffect(() => {
+    dividerSet.current = false;
+    setDividerId(null);
+  }, [chat.id]);
+  useEffect(() => {
+    if (dividerSet.current || messages.length === 0 || userChat === undefined) return;
+    dividerSet.current = true;
+    if ((userChat.unread ?? 0) <= 0) return;
+    const readAt = chat.readBy?.[me] ?? 0;
+    const first = messages.find((m) => m.from !== me && m.createdAt > readAt);
+    if (first) setDividerId(first.id);
+  }, [messages, userChat, chat.readBy, me]);
+
+  // поиск по сообщениям чата (недавняя история)
+  useEffect(() => {
+    const q = searchQ.trim();
+    if (!searchOpen || q.length < 2) {
+      setSearchRes([]);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await mApi<{ messages?: MMessage[]; results?: MMessage[] }>(`search-messages?chatId=${encodeURIComponent(chat.id)}&q=${encodeURIComponent(q)}`);
+        setSearchRes(res.messages ?? res.results ?? []);
+      } catch {
+        setSearchRes([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQ, searchOpen, chat.id]);
+
   useEffect(() => {
     initialized.current = false;
     prevCount.current = 0;
@@ -145,7 +198,10 @@ export function ChatView({
     setSelection(null);
     setReply(null);
     setEditing(null);
-    setPending([]);
+    dropPending(pending.map((x) => x.tempId));
+    keyMap.current.clear();
+    seen.current.clear();
+    ready.current = false;
     setPinIndex(0);
   }, [chat.id]);
 
@@ -197,30 +253,38 @@ export function ChatView({
   // ---- отправка ----
   const replyPayload = () => (reply ? { msgId: reply.msgId } : undefined);
 
-  const send = useCallback(
-    async (tempId: string, payload: Record<string, unknown>) => {
-      try {
-        const res = await mApi<{ id?: string }>("send", { chatId: chat.id, ...payload });
-        // оставляем плашку «отправляется», пока настоящее сообщение не придёт из Firestore (или 1.2 с)
-        setTimeout(() => setPending((p) => p.filter((x) => x.tempId !== tempId)), res?.id ? 1200 : 400);
-      } catch (err) {
-        const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
-        toast("error", msg);
-        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { setPending((q) => q.filter((y) => y.tempId !== tempId)); send(`r${Date.now()}`, payload); } } : x)));
-      }
-    },
-    [chat.id, toast]
-  );
-
   const addPending = (p: Omit<MPending, "tempId" | "chatId" | "createdAt" | "status">): string => {
     const tempId = `p${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
     setPending((list) => [...list, { ...p, tempId, chatId: chat.id, createdAt: Date.now(), status: "sending" }]);
     return tempId;
   };
   const patchPending = (tempId: string, patch: Partial<MPending>) => setPending((list) => list.map((x) => (x.tempId === tempId ? { ...x, ...patch } : x)));
+  /** Убирает плашки «отправляется» и освобождает локальные превью (blob:-ссылки). */
+  const dropPending = (ids: string[]) =>
+    setPending((list) => {
+      list.filter((p) => ids.includes(p.tempId)).forEach((p) => [p.mediaUrl, ...(p.mediaUrls ?? [])].forEach((u) => u?.startsWith("blob:") && URL.revokeObjectURL(u)));
+      return list.filter((p) => !ids.includes(p.tempId));
+    });
 
-  const sendText = (text: string) => {
-    const payload = { kind: "text", text, replyTo: replyPayload() };
+  const send = useCallback(
+    async (tempId: string, payload: Record<string, unknown>) => {
+      try {
+        const res = await mApi<{ id?: string }>("send", { chatId: chat.id, ...payload });
+        // плашка остаётся на месте, пока настоящее сообщение не придёт из Firestore — потом оно занимает её место
+        // (тот же key), поэтому ничего не мигает и не пропадает. Запасная очистка — через 15 с.
+        patchPending(tempId, { status: "sent", serverId: res?.id });
+        setTimeout(() => dropPending([tempId]), 15_000);
+      } catch (err) {
+        const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
+        toast("error", msg);
+        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { dropPending([tempId]); send(`r${Date.now()}`, payload); } } : x)));
+      }
+    },
+    [chat.id, toast]
+  );
+
+  const sendText = (text: string, opts?: { silent?: boolean }) => {
+    const payload = { kind: "text", text, replyTo: replyPayload(), ...(opts?.silent ? { silent: true } : {}) };
     const tempId = addPending({ kind: "text", text });
     setReply(null);
     send(tempId, payload);
@@ -228,17 +292,17 @@ export function ChatView({
 
   const failUpload = (tempId: string, err: unknown) => {
     toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить файл");
-    patchPending(tempId, { status: "failed", retry: () => setPending((l) => l.filter((x) => x.tempId !== tempId)) });
+    patchPending(tempId, { status: "failed", retry: () => dropPending([tempId]) });
   };
 
   const sendMedia = async (files: File[], caption: string) => {
     const valid = files.filter((f) => {
       const isVideo = f.type.startsWith("video/");
-      if (isVideo && !MX_FEATURES.upload) {
-        toast("info", "Видео пока отправлять нельзя — только фото");
+      if (isVideo) {
+        toast("info", "Видео можно отправить только видеокружком (кнопка микрофона → камера)");
         return false;
       }
-      const limit = isVideo ? 25 : 15;
+      const limit = 15;
       if (f.size > limit * 1024 * 1024) {
         toast("error", `«${f.name}» слишком большой (максимум ${limit} МБ)`);
         return false;
@@ -246,7 +310,10 @@ export function ChatView({
       return true;
     });
     if (valid.length === 0) return;
-    const tempId = addPending({ kind: "image", text: caption, progress: 0 });
+    // локальные превью: фото видно сразу, пока грузится (с размытием и кольцом прогресса)
+    const previews = valid.map((f) => URL.createObjectURL(f));
+    const dims0 = await readDims(valid[0]);
+    const tempId = addPending({ kind: "image", text: caption, mediaUrls: previews, mediaUrl: previews[0], width: dims0.width, height: dims0.height, progress: 0 });
     const rep = replyPayload();
     setReply(null);
     try {
@@ -286,7 +353,7 @@ export function ChatView({
   };
 
   const sendVoice = async (a: RecordedAudio) => {
-    const tempId = addPending({ kind: "voice", duration: a.duration, waveform: a.waveform, progress: 0 });
+    const tempId = addPending({ kind: "voice", duration: a.duration, waveform: a.waveform, mediaUrl: URL.createObjectURL(a.blob), progress: 0 });
     try {
       const up = await mUpload(a.blob, "voice", { duration: a.duration, fileName: `voice.${extFromMime(a.mime)}`, onProgress: (p) => patchPending(tempId, { progress: p * 0.95 }) });
       send(tempId, { kind: "voice", mediaUrl: up.url, duration: Math.round(a.duration), waveform: a.waveform.map((v) => Math.round(v * 100) / 100), replyTo: replyPayload() });
@@ -297,7 +364,7 @@ export function ChatView({
   };
 
   const sendVideoNote = async (v: RecordedVideo) => {
-    const tempId = addPending({ kind: "videoNote", duration: v.duration, progress: 0 });
+    const tempId = addPending({ kind: "videoNote", duration: v.duration, mediaUrl: URL.createObjectURL(v.blob), progress: 0 });
     try {
       const up = await mUpload(v.blob, "videoNote", { duration: v.duration, fileName: `note.${extFromMime(v.mime)}`, onProgress: (p) => patchPending(tempId, { progress: p * 0.95 }) });
       send(tempId, { kind: "videoNote", mediaUrl: up.url, duration: Math.round(v.duration), replyTo: replyPayload() });
@@ -337,16 +404,7 @@ export function ChatView({
   const doDelete = async (list: MMessage[], forAll: boolean) => {
     setDeleteMsgs(null);
     setSelection(null);
-    if (!forAll) {
-      const next = new Set(hiddenIds);
-      list.forEach((m) => next.add(m.id));
-      setHiddenIds(next);
-      try {
-        localStorage.setItem(hiddenKey, JSON.stringify(Array.from(next)));
-      } catch {}
-      return;
-    }
-    const results = await Promise.allSettled(list.map((m) => mApi("delete", { chatId: chat.id, msgId: m.id })));
+    const results = await Promise.allSettled(list.map((m) => mApi("delete", { chatId: chat.id, msgId: m.id, forAll })));
     const bad = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
     if (bad) toast("error", bad.reason instanceof MApiError ? bad.reason.message : "Не все сообщения удалось удалить");
   };
@@ -424,12 +482,57 @@ export function ChatView({
     return chat.type === "dm" ? (chat.readBy?.[others[0]] ?? 0) >= m.createdAt : others.some((u) => (chat.readBy?.[u] ?? 0) >= m.createdAt);
   };
 
-  const pendingAsMessages: { msg: MMessage; pending: MPending }[] = pending.map((p) => ({
-    pending: p,
-    msg: { id: p.tempId, from: me, kind: p.kind, text: p.text, mediaUrl: p.mediaUrl, duration: p.duration, waveform: p.waveform, createdAt: p.createdAt, reactions: {} },
-  }));
+  // Сопоставляем «отправляется» с настоящими сообщениями: пузырь не пропадает и не мигает —
+  // настоящее сообщение занимает его место (тот же key), статус меняется плавно.
+  const matched = useMemo(() => {
+    const map = new Map<string, string>(); // realId → tempId
+    const used = new Set<string>();
+    for (const p of pending) {
+      if (p.status === "failed") continue;
+      let m = p.serverId ? messages.find((x) => x.id === p.serverId) : undefined;
+      if (!m) {
+        m = messages.find(
+          (x) =>
+            !used.has(x.id) &&
+            !keyMap.current.has(x.id) &&
+            x.from === me &&
+            x.kind === p.kind &&
+            x.createdAt >= p.createdAt - 5000 &&
+            ((p.kind !== "text" && p.kind !== "image") || (x.text ?? "") === (p.text ?? ""))
+        );
+      }
+      if (m) {
+        used.add(m.id);
+        map.set(m.id, p.tempId);
+      }
+    }
+    return map;
+  }, [pending, messages, me]);
 
-  const rows: { msg: MMessage; pending?: MPending }[] = [...messages.map((m) => ({ msg: m })), ...pendingAsMessages];
+  useEffect(() => {
+    if (matched.size === 0) return;
+    matched.forEach((tempId, realId) => keyMap.current.set(realId, tempId));
+    dropPending(Array.from(matched.values()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matched]);
+
+  const matchedTemp = new Set(matched.values());
+  const rows: { msg: MMessage; pending?: MPending; key: string }[] = [
+    ...messages.map((m) => ({ msg: m, key: matched.get(m.id) ?? keyMap.current.get(m.id) ?? m.id })),
+    ...pending
+      .filter((p) => !matchedTemp.has(p.tempId))
+      .map((p) => ({
+        key: p.tempId,
+        pending: p,
+        msg: { id: p.tempId, from: me, kind: p.kind, text: p.text, mediaUrl: p.mediaUrl, mediaUrls: p.mediaUrls, width: p.width, height: p.height, duration: p.duration, waveform: p.waveform, createdAt: p.createdAt, reactions: {} } as MMessage,
+      })),
+  ];
+
+  // анимация появления — только у сообщений, которых не было при открытии чата
+  useEffect(() => {
+    rows.forEach((r) => seen.current.add(r.key));
+    if (!loading) ready.current = true;
+  });
 
   const selecting = selection !== null;
   const toggleSelect = (id: string) =>
@@ -448,10 +551,10 @@ export function ChatView({
     const isPinned = pinned.includes(m.id);
     return [
       { label: "Ответить", icon: <CornerUpLeft size={20} />, onPress: () => startReply(m), hidden: !canPost || !!m.deletedForAll },
-      { label: "Копировать", icon: <Copy size={20} />, onPress: () => copyText([m]), hidden: !m.text },
+      { label: "Копировать", icon: <Copy size={20} />, onPress: () => copyText([m]), hidden: !m.text || !!chat.noForwards },
       { label: "Изменить", icon: <Pencil size={20} />, onPress: () => { setReply(null); setEditing({ msgId: m.id, text: m.text ?? "" }); }, hidden: !mine || m.kind !== "text" || !!m.deletedForAll },
       { label: isPinned ? "Открепить" : "Закрепить", icon: isPinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => togglePin(m), hidden: chat.type !== "dm" && !isAdmin },
-      { label: "Переслать", icon: <Forward size={20} />, onPress: () => setForwardIds([m.id]), hidden: !!m.deletedForAll },
+      { label: "Переслать", icon: <Forward size={20} />, onPress: () => setForwardIds([m.id]), hidden: !!m.deletedForAll || !!chat.noForwards },
       { label: "Выбрать", icon: <CheckSquare size={20} />, onPress: () => setSelection(new Set([m.id])) },
       { label: "Удалить", icon: <Trash2 size={20} />, danger: true, onPress: () => setDeleteMsgs([m]) },
     ];
@@ -524,7 +627,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className="vc-scroll flex-1 min-h-0 py-2 relative">
+      <div ref={scrollRef} onScroll={onScroll} className="vc-scroll vc-chat-bg flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && <div className="flex justify-center py-10"><Spinner /></div>}
         {!loading && rows.length === 0 && (
@@ -532,17 +635,25 @@ export function ChatView({
             {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
           </div>
         )}
-        {rows.map(({ msg, pending: pend }, i) => {
+        {rows.map(({ msg, pending: pend, key: rowKey }, i) => {
           const prev = rows[i - 1]?.msg;
           const next = rows[i + 1]?.msg;
           const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
           const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
           const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
+          const isNew = ready.current && !seen.current.has(rowKey);
           return (
-            <div key={msg.id}>
+            <div key={rowKey} className={isNew ? `vc-msg-in ${msg.from === me ? "mine" : "theirs"}` : undefined}>
               {newDay && (
                 <div className="flex justify-center my-2.5">
                   <span className="text-[12.5px] px-3 py-1 rounded-full vc-glass font-medium">{dayLabel(msg.createdAt, now)}</span>
+                </div>
+              )}
+              {dividerId === msg.id && (
+                <div className="flex items-center gap-3 px-4 my-2">
+                  <span className="flex-1 h-px" style={{ background: "var(--vc-accent)", opacity: 0.4 }} />
+                  <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--vc-surface)", color: "var(--vc-accent)" }}>Новые сообщения</span>
+                  <span className="flex-1 h-px" style={{ background: "var(--vc-accent)", opacity: 0.4 }} />
                 </div>
               )}
               <MessageRow
@@ -583,12 +694,13 @@ export function ChatView({
 
       <Composer
         chatId={chat.id}
-        disabledReason={!canPost ? "Только администраторы могут писать в канал" : undefined}
+        disabledReason={blockedReason}
         reply={reply}
         editing={editing}
         onCancelReply={() => setReply(null)}
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
+        mentionables={chat.type === "group" ? (chat.members.filter((u) => u !== me).map((u) => accountsAll[u]).filter(Boolean) as MAccount[]) : []}
         onSaveEdit={saveEdit}
         onSendMedia={sendMedia}
         onSendFile={sendFile}
@@ -622,7 +734,7 @@ export function ChatView({
             onDone={() => {}}
             items={[
               { label: "Удалить у всех", icon: <Trash2 size={20} />, danger: true, hidden: !(deleteMsgs.every((m) => m.from === me) || isAdmin), onPress: () => doDelete(deleteMsgs, true) },
-              { label: "Скрыть у меня", icon: <Trash2 size={20} />, danger: true, onPress: () => doDelete(deleteMsgs, false) },
+              { label: "Удалить у меня", icon: <Trash2 size={20} />, danger: true, onPress: () => doDelete(deleteMsgs, false) },
               { label: "Отмена", icon: <X size={20} />, onPress: () => setDeleteMsgs(null) },
             ]}
           />
@@ -635,6 +747,7 @@ export function ChatView({
           onDone={() => setHeaderMenu(false)}
           items={[
             { label: "Информация", icon: <Info size={20} />, onPress: () => setInfo(true) },
+            { label: "Поиск по сообщениям", icon: <Search size={20} />, onPress: () => { setSearchQ(""); setSearchOpen(true); } },
             { label: userChat?.pinned ? "Открепить чат" : "Закрепить чат", icon: userChat?.pinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => chatSetting({ pinned: !userChat?.pinned }) },
             muted
               ? { label: "Включить звук", icon: <Bell size={20} />, onPress: () => chatSetting({ muted: false, mutedUntil: 0 }) }
@@ -649,6 +762,25 @@ export function ChatView({
           onDone={() => setMuteMenu(false)}
           items={muteOptions.map((o) => ({ label: o.label, icon: <BellOff size={20} />, onPress: () => chatSetting({ muted: true, mutedUntil: o.ms ? Date.now() + o.ms : 0 }) }))}
         />
+      </Sheet>
+
+      <Sheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Поиск в чате" full>
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 rounded-xl px-3 h-10" style={{ background: "var(--vc-surface2)" }}>
+            <Search size={17} className="vc-muted" />
+            <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Что искать?" className="bg-transparent outline-none flex-1 text-[16px]" autoFocus />
+            {searching && <Spinner size={16} />}
+          </div>
+        </div>
+        <div className="pb-8">
+          {searchQ.trim().length >= 2 && !searching && searchRes.length === 0 && <p className="vc-muted text-center py-8">Ничего не найдено в недавней истории</p>}
+          {searchRes.map((m) => (
+            <button key={m.id} onClick={() => { setSearchOpen(false); setTimeout(() => jumpTo(m.id), 250); }} className="w-full text-left px-5 py-2.5 active:bg-white/5">
+              <p className="text-[13px]" style={{ color: "var(--vc-accent)" }}>{accountsAll[m.from]?.displayName ?? "Участник"} · {dayLabel(m.createdAt, now)} {formatTime(m.createdAt)}</p>
+              <p className="text-[15px] line-clamp-2">{previewText(m.kind, m.text)}</p>
+            </button>
+          ))}
+        </div>
       </Sheet>
 
       <ForwardSheet
