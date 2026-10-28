@@ -16,6 +16,7 @@ export interface MessengerAccount {
   banned: boolean;
   verified?: boolean;
   bannerURL?: string | null; // баннер профиля (обложка)
+  status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
   channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
@@ -129,7 +130,9 @@ export interface MessengerStickerPack {
   title: string;
   premium: boolean; // добавить и отправлять могут только с Mili Premium
   published: boolean;
-  stickers: { url: string; emoji: string }[];
+  stickers: { url: string; emoji: string; thumb?: string }[]; // url: .webp/.png, .webm (видео) или .json (Lottie); thumb — статичное превью анимации
+  createdBy?: string; // кто привёз набор
+  tgName?: string; // имя набора в Telegram (t.me/addstickers/<tgName>), если импортирован
   createdAt: number;
   updatedAt: number;
 }
