@@ -5,7 +5,6 @@ import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loa
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
-import { StickerMedia } from "./StickersUI";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
@@ -213,7 +212,8 @@ export function MessageRow({
   } else if (msg.kind === "sticker") {
     content = msg.mediaUrl ? (
       <div className="relative">
-        <StickerMedia url={msg.mediaUrl} size={160} className="block" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={safeImageSrc(msg.mediaUrl)} alt="" width={160} height={160} className="block" style={{ width: 160, height: 160, objectFit: "contain" }} draggable={false} />
         <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}</span>
       </div>
     ) : (

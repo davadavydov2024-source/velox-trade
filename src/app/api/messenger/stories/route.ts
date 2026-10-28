@@ -84,25 +84,3 @@ export async function DELETE(req: NextRequest) {
   await ref.delete();
   return NextResponse.json({ ok: true });
 }
-
-/** PATCH { id, caption?, mediaUrl? } — изменить свою историю: подпись и/или файл (срок жизни и просмотры не трогаем). */
-export async function PATCH(req: NextRequest) {
-  const me = await requireMessenger(req);
-  if ("error" in me) return me.error;
-  const b = await req.json().catch(() => ({}));
-  const id = typeof b.id === "string" ? b.id : typeof b.storyId === "string" ? b.storyId : "";
-  if (!id || id.includes("/")) return fail("id обязателен");
-  const ref = adminDb().collection("messengerStories").doc(id);
-  const s = (await ref.get()).data();
-  if (!s) return fail("История не найдена", 404);
-  if (s.uid !== me.uid) return fail("Это не ваша история", 403);
-  const upd: Record<string, unknown> = {};
-  if (typeof b.caption === "string") upd.caption = b.caption.slice(0, 200);
-  if (typeof b.mediaUrl === "string") {
-    if (!ownsMedia(b.mediaUrl, me.uid)) return fail("Файл нужно загрузить через мессенджер");
-    upd.mediaUrl = b.mediaUrl;
-  }
-  if (Object.keys(upd).length === 0) return fail("Нечего менять");
-  await ref.update(upd);
-  return NextResponse.json({ ok: true });
-}
