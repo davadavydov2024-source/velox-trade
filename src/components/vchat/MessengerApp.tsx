@@ -14,6 +14,8 @@ import { SettingsPane } from "./SettingsPane";
 import { JoinScreen, Onboarding } from "./Onboarding";
 import { ContactsPane } from "./ContactsPane";
 import { NewChatSheet } from "./NewChatSheet";
+import { DeleteChatSheet } from "./DeleteChatSheet";
+import { useHiddenChats } from "./chatActions";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
 import { useAccounts, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
 
@@ -30,6 +32,8 @@ export function MessengerApp() {
   const folders = useFolders(account && !account.banned ? me : null);
   const { stories, reload: reloadStories } = useStories(!!account && !account.banned);
 
+  const hidden = useHiddenChats(me);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chats");
   const [newChat, setNewChat] = useState(false);
   const [storyUid, setStoryUid] = useState<string | null>(null);
@@ -94,10 +98,11 @@ export function MessengerApp() {
 
   const openChat = useCallback(
     (id: string) => {
+      hidden.revealChat(id);
       openedFromList.current = true;
       router.push(`/vc?chat=${encodeURIComponent(id)}`, { scroll: false });
     },
-    [router]
+    [router, hidden]
   );
   const closeChat = useCallback(() => {
     if (openedFromList.current) {
@@ -158,6 +163,8 @@ export function MessengerApp() {
               storyGroups={groups}
               storyAccounts={storyAccounts}
               onOpenChat={openChat}
+              isVisible={hidden.isVisible}
+              onDeleteChat={(c) => setDeleteTarget(c.id)}
               onNewChat={() => setNewChat(true)}
               onOpenStory={setStoryUid}
               onCreateStory={() => setCreator(true)}
@@ -194,7 +201,7 @@ export function MessengerApp() {
       {/* ---- правая панель: чат ---- */}
       <main className={`${chatId ? "" : "max-[899px]:hidden"} flex-1 min-w-0 h-full`}>
         {activeChat ? (
-          <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} onBack={closeChat} onOpenChat={openChat} />
+          <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} hiddenAt={hidden.hiddenAt(activeChat.id)} onDeleteChat={() => setDeleteTarget(activeChat.id)} onBack={closeChat} onOpenChat={openChat} />
         ) : chatId ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 vc-muted">
             {chatsLoading ? <Spinner /> : <><MessagesSquare size={40} /><p>Чат не найден или у вас нет доступа</p><button className="vc-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={closeChat}>К чатам</button></>}
@@ -207,6 +214,17 @@ export function MessengerApp() {
         )}
       </main>
 
+      {deleteTarget && chats.find((c) => c.id === deleteTarget) && (
+        <DeleteChatSheet
+          chat={chats.find((c) => c.id === deleteTarget) ?? null}
+          me={me}
+          onClose={() => setDeleteTarget(null)}
+          onHide={(id) => {
+            hidden.hideChat(id);
+            if (chatId === id) closeChat();
+          }}
+        />
+      )}
       <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} myHandle={account.handle} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
       <StoryCreator open={creator} onClose={() => setCreator(false)} onCreated={reloadStories} />
       {storyUid && groups.length > 0 && (

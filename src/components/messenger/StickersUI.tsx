@@ -1,11 +1,95 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Lock, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import type { MessengerStickerPack } from "@/lib/messenger/types";
 import { mApi, MApiError } from "./api";
 import { Spinner } from "./ui";
+import { safeImageSrc } from "@/lib/safeImage";
+
+// ───────────── Показ стикера: картинка, видео (.webm) или Lottie (.json, из анимированных .tgs) ─────────────
+
+declare global {
+  interface Window { lottie?: any } // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+let lottieLoader: Promise<any> | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+/** Lottie подгружается с CDN один раз и только когда в чате встретился анимированный стикер. */
+function loadLottie(): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (typeof window === "undefined") return Promise.reject(new Error("ssr"));
+  if (window.lottie) return Promise.resolve(window.lottie);
+  if (!lottieLoader) {
+    lottieLoader = new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js";
+      el.async = true;
+      el.onload = () => (window.lottie ? resolve(window.lottie) : reject(new Error("no lottie")));
+      el.onerror = () => { lottieLoader = null; reject(new Error("load failed")); };
+      document.head.appendChild(el);
+    });
+  }
+  return lottieLoader;
+}
+
+/**
+ * Стикер любого формата. animate=false — статичное превью (для сеток и вкладок: сотни плееров сразу тормозили бы).
+ * Если Lottie не загрузился (нет сети/CDN заблокирован), остаётся статичное превью.
+ */
+export function StickerMedia({ url, thumb, size, animate = true, alt = "", className = "" }: { url: string; thumb?: string; size?: number; animate?: boolean; alt?: string; className?: string }) {
+  const kind = /\.webm(\?|$)/i.test(url) ? "video" : /\.json(\?|$)/i.test(url) ? "lottie" : "img";
+  const host = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const box = size ? { width: size, height: size } : undefined;
+  const cls = `relative ${size ? "" : "w-full h-full"} ${className}`;
+
+  useEffect(() => {
+    if (kind !== "lottie" || !animate) return;
+    let dead = false;
+    let anim: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    setReady(false);
+    loadLottie()
+      .then((lottie) => {
+        if (dead || !host.current) return;
+        anim = lottie.loadAnimation({ container: host.current, renderer: "svg", loop: true, autoplay: true, path: url });
+        anim.addEventListener("DOMLoaded", () => !dead && setReady(true));
+        anim.addEventListener("data_failed", () => !dead && setFailed(true));
+      })
+      .catch(() => !dead && setFailed(true));
+    return () => {
+      dead = true;
+      try { anim?.destroy(); } catch { /* ignore */ }
+    };
+  }, [kind, animate, url]);
+
+  const still = thumb ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={safeImageSrc(thumb)} alt={alt} className="w-full h-full object-contain" draggable={false} loading="lazy" />
+  ) : null;
+
+  if (kind === "lottie") {
+    return (
+      <div className={cls} style={box}>
+        {(!animate || failed || !ready) && (still ?? <span className="absolute inset-0 flex items-center justify-center text-[30px]">🧩</span>)}
+        {animate && !failed && <div ref={host} className="absolute inset-0" />}
+      </div>
+    );
+  }
+  if (kind === "video") {
+    if (!animate && still) return <div className={cls} style={box}>{still}</div>;
+    return (
+      <div className={cls} style={box}>
+        <video src={url} poster={thumb} className="w-full h-full object-contain" muted loop playsInline autoPlay={animate} preload={animate ? "auto" : "metadata"} />
+      </div>
+    );
+  }
+  return (
+    <div className={cls} style={box}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={safeImageSrc(url)} alt={alt} className="w-full h-full object-contain" draggable={false} loading="lazy" />
+    </div>
+  );
+}
 
 export type StickerPack = MessengerStickerPack & { locked?: boolean };
 
@@ -69,7 +153,7 @@ export function StickersSettings() {
           {packs.map((p) => (
             <div key={p.slug} className="flex items-center gap-3 px-4 py-3">
               <div className="flex -space-x-2 shrink-0">
-                {p.stickers.slice(0, 3).map((s, i) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={i} src={s.url} alt="" className="w-11 h-11 object-contain rounded-xl" style={{ background: "var(--mx-surface2)" }} />)}
+                {p.stickers.slice(0, 3).map((s, i) => <StickerMedia key={i} url={s.url} thumb={s.thumb} size={44} animate={false} className="rounded-xl" />)}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold flex items-center gap-1.5">{p.title}{p.premium && <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,180,0,.16)", color: "#ffb400" }}>Premium</span>}</p>
@@ -102,8 +186,7 @@ export function StickerPanel({ onPick, height = 280 }: { onPick: (slug: string, 
           <div className="flex gap-1 px-2 pt-1 overflow-x-auto mx-noscrollbar shrink-0">
             {packs.map((p, i) => (
               <button key={p.slug} onClick={() => setCur(i)} className="w-11 h-11 shrink-0 rounded-xl p-1 relative" style={{ background: i === cur ? "var(--mx-surface2)" : "transparent" }} aria-label={p.title}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.stickers[0]?.url} alt="" className="w-full h-full object-contain" />
+                {p.stickers[0] && <StickerMedia url={p.stickers[0].url} thumb={p.stickers[0].thumb} animate={false} />}
                 {p.locked && <Lock size={11} className="absolute right-0.5 bottom-0.5" />}
               </button>
             ))}
@@ -111,8 +194,7 @@ export function StickerPanel({ onPick, height = 280 }: { onPick: (slug: string, 
           <div className="mx-scroll flex-1 grid grid-cols-4 gap-1 px-2 py-1 content-start">
             {pack?.stickers.map((s, i) => (
               <button key={i} onClick={() => onPick(pack.slug, i)} className="aspect-square p-1 rounded-xl active:bg-white/10" style={{ opacity: pack.locked ? 0.45 : 1 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.url} alt={s.emoji} className="w-full h-full object-contain" loading="lazy" draggable={false} />
+                <StickerMedia url={s.url} thumb={s.thumb} alt={s.emoji} animate={false} />
               </button>
             ))}
           </div>

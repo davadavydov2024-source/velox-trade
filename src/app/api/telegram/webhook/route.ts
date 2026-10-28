@@ -67,8 +67,10 @@ import {
   handleContestJoin,
   sendActiveContestsList,
 } from "@/lib/telegramContests";
+import { STICKER_ADMIN_INSTRUCTIONS, handleStickerCallback, importStickerSetFromBot, parseStickerSetName } from "@/lib/telegramStickerAdmin";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // импорт стикер-пака качает десятки файлов
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const safeEqualStr = safeEqual;
@@ -347,6 +349,11 @@ export async function POST(req: NextRequest) {
           await sendPendingTopUps(chatId);
         } else if (data === "admin_stars_withdrawals") {
           await sendPendingStarsWithdrawals(chatId);
+        } else if (data === "admin_stickers") {
+          await setBotState(chatId, "admin_awaiting_stickers");
+          await sendTelegramMessage(chatId, STICKER_ADMIN_INSTRUCTIONS);
+        } else if (data.startsWith("stk_")) {
+          await handleStickerCallback(chatId, messageId, data);
         } else if (data === "admin_promo_menu") {
           await editTelegramMessage(chatId, messageId, "🎁 Промокоды:", promoMenuButtons());
         } else if (data === "admin_promo_new") {
@@ -456,6 +463,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Админ прислал стикер — берём весь его набор в MiliGram.
+    if (isAdminChat(chatId) && typeof message.sticker?.set_name === "string") {
+      await setBotState(chatId, null);
+      await importStickerSetFromBot(chatId, message.sticker.set_name, message.caption ?? "");
+      return NextResponse.json({ ok: true });
+    }
+
     const text: string | undefined = message?.text;
     if (!text) return NextResponse.json({ ok: true });
 
@@ -467,6 +481,15 @@ export async function POST(req: NextRequest) {
       if (mapping) {
         await sendTelegramMessage(mapping.chatId, `💬 Ответ от ${SITE_NAME}:\n\n${text}`);
         await sendTelegramMessage(chatId, `✅ Отправлено пользователю ${mapping.userTag}`);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    if (isAdminChat(chatId) && !text.startsWith("/")) {
+      const stickerSet = parseStickerSetName(text);
+      if (stickerSet) {
+        await setBotState(chatId, null);
+        await importStickerSetFromBot(chatId, stickerSet, text);
         return NextResponse.json({ ok: true });
       }
     }
@@ -526,6 +549,14 @@ export async function POST(req: NextRequest) {
       const reply = await createPromoCodeFromText(text);
       await sendTelegramMessage(chatId, reply);
       await setBotState(chatId, null);
+    } else if (mode === "admin_awaiting_stickers" && isAdminChat(chatId)) {
+      const stickerSet = parseStickerSetName(text, true);
+      if (!stickerSet) {
+        await sendTelegramMessage(chatId, STICKER_ADMIN_INSTRUCTIONS);
+      } else {
+        await setBotState(chatId, null);
+        await importStickerSetFromBot(chatId, stickerSet, text);
+      }
     } else if (mode === "admin_contest_winners" && isAdminChat(chatId)) {
       await handleContestWinnersStep(chatId, text);
     } else if (mode === "admin_contest_photo" && isAdminChat(chatId)) {

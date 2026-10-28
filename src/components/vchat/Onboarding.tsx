@@ -27,7 +27,7 @@ function Shell({ title, subtitle, children, onBack }: { title: string; subtitle?
           </button>
         )}
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-10 w-full max-w-[400px] vc-auto">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-10 w-full max-w-[400px] mx-auto">
         <div className="vc-step w-full flex flex-col items-center text-center" key={title}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/vc/logo.png" alt="MiliGram" width={104} height={104} className="mb-5" style={{ filter: "drop-shadow(0 12px 28px rgba(255,120,40,0.35))" }} />

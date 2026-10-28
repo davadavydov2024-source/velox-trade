@@ -15,6 +15,7 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
   const ref = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(start);
   const [target, setTarget] = useState<HTMLElement | null>(null);
+  const swipeStart = useRef({ x: 0, y: 0 });
 
   useEffect(() => setTarget(document.getElementById("vc-root")), []);
 
@@ -43,7 +44,15 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
 
   if (!target) return null;
   return createPortal(
-    <div className="absolute inset-0 vc-fade" style={{ zIndex: 80, background: "rgba(0,0,0,0.96)" }}>
+    <div
+      className="absolute inset-0 vc-fade"
+      style={{ zIndex: 80, background: "rgba(0,0,0,0.96)" }}
+      onTouchStart={(e) => { swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchEnd={(e) => {
+        const t = e.changedTouches[0];
+        if (t.clientY - swipeStart.current.y > 110 && Math.abs(t.clientX - swipeStart.current.x) < 70) onClose(); // свайп вниз закрывает
+      }}
+    >
       <div
         ref={ref}
         className="h-full w-full flex overflow-x-auto vc-noscrollbar"

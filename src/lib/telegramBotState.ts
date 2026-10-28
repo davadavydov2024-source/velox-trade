@@ -7,6 +7,7 @@ export type BotMode =
   | "awaiting_partnership"
   | "awaiting_donate_amount"
   | "admin_awaiting_promo_create"
+  | "admin_awaiting_stickers"
   | "admin_contest_winners"
   | "admin_contest_photo"
   | "admin_contest_text"

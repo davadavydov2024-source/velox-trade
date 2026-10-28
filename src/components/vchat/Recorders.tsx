@@ -163,6 +163,12 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => setTarget(document.getElementById("vc-root")), []);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
 
   const openCamera = useCallback(async (mode: "user" | "environment") => {
     streamRef.current?.getTracks().forEach((t) => t.stop());

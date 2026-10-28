@@ -130,7 +130,7 @@ export interface MessengerStickerPack {
   title: string;
   premium: boolean; // добавить и отправлять могут только с Mili Premium
   published: boolean;
-  stickers: { url: string; emoji: string }[];
+  stickers: { url: string; emoji: string; thumb?: string }[]; // url: .webp/.png, .webm (видео) или .json (Lottie); thumb — статичное превью анимации
   createdBy?: string; // кто привёз набор
   tgName?: string; // имя набора в Telegram (t.me/addstickers/<tgName>), если импортирован
   createdAt: number;

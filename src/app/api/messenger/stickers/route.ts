@@ -5,7 +5,8 @@ import { fail, requireMessenger } from "@/lib/messenger/server";
 import { randomBytes } from "crypto";
 import { put } from "@vercel/blob";
 import { rateLimit } from "@/lib/rateLimit";
-import { STICKER_IMPORT_LIMIT, isPremium } from "@/lib/messenger/premium";
+import { isPremium } from "@/lib/messenger/premium";
+import { isAdminUid } from "@/lib/adminGuard";
 import type { MessengerStickerPack } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
@@ -21,21 +22,37 @@ const slugOk = (s: unknown): s is string => typeof s === "string" && /^[a-z0-9_]
 export async function GET(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
-  const db = adminDb();
-  const premium = isPremium(me.account);
   const slug = req.nextUrl.searchParams.get("slug");
+  try {
+    const db = adminDb();
+    const premium = isPremium(me.account);
+    const mine: string[] = (((await db.collection("messengerUserStickers").doc(me.uid).get()).data()?.slugs as string[] | undefined) ?? []).filter(slugOk);
 
-  const mine: string[] = ((await db.collection("messengerUserStickers").doc(me.uid).get()).data()?.slugs as string[] | undefined) ?? [];
-  if (slug) {
-    if (!slugOk(slug)) return fail("Набор не найден", 404);
-    const pack = (await db.collection("messengerStickerPacks").doc(slug).get()).data() as MessengerStickerPack | undefined;
-    if (!pack || !pack.published) return fail("Набор не найден", 404);
-    return NextResponse.json({ pack, added: mine.includes(slug), locked: pack.premium && !premium });
+    // ?catalog=1 — все опубликованные наборы (их загружает админ), с отметкой «уже добавлен»
+    if (req.nextUrl.searchParams.get("catalog")) {
+      const snap = await db.collection("messengerStickerPacks").where("published", "==", true).limit(100).get();
+      const packs = snap.docs
+        .map((d) => d.data() as MessengerStickerPack)
+        .sort((x, y) => (y.createdAt ?? 0) - (x.createdAt ?? 0))
+        .map((p) => ({ ...p, added: mine.includes(p.slug), locked: p.premium && !premium }));
+      return NextResponse.json({ packs });
+    }
+
+    if (slug) {
+      if (!slugOk(slug)) return fail("Набор не найден", 404);
+      const pack = (await db.collection("messengerStickerPacks").doc(slug).get()).data() as MessengerStickerPack | undefined;
+      if (!pack || !pack.published) return fail("Набор не найден", 404);
+      return NextResponse.json({ pack, added: mine.includes(slug), locked: pack.premium && !premium });
+    }
+    if (mine.length === 0) return NextResponse.json({ packs: [] });
+    const docs = await db.getAll(...mine.map((s) => db.collection("messengerStickerPacks").doc(s)));
+    const packs = docs.map((d) => d.data() as MessengerStickerPack | undefined).filter((p): p is MessengerStickerPack => !!p && p.published).map((p) => ({ ...p, locked: p.premium && !premium }));
+    return NextResponse.json({ packs });
+  } catch (e) {
+    console.error("messenger stickers GET error:", e);
+    if (slug) return fail("Не удалось загрузить набор", 500);
+    return NextResponse.json({ packs: [] }); // список не должен ронять приложение
   }
-  if (mine.length === 0) return NextResponse.json({ packs: [] });
-  const docs = await db.getAll(...mine.map((s) => db.collection("messengerStickerPacks").doc(s)));
-  const packs = docs.map((d) => d.data() as MessengerStickerPack | undefined).filter((p): p is MessengerStickerPack => !!p && p.published).map((p) => ({ ...p, locked: p.premium && !premium }));
-  return NextResponse.json({ packs });
 }
 
 /** POST { slug, action: "add"|"remove" } — добавить набор по ссылке (премиум-наборы — только с Mili Premium). */
@@ -43,7 +60,11 @@ export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
   const b = await req.json().catch(() => ({}));
-  if (b.action === "import") return importFromTelegram(me, String(b.url ?? ""));
+  if (b.action === "import") {
+    // Импорт из Telegram — только админ (в админ-панели мессенджера: Настройки → Админ-панель → Стикеры).
+    if (!isAdminUid(me.uid)) return fail("Импорт стикеров из Telegram доступен только администраторам", 403);
+    return importFromTelegram(me, String(b.url ?? ""), b.premium === true);
+  }
   if (!slugOk(b.slug)) return fail("Набор не найден", 404);
   const db = adminDb();
   const ref = db.collection("messengerUserStickers").doc(me.uid);
@@ -78,16 +99,15 @@ async function tg<T>(token: string, method: string, params: Record<string, strin
   return j?.ok ? (j.result as T) : null;
 }
 
-/** POST { action: "import", url } — скачать набор из Telegram в MiliGram и добавить его себе. Анимированные и видео-стикеры сохраняются статичным превью. */
-async function importFromTelegram(me: { uid: string; account: any }, input: string) {
+/** POST { action: "import", url, premium? } (только админ) — скачать набор из Telegram в MiliGram и опубликовать: пользователи добавляют его из каталога. Анимированные и видео-стикеры сохраняются статичным превью. */
+async function importFromTelegram(me: { uid: string; account: any }, input: string, premiumPack: boolean) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return fail("Импорт из Telegram не настроен: на сервере нет TELEGRAM_BOT_TOKEN", 500);
   const name = parseSetName(input);
   if (!name) return fail("Вставь ссылку вида t.me/addstickers/название");
-  if (!(await rateLimit(`msgr_stk_import_${me.uid}`, 3, 60 * 60_000))) return fail("Не больше 3 импортов в час", 429);
+  if (!(await rateLimit(`msgr_stk_import_${me.uid}`, 30, 60 * 60_000))) return fail("Слишком много импортов за час", 429);
 
   const db = adminDb();
-  const premium = isPremium(me.account);
   const base = name.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32).padEnd(3, "_");
   const userRef = db.collection("messengerUserStickers").doc(me.uid);
 
@@ -95,14 +115,11 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   const existing = await db.collection("messengerStickerPacks").where("tgName", "==", name).limit(1).get();
   if (!existing.empty) {
     const pack = existing.docs[0].data() as MessengerStickerPack;
-    if (pack.premium && !premium) return NextResponse.json({ error: "Этот набор доступен только с Mili Premium", needPremium: true }, { status: 403 });
+    if (pack.premium !== premiumPack) await existing.docs[0].ref.update({ premium: premiumPack, updatedAt: Date.now() });
     await userRef.set({ slugs: FieldValue.arrayUnion(pack.slug) }, { merge: true });
     return NextResponse.json({ ok: true, slug: pack.slug, title: pack.title, count: pack.stickers.length, reused: true });
   }
 
-  const mineCount = (await db.collection("messengerStickerPacks").where("createdBy", "==", me.uid).count().get()).data().count;
-  const cap = premium ? STICKER_IMPORT_LIMIT.premium : STICKER_IMPORT_LIMIT.free;
-  if (mineCount >= cap) return NextResponse.json({ error: `Можно привезти до ${cap} наборов${premium ? "" : " — с Mili Premium до " + STICKER_IMPORT_LIMIT.premium}`, needPremium: !premium }, { status: 403 });
 
   const set = await tg<{ title: string; stickers: { file_id: string; emoji?: string; is_animated?: boolean; is_video?: boolean; thumbnail?: { file_id: string } }[] }>(token, "getStickerSet", { name });
   if (!set || !set.stickers?.length) return fail("Набор не найден в Telegram (проверь ссылку)", 404);
@@ -139,7 +156,7 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   const stickers = results.filter((r): r is { url: string; emoji: string } => !!r);
   if (stickers.length === 0) return fail("Не удалось скачать стикеры из этого набора", 502);
   const now = Date.now();
-  const pack: MessengerStickerPack = { slug, title: String(set.title ?? name).slice(0, 60), premium: false, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: now, updatedAt: now };
+  const pack: MessengerStickerPack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: now, updatedAt: now };
   await db.collection("messengerStickerPacks").doc(slug).set(pack);
   await userRef.set({ slugs: FieldValue.arrayUnion(slug) }, { merge: true });
   return NextResponse.json({ ok: true, slug, title: pack.title, count: stickers.length, skipped: items.length - stickers.length });

@@ -49,6 +49,8 @@ export function ChatView({
   myAccount,
   userChat,
   allChats,
+  hiddenAt = 0,
+  onDeleteChat,
   onBack,
   onOpenChat,
 }: {
@@ -57,6 +59,9 @@ export function ChatView({
   myAccount: MAccount;
   userChat?: MUserChat;
   allChats: MChat[];
+  /** время локального «удалить чат у меня»: сообщения старше не показываем */
+  hiddenAt?: number;
+  onDeleteChat: () => void;
   onBack: () => void;
   onOpenChat: (id: string) => void;
 }) {
@@ -64,7 +69,7 @@ export function ChatView({
   const now = useNow(15_000);
   const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
-  const clearedAt = userChat?.clearedAt ?? 0;
+  const clearedAt = Math.max(userChat?.clearedAt ?? 0, hiddenAt);
   const messages = useMemo(
     () => allMessages.filter((m) => !m.hiddenFor?.includes(me) && !(m.expireAt && m.expireAt < now) && m.createdAt > clearedAt),
     [allMessages, me, now, clearedAt]
@@ -754,6 +759,7 @@ export function ChatView({
               : { label: "Без звука", icon: <BellOff size={20} />, onPress: () => setMuteMenu(true) },
             { label: userChat?.archived ? "Вернуть из архива" : "В архив", icon: <Archive size={20} />, onPress: () => { chatSetting({ archived: !userChat?.archived }); if (!userChat?.archived) onBack(); } },
             { label: chat.type === "channel" ? "Отписаться" : "Покинуть группу", icon: <LogOut size={20} />, danger: true, hidden: chat.type === "dm", onPress: leaveChat },
+            { label: "Удалить чат", icon: <Trash2 size={20} />, danger: true, onPress: onDeleteChat },
           ]}
         />
       </Sheet>

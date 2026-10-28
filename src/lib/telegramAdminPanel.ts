@@ -51,6 +51,7 @@ export function adminMenuButtons(): InlineButton[][] {
     [{ text: "⭐ Заявки на вывод Stars", callback_data: "admin_stars_withdrawals" }],
     [{ text: "🎁 Промокоды", callback_data: "admin_promo_menu" }],
     [{ text: "🎉 Конкурсы", callback_data: "admin_contest_menu" }],
+    [{ text: "🎨 Стикер-пак из Telegram", callback_data: "admin_stickers" }],
   ];
 }
 

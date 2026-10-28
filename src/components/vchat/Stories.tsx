@@ -77,6 +77,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   const [viewersOpen, setViewersOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const holdTimer = useRef<any>(null);
+  const swipe = useRef({ x: 0, y: 0 });
   const heldRef = useRef(false);
   const group = groups[gi];
   const story = group?.stories[si];
@@ -215,7 +216,15 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
 
   return createPortal(
     <div className="absolute inset-0 flex items-center justify-center vc-fade" style={{ zIndex: 90, background: "#000" }} onContextMenu={(e) => e.preventDefault()}>
-     <div className="flex flex-col w-full h-full min-[900px]:h-[min(100%,860px)] min-[900px]:max-w-[480px] min-[900px]:rounded-[22px] overflow-hidden relative select-none" style={{ background: "#000", WebkitTouchCallout: "none" }}>
+     <div
+       className="flex flex-col w-full h-full min-[900px]:h-[min(100%,860px)] min-[900px]:max-w-[480px] min-[900px]:rounded-[22px] overflow-hidden relative select-none"
+       style={{ background: "#000", WebkitTouchCallout: "none" }}
+       onTouchStart={(e) => { swipe.current = { y: e.touches[0].clientY, x: e.touches[0].clientX }; }}
+       onTouchEnd={(e) => {
+         const t = e.changedTouches[0];
+         if (t.clientY - swipe.current.y > 110 && Math.abs(t.clientX - swipe.current.x) < 70) onClose(); // свайп вниз закрывает
+       }}
+     >
       <div className="relative flex-1 min-h-0">
         {story.kind === "video" ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -257,7 +266,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
 
       <div className="px-3 py-2.5 vc-safe-bottom" style={{ background: "#000" }}>
         {mine ? (
-          <button onClick={() => setViewersOpen(true)} className="flex items-center gap-2 text-white/85 vc-auto py-1.5">
+          <button onClick={() => setViewersOpen(true)} className="flex items-center gap-2 text-white/85 mx-auto py-1.5">
             <Eye size={18} /> {story.viewers?.length ?? 0} {(story.viewers?.length ?? 0) === 1 ? "просмотр" : "просмотров"}
           </button>
         ) : (

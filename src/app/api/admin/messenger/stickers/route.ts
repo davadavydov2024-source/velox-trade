@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const clean = [];
   for (const s of stickers) {
     if (!isOwnMediaUrl(s?.url)) return NextResponse.json({ error: "Стикеры нужно загружать через админку" }, { status: 400 });
-    clean.push({ url: s.url, emoji: String(s.emoji ?? "🙂").slice(0, 8) });
+    clean.push({ url: s.url, emoji: String(s.emoji ?? "🙂").slice(0, 8), ...(isOwnMediaUrl(s?.thumb) ? { thumb: s.thumb } : {}) });
   }
   if (b.published === true && clean.length === 0) return NextResponse.json({ error: "Нельзя опубликовать пустой набор" }, { status: 400 });
   const now = Date.now();

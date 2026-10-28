@@ -87,23 +87,81 @@ export function Sheet({
   zIndex?: number;
 }) {
   const target = usePortalTarget();
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startY = useRef(0);
+  const cb = useRef(onClose);
+  cb.current = onClose;
+
+  // Esc закрывает верхнюю шторку
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        cb.current();
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setDragY(0);
+      setDragging(false);
+    }
+  }, [open]);
+
   if (!open || !target) return null;
+
+  // «Потяни вниз, чтобы закрыть» — за ручку и шапку шторки (содержимое прокручивается как обычно)
+  const onDown = (e: React.PointerEvent) => {
+    startY.current = e.clientY;
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!dragging) return;
+    setDragY(Math.max(0, e.clientY - startY.current));
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    setDragging(false);
+    if (dragY > 90) onClose();
+    else setDragY(0);
+  };
+
   return createPortal(
-    <div className="absolute inset-0 flex flex-col justify-end vc-fade" style={{ zIndex, background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+    <div className="absolute inset-0 flex flex-col justify-end vc-fade" style={{ zIndex, background: `rgba(0,0,0,${Math.max(0.15, 0.55 - dragY / 600)})` }} onClick={onClose}>
       <div
-        className="vc-sheet vc-safe-bottom flex flex-col"
-        style={{ background: "var(--vc-surface)", borderRadius: "22px 22px 0 0", maxHeight: full ? "94%" : "86%", height: full ? "94%" : undefined }}
+        className="vc-sheet vc-safe-bottom flex flex-col relative"
+        style={{
+          background: "var(--vc-surface)",
+          borderRadius: "22px 22px 0 0",
+          maxHeight: full ? "94%" : "86%",
+          height: full ? "94%" : undefined,
+          transform: dragY ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 0.2s ease",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="vc-auto mt-2 mb-1 h-1 w-9 rounded-full shrink-0" style={{ background: "var(--vc-line)" }} />
-        {title && (
-          <div className="flex items-center justify-between px-5 pt-2 pb-2 shrink-0">
-            <p className="font-semibold text-[17px]">{title}</p>
-            <button onClick={onClose} className="vc-muted p-1" aria-label="Закрыть">
-              <X size={20} />
+        <div className="shrink-0 touch-none select-none cursor-grab" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+          <div className="mx-auto mt-2 mb-1 h-1 w-9 rounded-full" style={{ background: "var(--vc-muted)", opacity: 0.5 }} />
+          <div className="flex items-center justify-between px-5 pt-1 pb-2 min-h-[40px]">
+            <p className="font-semibold text-[17px] truncate pr-3">{title}</p>
+            {/* крестик есть у каждой шторки (раньше без заголовка закрыть можно было только нажатием мимо) */}
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "var(--vc-surface2)", color: "var(--vc-muted)" }}
+              aria-label="Закрыть"
+            >
+              <X size={18} />
             </button>
           </div>
-        )}
+        </div>
         <div className="vc-scroll flex-1 min-h-0">{children}</div>
       </div>
     </div>,

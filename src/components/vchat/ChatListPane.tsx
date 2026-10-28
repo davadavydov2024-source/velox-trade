@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
+import { Archive, BellOff, Bell, Trash2, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
@@ -48,6 +48,8 @@ export function ChatListPane({
   storyGroups,
   storyAccounts,
   onOpenChat,
+  isVisible,
+  onDeleteChat,
   onNewChat,
   onOpenStory,
   onCreateStory,
@@ -62,12 +64,16 @@ export function ChatListPane({
   storyGroups: StoryGroup[];
   storyAccounts: Record<string, MAccount | null>;
   onOpenChat: (id: string) => void;
+  /** учитывает локальное «удалить у меня» */
+  isVisible: (c: MChat) => boolean;
+  onDeleteChat: (c: MChat) => void;
   onNewChat: () => void;
   onOpenStory: (uid: string) => void;
   onCreateStory: () => void;
 }) {
   const { toast } = useToast();
   const now = useNow(20_000);
+  chats = chats.filter(isVisible);
   const peerIds = chats.filter((c) => c.type === "dm").map((c) => peerUid(c, me));
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
@@ -144,6 +150,7 @@ export function ChatListPane({
       { label: uc?.pinned ? "Открепить" : "Закрепить", icon: uc?.pinned ? <PinOff size={21} /> : <Pin size={21} />, color: "#ff9500", onPress: () => act([c.id], { pinned: !uc?.pinned }) },
       { label: muted ? "Звук" : "Без звука", icon: muted ? <Bell size={21} /> : <BellOff size={21} />, color: "#5856d6", onPress: () => (muted ? act([c.id], { muted: false, mutedUntil: 0 }) : setMuteFor([c])) },
       { label: "Архив", icon: <Archive size={21} />, color: "#8e8e93", onPress: () => act([c.id], { archived: true }) },
+      { label: "Удалить", icon: <Trash2 size={21} />, color: "#ff3b30", onPress: () => onDeleteChat(c) },
     ];
     const right: SwipeAction | undefined = unread > 0 ? { label: "Прочитано", icon: <ReadIcon size={21} />, color: "#3390ec", onPress: () => markRead([c.id]) } : undefined;
 
@@ -364,6 +371,7 @@ export function ChatListPane({
                 { label: "Прочитано", icon: <ReadIcon size={20} />, hidden: !(uc?.unread), onPress: () => markRead([menuChat.id]) },
                 { label: "В папку", icon: <Folder size={20} />, hidden: folders.length === 0, onPress: () => setFolderPick(menuChat) },
                 { label: uc?.archived ? "Вернуть из архива" : "В архив", icon: <Archive size={20} />, onPress: () => act([menuChat.id], { archived: !uc?.archived }) },
+                { label: "Удалить чат", icon: <Trash2 size={20} />, danger: true, onPress: () => onDeleteChat(menuChat) },
               ]}
             />
           );

@@ -60,7 +60,7 @@ export function ChatInfoSheet({
       </div>
 
       {(peer?.handle || peer?.bio || chat.description) && (
-        <div className="vc-4 mb-4 vc-card" style={{ margin: "0 16px 16px" }}>
+        <div className="mb-4 vc-card" style={{ margin: "0 16px 16px" }}>
           {peer?.handle && (
             <div className="px-4 py-3"><p className="vc-muted text-[12.5px]">Имя пользователя</p><p style={{ color: "var(--vc-accent)" }}>@{peer.handle}</p></div>
           )}
@@ -110,6 +110,10 @@ export function ChatInfoSheet({
           </div>
         </div>
       )}
+
+      <div className="px-4 pb-3">
+        <button onClick={onClose} className="vc-btn" style={{ background: "var(--vc-surface2)", color: "var(--vc-text)" }}>Закрыть</button>
+      </div>
 
       {chat.type !== "dm" && (
         <button onClick={() => { onClose(); onLeave(); }} className="flex items-center gap-2 px-7 py-3 pb-10" style={{ color: "var(--vc-danger)" }}>
