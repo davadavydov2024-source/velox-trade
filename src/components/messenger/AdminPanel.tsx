@@ -284,7 +284,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     const def = giftById(g.giftId);
                     return (
                       <div key={g.id} className="px-4 py-2 flex items-center gap-3">
-                        {g.nft && def ? <NftArt gift={def} nft={g.nft} size={40} motion="off" /> : <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>}
+                        {g.nft && def ? <NftArt gift={def} nft={g.nft} size={40} /> : <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>}
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14.5px]">{def?.title ?? g.giftId}{g.nft ? ` · №${g.nft.number}/${g.nft.supply}` : ""}{g.byAdmin ? " · от админа" : ""}</p>
                           {g.nft && <p className="mx-muted text-[12px] truncate">{g.nft.model} · {g.nft.backdrop} · {g.nft.symbol}</p>}
