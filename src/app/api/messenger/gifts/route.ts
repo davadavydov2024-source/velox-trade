@@ -85,7 +85,6 @@ export async function POST(req: NextRequest) {
         const g = snap.data() as MessengerGift | undefined;
         if (!g || g.to !== me.uid) throw new Error("not-found");
         if (g.nft) throw new Error("nft"); // NFT-подарки не обмениваются на звёзды
-        if (g.byAdmin) throw new Error("admin-gift"); // бесплатный подарок от администрации — не источник ⭐
         const stars = Math.floor(g.price * GIFT_CONVERT_RATE);
         tx.delete(ref);
         tx.set(db.collection("users").doc(me.uid), { starsWallet: FieldValue.increment(stars) }, { merge: true });
@@ -96,7 +95,6 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       if (e?.message === "not-found") return fail("Подарок не найден", 404);
       if (e?.message === "nft") return fail("NFT-подарок нельзя обменять на звёзды");
-      if (e?.message === "admin-gift") return fail("Подарок от администрации нельзя обменять на ⭐");
       console.error("gift convert error:", e);
       return fail("Не удалось обменять подарок", 500);
     }

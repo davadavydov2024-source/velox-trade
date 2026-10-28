@@ -5,7 +5,6 @@ import { Archive, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, Check
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
-import { StatusBadge } from "./StatusBadge";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
@@ -168,7 +167,7 @@ export function ChatListPane({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>
-                {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
+                {title} {peer?.verified && <VerifiedBadge size={14} />}
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
               <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
