@@ -12,5 +12,5 @@ export function StatusBadge({ acc, size = 16 }: { acc: MAccount | null | undefin
   if (st.kind === "emoji") return <span className="shrink-0 leading-none" style={{ fontSize: size }} aria-hidden>{st.emoji}</span>;
   const g = giftById(st.giftId);
   if (!g) return null;
-  return <span className="shrink-0 inline-flex" style={{ width: size + 2, height: size + 2 }}><NftArt gift={g} nft={st.nft} size="100%" motion="off" /></span>;
+  return <span className="shrink-0 inline-flex" style={{ width: size + 2, height: size + 2 }}><NftArt gift={g} nft={st.nft} size="100%" /></span>;
 }
