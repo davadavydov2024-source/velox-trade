@@ -56,3 +56,31 @@ export const modelOf = (name: string) => NFT_MODELS.find((m) => m.name === name)
 export const symbolOf = (name: string) => NFT_SYMBOLS.find((s) => s.name === name) ?? NFT_SYMBOLS[0];
 /** «1.4%» из промилле */
 export const rarityPct = (r: number) => `${(r / 10).toFixed(r % 10 === 0 ? 0 : 1)}%`;
+
+/** Шанс именно такой комбинации признаков (0..1). */
+export const nftComboChance = (nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): number =>
+  (modelOf(nft.model).rarity / 1000) * (backdropOf(nft.backdrop).rarity / 1000) * (symbolOf(nft.symbol).rarity / 1000);
+
+export type NftTier = "mythic" | "legendary" | "epic" | "common";
+
+export const NFT_TIERS: Record<NftTier, { label: string; color: string; sparkles: number }> = {
+  mythic: { label: "Мифический", color: "#ff5fd2", sparkles: 9 },
+  legendary: { label: "Легендарный", color: "#ffd56a", sparkles: 7 },
+  epic: { label: "Эпический", color: "#b58cff", sparkles: 4 },
+  common: { label: "Обычный", color: "#9aa4b2", sparkles: 0 },
+};
+
+export function nftTier(nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): NftTier {
+  const c = nftComboChance(nft);
+  return c < 0.0001 ? "mythic" : c < 0.0008 ? "legendary" : c < 0.004 ? "epic" : "common";
+}
+
+export function isSpecialNumber(n: number, supply: number): boolean {
+  if (n === 1 || n === supply) return true;
+  const s = String(n);
+  if (s.length < 3) return false;
+  if (/^(\d)\1+$/.test(s)) return true;
+  if (/^10+$/.test(s)) return true;
+  if (s === [...s].reverse().join("")) return true;
+  return n === 1337 || n === 1234;
+}
