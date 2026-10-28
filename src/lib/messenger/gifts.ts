@@ -61,6 +61,29 @@ export const GIFTS: GiftDef[] = [
   { id: "nft-heart", emoji: "💘", title: "Вечное сердце", price: 40, category: "nft", nft: true, colors: ["#4a1c3a", "#1f0e1a"], limited: 2000 },
   { id: "nft-diamond", emoji: "💠", title: "Кристалл Velox", price: 50, category: "nft", nft: true, colors: ["#123a4a", "#0a1a21"], limited: 777 },
   { id: "nft-clover", emoji: "🍀", title: "Клевер удачи", price: 25, category: "nft", nft: true, colors: ["#16401f", "#0a1d0e"], limited: 4000 },
+  // — ещё NFT
+  { id: "nft-unicorn", emoji: "🦄", title: "Единорог", price: 40, category: "nft", nft: true, colors: ["#4a2250", "#1f0e24"], limited: 1500 },
+  { id: "nft-phoenix", emoji: "🔥", title: "Феникс", price: 50, category: "nft", nft: true, colors: ["#4a2210", "#210e07"], limited: 300 },
+  { id: "nft-ufo", emoji: "🛸", title: "НЛО", price: 35, category: "nft", nft: true, colors: ["#1c3a4a", "#0c1a21"], limited: 2000 },
+  { id: "nft-moon", emoji: "🌙", title: "Лунный свет", price: 30, category: "nft", nft: true, colors: ["#262b52", "#0f1226"], limited: 3500 },
+  { id: "nft-galaxy", emoji: "🌌", title: "Галактика", price: 50, category: "nft", nft: true, colors: ["#2a1f5c", "#0e0a26"], limited: 400 },
+  { id: "nft-snowman", emoji: "⛄", title: "Снеговик", price: 25, category: "nft", nft: true, colors: ["#1f3a4f", "#0d1a24"], limited: 4000 },
+  { id: "nft-cat", emoji: "🐱", title: "Космокот", price: 30, category: "nft", nft: true, colors: ["#2f2a52", "#13112a"], limited: 3000 },
+  { id: "nft-fox", emoji: "🦊", title: "Лис Velox", price: 35, category: "nft", nft: true, colors: ["#4a2a10", "#21130a"], limited: 2500 },
+  { id: "nft-wolf", emoji: "🐺", title: "Лунный волк", price: 45, category: "nft", nft: true, colors: ["#2a3340", "#12161d"], limited: 800 },
+  { id: "nft-pumpkin", emoji: "🎃", title: "Тыква", price: 25, category: "nft", nft: true, colors: ["#4a2a0c", "#211306"], limited: 4000 },
+  { id: "nft-tree", emoji: "🎄", title: "Ёлка", price: 25, category: "nft", nft: true, colors: ["#144024", "#0a1d10"], limited: 4000 },
+  { id: "nft-bolt", emoji: "⚡", title: "Молния", price: 30, category: "nft", nft: true, colors: ["#4a4010", "#211c07"], limited: 3000 },
+  { id: "nft-sword", emoji: "⚔️", title: "Меч героя", price: 45, category: "nft", nft: true, colors: ["#2d3640", "#14181d"], limited: 600 },
+  { id: "nft-potion", emoji: "🧪", title: "Зелье", price: 25, category: "nft", nft: true, colors: ["#2a4a1c", "#122108"], limited: 4500 },
+  { id: "nft-ghost", emoji: "👻", title: "Призрак", price: 30, category: "nft", nft: true, colors: ["#33384a", "#16192a"], limited: 3500 },
+  { id: "nft-robot", emoji: "🤖", title: "Робот", price: 40, category: "nft", nft: true, colors: ["#26364a", "#10181f"], limited: 1200 },
+  { id: "nft-eye", emoji: "🧿", title: "Оберег", price: 35, category: "nft", nft: true, colors: ["#123a4a", "#0a1a21"], limited: 2000 },
+  { id: "nft-ice", emoji: "🧊", title: "Ледяной куб", price: 25, category: "nft", nft: true, colors: ["#1c3f52", "#0c1c25"], limited: 4500 },
+  { id: "nft-butterfly", emoji: "🦋", title: "Бабочка", price: 30, category: "nft", nft: true, colors: ["#1c2f5a", "#0c1428"], limited: 3000 },
+  { id: "nft-whale", emoji: "🐋", title: "Кит", price: 45, category: "nft", nft: true, colors: ["#123650", "#08171f"], limited: 700 },
+  { id: "nft-music", emoji: "🎵", title: "Мелодия", price: 25, category: "nft", nft: true, colors: ["#3a2a52", "#18112a"], limited: 5000 },
+  { id: "nft-skull", emoji: "💀", title: "Череп", price: 35, category: "nft", nft: true, colors: ["#2c2c33", "#131317"], limited: 1800 },
 ];
 
 export const giftById = (id: string): GiftDef | undefined => GIFTS.find((g) => g.id === id);
@@ -77,6 +100,7 @@ export interface MessengerGift {
   hidden?: boolean; // получатель скрыл подарок из профиля
   at: number;
   nft?: GiftNft; // зарезервировано под NFT-подарки
+  byAdmin?: boolean; // выдан администрацией бесплатно (на ⭐ не обменивается)
 }
 
 /** Задел под NFT: уникальный экземпляр подарка (как в Telegram — номер, модель, фон, узор). Пока не выдаётся. */

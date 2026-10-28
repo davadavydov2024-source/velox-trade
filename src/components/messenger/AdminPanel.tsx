@@ -7,8 +7,8 @@ import { useToast } from "@/lib/toastContext";
 import { Avatar, PageHeader, Spinner } from "./ui";
 import type { MAccount } from "./mtypes";
 import { GIFTS, giftById } from "@/lib/messenger/gifts";
+import { ImportBox } from "./StickersUI";
 import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS } from "@/lib/messenger/nft";
-import { NftArt } from "./Gifts";
 
 type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number };
 type Report = { id: string; reporterUid: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string; reason: string; createdAt: number };
@@ -97,10 +97,6 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
     } catch (e: any) { toast("error", e.message); } finally { setBusyKey(""); }
   };
   const selGift = giftById(giftId);
-  // предпросмотр NFT: выбранные признаки, а где «случайно» — первый вариант из списка
-  const previewNft = selGift?.nft
-    ? { number: 1, supply: selGift.limited ?? 1, model: traits.model || NFT_MODELS[0].name, backdrop: traits.backdrop || NFT_BACKDROPS[0].name, symbol: traits.symbol || NFT_SYMBOLS[0].name }
-    : null;
 
   const start = async () => {
     if (!text.trim()) return toast("warning", "Напиши текст рассылки");
@@ -188,7 +184,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
         {tab === "give" && (
           <>
-            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value.trim().length >= 2 || !e.target.value.trim()) load(e.target.value.trim()); }} autoCapitalize="none" />
+            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.giveTo.value); if (e.giveTo.value.trim().length >= 2 || !e.giveTo.value.trim()) load(e.giveTo.value); }} autoCapitalize="none" />
             {!giveTo && loading && <div className="flex justify-center"><Spinner /></div>}
             {!giveTo && (
               <div className="mx-card">
@@ -230,14 +226,14 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                 <div className="mx-card p-4 space-y-3">
                   <p className="font-semibold">⭐ Звёзды в кошелёк</p>
                   <div className="flex gap-2">
-                    <input className="mx-input flex-1" type="number" inputMode="numeric" min={1} placeholder="Сколько ⭐" value={starsAmount} onChange={(e) => setStarsAmount(e.target.value)} />
+                    <input className="mx-input flex-1" type="number" inputMode="numeric" min={1} placeholder="Сколько ⭐" value={starsAmount} onChange={(e) => setStarsAmount(e.giveTo.value)} />
                     <button className="mx-btn" disabled={!!busyKey || !starsAmount} onClick={() => grant("st", { action: "stars", amount: Number(starsAmount) }, `Начислено ${starsAmount} ⭐`).then(() => setStarsAmount(""))}>{busyKey === "st" ? "…" : "Начислить"}</button>
                   </div>
                 </div>
 
                 <div className="mx-card p-4 space-y-3">
                   <p className="font-semibold flex items-center gap-2"><Gift size={16} style={{ color: "var(--mx-accent)" }} /> Подарок или NFT</p>
-                  <select className="mx-input w-full" value={giftId} onChange={(e) => setGiftId(e.target.value)}>
+                  <select className="mx-input w-full" value={giftId} onChange={(e) => setGiftId(e.giveTo.value)}>
                     <optgroup label="✨ NFT (уникальные)">
                       {GIFTS.filter((g) => g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · тираж {g.limited}</option>)}
                     </optgroup>
@@ -247,23 +243,22 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                   </select>
                   {selGift?.nft && (
                     <div className="space-y-2">
-                      {previewNft && <div className="flex justify-center py-1"><NftArt gift={selGift} nft={previewNft} size={150} sample /></div>}
                       <p className="mx-muted text-[12.5px] flex items-center gap-1"><Sparkles size={13} /> Признаки NFT — по умолчанию выпадают случайно, можно выбрать свои</p>
                       {([["model", "Модель", NFT_MODELS], ["backdrop", "Фон", NFT_BACKDROPS], ["symbol", "Узор", NFT_SYMBOLS]] as const).map(([key, label, list]) => (
-                        <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.target.value }))}>
+                        <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.giveTo.value }))}>
                           <option value="">{label}: случайно</option>
                           {list.map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
                         </select>
                       ))}
                     </div>
                   )}
-                  <input className="mx-input w-full" maxLength={120} placeholder="Подпись к подарку (необязательно)" value={giftMsg} onChange={(e) => setGiftMsg(e.target.value)} />
+                  <input className="mx-input w-full" maxLength={120} placeholder="Подпись к подарку (необязательно)" value={giftMsg} onChange={(e) => setGiftMsg(e.giveTo.value)} />
                   <div className="flex gap-2">
-                    <select className="mx-input flex-1" value={giftFrom} onChange={(e) => setGiftFrom(e.target.value as "service" | "me")}>
+                    <select className="mx-input flex-1" value={giftFrom} onChange={(e) => setGiftFrom(e.giveTo.value as "service" | "me")}>
                       <option value="service">От «MiliGram»</option>
                       <option value="me">От меня</option>
                     </select>
-                    <select className="mx-input w-24" value={giftCount} onChange={(e) => setGiftCount(Number(e.target.value))}>
+                    <select className="mx-input w-24" value={giftCount} onChange={(e) => setGiftCount(Number(e.giveTo.value))}>
                       {[1, 2, 3, 5, 10].map((n) => <option key={n} value={n}>× {n}</option>)}
                     </select>
                   </div>
@@ -284,7 +279,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     const def = giftById(g.giftId);
                     return (
                       <div key={g.id} className="px-4 py-2 flex items-center gap-3">
-                        {g.nft && def ? <NftArt gift={def} nft={g.nft} size={40} /> : <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>}
+                        <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14.5px]">{def?.title ?? g.giftId}{g.nft ? ` · №${g.nft.number}/${g.nft.supply}` : ""}{g.byAdmin ? " · от админа" : ""}</p>
                           {g.nft && <p className="mx-muted text-[12px] truncate">{g.nft.model} · {g.nft.backdrop} · {g.nft.symbol}</p>}
@@ -366,7 +361,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
         {tab === "stickers" && (
           <div className="mx-card p-4 space-y-2">
             <p className="font-semibold">Стикерпаки</p>
-            <p className="mx-muted text-[14px]">Всего наборов: {stats?.stickerPacks ?? "…"}. Пользователи сами привозят наборы из Telegram по ссылке (Настройки → Стикеры). Премиум-наборы с загрузкой своих картинок создаются на сайте.</p>
+            <p className="mx-muted text-[14px]">Всего наборов: {stats?.stickerPacks ?? "…"}. Загружать наборы из Telegram может только администратор: вставь ссылку ниже — набор сразу появится в каталоге у всех (Настройки → Стикеры).</p>
+            <ImportBox onDone={() => load(q)} />
             <a href="/admin/messenger" className="mx-btn inline-block text-center w-full">Открыть управление наборами</a>
           </div>
         )}

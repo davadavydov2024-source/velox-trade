@@ -4,34 +4,73 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { EyeOff, Eye, Gift, Repeat } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
-import { NFT_SYMBOL_CHARS, backdropOf, modelOf, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
+import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
 import { MAccount } from "./mtypes";
 
 const PATTERN: [number, number, number][] = [[28, 30, -12], [100, 20, 8], [172, 32, 14], [18, 96, 10], [182, 100, -10], [30, 160, 12], [100, 176, -8], [172, 158, -14]];
+// искорки, плавающие вверх у редких экземпляров: x, y, задержка, длительность
+const SPARKS: [number, number, number, number][] = [[46, 150, 0, 3.4], [160, 140, 1.1, 4.2], [30, 80, 2.0, 3.8], [170, 70, 0.6, 4.6], [70, 40, 1.7, 3.6], [140, 30, 2.6, 4.0], [100, 160, 0.9, 4.4], [55, 115, 2.2, 3.9], [150, 105, 1.4, 4.8]];
 
-/** NFT-карточка: фон, узор, фигурка с оттенком модели и номер. Рисуется по признакам — картинку хранить не нужно. */
-export function NftArt({ gift, nft, size = 96, sample }: { gift: GiftDef; nft: GiftNft; size?: number | string; sample?: boolean }) {
+/**
+ * NFT-карточка: фон, узор, фигурка с оттенком модели и номер. Рисуется по признакам — картинку хранить не нужно.
+ * Анимации (motion): "full" — парящая фигурка, мерцающий узор, блик, пульс свечения, искорки и вращающееся кольцо у редких;
+ * "lite" — только парение и блик (для сеток); "off" — статично (мелкие значки). По умолчанию зависит от размера.
+ */
+export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef; nft: GiftNft; size?: number | string; sample?: boolean; motion?: "full" | "lite" | "off" }) {
   const uid = useId().replace(/:/g, "");
   const b = backdropOf(nft.backdrop);
   const m = modelOf(nft.model);
   const ch = NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦";
+  const tier = nftTier(nft);
+  const tcfg = NFT_TIERS[tier];
+  const special = !sample && isSpecialNumber(nft.number, nft.supply);
+  const mo = motion ?? (typeof size === "number" ? (size >= 110 ? "full" : size >= 64 ? "lite" : "off") : "lite");
+  const live = mo !== "off";
+  const full = mo === "full";
+  const rainbow = !!m.anim;
+  const figureStyle = {
+    ...(rainbow ? { ["--nft-sat" as string]: String(m.sat) } : { filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) brightness(${m.bright ?? 1}) drop-shadow(0 6px 10px rgba(0,0,0,.5))` }),
+    transform: m.flip ? "scaleX(-1)" : undefined,
+    transformOrigin: "100px 0px",
+    transformBox: "view-box",
+  } as React.CSSProperties;
+  const showSparks = full ? tcfg.sparkles : 0;
+  const showRing = full && (tier === "epic" || tier === "legendary" || tier === "mythic");
+  const showBorder = tier === "legendary" || tier === "mythic" || special;
+  const borderColor = special && tier === "common" ? "#ffd56a" : tcfg.color;
   return (
     <svg viewBox="0 0 200 200" width={size} height={size} style={{ borderRadius: "18%", display: "block" }} role="img" aria-label={`${gift.title} №${nft.number}`}>
       <defs>
         <radialGradient id={`bg${uid}`} cx="50%" cy="38%" r="78%"><stop offset="0" stopColor={b.colors[0]} /><stop offset="1" stopColor={b.colors[1]} /></radialGradient>
         <radialGradient id={`gl${uid}`} cx="50%" cy="50%" r="50%"><stop offset="0" stopColor="#fff" stopOpacity="0.28" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
+        <linearGradient id={`sw${uid}`} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="0.5" stopColor="#fff" stopOpacity="0.38" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+        <clipPath id={`cp${uid}`}><rect width="200" height="200" rx="36" /></clipPath>
       </defs>
-      <rect width="200" height="200" fill={`url(#bg${uid})`} />
-      {PATTERN.map(([x, y, r], i) => (
-        <text key={i} x={x} y={y} fontSize="20" fill="#fff" opacity="0.14" textAnchor="middle" transform={`rotate(${r} ${x} ${y})`}>{ch}</text>
-      ))}
-      <circle cx="100" cy="95" r="70" fill={`url(#gl${uid})`} />
-      <text x="100" y="124" fontSize="88" textAnchor="middle" style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) drop-shadow(0 6px 10px rgba(0,0,0,.5))`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}>{gift.emoji}</text>
-      <rect x="62" y="166" width="76" height="22" rx="11" fill="#000" opacity="0.35" />
-      <text x="100" y="182" fontSize="13" fontWeight="700" fill="#fff" textAnchor="middle">{sample ? "NFT" : `#${nft.number}`}</text>
+      <g clipPath={`url(#cp${uid})`}>
+        <rect width="200" height="200" fill={`url(#bg${uid})`} />
+        {PATTERN.map(([x, y, r], i) => (
+          <text key={i} x={x} y={y} fontSize="20" fill="#fff" opacity="0.14" textAnchor="middle" transform={`rotate(${r} ${x} ${y})`} className={full ? "mx-nft-twinkle" : undefined} style={full ? { animationDelay: `${(i * 0.37).toFixed(2)}s` } : undefined}>{ch}</text>
+        ))}
+        <circle cx="100" cy="95" r="70" fill={`url(#gl${uid})`} className={live ? "mx-nft-glow" : undefined} />
+        {showRing && <circle cx="100" cy="95" r="80" fill="none" stroke={tcfg.color} strokeOpacity="0.55" strokeWidth="1.6" strokeDasharray="3 11" strokeLinecap="round" className="mx-nft-ring" />}
+        <g className={live ? "mx-nft-float" : undefined}>
+          <text x="100" y="124" fontSize="88" textAnchor="middle" className={rainbow ? (m.anim === "holo" ? "mx-nft-holo" : "mx-nft-rainbow") : undefined} style={figureStyle}>{gift.emoji}</text>
+        </g>
+        {SPARKS.slice(0, showSparks).map(([x, y, d, t], i) => (
+          <text key={i} x={x} y={y} fontSize={i % 2 ? 11 : 15} fill={tcfg.color} textAnchor="middle" className="mx-nft-rise" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }}>✦</text>
+        ))}
+        <rect x="62" y="166" width="76" height="22" rx="11" fill={special ? "#3a2a05" : "#000"} opacity={special ? 0.7 : 0.35} />
+        <text x="100" y="182" fontSize="13" fontWeight="700" fill={special ? "#ffd56a" : "#fff"} textAnchor="middle">{sample ? "NFT" : `${special ? "✦ " : ""}#${nft.number}`}</text>
+        {live && (
+          <g transform="rotate(20 100 100)">
+            <rect className="mx-nft-sweep" x="-90" y="-60" width="64" height="320" fill={`url(#sw${uid})`} />
+          </g>
+        )}
+        {showBorder && <rect x="2" y="2" width="196" height="196" rx="34" fill="none" stroke={borderColor} strokeWidth="3" className={live ? "mx-nft-border" : undefined} strokeOpacity={live ? undefined : 0.7} />}
+      </g>
     </svg>
   );
 }
@@ -45,7 +84,7 @@ export function GiftArt({ gift, size = 96, imageUrl, badge, nft }: { gift: GiftD
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt="" className="w-full h-full object-cover" draggable={false} />
       ) : (
-        <span style={{ fontSize: size * 0.52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{gift.emoji}</span>
+        <span className={gift.nft ? "mx-nft-bob" : undefined} style={{ fontSize: size * 0.52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{gift.emoji}</span>
       )}
       {badge}
     </div>
@@ -61,7 +100,11 @@ export function NftTraits({ nft }: { nft: GiftNft }) {
   ];
   return (
     <div className="mx-card w-full mt-4">
-      <div className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">Номер</span><span>#{nft.number} из {nft.supply}</span></div>
+      <div className="flex items-center justify-between px-4 py-2.5">
+        <span className="mx-muted">Редкость</span>
+        <span className="font-semibold" style={{ color: NFT_TIERS[nftTier(nft)].color }}>{NFT_TIERS[nftTier(nft)].label} <span className="mx-muted text-[12.5px] font-normal">· шанс {(nftComboChance(nft) * 100).toFixed(nftComboChance(nft) < 0.0001 ? 5 : 3)}%</span></span>
+      </div>
+      <div className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">Номер</span><span>#{nft.number} из {nft.supply}{isSpecialNumber(nft.number, nft.supply) && <span className="ml-1.5 text-[12px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,213,106,.16)", color: "#ffd56a" }}>✦ особый номер</span>}</span></div>
       {rows.map(([k, v, r]) => (
         <div key={k} className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">{k}</span><span>{v} <span className="mx-muted text-[12.5px]">{rarityPct(r)}</span></span></div>
       ))}
