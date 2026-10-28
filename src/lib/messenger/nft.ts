@@ -1,4 +1,4 @@
-/**
+﻿/**
  * NFT-подарки MiliGram: каждый экземпляр уникален — номер из тиража + случайные модель, фон и узор (как в Telegram).
  * Картинка не хранится: её рисует компонент NftArt по этим признакам, так что генерация бесплатная и мгновенная.
  * Редкость (rarity) — шанс выпадения в промилле: чем меньше, тем реже.
@@ -7,7 +7,7 @@ import type { GiftNft } from "./gifts";
 
 export interface NftTrait { name: string; rarity: number }
 export interface NftBackdrop extends NftTrait { colors: [string, string] }
-export interface NftModel extends NftTrait { hue: number; sat: number; flip?: boolean }
+export interface NftModel extends NftTrait { hue: number; sat: number; flip?: boolean; anim?: "holo" | "rainbow"; bright?: number }
 
 export const NFT_BACKDROPS: NftBackdrop[] = [
   { name: "Полночь", colors: ["#2a3f8f", "#070a1f"], rarity: 140 },
