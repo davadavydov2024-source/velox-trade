@@ -5,6 +5,7 @@ import { Bell, BellOff, ChevronRight, Copy, FileText, Gift, LogOut, MessageCircl
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { GiftShopSheet, GiftsProfileTab } from "./Gifts";
 import { ChannelSettingsSheet, ContactEditSheet, PeopleListSheet } from "./ChannelAdmin";
 import { MAccount, MChat, MMessage } from "./mtypes";
@@ -118,7 +119,7 @@ export function ChatInfoSheet({
       </div>
       <div className={`flex flex-col items-center ${isDm && peer?.bannerURL ? "-mt-10" : "pt-3"} pb-4 px-6`}>
         <Avatar src={photo} name={title} seed={isDm ? peerId : chat.id} size={100}>{saved ? "🔖" : undefined}</Avatar>
-        <p className="text-[22px] font-semibold mt-3 flex items-center gap-1.5">{title} {isDm && peer?.verified && <VerifiedBadge size={18} />}</p>
+        <p className="text-[22px] font-semibold mt-3 flex items-center gap-1.5">{title} {isDm && peer?.verified && <VerifiedBadge size={18} />}{isDm && <StatusBadge acc={peer} size={20} />}</p>
         {isDm && !saved && <p className="mx-muted text-[14px]">{lastSeenText(peer)}</p>}
         {!isDm && <p className="mx-muted text-[14px]">{chat.members.length} {chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}</p>}
       </div>

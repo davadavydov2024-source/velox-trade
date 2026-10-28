@@ -65,6 +65,26 @@ export const GIFTS: GiftDef[] = [
 
 export const giftById = (id: string): GiftDef | undefined => GIFTS.find((g) => g.id === id);
 
+/** Сколько подарков можно закрепить вверху профиля (как в Telegram). */
+export const GIFT_PIN_MAX = 6;
+
+/**
+ * «Улучшить до NFT» (как в Telegram): обычный подарок превращается в уникальную NFT-версию из тиража.
+ * Ключ — обычный подарок, значение — NFT-подарок, в который он превращается. Стоимость улучшения = цена NFT-версии.
+ */
+export const NFT_UPGRADE_MAP: Record<string, string> = {
+  bear: "nft-bear", "teddy-big": "nft-bear", panda: "nft-bear",
+  heart: "nft-heart", "love-letter": "nft-heart", "sparkle-heart": "nft-heart",
+  diamond: "nft-diamond", ring: "nft-diamond",
+  rose: "nft-clover", tulip: "nft-clover", bouquet: "nft-clover",
+  trophy: "crown", champagne: "crown", cake: "crown",
+  popper: "rocket", giftbox: "rocket",
+};
+export const upgradeTargetOf = (giftId: string): GiftDef | undefined => {
+  const id = NFT_UPGRADE_MAP[giftId];
+  return id ? giftById(id) : undefined;
+};
+
 /** Выданный подарок: коллекция messengerGifts. */
 export interface MessengerGift {
   id: string;
@@ -77,6 +97,10 @@ export interface MessengerGift {
   hidden?: boolean; // получатель скрыл подарок из профиля
   at: number;
   nft?: GiftNft; // зарезервировано под NFT-подарки
+  byAdmin?: boolean; // выдан администрацией бесплатно (на ⭐ не обменивается)
+  pinned?: boolean; // закреплён вверху профиля (до GIFT_PIN_MAX)
+  upgradedFrom?: string; // id обычного подарка, из которого сделали NFT
+  transferredAt?: number; // когда NFT передали новому владельцу
 }
 
 /** Задел под NFT: уникальный экземпляр подарка (как в Telegram — номер, модель, фон, узор). Пока не выдаётся. */
@@ -98,6 +122,8 @@ export interface GiftView {
   at: number;
   hidden: boolean;
   anonymous: boolean;
+  pinned?: boolean;
+  upgradedFrom?: string;
   from: { uid: string; displayName: string; photoURL: string | null } | null; // null — анонимно
   nft?: GiftNft;
 }

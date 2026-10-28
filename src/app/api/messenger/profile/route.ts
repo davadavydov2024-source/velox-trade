@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { HANDLE_RE } from "@/lib/messenger/server";
+import { STATUS_EMOJIS, isPremium } from "@/lib/messenger/premium";
 import { fail, isOwnMediaUrl, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
@@ -26,6 +27,20 @@ export async function POST(req: NextRequest) {
     if (b.bannerURL === null || b.bannerURL === "") upd.bannerURL = null;
     else if (isOwnMediaUrl(b.bannerURL)) upd.bannerURL = b.bannerURL;
     else return fail("Некорректная ссылка на баннер");
+  }
+  if ("status" in b) {
+    // статус рядом с ником: эмодзи или свой NFT-подарок; ставить может только Premium, снять — любой
+    const st = b.status;
+    if (st === null) upd.status = null;
+    else if (!isPremium(me.account)) return NextResponse.json({ error: "Статус рядом с ником — только с Mili Premium", needPremium: true }, { status: 403 });
+    else if (st?.kind === "emoji") {
+      if (!STATUS_EMOJIS.includes(st.emoji)) return fail("Такого статуса нет");
+      upd.status = { kind: "emoji", emoji: st.emoji };
+    } else if (st?.kind === "nft" && typeof st.giftDocId === "string" && !st.giftDocId.includes("/")) {
+      const g = (await adminDb().collection("messengerGifts").doc(st.giftDocId).get()).data();
+      if (!g || g.to !== me.uid || !g.nft) return fail("Этот NFT не твой");
+      upd.status = { kind: "nft", giftId: g.giftId, giftDocId: st.giftDocId, nft: g.nft };
+    } else return fail("Некорректный статус");
   }
   if ("channelHandle" in b) {
     // личный канал в профиле: только свой публичный канал (создатель — я)

@@ -7,6 +7,7 @@ import {
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
@@ -277,6 +278,15 @@ export function ChatView({
     const tempId = addPending({ kind: "text", text });
     setReply(null);
     send(tempId, payload);
+  };
+
+  const sendSticker = async (pack: string, index: number) => {
+    try {
+      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: replyPayload() });
+      setReply(null);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось отправить стикер");
+    }
   };
 
   const failUpload = (tempId: string, err: unknown) => {
@@ -571,7 +581,7 @@ export function ChatView({
               <div className="min-w-0">
                 <p className="font-semibold truncate flex items-center gap-1 text-[16px]">
                   {title}
-                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}
+                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
                 </p>
                 <p className="text-[13px] truncate" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
@@ -604,7 +614,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll flex-1 min-h-0 py-2 relative">
+      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll mx-wallpaper flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && (
           <div className="px-3 pt-4 space-y-2.5">
@@ -686,6 +696,7 @@ export function ChatView({
         onCancelReply={() => setReply(null)}
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
+        onSendSticker={sendSticker}
         mentionables={chat.type === "group" ? (chat.members.filter((u) => u !== me).map((u) => accountsAll[u]).filter(Boolean) as MAccount[]) : []}
         onSaveEdit={saveEdit}
         onSendMedia={sendMedia}

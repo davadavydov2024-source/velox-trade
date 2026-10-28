@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (chat.joinByRequest) {
     await db.collection("messengerJoinRequests").doc(`${chatId}_${me.uid}`).set({ chatId, uid: me.uid, createdAt: Date.now() });
     const admins = Array.from(new Set([chat.createdBy as string, ...((chat.admins as string[]) ?? [])]));
-    await Promise.allSettled(admins.map((a) => sendWebPush(a, { title: `Заявка в «${chat.title ?? "чат"}»`, body: `${me.account.displayName} хочет вступить`, url: `/m/app?chat=${chatId}` }, "messages")));
+    await Promise.allSettled(admins.map((a) => sendWebPush(a, { title: `Заявка в «${chat.title ?? "чат"}»`, body: `${me.account.displayName} хочет вступить`, url: `/m?chat=${chatId}` }, "messages")));
     return NextResponse.json({ chatId, requested: true });
   }
   await ref.update({ members: FieldValue.arrayUnion(me.uid) });
