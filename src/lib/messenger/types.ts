@@ -125,6 +125,8 @@ export interface MessengerReport {
 }
 
 export interface MessengerStickerPack {
+  createdBy?: string;
+  tgName?: string;
   slug: string; // ссылка: /m?stickers=<slug>
   title: string;
   premium: boolean; // добавить и отправлять могут только с Mili Premium
