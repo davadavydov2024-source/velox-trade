@@ -36,7 +36,7 @@ export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef
     transform: m.flip ? "scaleX(-1)" : undefined,
     transformOrigin: "100px 0px",
     transformBox: "view-box",
-  } as React.CSSProperties;
+  } as unknown as React.CSSProperties;
   const showSparks = full ? tcfg.sparkles : 0;
   const showRing = full && (tier === "epic" || tier === "legendary" || tier === "mythic");
   const showBorder = tier === "legendary" || tier === "mythic" || special;

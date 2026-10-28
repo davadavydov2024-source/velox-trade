@@ -8,7 +8,7 @@ import { Avatar, PageHeader, Spinner } from "./ui";
 import type { MAccount } from "./mtypes";
 import { GIFTS, giftById } from "@/lib/messenger/gifts";
 import { ImportBox } from "./StickersUI";
-import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS } from "@/lib/messenger/nft";
+import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, type NftTrait } from "@/lib/messenger/nft";
 
 type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number };
 type Report = { id: string; reporterUid: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string; reason: string; createdAt: number };
@@ -247,7 +247,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       {([["model", "Модель", NFT_MODELS], ["backdrop", "Фон", NFT_BACKDROPS], ["symbol", "Узор", NFT_SYMBOLS]] as const).map(([key, label, list]) => (
                         <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.target.value }))}>
                           <option value="">{label}: случайно</option>
-                          {list.map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
+                          {(list as readonly NftTrait[]).map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
                         </select>
                       ))}
                     </div>

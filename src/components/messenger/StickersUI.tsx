@@ -7,7 +7,7 @@ import type { MessengerStickerPack } from "@/lib/messenger/types";
 import { mApi, MApiError } from "./api";
 import { Spinner } from "./ui";
 
-export type StickerPack = MessengerStickerPack & { locked?: boolean };
+export type StickerPack = MessengerStickerPack & { locked?: boolean; added?: boolean };
 
 let cache: StickerPack[] | null = null;
 
