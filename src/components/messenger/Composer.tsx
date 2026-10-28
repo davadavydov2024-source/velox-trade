@@ -33,7 +33,6 @@ export function Composer({
   onSendFile,
   onSendVoice,
   onSendVideoNote,
-  onSendSticker,
   onTyping,
 }: {
   chatId: string;
@@ -50,7 +49,6 @@ export function Composer({
   onSendFile: (file: File) => void;
   onSendVoice: (a: RecordedAudio) => void;
   onSendVideoNote: (v: RecordedVideo) => void;
-  onSendSticker?: (pack: string, index: number) => void;
   onTyping: () => void;
 }) {
   const { toast } = useToast();
@@ -68,7 +66,7 @@ export function Composer({
   const fileInput = useRef<HTMLInputElement>(null);
   const voice = useVoiceRecorder();
 
-  const draftKey = `mx-draft-${chatId}`;
+  const draftKey = `vc-draft-${chatId}`;
 
   // черновик: подхватываем при открытии чата, сохраняем при наборе
   useEffect(() => {
@@ -132,6 +130,8 @@ export function Composer({
     });
   };
 
+  const [fly, setFly] = useState(false);
+
   const submit = (silent = false) => {
     const value = text.trim();
     if (!value) return;
@@ -140,6 +140,9 @@ export function Composer({
       setText("");
       return;
     }
+    setFly(true);
+    setTimeout(() => setFly(false), 340);
+    navigator.vibrate?.(6);
     onSendText(value, silent ? { silent: true } : undefined);
     setText("");
     try {
@@ -262,7 +265,7 @@ export function Composer({
 
   if (disabledReason) {
     return (
-      <div className="mx-safe-bottom shrink-0 mx-glass px-4 py-3.5 text-center mx-muted text-[14px]" style={{ borderWidth: "1px 0 0" }}>
+      <div className="vc-safe-bottom shrink-0 vc-glass px-4 py-3.5 text-center vc-muted text-[14px]" style={{ borderWidth: "1px 0 0" }}>
         {disabledReason}
       </div>
     );
@@ -272,15 +275,15 @@ export function Composer({
   const recordingUi = voice.recording;
 
   return (
-    <div className="shrink-0 mx-safe-bottom relative" style={{ background: "var(--mx-bg)" }}>
+    <div className="shrink-0 vc-safe-bottom relative" style={{ background: "var(--vc-bg)" }}>
       {(reply || editing) && (
-        <div className="flex items-center gap-3 px-4 py-2 mx-fade" style={{ borderTop: "1px solid var(--mx-line)", background: "var(--mx-surface)" }}>
-          <div className="w-[3px] self-stretch rounded-full" style={{ background: "var(--mx-accent)" }} />
+        <div className="flex items-center gap-3 px-4 py-2 vc-fade" style={{ borderTop: "1px solid var(--vc-line)", background: "var(--vc-surface)" }}>
+          <div className="w-[3px] self-stretch rounded-full" style={{ background: "var(--vc-accent)" }} />
           <div className="min-w-0 flex-1 text-[13.5px]">
-            <p className="font-semibold" style={{ color: "var(--mx-accent)" }}>
+            <p className="font-semibold" style={{ color: "var(--vc-accent)" }}>
               {editing ? "Редактирование" : `Ответ: ${reply!.name}`}
             </p>
-            <p className="truncate mx-muted">{editing ? editing.text : reply!.preview}</p>
+            <p className="truncate vc-muted">{editing ? editing.text : reply!.preview}</p>
           </div>
           <button
             onClick={() => {
@@ -289,7 +292,7 @@ export function Composer({
                 setText("");
               } else onCancelReply();
             }}
-            className="mx-muted p-1"
+            className="vc-muted p-1"
             aria-label="Отмена"
           >
             <X size={20} />
@@ -299,36 +302,36 @@ export function Composer({
 
       <div className="flex items-end gap-2 px-2.5 py-2">
         {recordingUi ? (
-          <div className="flex-1 flex items-center gap-3 h-11 px-3 rounded-full" style={{ background: "var(--mx-surface)" }}>
-            <span className="w-2.5 h-2.5 rounded-full mx-rec-dot" style={{ background: "var(--mx-danger)" }} />
+          <div className="flex-1 flex items-center gap-3 h-11 px-3 rounded-full" style={{ background: "var(--vc-surface)" }}>
+            <span className="w-2.5 h-2.5 rounded-full vc-rec-dot" style={{ background: "var(--vc-danger)" }} />
             <span className="tabular-nums w-11">{formatDuration(voice.seconds)}</span>
             <div className="flex-1 flex items-center gap-[2px] h-6 overflow-hidden">
               {voice.levels.map((l, i) => (
-                <span key={i} className="w-[3px] rounded-full shrink-0" style={{ height: `${Math.max(12, l * 100)}%`, background: "var(--mx-accent)" }} />
+                <span key={i} className="w-[3px] rounded-full shrink-0" style={{ height: `${Math.max(12, l * 100)}%`, background: "var(--vc-accent)" }} />
               ))}
             </div>
             {locked ? (
-              <button onClick={cancelLocked} className="p-1" style={{ color: "var(--mx-danger)" }} aria-label="Отменить запись">
+              <button onClick={cancelLocked} className="p-1" style={{ color: "var(--vc-danger)" }} aria-label="Отменить запись">
                 <Trash2 size={20} />
               </button>
             ) : (
-              <span className="mx-muted text-[13px] whitespace-nowrap" style={{ transform: `translateX(${dragX / 3}px)`, opacity: 1 - Math.min(1, Math.abs(dragX) / 120) }}>
+              <span className="vc-muted text-[13px] whitespace-nowrap" style={{ transform: `translateX(${dragX / 3}px)`, opacity: 1 - Math.min(1, Math.abs(dragX) / 120) }}>
                 ‹ Свайп — отмена
               </span>
             )}
           </div>
         ) : (
           <>
-            <button onClick={() => setAttachOpen(true)} className="w-11 h-11 rounded-full flex items-center justify-center mx-muted shrink-0" aria-label="Прикрепить">
+            <button onClick={() => setAttachOpen(true)} className="w-11 h-11 rounded-full flex items-center justify-center vc-muted shrink-0" aria-label="Прикрепить">
               <Paperclip size={23} />
             </button>
-            <div className="flex-1 flex items-end rounded-[22px] pl-4 pr-1" style={{ background: "var(--mx-surface)", border: "1px solid var(--mx-line)" }}>
+            <div className="flex-1 flex items-end rounded-[22px] pl-4 pr-1" style={{ background: "var(--vc-surface)", border: "1px solid var(--vc-line)" }}>
               <textarea
                 ref={taRef}
                 value={text}
                 rows={1}
                 placeholder="Сообщение"
-                className="mx-composer-input"
+                className="vc-composer-input"
                 onChange={(e) => {
                   setText(e.target.value);
                   setCaret(e.target.selectionStart ?? e.target.value.length);
@@ -340,32 +343,32 @@ export function Composer({
                 onFocus={() => setEmojiOpen(false)}
                 enterKeyHint="enter"
               />
-              <button onClick={() => setEmojiOpen((v) => !v)} className="w-10 h-10 flex items-center justify-center mx-muted shrink-0" aria-label="Эмодзи">
+              <button onClick={() => setEmojiOpen((v) => !v)} className="w-10 h-10 flex items-center justify-center vc-muted shrink-0" aria-label="Эмодзи">
                 {emojiOpen ? <Keyboard size={22} /> : <Smile size={22} />}
               </button>
             </div>
           </>
         )}
 
-        {hasText || editing ? (
+        {hasText || editing || fly ? (
           <button
             onClick={() => submit()}
             onContextMenu={(e) => { if (!editing) { e.preventDefault(); setSilentOpen(true); } }}
             onTouchStart={() => { if (!editing) holdSend.current = setTimeout(() => { navigator.vibrate?.(8); setSilentOpen(true); holdSend.current = null; }, 450); }}
             onTouchEnd={(e) => { if (!holdSend.current) e.preventDefault(); clearTimeout(holdSend.current); }}
             onTouchMove={() => clearTimeout(holdSend.current)}
-            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 mx-send-pop select-none active:scale-90 transition-transform"
-            style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", WebkitTouchCallout: "none" }}
+            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 vc-pop select-none ${fly ? "vc-fly" : ""}`}
+            style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)", WebkitTouchCallout: "none" }}
             aria-label="Отправить"
           >
             {editing ? <Check size={22} /> : <Send size={20} className="ml-0.5" />}
           </button>
         ) : !MX_FEATURES.upload ? (
-          <button disabled className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 opacity-40" style={{ background: "var(--mx-surface)", color: "var(--mx-muted)" }} aria-label="Отправить">
+          <button disabled className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 opacity-40" style={{ background: "var(--vc-surface)", color: "var(--vc-muted)" }} aria-label="Отправить">
             <Send size={20} className="ml-0.5" />
           </button>
         ) : locked ? (
-          <button onClick={sendLocked} className="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }} aria-label="Отправить голосовое">
+          <button onClick={sendLocked} className="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)" }} aria-label="Отправить голосовое">
             <Send size={20} className="ml-0.5" />
           </button>
         ) : (
@@ -379,7 +382,7 @@ export function Composer({
             }}
             onContextMenu={(e) => e.preventDefault()}
             className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 touch-none select-none"
-            style={{ background: recordingUi ? "var(--mx-accent)" : "transparent", color: recordingUi ? "var(--mx-accent-text)" : "var(--mx-muted)", transform: recordingUi ? "scale(1.5)" : undefined, transition: "transform 0.15s" }}
+            style={{ background: recordingUi ? "var(--vc-accent)" : "transparent", color: recordingUi ? "var(--vc-accent-text)" : "var(--vc-muted)", transform: recordingUi ? "scale(1.5)" : undefined, transition: "transform 0.15s" }}
             aria-label={mode === "voice" ? "Голосовое сообщение (удерживай)" : "Видеосообщение"}
           >
             {recordingUi && !locked ? <Lock size={0} /> : null}
@@ -389,21 +392,21 @@ export function Composer({
       </div>
 
       {recordingUi && !locked && (
-        <p className="text-center text-[12px] mx-muted pb-1">Потяни вверх — зафиксировать, влево — отменить</p>
+        <p className="text-center text-[12px] vc-muted pb-1">Потяни вверх — зафиксировать, влево — отменить</p>
       )}
 
       {mentionList.length > 0 && (
-        <div className="mx-glass mx-pop absolute left-2 right-2 bottom-[calc(100%-4px)] rounded-2xl overflow-hidden" style={{ zIndex: 30 }}>
+        <div className="vc-glass vc-pop absolute left-2 right-2 bottom-[calc(100%-4px)] rounded-2xl overflow-hidden" style={{ zIndex: 30 }}>
           {mentionList.map((a) => (
             <button key={a.uid} onMouseDown={(e) => e.preventDefault()} onClick={() => pickMention(a)} className="w-full flex items-center gap-3 px-3 py-2 text-left active:bg-white/5">
               <Avatar src={a.photoURL} name={a.displayName} seed={a.uid} size={32} />
-              <span className="min-w-0"><span className="block text-[14.5px] truncate">{a.displayName}</span><span className="block text-[12px] mx-muted">@{a.handle}</span></span>
+              <span className="min-w-0"><span className="block text-[14.5px] truncate">{a.displayName}</span><span className="block text-[12px] vc-muted">@{a.handle}</span></span>
             </button>
           ))}
         </div>
       )}
 
-      {emojiOpen && <EmojiPanel onPick={insertEmoji} onSticker={onSendSticker} />}
+      {emojiOpen && <EmojiPanel onPick={insertEmoji} />}
 
       <Sheet open={silentOpen} onClose={() => setSilentOpen(false)}>
         <MenuList

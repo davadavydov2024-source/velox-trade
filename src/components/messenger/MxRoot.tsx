@@ -40,11 +40,11 @@ export function MxRoot({ children }: { children: ReactNode }) {
     };
   }, [resolved]);
 
-  const style: Record<string, string> = { "--mx-font": `${textSize}px` };
-  if (accent) style["--mx-accent"] = accent;
+  const style: Record<string, string> = { "--vc-font": `${textSize}px` };
+  if (accent) style["--vc-accent"] = accent;
 
   return (
-    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} style={style as React.CSSProperties}>
+    <div id="vc-root" className="vc vc-root" data-theme={mounted ? resolved : "dark"} style={style as React.CSSProperties}>
       {children}
     </div>
   );

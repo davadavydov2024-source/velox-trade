@@ -11,11 +11,11 @@ import { Avatar, Spinner } from "./ui";
 import { ChatListPane, totalUnread } from "./ChatListPane";
 import { ChatView } from "./ChatView";
 import { SettingsPane } from "./SettingsPane";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { AuthScreens, JoinScreen } from "./AuthScreens";
+import { JoinScreen, Onboarding } from "./Onboarding";
 import { ContactsPane } from "./ContactsPane";
 import { NewChatSheet } from "./NewChatSheet";
+import { DeleteChatSheet } from "./DeleteChatSheet";
+import { useHiddenChats } from "./chatActions";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
 import { useAccounts, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
 
@@ -26,12 +26,14 @@ export function MessengerApp() {
   const sp = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const me = user?.uid ?? null;
-  const { account, loading: accLoading, error: accError } = useMyAccount(me);
+  const { account, loading: accLoading } = useMyAccount(me);
   const { chats, loading: chatsLoading } = useMyChats(account && !account.banned ? me : null);
   const userChats = useUserChats(account && !account.banned ? me : null);
   const folders = useFolders(account && !account.banned ? me : null);
   const { stories, reload: reloadStories } = useStories(!!account && !account.banned);
 
+  const hidden = useHiddenChats(me);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chats");
   const [newChat, setNewChat] = useState(false);
   const [storyUid, setStoryUid] = useState<string | null>(null);
@@ -68,12 +70,12 @@ export function MessengerApp() {
       .then((res) => {
         const id = res.chatId ?? res.id;
         if (res.pending) toast("info", "Заявка отправлена — админ должен её одобрить");
-        if (id) router.replace(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
-        else router.replace("/m", { scroll: false });
+        if (id) router.replace(`/vc?chat=${encodeURIComponent(id)}`, { scroll: false });
+        else router.replace("/vc", { scroll: false });
       })
       .catch((err) => {
         toast("error", err instanceof MApiError ? err.message : "Не удалось вступить по ссылке");
-        router.replace("/m", { scroll: false });
+        router.replace("/vc", { scroll: false });
       });
   }, [joinParam, account, router, toast]);
 
@@ -90,22 +92,23 @@ export function MessengerApp() {
   // --- подсказка про уведомления ---
   useEffect(() => {
     try {
-      if (isPushSupported() && Notification.permission === "default" && !localStorage.getItem("mx-push-hint-dismissed")) setPushHint(true);
+      if (isPushSupported() && Notification.permission === "default" && !localStorage.getItem("vc-push-hint-dismissed")) setPushHint(true);
     } catch {}
   }, []);
 
   const openChat = useCallback(
     (id: string) => {
+      hidden.revealChat(id);
       openedFromList.current = true;
-      router.push(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
+      router.push(`/vc?chat=${encodeURIComponent(id)}`, { scroll: false });
     },
-    [router]
+    [router, hidden]
   );
   const closeChat = useCallback(() => {
     if (openedFromList.current) {
       openedFromList.current = false;
       router.back();
-    } else router.replace("/m");
+    } else router.replace("/vc");
   }, [router]);
 
   const groups = useMemo(() => (me ? groupStories(stories, me) : []), [stories, me]);
@@ -115,26 +118,14 @@ export function MessengerApp() {
     return <div className="h-full flex items-center justify-center"><Spinner size={30} /></div>;
   }
   // не вошёл → приветствие/вход/регистрация; вошёл на сайте, но без аккаунта MiliGram → выбор @username
-  if (!user) return <AuthScreens />;
-  if (accError) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-center px-8 gap-3">
-        <p className="text-[20px] font-bold">Не удаётся загрузить аккаунт MiliGram</p>
-        <p className="mx-muted max-w-sm text-sm">
-          Код ошибки: {accError}. {accError === "permission-denied" ? "Похоже, в Firestore не задеплоены правила для мессенджера (messengerAccounts). Сообщи администратору." : "Проверь интернет и попробуй ещё раз."}
-        </p>
-        <button className="btn-primary px-5 py-2.5 text-sm" onClick={() => window.location.reload()}>Обновить</button>
-        <button className="text-xs text-white/40" onClick={() => { signOut(auth).catch(() => {}); }}>Выйти из аккаунта</button>
-      </div>
-    );
-  }
-  if (!account || !me) return <JoinScreen defaultName={user.displayName ?? ""} onLogout={() => { signOut(auth).catch(() => {}); }} />;
+  if (!user) return <Onboarding />;
+  if (!account || !me) return <JoinScreen defaultName={user.displayName ?? ""} />;
 
   if (account.banned) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-8 gap-3">
         <p className="text-[22px] font-bold">Аккаунт заблокирован</p>
-        <p className="mx-muted max-w-sm">Доступ к мессенджеру для этого аккаунта закрыт администрацией.</p>
+        <p className="vc-muted max-w-sm">Доступ к мессенджеру для этого аккаунта закрыт администрацией.</p>
       </div>
     );
   }
@@ -148,14 +139,14 @@ export function MessengerApp() {
   return (
     <div className="h-full flex">
       {/* ---- левая панель ---- */}
-      <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--mx-line)" }}>
+      <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--vc-line)" }}>
         {pushHint && tab === "chats" && (
-          <div className="absolute z-30 left-3 right-3 mx-glass rounded-2xl px-3 py-2.5 flex items-center gap-3 mx-pop" style={{ top: "calc(env(safe-area-inset-top) + 56px)" }}>
-            <Bell size={20} style={{ color: "var(--mx-accent)" }} />
+          <div className="absolute z-30 left-3 right-3 vc-glass rounded-2xl px-3 py-2.5 flex items-center gap-3 vc-pop" style={{ top: "calc(env(safe-area-inset-top) + 56px)" }}>
+            <Bell size={20} style={{ color: "var(--vc-accent)" }} />
             <button className="flex-1 text-left text-[14px]" onClick={() => { setSettingsPage("notifications"); setTab("settings"); setPushHint(false); }}>
               Включи уведомления, чтобы не пропускать сообщения
             </button>
-            <button onClick={() => { setPushHint(false); try { localStorage.setItem("mx-push-hint-dismissed", "1"); } catch {} }} className="mx-muted p-1" aria-label="Закрыть"><X size={17} /></button>
+            <button onClick={() => { setPushHint(false); try { localStorage.setItem("vc-push-hint-dismissed", "1"); } catch {} }} className="vc-muted p-1" aria-label="Закрыть"><X size={17} /></button>
           </div>
         )}
 
@@ -172,17 +163,19 @@ export function MessengerApp() {
               storyGroups={groups}
               storyAccounts={storyAccounts}
               onOpenChat={openChat}
+              isVisible={hidden.isVisible}
+              onDeleteChat={(c) => setDeleteTarget(c.id)}
               onNewChat={() => setNewChat(true)}
               onOpenStory={setStoryUid}
               onCreateStory={() => setCreator(true)}
             />
           )}
           {tab === "contacts" && <ContactsPane me={me} chats={chats} onOpenChat={(id) => { setTab("chats"); openChat(id); }} onNewChat={() => setNewChat(true)} />}
-          {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/m")} />}
+          {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/vc")} />}
         </div>
 
         {/* нижняя плавающая стеклянная панель */}
-        <nav className="absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
+        <nav className="absolute left-4 right-4 z-20 vc-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
           {tabs.map((t) => {
             const on = tab === t.id;
             return (
@@ -190,7 +183,7 @@ export function MessengerApp() {
                 key={t.id}
                 onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
                 className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
-                style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: on ? "var(--mx-surface2)" : "transparent" }}
+                style={{ color: on ? "var(--vc-accent)" : "var(--vc-muted)", background: on ? "var(--vc-surface2)" : "transparent" }}
               >
                 {t.id === "settings" ? (
                   <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>
@@ -198,7 +191,7 @@ export function MessengerApp() {
                   t.icon
                 )}
                 {t.label}
-                {t.id === "chats" && unread > 0 && <span className="mx-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
+                {t.id === "chats" && unread > 0 && <span className="vc-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
               </button>
             );
           })}
@@ -208,19 +201,30 @@ export function MessengerApp() {
       {/* ---- правая панель: чат ---- */}
       <main className={`${chatId ? "" : "max-[899px]:hidden"} flex-1 min-w-0 h-full`}>
         {activeChat ? (
-          <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} onBack={closeChat} onOpenChat={openChat} />
+          <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} hiddenAt={hidden.hiddenAt(activeChat.id)} onDeleteChat={() => setDeleteTarget(activeChat.id)} onBack={closeChat} onOpenChat={openChat} />
         ) : chatId ? (
-          <div className="h-full flex flex-col items-center justify-center gap-3 mx-muted">
-            {chatsLoading ? <Spinner /> : <><MessagesSquare size={40} /><p>Чат не найден или у вас нет доступа</p><button className="mx-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={closeChat}>К чатам</button></>}
+          <div className="h-full flex flex-col items-center justify-center gap-3 vc-muted">
+            {chatsLoading ? <Spinner /> : <><MessagesSquare size={40} /><p>Чат не найден или у вас нет доступа</p><button className="vc-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={closeChat}>К чатам</button></>}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-3 mx-muted max-[899px]:hidden">
+          <div className="h-full flex flex-col items-center justify-center gap-3 vc-muted max-[899px]:hidden">
             <MessagesSquare size={44} />
             <p className="text-[15px]">Выбери чат, чтобы начать общение</p>
           </div>
         )}
       </main>
 
+      {deleteTarget && chats.find((c) => c.id === deleteTarget) && (
+        <DeleteChatSheet
+          chat={chats.find((c) => c.id === deleteTarget) ?? null}
+          me={me}
+          onClose={() => setDeleteTarget(null)}
+          onHide={(id) => {
+            hidden.hideChat(id);
+            if (chatId === id) closeChat();
+          }}
+        />
+      )}
       <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} myHandle={account.handle} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
       <StoryCreator open={creator} onClose={() => setCreator(false)} onCreated={reloadStories} />
       {storyUid && groups.length > 0 && (

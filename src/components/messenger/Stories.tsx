@@ -29,41 +29,37 @@ export function groupStories(stories: MStory[], me: string): StoryGroup[] {
   return groups.sort((a, b) => (a.uid === me ? -1 : b.uid === me ? 1 : Number(a.allSeen) - Number(b.allSeen)));
 }
 
-/** Ряд аватарок историй с цветным кольцом; «Моя история» с плюсом. */
+/** Ряд аватарок историй: «Моя история» с плюсом первой, дальше контакты (непросмотренные — с цветным кольцом). */
 export function StoriesRow({ groups, me, myAccount, accounts, onOpen, onCreate }: { groups: StoryGroup[]; me: string; myAccount: MAccount; accounts: Record<string, MAccount | null>; onOpen: (uid: string) => void; onCreate: () => void }) {
   const mine = groups.find((g) => g.uid === me);
   const others = groups.filter((g) => g.uid !== me);
-  const Label = ({ children, on = false }: { children: import("react").ReactNode; on?: boolean }) => (
-    <span className="text-[12px] truncate w-full text-center" style={{ color: on ? "var(--mx-text)" : "var(--mx-muted)", fontWeight: on ? 600 : 400 }}>{children}</span>
-  );
   return (
-    <div className="flex gap-4 overflow-x-auto mx-noscrollbar px-4 pb-3 pt-1">
-      <button onClick={() => (mine ? onOpen(me) : onCreate())} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]">
-        <div className="relative">
-          <Avatar src={myAccount.photoURL} name={myAccount.displayName} seed={me} size={58} ring={mine ? "unseen" : undefined} />
-          {!mine && (
-            <span className="absolute -bottom-0.5 -right-0.5 w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "2.5px solid var(--mx-bg)" }}>
-              <Plus size={13} strokeWidth={3} />
-            </span>
-          )}
-        </div>
-        <Label on>Моя история</Label>
-      </button>
-      {mine && (
-        <button onClick={onCreate} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px] self-start" aria-label="Добавить историю">
-          <span className="w-[58px] h-[58px] rounded-full flex items-center justify-center" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)", border: "1.5px dashed var(--mx-accent)" }}><Plus size={24} /></span>
-          <Label>Добавить</Label>
-        </button>
-      )}
-      {others.map((g) => {
-        const a = accounts[g.uid];
-        return (
-          <button key={g.uid} onClick={() => onOpen(g.uid)} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]">
-            <Avatar src={a?.photoURL} name={a?.displayName ?? "?"} seed={g.uid} size={58} ring={g.allSeen ? "seen" : "unseen"} />
-            <Label on={!g.allSeen}>{a?.displayName?.split(" ")[0] ?? "…"}</Label>
+    <div className="relative">
+      <div className="flex gap-3 overflow-x-auto vc-noscrollbar px-4 pb-3 pt-1" style={{ scrollSnapType: "x proximity" }}>
+        <div className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]" style={{ scrollSnapAlign: "start" }}>
+          <button onClick={() => (mine ? onOpen(me) : onCreate())} className="relative" aria-label="Моя история">
+            <Avatar src={myAccount.photoURL} name={myAccount.displayName} seed={me} size={56} ring={mine ? "unseen" : undefined} />
           </button>
-        );
-      })}
+          <button
+            onClick={onCreate}
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ width: 22, height: 22, marginTop: 38, marginLeft: 40, background: "var(--vc-accent)", color: "var(--vc-accent-text)", border: "2.5px solid var(--vc-bg)" }}
+            aria-label="Добавить историю"
+          >
+            <Plus size={13} strokeWidth={3.2} />
+          </button>
+          <span className="text-[11.5px] vc-muted truncate w-full text-center">Моя история</span>
+        </div>
+        {others.map((g) => {
+          const a = accounts[g.uid];
+          return (
+            <button key={g.uid} onClick={() => onOpen(g.uid)} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]" style={{ scrollSnapAlign: "start" }}>
+              <Avatar src={a?.photoURL} name={a?.displayName ?? "?"} seed={g.uid} size={56} ring={g.allSeen ? "seen" : "unseen"} />
+              <span className="text-[11.5px] truncate w-full text-center" style={{ color: g.allSeen ? "var(--vc-muted)" : "var(--vc-text)", fontWeight: g.allSeen ? 400 : 600 }}>{a?.displayName?.split(" ")[0] ?? "…"}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -81,6 +77,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   const [viewersOpen, setViewersOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const holdTimer = useRef<any>(null);
+  const swipe = useRef({ x: 0, y: 0 });
   const heldRef = useRef(false);
   const group = groups[gi];
   const story = group?.stories[si];
@@ -88,7 +85,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   const viewerAccounts = useAccounts(story?.viewers ?? []);
   const mine = group?.uid === me;
 
-  useEffect(() => setTarget(document.getElementById("mx-root")), []);
+  useEffect(() => setTarget(document.getElementById("vc-root")), []);
 
   const next = useCallback(() => {
     if (!group) return;
@@ -118,40 +115,39 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
-  // сброс прогресса при смене истории
-  const progressRef = useRef(0);
+  // таймер прогресса: время копится в ref, переход вперёд срабатывает ровно один раз (раньше мог перескакивать через историю)
+  const elapsed = useRef(0);
+  const finished = useRef(false);
   useEffect(() => {
-    progressRef.current = 0;
+    elapsed.current = 0;
+    finished.current = false;
     setProgress(0);
   }, [story?.id]);
 
-  // таймер прогресса. next() вызывается ровно один раз и НЕ из setState-апдейтера
-  // (раньше из-за этого история могла перескакивать через одну или закрываться раньше времени)
   useEffect(() => {
     if (!story || paused || viewersOpen) return;
     let raf = 0;
-    let finished = false;
     let last = performance.now();
     const tick = (t: number) => {
-      const dt = Math.min(t - last, 100);
+      const dt = t - last;
       last = t;
+      elapsed.current += dt;
       const v = videoRef.current;
-      const total = story.kind === "video" && v && Number.isFinite(v.duration) && v.duration > 0 ? Math.min(v.duration, 15) * 1000 : IMAGE_MS;
-      progressRef.current = Math.min(1, progressRef.current + dt / total);
-      setProgress(progressRef.current);
-      if (progressRef.current >= 1) {
-        if (!finished) {
-          finished = true;
-          next();
-        }
+      let p: number;
+      if (story.kind === "video" && v && Number.isFinite(v.duration) && v.duration > 0) p = v.currentTime / Math.min(v.duration, 15);
+      else p = elapsed.current / IMAGE_MS;
+      p = Math.max(0, Math.min(1, p));
+      setProgress(p);
+      if (p >= 1 && !finished.current) {
+        finished.current = true;
+        next();
         return;
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story?.id, story?.kind, paused, viewersOpen, next]);
+  }, [story?.id, paused, viewersOpen, next]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const v = videoRef.current;
@@ -219,7 +215,16 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
   };
 
   return createPortal(
-    <div className="absolute inset-0 flex flex-col mx-fade" style={{ zIndex: 90, background: "#000" }}>
+    <div className="absolute inset-0 flex items-center justify-center vc-fade" style={{ zIndex: 90, background: "#000" }} onContextMenu={(e) => e.preventDefault()}>
+     <div
+       className="flex flex-col w-full h-full min-[900px]:h-[min(100%,860px)] min-[900px]:max-w-[480px] min-[900px]:rounded-[22px] overflow-hidden relative select-none"
+       style={{ background: "#000", WebkitTouchCallout: "none" }}
+       onTouchStart={(e) => { swipe.current = { y: e.touches[0].clientY, x: e.touches[0].clientX }; }}
+       onTouchEnd={(e) => {
+         const t = e.changedTouches[0];
+         if (t.clientY - swipe.current.y > 110 && Math.abs(t.clientX - swipe.current.x) < 70) onClose(); // свайп вниз закрывает
+       }}
+     >
       <div className="relative flex-1 min-h-0">
         {story.kind === "video" ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -238,8 +243,8 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
         <div className="absolute top-0 inset-x-0 px-3 pb-6 pointer-events-none" style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)", background: "linear-gradient(rgba(0,0,0,0.55), transparent)" }}>
           <div className="flex gap-1">
             {group.stories.map((s, i) => (
-              <span key={s.id} className="h-[3px] flex-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.28)" }}>
-                <span className="block h-full bg-white rounded-full" style={{ width: `${i < si ? 100 : i === si ? progress * 100 : 0}%` }} />
+              <span key={s.id} className="h-[3px] flex-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.3)" }}>
+                <span className="block h-full bg-white" style={{ width: `${i < si ? 100 : i === si ? progress * 100 : 0}%` }} />
               </span>
             ))}
           </div>
@@ -255,11 +260,11 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
         </div>
 
         {story.caption && (
-          <p className="absolute inset-x-0 bottom-0 px-6 pt-12 pb-5 text-white text-center text-[17px] font-medium leading-snug pointer-events-none" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.75))", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>{story.caption}</p>
+          <p className="absolute inset-x-0 bottom-0 px-5 py-4 text-white text-center text-[16px] pointer-events-none" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.65))" }}>{story.caption}</p>
         )}
       </div>
 
-      <div className="px-3 pt-2 pb-2.5 mx-safe-bottom" style={{ background: "#000" }}>
+      <div className="px-3 py-2.5 vc-safe-bottom" style={{ background: "#000" }}>
         {mine ? (
           <button onClick={() => setViewersOpen(true)} className="flex items-center gap-2 text-white/85 mx-auto py-1.5">
             <Eye size={18} /> {story.viewers?.length ?? 0} {(story.viewers?.length ?? 0) === 1 ? "просмотр" : "просмотров"}
@@ -273,11 +278,11 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
               onBlur={() => setPaused(false)}
               onKeyDown={(e) => e.key === "Enter" && sendReply()}
               placeholder="Ответить на историю…"
-              className="flex-1 h-11 rounded-full px-4 outline-none text-white text-[16px] placeholder:text-white/50"
-              style={{ background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.12)" }}
+              className="flex-1 h-11 rounded-full px-4 outline-none text-white text-[16px]"
+              style={{ background: "rgba(255,255,255,0.14)" }}
             />
             {reply.trim() && (
-              <button onClick={sendReply} className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }} aria-label="Отправить">
+              <button onClick={sendReply} className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)" }} aria-label="Отправить">
                 <Send size={19} />
               </button>
             )}
@@ -285,9 +290,10 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
         )}
       </div>
 
+     </div>
       <Sheet open={viewersOpen} onClose={() => setViewersOpen(false)} title="Просмотры" zIndex={95}>
         <div className="pb-6">
-          {(story.viewers ?? []).length === 0 && <p className="mx-muted text-center py-6">Пока никто не смотрел</p>}
+          {(story.viewers ?? []).length === 0 && <p className="vc-muted text-center py-6">Пока никто не смотрел</p>}
           {(story.viewers ?? []).map((u) => (
             <div key={u} className="flex items-center gap-3 px-5 py-2.5">
               <Avatar src={viewerAccounts[u]?.photoURL} name={viewerAccounts[u]?.displayName ?? "?"} seed={u} size={40} />
@@ -362,20 +368,20 @@ export function StoryCreator({ open, onClose, onCreated }: { open: boolean; onCl
             )}
           </div>
         ) : (
-          <button onClick={() => input.current?.click()} className="w-full rounded-2xl flex flex-col items-center justify-center gap-2 mx-muted" style={{ height: 220, background: "var(--mx-surface2)", border: "1.5px dashed var(--mx-line)" }}>
+          <button onClick={() => input.current?.click()} className="w-full rounded-2xl flex flex-col items-center justify-center gap-2 vc-muted" style={{ height: 220, background: "var(--vc-surface2)", border: "1.5px dashed var(--vc-line)" }}>
             <Plus size={30} />
             Выбрать фото или видео (до 15 с)
           </button>
         )}
         {file && (
           <>
-            <input className="mx-input" placeholder="Подпись (необязательно)" maxLength={120} value={caption} onChange={(e) => setCaption(e.target.value)} />
-            {busy && <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--mx-surface2)" }}><div className="h-full" style={{ width: `${Math.round(progress * 100)}%`, background: "var(--mx-accent)" }} /></div>}
-            <button className="mx-btn" disabled={busy} onClick={publish}>{busy ? "Публикую…" : "Опубликовать"}</button>
-            <button className="mx-btn mx-btn-ghost" disabled={busy} onClick={() => input.current?.click()}>Выбрать другое</button>
+            <input className="vc-input" placeholder="Подпись (необязательно)" maxLength={120} value={caption} onChange={(e) => setCaption(e.target.value)} />
+            {busy && <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--vc-surface2)" }}><div className="h-full" style={{ width: `${Math.round(progress * 100)}%`, background: "var(--vc-accent)" }} /></div>}
+            <button className="vc-btn" disabled={busy} onClick={publish}>{busy ? "Публикую…" : "Опубликовать"}</button>
+            <button className="vc-btn vc-btn-ghost" disabled={busy} onClick={() => input.current?.click()}>Выбрать другое</button>
           </>
         )}
-        <p className="mx-muted text-[13px] text-center">История исчезнет через 24 часа. Её увидят ваши контакты.</p>
+        <p className="vc-muted text-[13px] text-center">История исчезнет через 24 часа. Её увидят ваши контакты.</p>
       </div>
     </Sheet>
   );

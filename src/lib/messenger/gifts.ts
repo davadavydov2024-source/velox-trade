@@ -61,6 +61,13 @@ export const GIFTS: GiftDef[] = [
   { id: "nft-heart", emoji: "💘", title: "Вечное сердце", price: 40, category: "nft", nft: true, colors: ["#4a1c3a", "#1f0e1a"], limited: 2000 },
   { id: "nft-diamond", emoji: "💠", title: "Кристалл Velox", price: 50, category: "nft", nft: true, colors: ["#123a4a", "#0a1a21"], limited: 777 },
   { id: "nft-clover", emoji: "🍀", title: "Клевер удачи", price: 25, category: "nft", nft: true, colors: ["#16401f", "#0a1d0e"], limited: 4000 },
+  { id: "nft-star", emoji: "🌟", title: "Звезда удачи", price: 30, category: "nft", nft: true, colors: ["#4a3a10", "#211a08"], limited: 3500 },
+  { id: "nft-ghost", emoji: "👻", title: "Призрак Velox", price: 35, category: "nft", nft: true, colors: ["#2a2a4a", "#12122a"], limited: 2500 },
+  { id: "nft-cat", emoji: "🐱", title: "Космокот", price: 40, category: "nft", nft: true, colors: ["#3a2a4a", "#1a122a"], limited: 1500 },
+  { id: "nft-ufo", emoji: "🛸", title: "НЛО", price: 45, category: "nft", nft: true, colors: ["#123a3a", "#0a1d1d"], limited: 1000 },
+  { id: "nft-potion", emoji: "🧪", title: "Зелье удачи", price: 35, category: "nft", nft: true, colors: ["#2a1a4a", "#120a24"], limited: 2000 },
+  { id: "nft-moon", emoji: "🌙", title: "Лунный свет", price: 40, category: "nft", nft: true, colors: ["#2a2a4a", "#10102a"], limited: 1500 },
+  { id: "nft-flame", emoji: "🔥", title: "Вечный огонь", price: 45, category: "nft", nft: true, colors: ["#4a1c10", "#210a06"], limited: 1000 },
 ];
 
 export const giftById = (id: string): GiftDef | undefined => GIFTS.find((g) => g.id === id);

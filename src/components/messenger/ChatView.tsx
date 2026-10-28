@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark,
+  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut,
 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
-import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
@@ -50,6 +49,8 @@ export function ChatView({
   myAccount,
   userChat,
   allChats,
+  hiddenAt = 0,
+  onDeleteChat,
   onBack,
   onOpenChat,
 }: {
@@ -58,6 +59,9 @@ export function ChatView({
   myAccount: MAccount;
   userChat?: MUserChat;
   allChats: MChat[];
+  /** время локального «удалить чат у меня»: сообщения старше не показываем */
+  hiddenAt?: number;
+  onDeleteChat: () => void;
   onBack: () => void;
   onOpenChat: (id: string) => void;
 }) {
@@ -65,7 +69,7 @@ export function ChatView({
   const now = useNow(15_000);
   const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
-  const clearedAt = userChat?.clearedAt ?? 0;
+  const clearedAt = Math.max(userChat?.clearedAt ?? 0, hiddenAt);
   const messages = useMemo(
     () => allMessages.filter((m) => !m.hiddenFor?.includes(me) && !(m.expireAt && m.expireAt < now) && m.createdAt > clearedAt),
     [allMessages, me, now, clearedAt]
@@ -102,6 +106,9 @@ export function ChatView({
   const prevCount = useRef(0);
   const initialized = useRef(false);
   const lastTypingSent = useRef(0);
+  const keyMap = useRef(new Map<string, string>()); // id настоящего сообщения → key его плашки «отправляется»
+  const seen = useRef(new Set<string>());
+  const ready = useRef(false);
   const prevHeight = useRef(0);
 
   const title = chatTitle(chat, me, accountsAll);
@@ -196,11 +203,14 @@ export function ChatView({
     setSelection(null);
     setReply(null);
     setEditing(null);
-    setPending([]);
+    dropPending(pending.map((x) => x.tempId));
+    keyMap.current.clear();
+    seen.current.clear();
+    ready.current = false;
     setPinIndex(0);
   }, [chat.id]);
 
-  const total = messages.length + pending.filter((p) => !(p.serverId && messages.some((m) => m.id === p.serverId))).length;
+  const total = messages.length + pending.length;
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -223,8 +233,7 @@ export function ChatView({
     prevCount.current = total;
     if (added <= 0) return;
     const last = messages[messages.length - 1];
-    const livePending = pending.some((p) => !(p.serverId && messages.some((m) => m.id === p.serverId)));
-    if (atBottom.current || last?.from === me || livePending) scrollToBottom(true);
+    if (atBottom.current || last?.from === me || pending.length > 0) scrollToBottom(true);
     else setUnreadNew((n) => n + added);
   }, [total, messages, pending.length, me, scrollToBottom]);
 
@@ -249,29 +258,35 @@ export function ChatView({
   // ---- отправка ----
   const replyPayload = () => (reply ? { msgId: reply.msgId } : undefined);
 
-  const send = useCallback(
-    async (tempId: string, payload: Record<string, unknown>) => {
-      try {
-        const res = await mApi<{ id?: string }>("send", { chatId: chat.id, ...payload });
-        // Плашка остаётся на месте и сама превращается в настоящее сообщение, когда оно придёт из Firestore
-        // (тот же ключ строки — без мигания и повторной анимации). Если id нет — убираем через 0.4 с.
-        if (res?.id) setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, serverId: res.id } : x)));
-        setTimeout(() => setPending((p) => p.filter((x) => x.tempId !== tempId)), res?.id ? 25_000 : 400);
-      } catch (err) {
-        const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
-        toast("error", msg);
-        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { setPending((q) => q.filter((y) => y.tempId !== tempId)); send(`r${Date.now()}`, payload); } } : x)));
-      }
-    },
-    [chat.id, toast]
-  );
-
   const addPending = (p: Omit<MPending, "tempId" | "chatId" | "createdAt" | "status">): string => {
     const tempId = `p${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
     setPending((list) => [...list, { ...p, tempId, chatId: chat.id, createdAt: Date.now(), status: "sending" }]);
     return tempId;
   };
   const patchPending = (tempId: string, patch: Partial<MPending>) => setPending((list) => list.map((x) => (x.tempId === tempId ? { ...x, ...patch } : x)));
+  /** Убирает плашки «отправляется» и освобождает локальные превью (blob:-ссылки). */
+  const dropPending = (ids: string[]) =>
+    setPending((list) => {
+      list.filter((p) => ids.includes(p.tempId)).forEach((p) => [p.mediaUrl, ...(p.mediaUrls ?? [])].forEach((u) => u?.startsWith("blob:") && URL.revokeObjectURL(u)));
+      return list.filter((p) => !ids.includes(p.tempId));
+    });
+
+  const send = useCallback(
+    async (tempId: string, payload: Record<string, unknown>) => {
+      try {
+        const res = await mApi<{ id?: string }>("send", { chatId: chat.id, ...payload });
+        // плашка остаётся на месте, пока настоящее сообщение не придёт из Firestore — потом оно занимает её место
+        // (тот же key), поэтому ничего не мигает и не пропадает. Запасная очистка — через 15 с.
+        patchPending(tempId, { status: "sent", serverId: res?.id });
+        setTimeout(() => dropPending([tempId]), 15_000);
+      } catch (err) {
+        const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
+        toast("error", msg);
+        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { dropPending([tempId]); send(`r${Date.now()}`, payload); } } : x)));
+      }
+    },
+    [chat.id, toast]
+  );
 
   const sendText = (text: string, opts?: { silent?: boolean }) => {
     const payload = { kind: "text", text, replyTo: replyPayload(), ...(opts?.silent ? { silent: true } : {}) };
@@ -280,18 +295,9 @@ export function ChatView({
     send(tempId, payload);
   };
 
-  const sendSticker = async (pack: string, index: number) => {
-    try {
-      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: replyPayload() });
-      setReply(null);
-    } catch (err) {
-      toast("error", err instanceof MApiError ? err.message : "Не удалось отправить стикер");
-    }
-  };
-
   const failUpload = (tempId: string, err: unknown) => {
     toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить файл");
-    patchPending(tempId, { status: "failed", retry: () => setPending((l) => l.filter((x) => x.tempId !== tempId)) });
+    patchPending(tempId, { status: "failed", retry: () => dropPending([tempId]) });
   };
 
   const sendMedia = async (files: File[], caption: string) => {
@@ -309,7 +315,10 @@ export function ChatView({
       return true;
     });
     if (valid.length === 0) return;
-    const tempId = addPending({ kind: "image", text: caption, progress: 0 });
+    // локальные превью: фото видно сразу, пока грузится (с размытием и кольцом прогресса)
+    const previews = valid.map((f) => URL.createObjectURL(f));
+    const dims0 = await readDims(valid[0]);
+    const tempId = addPending({ kind: "image", text: caption, mediaUrls: previews, mediaUrl: previews[0], width: dims0.width, height: dims0.height, progress: 0 });
     const rep = replyPayload();
     setReply(null);
     try {
@@ -349,7 +358,7 @@ export function ChatView({
   };
 
   const sendVoice = async (a: RecordedAudio) => {
-    const tempId = addPending({ kind: "voice", duration: a.duration, waveform: a.waveform, progress: 0 });
+    const tempId = addPending({ kind: "voice", duration: a.duration, waveform: a.waveform, mediaUrl: URL.createObjectURL(a.blob), progress: 0 });
     try {
       const up = await mUpload(a.blob, "voice", { duration: a.duration, fileName: `voice.${extFromMime(a.mime)}`, onProgress: (p) => patchPending(tempId, { progress: p * 0.95 }) });
       send(tempId, { kind: "voice", mediaUrl: up.url, duration: Math.round(a.duration), waveform: a.waveform.map((v) => Math.round(v * 100) / 100), replyTo: replyPayload() });
@@ -360,7 +369,7 @@ export function ChatView({
   };
 
   const sendVideoNote = async (v: RecordedVideo) => {
-    const tempId = addPending({ kind: "videoNote", duration: v.duration, progress: 0 });
+    const tempId = addPending({ kind: "videoNote", duration: v.duration, mediaUrl: URL.createObjectURL(v.blob), progress: 0 });
     try {
       const up = await mUpload(v.blob, "videoNote", { duration: v.duration, fileName: `note.${extFromMime(v.mime)}`, onProgress: (p) => patchPending(tempId, { progress: p * 0.95 }) });
       send(tempId, { kind: "videoNote", mediaUrl: up.url, duration: Math.round(v.duration), replyTo: replyPayload() });
@@ -478,33 +487,56 @@ export function ChatView({
     return chat.type === "dm" ? (chat.readBy?.[others[0]] ?? 0) >= m.createdAt : others.some((u) => (chat.readBy?.[u] ?? 0) >= m.createdAt);
   };
 
-  // плашки, чьё настоящее сообщение уже пришло, скрываем (а ключ строки берём от плашки — без перерисовки)
-  const realIds = new Set(messages.map((m) => m.id));
-  const serverToTemp = new Map<string, string>();
-  pending.forEach((p) => p.serverId && serverToTemp.set(p.serverId, p.tempId));
-  const visiblePending = pending.filter((p) => !(p.serverId && realIds.has(p.serverId)));
-  const pendingAsMessages: { msg: MMessage; pending: MPending }[] = visiblePending.map((p) => ({
-    pending: p,
-    msg: { id: p.tempId, from: me, kind: p.kind, text: p.text, mediaUrl: p.mediaUrl, duration: p.duration, waveform: p.waveform, createdAt: p.createdAt, reactions: {} },
-  }));
+  // Сопоставляем «отправляется» с настоящими сообщениями: пузырь не пропадает и не мигает —
+  // настоящее сообщение занимает его место (тот же key), статус меняется плавно.
+  const matched = useMemo(() => {
+    const map = new Map<string, string>(); // realId → tempId
+    const used = new Set<string>();
+    for (const p of pending) {
+      if (p.status === "failed") continue;
+      let m = p.serverId ? messages.find((x) => x.id === p.serverId) : undefined;
+      if (!m) {
+        m = messages.find(
+          (x) =>
+            !used.has(x.id) &&
+            !keyMap.current.has(x.id) &&
+            x.from === me &&
+            x.kind === p.kind &&
+            x.createdAt >= p.createdAt - 5000 &&
+            ((p.kind !== "text" && p.kind !== "image") || (x.text ?? "") === (p.text ?? ""))
+        );
+      }
+      if (m) {
+        used.add(m.id);
+        map.set(m.id, p.tempId);
+      }
+    }
+    return map;
+  }, [pending, messages, me]);
 
-  const rows: { msg: MMessage; pending?: MPending }[] = [...messages.map((m) => ({ msg: m })), ...pendingAsMessages];
+  useEffect(() => {
+    if (matched.size === 0) return;
+    matched.forEach((tempId, realId) => keyMap.current.set(realId, tempId));
+    dropPending(Array.from(matched.values()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matched]);
 
-  // анимация появления — только у НОВЫХ строк (не у истории при открытии чата)
-  const knownRows = useRef<Set<string>>(new Set());
-  const rowsReady = useRef(false);
+  const matchedTemp = new Set(matched.values());
+  const rows: { msg: MMessage; pending?: MPending; key: string }[] = [
+    ...messages.map((m) => ({ msg: m, key: matched.get(m.id) ?? keyMap.current.get(m.id) ?? m.id })),
+    ...pending
+      .filter((p) => !matchedTemp.has(p.tempId))
+      .map((p) => ({
+        key: p.tempId,
+        pending: p,
+        msg: { id: p.tempId, from: me, kind: p.kind, text: p.text, mediaUrl: p.mediaUrl, mediaUrls: p.mediaUrls, width: p.width, height: p.height, duration: p.duration, waveform: p.waveform, createdAt: p.createdAt, reactions: {} } as MMessage,
+      })),
+  ];
+
+  // анимация появления — только у сообщений, которых не было при открытии чата
   useEffect(() => {
-    knownRows.current = new Set();
-    rowsReady.current = false;
-  }, [chat.id]);
-  useEffect(() => {
-    if (loading) return;
-    rows.forEach((r) => {
-      knownRows.current.add(r.msg.id);
-      const k = serverToTemp.get(r.msg.id);
-      if (k) knownRows.current.add(k);
-    });
-    rowsReady.current = true;
+    rows.forEach((r) => seen.current.add(r.key));
+    if (!loading) ready.current = true;
   });
 
   const selecting = selection !== null;
@@ -518,18 +550,6 @@ export function ChatView({
 
   const selectedMsgs = selecting ? messages.filter((m) => selection!.has(m.id)) : [];
 
-  // «Сохранить»: переслать в Избранное (чат с самим собой), как в Telegram
-  const saveToFavorites = async (ids: string[]) => {
-    try {
-      const r = await mApi<{ chatId: string }>("chats", { type: "dm", memberHandles: [myAccount.handle] });
-      await mApi("forward", { fromChatId: chat.id, msgIds: ids, toChatIds: [r.chatId] });
-      setSelection(null);
-      toast("success", ids.length > 1 ? `Сохранено в Избранное: ${ids.length} 🔖` : "Сохранено в Избранное 🔖");
-    } catch (err) {
-      toast("error", err instanceof MApiError ? err.message : "Не удалось сохранить");
-    }
-  };
-
   // ---- меню сообщения ----
   const menuItems = (m: MMessage) => {
     const mine = m.from === me;
@@ -540,7 +560,6 @@ export function ChatView({
       { label: "Изменить", icon: <Pencil size={20} />, onPress: () => { setReply(null); setEditing({ msgId: m.id, text: m.text ?? "" }); }, hidden: !mine || m.kind !== "text" || !!m.deletedForAll },
       { label: isPinned ? "Открепить" : "Закрепить", icon: isPinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => togglePin(m), hidden: chat.type !== "dm" && !isAdmin },
       { label: "Переслать", icon: <Forward size={20} />, onPress: () => setForwardIds([m.id]), hidden: !!m.deletedForAll || !!chat.noForwards },
-      { label: "Сохранить", icon: <Bookmark size={20} />, onPress: () => saveToFavorites([m.id]), hidden: saved || !!m.deletedForAll || !!chat.noForwards },
       { label: "Выбрать", icon: <CheckSquare size={20} />, onPress: () => setSelection(new Set([m.id])) },
       { label: "Удалить", icon: <Trash2 size={20} />, danger: true, onPress: () => setDeleteMsgs([m]) },
     ];
@@ -557,21 +576,20 @@ export function ChatView({
   ];
 
   return (
-    <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
+    <div className="flex flex-col h-full relative" style={{ background: "var(--vc-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="mx-glass mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
+      <div className="vc-glass vc-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
         {selecting ? (
           <div className="h-14 flex items-center px-3 gap-2">
             <button onClick={() => setSelection(null)} className="p-2" aria-label="Отмена"><X size={22} /></button>
             <p className="font-semibold flex-1">{selection!.size} {plural(selection!.size, "сообщение", "сообщения", "сообщений")}</p>
             <button onClick={() => copyText(selectedMsgs)} className="p-2.5" aria-label="Копировать"><Copy size={21} /></button>
-            {!saved && !chat.noForwards && <button onClick={() => saveToFavorites(selectedMsgs.map((m) => m.id))} className="p-2.5" aria-label="Сохранить в Избранное"><Bookmark size={21} /></button>}
             <button onClick={() => setForwardIds(selectedMsgs.map((m) => m.id))} className="p-2.5" aria-label="Переслать"><Forward size={21} /></button>
-            <button onClick={() => setDeleteMsgs(selectedMsgs)} className="p-2.5" style={{ color: "var(--mx-danger)" }} aria-label="Удалить"><Trash2 size={21} /></button>
+            <button onClick={() => setDeleteMsgs(selectedMsgs)} className="p-2.5" style={{ color: "var(--vc-danger)" }} aria-label="Удалить"><Trash2 size={21} /></button>
           </div>
         ) : (
           <div className="h-14 flex items-center gap-1 px-1">
-            <button onClick={onBack} className="min-[900px]:hidden flex items-center p-2" style={{ color: "var(--mx-accent)" }} aria-label="Назад">
+            <button onClick={onBack} className="min-[900px]:hidden flex items-center p-2" style={{ color: "var(--vc-accent)" }} aria-label="Назад">
               <ChevronLeft size={28} />
             </button>
             <button onClick={() => setInfo(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left pl-1 min-[900px]:pl-3">
@@ -581,13 +599,13 @@ export function ChatView({
               <div className="min-w-0">
                 <p className="font-semibold truncate flex items-center gap-1 text-[16px]">
                   {title}
-                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}{chat.type === "dm" && <StatusBadge acc={peer} />}
-                  {muted && <BellOff size={13} className="mx-muted shrink-0" />}
+                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}
+                  {muted && <BellOff size={13} className="vc-muted shrink-0" />}
                 </p>
-                <p className="text-[13px] truncate" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
+                <p className="text-[13px] truncate" style={{ color: typingNames.length || online ? "var(--vc-accent)" : "var(--vc-muted)" }}>{status}</p>
               </div>
             </button>
-            <button onClick={() => setHeaderMenu(true)} className="p-2.5 mx-muted" aria-label="Меню"><MoreVertical size={22} /></button>
+            <button onClick={() => setHeaderMenu(true)} className="p-2.5 vc-muted" aria-label="Меню"><MoreVertical size={22} /></button>
           </div>
         )}
         {pinnedMsg || currentPinId ? (
@@ -597,59 +615,50 @@ export function ChatView({
               setPinIndex((i) => (i + 1) % pinned.length);
             }}
             className="w-full flex items-center gap-3 px-4 py-1.5 text-left"
-            style={{ borderTop: "1px solid var(--mx-line)" }}
+            style={{ borderTop: "1px solid var(--vc-line)" }}
           >
             <div className="flex flex-col gap-[2px] self-stretch py-0.5">
               {pinned.slice(0, 4).map((id, i) => (
-                <span key={id} className="w-[3px] flex-1 rounded-full" style={{ background: i === Math.min(pinIndex, pinned.length - 1) ? "var(--mx-accent)" : "var(--mx-line)" }} />
+                <span key={id} className="w-[3px] flex-1 rounded-full" style={{ background: i === Math.min(pinIndex, pinned.length - 1) ? "var(--vc-accent)" : "var(--vc-line)" }} />
               ))}
             </div>
             <div className="min-w-0 flex-1 text-[13px]">
-              <p className="font-semibold" style={{ color: "var(--mx-accent)" }}>Закреплённое сообщение{pinned.length > 1 ? ` #${Math.min(pinIndex, pinned.length - 1) + 1}` : ""}</p>
-              <p className="truncate mx-muted">{pinnedMsg ? previewText(pinnedMsg.kind, pinnedMsg.text) || "Сообщение" : "Нажми, чтобы перейти"}</p>
+              <p className="font-semibold" style={{ color: "var(--vc-accent)" }}>Закреплённое сообщение{pinned.length > 1 ? ` #${Math.min(pinIndex, pinned.length - 1) + 1}` : ""}</p>
+              <p className="truncate vc-muted">{pinnedMsg ? previewText(pinnedMsg.kind, pinnedMsg.text) || "Сообщение" : "Нажми, чтобы перейти"}</p>
             </div>
-            <Pin size={16} className="mx-muted shrink-0" />
+            <Pin size={16} className="vc-muted shrink-0" />
           </button>
         ) : null}
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll mx-wallpaper flex-1 min-h-0 py-2 relative">
+      <div ref={scrollRef} onScroll={onScroll} className="vc-scroll vc-chat-bg flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
-        {loading && messages.length === 0 && (
-          <div className="px-3 pt-4 space-y-2.5">
-            {[["in", 58], ["in", 36], ["out", 46], ["in", 70], ["out", 30], ["out", 52]].map(([side, w], i) => (
-              <div key={i} className={`flex ${side === "out" ? "justify-end" : "justify-start"}`}>
-                <div className="mx-skel rounded-[18px]" style={{ width: `${w}%`, height: 38 + (i % 3) * 8, animationDelay: `${i * 90}ms` }} />
-              </div>
-            ))}
-          </div>
-        )}
+        {loading && messages.length === 0 && <div className="flex justify-center py-10"><Spinner /></div>}
         {!loading && rows.length === 0 && (
-          <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
+          <div className="h-full flex items-center justify-center px-8 text-center vc-muted text-[14px]">
             {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
           </div>
         )}
-        {rows.map(({ msg, pending: pend }, i) => {
+        {rows.map(({ msg, pending: pend, key: rowKey }, i) => {
           const prev = rows[i - 1]?.msg;
           const next = rows[i + 1]?.msg;
           const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
           const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
           const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
-          const rowKey = serverToTemp.get(msg.id) ?? msg.id;
-          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
+          const isNew = ready.current && !seen.current.has(rowKey);
           return (
-            <div key={rowKey} className={isNewRow ? "mx-msg-in" : undefined}>
+            <div key={rowKey} className={isNew ? `vc-msg-in ${msg.from === me ? "mine" : "theirs"}` : undefined}>
               {newDay && (
                 <div className="flex justify-center my-2.5">
-                  <span className="text-[12.5px] px-3 py-1 rounded-full mx-glass font-medium">{dayLabel(msg.createdAt, now)}</span>
+                  <span className="text-[12.5px] px-3 py-1 rounded-full vc-glass font-medium">{dayLabel(msg.createdAt, now)}</span>
                 </div>
               )}
               {dividerId === msg.id && (
                 <div className="flex items-center gap-3 px-4 my-2">
-                  <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
-                  <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Новые сообщения</span>
-                  <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
+                  <span className="flex-1 h-px" style={{ background: "var(--vc-accent)", opacity: 0.4 }} />
+                  <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--vc-surface)", color: "var(--vc-accent)" }}>Новые сообщения</span>
+                  <span className="flex-1 h-px" style={{ background: "var(--vc-accent)", opacity: 0.4 }} />
                 </div>
               )}
               <MessageRow
@@ -679,12 +688,12 @@ export function ChatView({
       {showDown && (
         <button
           onClick={() => scrollToBottom(true)}
-          className="absolute right-3 z-10 w-11 h-11 rounded-full flex items-center justify-center mx-glass mx-pop"
+          className="absolute right-3 z-10 w-11 h-11 rounded-full flex items-center justify-center vc-glass vc-pop"
           style={{ bottom: 78 + (reply || editing ? 52 : 0) }}
           aria-label="Вниз"
         >
           <ChevronDown size={22} />
-          {unreadNew > 0 && <span className="mx-badge absolute -top-2 -right-1">{unreadNew > 99 ? "99+" : unreadNew}</span>}
+          {unreadNew > 0 && <span className="vc-badge absolute -top-2 -right-1">{unreadNew > 99 ? "99+" : unreadNew}</span>}
         </button>
       )}
 
@@ -696,7 +705,6 @@ export function ChatView({
         onCancelReply={() => setReply(null)}
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
-        onSendSticker={sendSticker}
         mentionables={chat.type === "group" ? (chat.members.filter((u) => u !== me).map((u) => accountsAll[u]).filter(Boolean) as MAccount[]) : []}
         onSaveEdit={saveEdit}
         onSendMedia={sendMedia}
@@ -711,9 +719,9 @@ export function ChatView({
         {menuMsg && (
           <>
             {!menuMsg.deletedForAll && (
-              <div className="flex gap-1 px-4 pt-2 pb-3 overflow-x-auto mx-noscrollbar">
+              <div className="flex gap-1 px-4 pt-2 pb-3 overflow-x-auto vc-noscrollbar">
                 {QUICK_REACTIONS.map((e) => (
-                  <button key={e} onClick={() => { react(menuMsg, e); setMenuMsg(null); }} className="text-[28px] w-12 h-12 rounded-full shrink-0 flex items-center justify-center active:scale-90 transition-transform" style={{ background: menuMsg.reactions?.[e]?.includes(me) ? "var(--mx-surface2)" : "transparent" }}>
+                  <button key={e} onClick={() => { react(menuMsg, e); setMenuMsg(null); }} className="text-[28px] w-12 h-12 rounded-full shrink-0 flex items-center justify-center active:scale-90 transition-transform" style={{ background: menuMsg.reactions?.[e]?.includes(me) ? "var(--vc-surface2)" : "transparent" }}>
                     {e}
                   </button>
                 ))}
@@ -751,6 +759,7 @@ export function ChatView({
               : { label: "Без звука", icon: <BellOff size={20} />, onPress: () => setMuteMenu(true) },
             { label: userChat?.archived ? "Вернуть из архива" : "В архив", icon: <Archive size={20} />, onPress: () => { chatSetting({ archived: !userChat?.archived }); if (!userChat?.archived) onBack(); } },
             { label: chat.type === "channel" ? "Отписаться" : "Покинуть группу", icon: <LogOut size={20} />, danger: true, hidden: chat.type === "dm", onPress: leaveChat },
+            { label: "Удалить чат", icon: <Trash2 size={20} />, danger: true, onPress: onDeleteChat },
           ]}
         />
       </Sheet>
@@ -763,17 +772,17 @@ export function ChatView({
 
       <Sheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Поиск в чате" full>
         <div className="px-4 pb-2">
-          <div className="flex items-center gap-2 rounded-xl px-3 h-10" style={{ background: "var(--mx-surface2)" }}>
-            <Search size={17} className="mx-muted" />
+          <div className="flex items-center gap-2 rounded-xl px-3 h-10" style={{ background: "var(--vc-surface2)" }}>
+            <Search size={17} className="vc-muted" />
             <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Что искать?" className="bg-transparent outline-none flex-1 text-[16px]" autoFocus />
             {searching && <Spinner size={16} />}
           </div>
         </div>
         <div className="pb-8">
-          {searchQ.trim().length >= 2 && !searching && searchRes.length === 0 && <p className="mx-muted text-center py-8">Ничего не найдено в недавней истории</p>}
+          {searchQ.trim().length >= 2 && !searching && searchRes.length === 0 && <p className="vc-muted text-center py-8">Ничего не найдено в недавней истории</p>}
           {searchRes.map((m) => (
             <button key={m.id} onClick={() => { setSearchOpen(false); setTimeout(() => jumpTo(m.id), 250); }} className="w-full text-left px-5 py-2.5 active:bg-white/5">
-              <p className="text-[13px]" style={{ color: "var(--mx-accent)" }}>{accountsAll[m.from]?.displayName ?? "Участник"} · {dayLabel(m.createdAt, now)} {formatTime(m.createdAt)}</p>
+              <p className="text-[13px]" style={{ color: "var(--vc-accent)" }}>{accountsAll[m.from]?.displayName ?? "Участник"} · {dayLabel(m.createdAt, now)} {formatTime(m.createdAt)}</p>
               <p className="text-[15px] line-clamp-2">{previewText(m.kind, m.text)}</p>
             </button>
           ))}
@@ -800,7 +809,7 @@ export function ChatView({
         }}
       />
 
-      <ChatInfoSheet open={info} onClose={() => setInfo(false)} chat={chat} me={me} accounts={accountsAll} peer={peer} isAdmin={isAdmin} onLeave={leaveChat} messages={allMessages} muted={muted} onToggleMute={() => (muted ? chatSetting({ muted: false, mutedUntil: 0 }) : setMuteMenu(true))} onSearch={() => { setSearchQ(""); setSearchOpen(true); }} />
+      <ChatInfoSheet open={info} onClose={() => setInfo(false)} chat={chat} me={me} accounts={accountsAll} peer={peer} isAdmin={isAdmin} onLeave={leaveChat} />
 
       {viewer && <ImageViewer items={viewer.items} start={viewer.start} onClose={() => setViewer(null)} />}
     </div>

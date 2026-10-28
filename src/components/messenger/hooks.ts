@@ -19,11 +19,9 @@ export function useNow(intervalMs = 30_000): number {
 export function useMyAccount(uid?: string | null) {
   const [account, setAccount] = useState<MAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!uid) {
       setAccount(null);
-      setError(null);
       setLoading(false);
       return;
     }
@@ -31,21 +29,16 @@ export function useMyAccount(uid?: string | null) {
     return onSnapshot(
       doc(db, "messengerAccounts", uid),
       (snap) => {
-        setError(null);
         setAccount(snap.exists() ? ({ uid, ...snap.data() } as MAccount) : null);
         setLoading(false);
       },
-      (err) => {
-        // Раньше ошибка (например permission-denied из-за правил Firestore) молча превращалась в «аккаунта нет»,
-        // и после успешной регистрации человек снова видел форму. Теперь показываем причину.
-        console.error("messengerAccounts read error:", err);
-        setError((err as { code?: string })?.code || "unknown");
+      () => {
         setAccount(null);
         setLoading(false);
       }
     );
   }, [uid]);
-  return { account, loading, error };
+  return { account, loading };
 }
 
 /** Один аккаунт с живым статусом «в сети» (для открытого чата). */
@@ -225,7 +218,7 @@ export function useViewportHeight(): void {
     const vv = window.visualViewport;
     const apply = () => {
       const h = vv ? vv.height : window.innerHeight;
-      document.documentElement.style.setProperty("--mx-vh", `${h}px`);
+      document.documentElement.style.setProperty("--vc-vh", `${h}px`);
       if (vv && vv.offsetTop > 0) window.scrollTo(0, 0);
     };
     apply();
@@ -236,7 +229,7 @@ export function useViewportHeight(): void {
       vv?.removeEventListener("resize", apply);
       vv?.removeEventListener("scroll", apply);
       window.removeEventListener("resize", apply);
-      document.documentElement.style.removeProperty("--mx-vh");
+      document.documentElement.style.removeProperty("--vc-vh");
     };
   }, []);
 }

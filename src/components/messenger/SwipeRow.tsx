@@ -104,7 +104,7 @@ export function SwipeRow({
   const close = () => setX(0, true);
 
   return (
-    <div className="mx-row" onContextMenu={(e) => { if (onLongPress) { e.preventDefault(); onLongPress(); } }}>
+    <div className="vc-row" onContextMenu={(e) => { if (onLongPress) { e.preventDefault(); onLongPress(); } }}>
       {rightAction && (
         <div className="absolute inset-y-0 left-0 flex items-center justify-center text-white text-[12px] font-medium" style={{ width: ACTION_W, background: rightAction.color }}>
           <div className="flex flex-col items-center gap-1">{rightAction.icon}{rightAction.label}</div>
@@ -127,7 +127,7 @@ export function SwipeRow({
       )}
       <div
         ref={innerRef}
-        className="mx-row-inner"
+        className="vc-row-inner"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}

@@ -74,7 +74,7 @@ export function VoicePlayer({ url, duration, waveform, mine }: { url: string; du
     el.currentTime = ((e.clientX - rect.left) / rect.width) * el.duration;
   };
 
-  const fg = mine ? "var(--mx-out-text)" : "var(--mx-accent)";
+  const fg = mine ? "var(--vc-out-text)" : "var(--vc-accent)";
   const shown = playing || progress > 0 ? total * (1 - progress) : total;
 
   return (
@@ -83,7 +83,7 @@ export function VoicePlayer({ url, duration, waveform, mine }: { url: string; du
       <button
         onClick={toggle}
         className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-        style={{ background: mine ? "var(--mx-out-text)" : "var(--mx-accent)", color: mine ? "var(--mx-out)" : "var(--mx-accent-text)" }}
+        style={{ background: mine ? "var(--vc-out-text)" : "var(--vc-accent)", color: mine ? "var(--vc-out)" : "var(--vc-accent-text)" }}
         aria-label={playing ? "Пауза" : "Слушать"}
       >
         {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
@@ -148,7 +148,7 @@ export function VideoNoteView({ url, size = 240 }: { url: string; size?: number 
   const r = size / 2 - 3;
   const c = 2 * Math.PI * r;
   return (
-    <button onClick={toggle} className="relative rounded-full overflow-hidden block" style={{ width: `min(${size}px, 62vw)`, aspectRatio: "1 / 1", maxWidth: "100%", background: "var(--mx-surface2)" }}>
+    <button onClick={toggle} className="relative rounded-full overflow-hidden block" style={{ width: size, height: size, background: "var(--vc-surface2)" }}>
       <video
         ref={ref}
         src={url}
@@ -169,7 +169,7 @@ export function VideoNoteView({ url, size = 240 }: { url: string; size?: number 
         }}
       />
       {active && (
-        <svg className="absolute inset-0 -rotate-90 pointer-events-none w-full h-full" viewBox={`0 0 ${size} ${size}`}>
+        <svg className="absolute inset-0 -rotate-90 pointer-events-none" width={size} height={size}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth={3} strokeDasharray={c} strokeDashoffset={c * (1 - progress)} strokeLinecap="round" />
         </svg>
       )}

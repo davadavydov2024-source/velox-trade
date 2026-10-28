@@ -5,7 +5,7 @@ import { UPLOAD_KINDS, UploadKind as ServerUploadKind } from "@/lib/messenger/up
 export { mApi, MApiError } from "@/lib/messenger/client";
 export { mApi as mApiPublic } from "@/lib/messenger/client";
 
-export type UploadKind = "image" | "voice" | "videoNote" | "story" | "avatar" | "banner" | "file";
+export type UploadKind = "image" | "voice" | "videoNote" | "story" | "avatar" | "file";
 export interface UploadResult {
   url: string;
   width?: number;
@@ -64,7 +64,7 @@ export async function mUpload(
   let width: number | undefined;
   let height: number | undefined;
 
-  if (srvKind === "image" || srvKind === "avatar" || srvKind === "banner" || srvKind === "story-image") {
+  if (srvKind === "image" || srvKind === "avatar" || srvKind === "story-image") {
     if (!file.type.startsWith("image/")) throw new Error("Можно загружать только изображения");
     opts.onProgress?.(0.05);
     const p = await prepareImage(file, srvKind === "avatar" ? 512 : 1920);

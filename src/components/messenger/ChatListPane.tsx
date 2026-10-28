@@ -1,11 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
+import { Archive, BellOff, Bell, Trash2, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
-import { StatusBadge } from "./StatusBadge";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
@@ -32,7 +31,7 @@ export function totalUnread(chats: MChat[], ucs: Record<string, MUserChat>): num
 
 function readDraft(chatId: string): string {
   try {
-    return localStorage.getItem(`mx-draft-${chatId}`) ?? "";
+    return localStorage.getItem(`vc-draft-${chatId}`) ?? "";
   } catch {
     return "";
   }
@@ -49,6 +48,8 @@ export function ChatListPane({
   storyGroups,
   storyAccounts,
   onOpenChat,
+  isVisible,
+  onDeleteChat,
   onNewChat,
   onOpenStory,
   onCreateStory,
@@ -63,12 +64,16 @@ export function ChatListPane({
   storyGroups: StoryGroup[];
   storyAccounts: Record<string, MAccount | null>;
   onOpenChat: (id: string) => void;
+  /** учитывает локальное «удалить у меня» */
+  isVisible: (c: MChat) => boolean;
+  onDeleteChat: (c: MChat) => void;
   onNewChat: () => void;
   onOpenStory: (uid: string) => void;
   onCreateStory: () => void;
 }) {
   const { toast } = useToast();
   const now = useNow(20_000);
+  chats = chats.filter(isVisible);
   const peerIds = chats.filter((c) => c.type === "dm").map((c) => peerUid(c, me));
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
@@ -79,7 +84,7 @@ export function ChatListPane({
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuChat, setMenuChat] = useState<MChat | null>(null);
-  const [folderPick, setFolderPick] = useState<MChat[] | null>(null);
+  const [folderPick, setFolderPick] = useState<MChat | null>(null);
   const [muteFor, setMuteFor] = useState<MChat[] | null>(null);
   const [q, setQ] = useState("");
   const { results: peopleResults, loading: peopleLoading } = usePeopleSearch(q, q.trim().length >= 2);
@@ -111,7 +116,6 @@ export function ChatListPane({
     });
   }, [chats, userChats, activeFolder]);
 
-  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived ? 1 : 0), 0);
   const archived = chats.filter((c) => userChats[c.id]?.archived);
   const archivedUnread = archived.reduce((s, c) => s + (userChats[c.id]?.unread ?? 0), 0);
 
@@ -146,6 +150,7 @@ export function ChatListPane({
       { label: uc?.pinned ? "Открепить" : "Закрепить", icon: uc?.pinned ? <PinOff size={21} /> : <Pin size={21} />, color: "#ff9500", onPress: () => act([c.id], { pinned: !uc?.pinned }) },
       { label: muted ? "Звук" : "Без звука", icon: muted ? <Bell size={21} /> : <BellOff size={21} />, color: "#5856d6", onPress: () => (muted ? act([c.id], { muted: false, mutedUntil: 0 }) : setMuteFor([c])) },
       { label: "Архив", icon: <Archive size={21} />, color: "#8e8e93", onPress: () => act([c.id], { archived: true }) },
+      { label: "Удалить", icon: <Trash2 size={21} />, color: "#ff3b30", onPress: () => onDeleteChat(c) },
     ];
     const right: SwipeAction | undefined = unread > 0 ? { label: "Прочитано", icon: <ReadIcon size={21} />, color: "#3390ec", onPress: () => markRead([c.id]) } : undefined;
 
@@ -156,46 +161,52 @@ export function ChatListPane({
         rightAction={editMode ? undefined : right}
         disabled={editMode}
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
-        onLongPress={() => { if (editMode) return; try { navigator.vibrate?.(12); } catch { /* не везде есть */ } setEditMode(true); setSelected(new Set([c.id])); }}
+        onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""} ${!editMode && uc?.pinned && activeId !== c.id ? "pinned" : ""}`} style={activeId === c.id ? { background: "var(--mx-surface)" } : undefined}>
-          <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
-            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={!editMode && isOnline(peer, now)}>
-              {saved ? "🔖" : undefined}
-            </Avatar>
-            <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
-          </div>
+        <div
+          className="relative flex items-center gap-3 px-4 py-2.5 transition-colors"
+          style={{ background: activeId === c.id ? "var(--vc-surface2)" : uc?.pinned ? "color-mix(in srgb, var(--vc-surface) 60%, var(--vc-bg))" : "var(--vc-bg)" }}
+        >
+          <span className="absolute bottom-0 right-0 h-px" style={{ left: 84, background: "var(--vc-line)" }} />
+          {editMode && (
+            <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected.has(c.id) ? "var(--vc-accent)" : "var(--vc-muted)", background: selected.has(c.id) ? "var(--vc-accent)" : "transparent" }}>
+              {selected.has(c.id) && <Check size={14} color="var(--vc-accent-text)" />}
+            </span>
+          )}
+          <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={isOnline(peer, now)}>
+            {saved ? "🔖" : undefined}
+          </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>
-                {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
+              <p className="font-semibold truncate text-[16.5px] flex items-center gap-1">
+                {title} {peer?.verified && <VerifiedBadge size={14} />}
               </p>
-              {muted && <BellOff size={13} className="mx-muted shrink-0" />}
-              <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
-                {mineLast && last && (readByPeer || saved ? <CheckCheck size={16} style={{ color: "var(--mx-accent)" }} /> : <Check size={16} />)}
+              {muted && <BellOff size={13} className="vc-muted shrink-0" />}
+              <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--vc-accent)" : "var(--vc-muted)", fontWeight: unread > 0 && !muted ? 600 : 400 }}>
+                {mineLast && last && (readByPeer || saved ? <CheckCheck size={16} style={{ color: "var(--vc-accent)" }} /> : <Check size={16} />)}
                 {last ? formatListTime(last.at, now) : ""}
               </span>
             </div>
             <div className="flex items-start gap-2 mt-0.5">
-              <p className="text-[14.5px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
+              <p className="text-[14.5px] flex-1 min-w-0" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.32, color: unread > 0 && !muted ? "var(--vc-text)" : "var(--vc-muted)" }}>
                 {typing ? (
-                  <span style={{ color: "var(--mx-accent)" }}>печатает…</span>
+                  <span style={{ color: "var(--vc-accent)" }}>печатает…</span>
                 ) : draft ? (
                   <>
-                    <span style={{ color: "var(--mx-danger)" }}>Черновик: </span>
+                    <span style={{ color: "var(--vc-danger)" }}>Черновик: </span>
                     {draft}
                   </>
                 ) : (
                   <>
-                    {senderName && <span style={{ color: "var(--mx-text)" }}>{senderName}: </span>}
+                    {senderName && <span style={{ color: "var(--vc-text)" }}>{senderName}: </span>}
                     {preview}
                   </>
                 )}
               </p>
               {unread > 0 ? (
-                <span className={`mx-badge shrink-0 ${muted ? "muted" : ""}`}>{unread > 99 ? "99+" : unread}</span>
+                <span className={`vc-badge shrink-0 ${muted ? "muted" : ""}`}>{unread > 99 ? "99+" : unread}</span>
               ) : uc?.pinned ? (
-                <Pin size={16} className="mx-muted shrink-0 mt-0.5" style={{ transform: "rotate(45deg)" }} />
+                <Pin size={16} className="vc-muted shrink-0 mt-0.5" style={{ transform: "rotate(45deg)" }} />
               ) : null}
             </div>
           </div>
@@ -205,14 +216,6 @@ export function ChatListPane({
   };
 
   const selectedIds = Array.from(selected);
-  const selChats = chats.filter((c) => selected.has(c.id));
-  const allPinned = selChats.length > 0 && selChats.every((c) => userChats[c.id]?.pinned);
-  const allMuted = selChats.length > 0 && selChats.every((c) => isChatMuted(userChats[c.id]?.muted, userChats[c.id]?.mutedUntil, now));
-  const allArchived = selChats.length > 0 && selChats.every((c) => userChats[c.id]?.archived);
-  const anyUnread = selChats.some((c) => (userChats[c.id]?.unread ?? 0) > 0);
-  const selectable = [...visible, ...(archiveOpen ? archived : [])];
-  const allSelected = selectable.length > 0 && selectable.every((c) => selected.has(c.id));
-  const selectAll = () => setSelected(allSelected ? new Set() : new Set(selectable.map((c) => c.id)));
   const exitEdit = () => {
     setEditMode(false);
     setSelected(new Set());
@@ -223,47 +226,46 @@ export function ChatListPane({
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
+    <div className="flex flex-col h-full" style={{ background: "var(--vc-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="mx-safe-top shrink-0">
-        {editMode ? (
-          <div className="mx-selbar mx-step">
-            <button onClick={exitEdit} className="mx-icon-btn" aria-label="Отменить выбор"><X size={18} /></button>
-            <span className="mx-selbar-count truncate">{selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите чаты"}</span>
-            <button onClick={selectAll} className="mx-chip">{allSelected ? "Снять" : "Выбрать все"}</button>
+      <div className="vc-safe-top shrink-0 vc-glass" style={{ borderWidth: "0 0 1px", zIndex: 5 }}>
+        <div className="h-12 flex items-center px-3 relative">
+          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="text-[16px] px-2 py-1.5" style={{ color: "var(--vc-accent)" }}>
+            {editMode ? "Готово" : "Изм."}
+          </button>
+          <p className="absolute left-1/2 -translate-x-1/2 font-semibold text-[17px] pointer-events-none">Чаты</p>
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={onCreateStory} className="w-9 h-9 rounded-full vc-glass flex items-center justify-center" style={{ color: "var(--vc-accent)" }} aria-label="Новая история">
+              <Camera size={18} />
+            </button>
+            <button onClick={onNewChat} className="w-9 h-9 rounded-full vc-glass flex items-center justify-center" style={{ color: "var(--vc-accent)" }} aria-label="Новое сообщение">
+              <SquarePen size={18} />
+            </button>
           </div>
-        ) : (
-          <div className="px-4 pt-2 pb-2 flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-[30px] font-bold leading-none tracking-tight">Чаты</h1>
-              {unreadTotal > 0 && <p className="text-[13px] mx-muted mt-1">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
-            </div>
-            <button onClick={() => setEditMode(true)} className="mx-chip">Изменить</button>
-            <button onClick={onCreateStory} className="mx-icon-btn" aria-label="Новая история"><Camera size={18} /></button>
-            <button onClick={onNewChat} className="mx-icon-btn" aria-label="Новое сообщение"><SquarePen size={18} /></button>
-          </div>
-        )}
+        </div>
       </div>
 
-      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 96 }}>
-        <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
+      <div className="vc-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 96 }}>
+        {storyGroups.length > 0 || true ? (
+          <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
+        ) : null}
 
         {/* поиск */}
         <div className="px-4 pb-2 pt-1">
-          <div className="mx-search">
-            <Search size={17} className="mx-muted" />
+          <div className="flex items-center gap-2 rounded-[14px] px-3 h-10" style={{ background: "var(--vc-surface)" }}>
+            <Search size={17} className="vc-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск чатов и людей" className="bg-transparent outline-none flex-1 text-[16px]" autoCapitalize="none" />
-            {q && <button onClick={() => setQ("")} className="mx-muted" aria-label="Очистить"><X size={17} /></button>}
+            {q && <button onClick={() => setQ("")} className="vc-muted" aria-label="Очистить"><X size={17} /></button>}
           </div>
         </div>
 
         {searching ? (
           <div>
-            {chatMatches.length > 0 && <p className="mx-muted text-[13px] uppercase tracking-wide px-5 py-1.5">Чаты</p>}
+            {chatMatches.length > 0 && <p className="vc-muted text-[13px] uppercase tracking-wide px-5 py-1.5">Чаты</p>}
             {chatMatches.map(row)}
             {q.trim().length >= 2 && (
               <>
-                <p className="mx-muted text-[13px] uppercase tracking-wide px-5 py-1.5">Люди</p>
+                <p className="vc-muted text-[13px] uppercase tracking-wide px-5 py-1.5">Люди</p>
                 {peopleResults.filter((a) => a.uid !== me).map((a) => (
                   <PersonRow
                     key={a.uid}
@@ -282,7 +284,7 @@ export function ChatListPane({
                     }}
                   />
                 ))}
-                {!peopleLoading && peopleResults.length === 0 && chatMatches.length === 0 && <p className="mx-muted text-center py-8">Ничего не найдено</p>}
+                {!peopleLoading && peopleResults.length === 0 && chatMatches.length === 0 && <p className="vc-muted text-center py-8">Ничего не найдено</p>}
               </>
             )}
           </div>
@@ -290,15 +292,20 @@ export function ChatListPane({
           <>
             {/* папки */}
             {folders.length > 0 && (
-              <div className="pb-1">
-                <div className="mx-tabs">
+              <div className="px-4 pb-2">
+                <div className="vc-glass rounded-full p-1 flex gap-1 overflow-x-auto vc-noscrollbar">
                   {[{ id: "all", name: "Все", emoji: "" } as MFolder, ...folders].map((f) => {
                     const on = f.id === folderId;
                     const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
                     return (
-                      <button key={f.id} onClick={() => setFolderId(f.id)} className={`mx-tab ${on ? "on" : ""}`}>
+                      <button
+                        key={f.id}
+                        onClick={() => setFolderId(f.id)}
+                        className="px-3.5 h-8 rounded-full text-[14px] font-medium whitespace-nowrap flex items-center gap-1.5 shrink-0"
+                        style={{ background: on ? "var(--vc-surface2)" : "transparent", color: on ? "var(--vc-text)" : "var(--vc-muted)" }}
+                      >
                         {f.emoji} {f.name}
-                        {count > 0 && <span className={`mx-badge ${on ? "" : "muted"}`}>{count}</span>}
+                        {count > 0 && <span className="vc-badge" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{count}</span>}
                       </button>
                     );
                   })}
@@ -312,33 +319,20 @@ export function ChatListPane({
                 <button onClick={() => setArchiveOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
                   <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: "#8e8e93" }}><Archive size={24} /></span>
                   <span className="flex-1 font-semibold text-[16.5px]">Архив чатов</span>
-                  {archivedUnread > 0 && <span className="mx-badge muted">{archivedUnread}</span>}
-                  {archiveOpen ? <ChevronDown size={18} className="mx-muted" /> : <ChevronRight size={18} className="mx-muted" />}
+                  {archivedUnread > 0 && <span className="vc-badge muted">{archivedUnread}</span>}
+                  {archiveOpen ? <ChevronDown size={18} className="vc-muted" /> : <ChevronRight size={18} className="vc-muted" />}
                 </button>
                 {archiveOpen && archived.map(row)}
               </>
             )}
 
-            {loading && chats.length === 0 && (
-              <div>
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ opacity: 1 - i * 0.1 }}>
-                    <div className="mx-skel rounded-full shrink-0" style={{ width: 56, height: 56 }} />
-                    <div className="flex-1 space-y-2">
-                      <div className="mx-skel rounded-md" style={{ width: `${40 + (i % 3) * 14}%`, height: 14 }} />
-                      <div className="mx-skel rounded-md" style={{ width: `${62 + (i % 4) * 8}%`, height: 12 }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {loading && chats.length === 0 && <p className="vc-muted text-center py-10">Загрузка…</p>}
             {visible.map(row)}
             {!loading && visible.length === 0 && archived.length === 0 && (
               <div className="text-center px-10 py-14">
-                <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}><SquarePen size={26} /></div>
-                <p className="text-[18px] font-semibold mb-1.5">Чатов пока нет</p>
-                <p className="mx-muted text-[14px] mb-5">Найди человека по @username или создай группу.</p>
-                <button className="mx-btn" style={{ width: "auto", padding: "12px 24px" }} onClick={onNewChat}>Новое сообщение</button>
+                <p className="text-[17px] font-semibold mb-1.5">Чатов пока нет</p>
+                <p className="vc-muted text-[14px] mb-5">Найди человека по @username или создай группу.</p>
+                <button className="vc-btn" style={{ width: "auto", padding: "12px 24px" }} onClick={onNewChat}>Новое сообщение</button>
               </div>
             )}
           </>
@@ -346,15 +340,14 @@ export function ChatListPane({
       </div>
 
       {editMode && (
-        <div className="mx-actbar mx-glass mx-safe-bottom mx-step">
+        <div className="absolute inset-x-0 bottom-0 vc-glass vc-safe-bottom flex" style={{ borderWidth: "1px 0 0", zIndex: 20 }}>
           {[
-            { label: "Прочитано", icon: <ReadIcon size={21} />, off: !anyUnread, run: () => { markRead(selectedIds); exitEdit(); } },
-            { label: allPinned ? "Открепить" : "Закрепить", icon: allPinned ? <PinOff size={21} /> : <Pin size={21} />, run: () => bulk({ pinned: !allPinned }) },
-            { label: allMuted ? "Со звуком" : "Без звука", icon: allMuted ? <Bell size={21} /> : <BellOff size={21} />, run: () => (allMuted ? bulk({ muted: false, mutedUntil: 0 }) : setMuteFor(selChats)) },
-            { label: allArchived ? "Из архива" : "В архив", icon: <Archive size={21} />, run: () => bulk({ archived: !allArchived }) },
-            ...(folders.length > 0 ? [{ label: "В папку", icon: <Folder size={21} />, run: () => setFolderPick(selChats) }] : []),
+            { label: "Прочитано", icon: <ReadIcon size={20} />, run: () => { markRead(selectedIds); exitEdit(); } },
+            { label: "Закрепить", icon: <Pin size={20} />, run: () => bulk({ pinned: true }) },
+            { label: "Без звука", icon: <BellOff size={20} />, run: () => { setMuteFor(chats.filter((c) => selected.has(c.id))); } },
+            { label: "В архив", icon: <Archive size={20} />, run: () => bulk({ archived: true }) },
           ].map((b) => (
-            <button key={b.label} disabled={selected.size === 0 || ("off" in b && !!b.off)} onClick={b.run}>
+            <button key={b.label} disabled={selected.size === 0} onClick={b.run} className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[11.5px] disabled:opacity-35" style={{ color: "var(--vc-accent)" }}>
               {b.icon}
               {b.label}
             </button>
@@ -376,8 +369,9 @@ export function ChatListPane({
                   ? { label: "Включить звук", icon: <Bell size={20} />, onPress: () => act([menuChat.id], { muted: false, mutedUntil: 0 }) }
                   : { label: "Без звука", icon: <BellOff size={20} />, onPress: () => setMuteFor([menuChat]) },
                 { label: "Прочитано", icon: <ReadIcon size={20} />, hidden: !(uc?.unread), onPress: () => markRead([menuChat.id]) },
-                { label: "В папку", icon: <Folder size={20} />, hidden: folders.length === 0, onPress: () => setFolderPick([menuChat]) },
+                { label: "В папку", icon: <Folder size={20} />, hidden: folders.length === 0, onPress: () => setFolderPick(menuChat) },
                 { label: uc?.archived ? "Вернуть из архива" : "В архив", icon: <Archive size={20} />, onPress: () => act([menuChat.id], { archived: !uc?.archived }) },
+                { label: "Удалить чат", icon: <Trash2 size={20} />, danger: true, onPress: () => onDeleteChat(menuChat) },
               ]}
             />
           );
@@ -399,29 +393,25 @@ export function ChatListPane({
         )}
       </Sheet>
 
-      {/* выбор папки для одного или нескольких чатов */}
-      <Sheet open={!!folderPick} onClose={() => setFolderPick(null)} title={folderPick && folderPick.length > 1 ? `Папки для чатов (${folderPick.length})` : "Папки чата"}>
+      {/* выбор папки для чата */}
+      <Sheet open={!!folderPick} onClose={() => setFolderPick(null)} title="Папки чата">
         {folderPick && (
           <div className="pb-4">
             {folders.map((f) => {
-              const inList = folderPick.every((c) => !!userChats[c.id]?.folderIds?.includes(f.id));
+              const inList = !!userChats[folderPick.id]?.folderIds?.includes(f.id);
               return (
                 <button
                   key={f.id}
-                  onClick={async () => {
-                    const list = folderPick;
+                  onClick={() => {
+                    const cur = userChats[folderPick.id]?.folderIds ?? [];
+                    act([folderPick.id], { folderIds: inList ? cur.filter((x) => x !== f.id) : [...cur, f.id] });
                     setFolderPick(null);
-                    await Promise.all(list.map((c) => {
-                      const cur = userChats[c.id]?.folderIds ?? [];
-                      return act([c.id], { folderIds: inList ? cur.filter((x) => x !== f.id) : Array.from(new Set([...cur, f.id])) });
-                    }));
-                    exitEdit();
                   }}
                   className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
                 >
                   <span className="text-xl w-7">{f.emoji || "📁"}</span>
                   <span className="flex-1">{f.name}</span>
-                  {inList && <Check size={20} style={{ color: "var(--mx-accent)" }} />}
+                  {inList && <Check size={20} style={{ color: "var(--vc-accent)" }} />}
                 </button>
               );
             })}

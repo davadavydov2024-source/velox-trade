@@ -15,8 +15,9 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
   const ref = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(start);
   const [target, setTarget] = useState<HTMLElement | null>(null);
+  const swipeStart = useRef({ x: 0, y: 0 });
 
-  useEffect(() => setTarget(document.getElementById("mx-root")), []);
+  useEffect(() => setTarget(document.getElementById("vc-root")), []);
 
   useEffect(() => {
     const el = ref.current;
@@ -43,10 +44,18 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
 
   if (!target) return null;
   return createPortal(
-    <div className="absolute inset-0 mx-fade" style={{ zIndex: 80, background: "rgba(0,0,0,0.96)" }}>
+    <div
+      className="absolute inset-0 vc-fade"
+      style={{ zIndex: 80, background: "rgba(0,0,0,0.96)" }}
+      onTouchStart={(e) => { swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchEnd={(e) => {
+        const t = e.changedTouches[0];
+        if (t.clientY - swipeStart.current.y > 110 && Math.abs(t.clientX - swipeStart.current.x) < 70) onClose(); // свайп вниз закрывает
+      }}
+    >
       <div
         ref={ref}
-        className="h-full w-full flex overflow-x-auto mx-noscrollbar"
+        className="h-full w-full flex overflow-x-auto vc-noscrollbar"
         style={{ scrollSnapType: "x mandatory" }}
         onScroll={(e) => {
           const el = e.currentTarget;
@@ -65,7 +74,7 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
           </div>
         ))}
       </div>
-      <button onClick={onClose} className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center text-white mx-safe-top" style={{ background: "rgba(255,255,255,0.14)", marginTop: "env(safe-area-inset-top)" }} aria-label="Закрыть">
+      <button onClick={onClose} className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center text-white vc-safe-top" style={{ background: "rgba(255,255,255,0.14)", marginTop: "env(safe-area-inset-top)" }} aria-label="Закрыть">
         <X size={22} />
       </button>
       {items.length > 1 && (
