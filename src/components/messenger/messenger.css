@@ -249,3 +249,109 @@
 .mx-shop-ribbon.static { position: static; font-size: 11px; padding: 3px 9px; }
 .mx-balance-chip { font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px; background: var(--mx-surface2); color: var(--mx-text); }
 .mx-shop-hero { width: 100%; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 18px; border-radius: 26px; border: 1px solid var(--mx-line); }
+
+/* ===== Telegram theme: синий акцент, ночная/светлая палитра, пузыри как в Telegram ===== */
+.mx {
+  --mx-bg: #0e1621;
+  --mx-surface: #17212b;
+  --mx-surface2: #232e3c;
+  --mx-line: rgba(255, 255, 255, 0.07);
+  --mx-text: #f5f7fa;
+  --mx-muted: #7f91a4;
+  --mx-accent: #3390ec;
+  --mx-accent-text: #ffffff;
+  --mx-in: #182533;
+  --mx-out: #2b5278;
+  --mx-out-text: #ffffff;
+  --mx-glass: rgba(23, 33, 43, 0.8);
+}
+.mx[data-theme="light"] {
+  --mx-bg: #e6ebee;
+  --mx-surface: #ffffff;
+  --mx-surface2: #f1f3f5;
+  --mx-line: rgba(0, 0, 0, 0.08);
+  --mx-text: #000000;
+  --mx-muted: #707579;
+  --mx-in: #ffffff;
+  --mx-out: #eeffde;
+  --mx-out-text: #000000;
+  --mx-glass: rgba(255, 255, 255, 0.82);
+}
+.mx-bubble { border-radius: 16px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12); }
+.mx-btn, .mx-input, .mx-search { border-radius: 12px; }
+
+/* ===== Дизайн 2.0: обои, пузыри, выбор чатов ===== */
+
+/* --- обои чата --- */
+.mx-wp-host { isolation: isolate; }
+.mx-wp-layer { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.mx-wp-layer.mx-wp-prev { z-index: 0; }
+.mx-wp-layer::after { content: ""; position: absolute; inset: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' fill='none' stroke='%23ffffff' stroke-opacity='.09' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='20' cy='22' r='7'/%3E%3Cpath d='M70 14l4 9 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1z'/%3E%3Cpath d='M100 74C88 66 86 58 86 54a7 7 0 0 1 14-2 7 7 0 0 1 14 2c0 4-2 12-14 20z'/%3E%3Cpath d='M12 78h12M18 72v12'/%3E%3Cpath d='M58 88l10 16H48z'/%3E%3Ccircle cx='96' cy='106' r='3'/%3E%3C/svg%3E"); background-size: 120px 120px; }
+.mx[data-theme="light"] .mx-wp-layer::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' fill='none' stroke='%23000000' stroke-opacity='.09' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='20' cy='22' r='7'/%3E%3Cpath d='M70 14l4 9 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1z'/%3E%3Cpath d='M100 74C88 66 86 58 86 54a7 7 0 0 1 14-2 7 7 0 0 1 14 2c0 4-2 12-14 20z'/%3E%3Cpath d='M12 78h12M18 72v12'/%3E%3Cpath d='M58 88l10 16H48z'/%3E%3Ccircle cx='96' cy='106' r='3'/%3E%3C/svg%3E"); }
+.mx-wp-none { background: var(--mx-bg); }
+.mx-wp-none::after { display: none; }
+.mx-wp-doodle { background: linear-gradient(160deg,#0e1621,#17293d); }
+.mx[data-theme="light"] .mx-wp-doodle { background: linear-gradient(160deg,#dbe7ef,#c9dbe8); }
+.mx-wp-aurora { background: radial-gradient(120% 80% at 8% 0%,#1d6fa5 0%,transparent 55%),radial-gradient(100% 70% at 100% 25%,#7c3aed 0%,transparent 55%),radial-gradient(120% 90% at 50% 120%,#0f766e 0%,transparent 60%),#0b1220; }
+.mx[data-theme="light"] .mx-wp-aurora { background: radial-gradient(120% 80% at 8% 0%,#9bd0f5 0%,transparent 55%),radial-gradient(100% 70% at 100% 25%,#d2b8ff 0%,transparent 55%),radial-gradient(120% 90% at 50% 120%,#a7f0e4 0%,transparent 60%),#eef5fb; }
+.mx-wp-sunset { background: linear-gradient(170deg,#3b1d4a 0%,#8a2f4f 48%,#d9743a 100%); }
+.mx[data-theme="light"] .mx-wp-sunset { background: linear-gradient(170deg,#ffd9c2 0%,#ffb3b3 50%,#f6a3d1 100%); }
+.mx-wp-ocean { background: linear-gradient(170deg,#06243a 0%,#0b4a6e 55%,#1491a8 100%); }
+.mx[data-theme="light"] .mx-wp-ocean { background: linear-gradient(170deg,#c8ecff 0%,#9edbf0 55%,#7fd0d8 100%); }
+.mx-wp-forest { background: linear-gradient(170deg,#0a2018 0%,#14452f 55%,#3d7a3f 100%); }
+.mx[data-theme="light"] .mx-wp-forest { background: linear-gradient(170deg,#dcf2d0 0%,#b9e3a8 55%,#9bd48a 100%); }
+.mx-wp-space { background: radial-gradient(90% 60% at 80% 10%,#3b2a7a 0%,transparent 60%),radial-gradient(80% 60% at 10% 90%,#0e3f6b 0%,transparent 60%),#05060f; }
+.mx[data-theme="light"] .mx-wp-space { background: radial-gradient(90% 60% at 80% 10%,#cbc2ff 0%,transparent 60%),radial-gradient(80% 60% at 10% 90%,#b9dcff 0%,transparent 60%),#eceaf8; }
+.mx-wp-lavender { background: linear-gradient(170deg,#1f1838 0%,#3b2d66 55%,#6a54a8 100%); }
+.mx[data-theme="light"] .mx-wp-lavender { background: linear-gradient(170deg,#ece4ff 0%,#d9ccff 55%,#c5b3f5 100%); }
+.mx-wp-mint { background: linear-gradient(170deg,#0b2420 0%,#14504a 55%,#2aa38f 100%); }
+.mx[data-theme="light"] .mx-wp-mint { background: linear-gradient(170deg,#dffaf1 0%,#bdf0df 55%,#98e6cf 100%); }
+.mx-wp-graphite { background: linear-gradient(170deg,#101114 0%,#1c1e24 55%,#2a2d36 100%); }
+.mx[data-theme="light"] .mx-wp-graphite { background: linear-gradient(170deg,#f1f2f5 0%,#e1e3e9 55%,#d1d4dd 100%); }
+.mx-wp-graphite::after, .mx-wp-space::after { opacity: 0.6; }
+.mx-wp-swatch { position: relative; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; border: 2px solid transparent; padding: 0; background: var(--mx-surface2); transition: transform 0.12s, border-color 0.15s; }
+.mx-wp-swatch:active { transform: scale(0.94); }
+.mx-wp-swatch[data-on="1"] { border-color: var(--mx-accent); }
+.mx-wp-check { position: absolute; right: 4px; bottom: 4px; z-index: 2; width: 20px; height: 20px; border-radius: 999px; background: var(--mx-accent); color: var(--mx-accent-text); display: flex; align-items: center; justify-content: center; }
+.mx-demo { position: relative; overflow: hidden; border-radius: 18px; border: 1px solid var(--mx-line); isolation: isolate; }
+.mx-demo-body { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 18px; }
+.mx-demo-body .mx-bubble.in { align-self: flex-start; }
+.mx-demo-body .mx-bubble.out { align-self: flex-end; }
+
+/* --- пузыри: хвостик одним элементом, без «вырезов» цветом фона (чтобы красиво лежал на обоях) --- */
+.mx-bubble.tail.in::after, .mx-bubble.tail.out::after { display: none; }
+.mx-bubble.tail.in::before { left: -6px; width: 11px; height: 12px; border-radius: 0; background: var(--mx-in); clip-path: polygon(100% 0, 100% 100%, 0 100%, 52% 52%); }
+.mx-bubble.tail.out::before { right: -6px; width: 11px; height: 12px; border-radius: 0; background: var(--mx-out); clip-path: polygon(0 0, 0 100%, 100% 100%, 48% 52%); }
+
+/* стиль «Круглые» */
+[data-bubble="round"] .mx-bubble { border-radius: 22px; padding: 8px 14px 7px; }
+[data-bubble="round"] .mx-bubble.in.tail, [data-bubble="round"] .mx-bubble.out.tail { border-radius: 22px; }
+[data-bubble="round"] .mx-bubble.tail::before, [data-bubble="round"] .mx-bubble.tail::after { display: none; }
+
+/* стиль «Плоские» */
+[data-bubble="flat"] .mx-bubble { border-radius: 8px; box-shadow: none; }
+[data-bubble="flat"] .mx-bubble.in { border: 1px solid var(--mx-line); }
+[data-bubble="flat"] .mx-bubble.in.tail, [data-bubble="flat"] .mx-bubble.out.tail { border-radius: 8px; }
+[data-bubble="flat"] .mx-bubble.tail::before, [data-bubble="flat"] .mx-bubble.tail::after { display: none; }
+
+/* стиль «Градиент и стекло» */
+[data-bubble="gradient"] .mx-bubble { border-radius: 20px; }
+[data-bubble="gradient"] .mx-bubble.in { background: var(--mx-glass); border: 1px solid var(--mx-line); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); }
+[data-bubble="gradient"] .mx-bubble.out { background: linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 55%, #7c3aed)); color: #fff; }
+[data-bubble="gradient"] .mx-bubble.in.tail, [data-bubble="gradient"] .mx-bubble.out.tail { border-radius: 20px; }
+[data-bubble="gradient"] .mx-bubble.tail::before, [data-bubble="gradient"] .mx-bubble.tail::after { display: none; }
+.mx-bubble.round { background: transparent !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* --- выбор чатов: круглая отметка слева, кнопка «Все», плавающая панель действий --- */
+.mx-sel-dot { width: 24px; height: 24px; border-radius: 999px; border: 2px solid var(--mx-muted); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: transparent; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; animation: mx-pop 0.18s ease-out; }
+.mx-sel-dot.on { background: var(--mx-accent); border-color: var(--mx-accent); color: var(--mx-accent-text); transform: scale(1.06); }
+.mx-av-sel.on { transform: none; }
+.mx-av-sel::before, .mx-av-check { display: none; }
+.mx-selbar { border-radius: 26px; padding: 6px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5); }
+.mx-selbar button { border-radius: 20px; transition: background 0.15s, transform 0.12s; }
+.mx-selbar button:not(:disabled):active { transform: scale(0.94); background: var(--mx-surface2); }
+
+/* --- общая полировка списка чатов --- */
+@media (hover: hover) { .mx-chat-row:hover { background: var(--mx-surface) !important; } }
+.mx-chip { background: var(--mx-surface); border: 1px solid transparent; }
+.mx-badge { box-shadow: 0 2px 6px -2px var(--mx-accent); }

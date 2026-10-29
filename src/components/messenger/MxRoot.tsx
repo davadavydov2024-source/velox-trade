@@ -11,6 +11,7 @@ export function MxRoot({ children }: { children: ReactNode }) {
   const theme = useMxPrefs((s) => s.theme);
   const accent = useMxPrefs((s) => s.accent);
   const textSize = useMxPrefs((s) => s.textSize);
+  const bubble = useMxPrefs((s) => s.bubbleStyle);
   const [systemDark, setSystemDark] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -34,7 +35,7 @@ export function MxRoot({ children }: { children: ReactNode }) {
       document.head.appendChild(meta);
     }
     const prev = meta.content;
-    meta.content = resolved === "dark" ? "#0b0b0d" : "#f2f2f6";
+    meta.content = resolved === "dark" ? "#0e1621" : "#e6ebee";
     return () => {
       if (meta) meta.content = prev;
     };
@@ -44,7 +45,7 @@ export function MxRoot({ children }: { children: ReactNode }) {
   if (accent) style["--mx-accent"] = accent;
 
   return (
-    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} style={style as React.CSSProperties}>
+    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-bubble={bubble} style={style as React.CSSProperties}>
       {children}
     </div>
   );

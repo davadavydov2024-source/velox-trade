@@ -15,7 +15,8 @@ import { AdminPanel } from "./AdminPanel";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
+import { ACCENT_CHOICES, BUBBLE_STYLES, MxTheme, WALLPAPERS, useMxPrefs } from "./prefs";
+import { WallpaperPreview } from "./Wallpaper";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
 export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs";
@@ -514,8 +515,42 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                 <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Акцентный цвет</p>
                 <div className="mx-card px-4 py-3.5 flex gap-3 flex-wrap">
                   {ACCENT_CHOICES.map((c) => (
-                    <button key={c || "default"} onClick={() => prefs.setAccent(c)} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: c || "var(--color-accent, #ff9800)", outline: prefs.accent === c ? "3px solid var(--mx-text)" : "none", outlineOffset: 2 }} aria-label="Цвет">
+                    <button key={c || "default"} onClick={() => prefs.setAccent(c)} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: c || "#3390ec", outline: prefs.accent === c ? "3px solid var(--mx-text)" : "none", outlineOffset: 2 }} aria-label="Цвет">
                       {prefs.accent === c && <Check size={18} color="#fff" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Обои чата</p>
+                <div className="mx-card">
+                  <div className="p-3">
+                    <div className="mx-demo" data-bubble={prefs.bubbleStyle}>
+                      <WallpaperPreview id={prefs.wallpaper} />
+                      <div className="mx-demo-body">
+                        <div className="mx-bubble in tail">Привет! Как тебе новые обои?<span className="mx-meta">12:40</span></div>
+                        <div className="mx-bubble out tail">Огонь 🔥 Теперь чаты как в Telegram<span className="mx-meta">12:41</span></div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2 mt-3">
+                      {WALLPAPERS.map((w) => (
+                        <button key={w.id} onClick={() => prefs.setWallpaper(w.id)} className="mx-wp-swatch" data-on={prefs.wallpaper === w.id ? "1" : "0"} aria-label={w.label}>
+                          <WallpaperPreview id={w.id} />
+                          {prefs.wallpaper === w.id && <span className="mx-wp-check"><Check size={13} strokeWidth={3.5} /></span>}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mx-muted text-[13px] mt-2.5">{WALLPAPERS.find((w) => w.id === prefs.wallpaper)?.label ?? "Без обоев"}</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Пузыри сообщений</p>
+                <div className="mx-card">
+                  {BUBBLE_STYLES.map((b) => (
+                    <button key={b.id} onClick={() => prefs.setBubbleStyle(b.id)} className="w-full flex items-center justify-between px-4 py-3.5 text-left">
+                      {b.label}
+                      {prefs.bubbleStyle === b.id && <Check size={20} style={{ color: "var(--mx-accent)" }} />}
                     </button>
                   ))}
                 </div>

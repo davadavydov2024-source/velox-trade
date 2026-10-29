@@ -6,7 +6,7 @@ import type { StickerKind } from "@/lib/messenger/types";
 import { safeImageSrc } from "@/lib/safeImage";
 
 let lottiePromise: Promise<any> | null = null;
-/** Lottie подгружается один раз с CDN (версия зафиксирована) — отдельный npm-пакет в проекте не нужен. */
+/** Lottie (полная сборка, поддерживает все анимации Telegram) подгружается один раз с CDN (версия зафиксирована) — отдельный npm-пакет в проекте не нужен. */
 function loadLottie(): Promise<any> {
   if (typeof window === "undefined") return Promise.reject(new Error("ssr"));
   const w = window as any;
@@ -14,7 +14,7 @@ function loadLottie(): Promise<any> {
   if (!lottiePromise) {
     lottiePromise = new Promise((resolve, reject) => {
       const el = document.createElement("script");
-      el.src = "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js";
+      el.src = "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js";
       el.async = true;
       el.onload = () => (w.lottie ? resolve(w.lottie) : reject(new Error("no lottie")));
       el.onerror = () => { lottiePromise = null; reject(new Error("lottie load")); };
@@ -22,6 +22,24 @@ function loadLottie(): Promise<any> {
     });
   }
   return lottiePromise;
+}
+
+/** Данные анимации: обычный .json или .tgs (gzip-Lottie из Telegram) — сжатый файл распаковываем прямо в браузере. */
+async function loadLottieData(url: string): Promise<any> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("fetch");
+  const buf = await res.arrayBuffer();
+  const b = new Uint8Array(buf);
+  let text: string;
+  if (b.length > 2 && b[0] === 0x1f && b[1] === 0x8b) {
+    const DS = (globalThis as any).DecompressionStream;
+    if (!DS) throw new Error("no gzip");
+    const stream = new Blob([buf]).stream().pipeThrough(new DS("gzip"));
+    text = await new Response(stream as any).text();
+  } else {
+    text = new TextDecoder().decode(b);
+  }
+  return JSON.parse(text);
 }
 
 /** true, пока элемент виден на экране (пауза анимаций вне экрана — экономит батарею, когда в сетке десятки стикеров). */
@@ -70,9 +88,7 @@ export function StickerMedia({ url, preview, kind, size = 160, animate = true, e
     let cancelled = false;
     (async () => {
       try {
-        const [lottie, res] = await Promise.all([loadLottie(), fetch(url)]);
-        if (!res.ok) throw new Error("fetch");
-        const data = await res.json();
+        const [lottie, data] = await Promise.all([loadLottie(), loadLottieData(url)]);
         if (cancelled || !lottieBox.current) return;
         animRef.current = lottie.loadAnimation({ container: lottieBox.current, renderer: "svg", loop: true, autoplay: true, animationData: data, rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
         setLottieReady(true);

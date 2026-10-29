@@ -159,6 +159,7 @@ export function ChatListPane({
         onLongPress={() => !editMode && setMenuChat(c)}
       >
         <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
+          {editMode && <span className={`mx-sel-dot ${selected.has(c.id) ? "on" : ""}`}><Check size={14} strokeWidth={3.5} /></span>}
           <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
             <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={!editMode && isOnline(peer, now)}>
               {saved ? "🔖" : undefined}
@@ -220,9 +221,14 @@ export function ChatListPane({
       <div className="mx-safe-top shrink-0">
         <div className="px-4 pt-2 pb-2 flex items-center gap-2">
           <div className="flex-1 min-w-0">
-            <h1 className="text-[30px] font-bold leading-none tracking-tight">Чаты</h1>
-            {unreadTotal > 0 && <p className="text-[13px] mx-muted mt-1">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
+            <h1 className="text-[30px] font-bold leading-none tracking-tight">{editMode ? `Выбрано: ${selected.size}` : "Чаты"}</h1>
+            {!editMode && unreadTotal > 0 && <p className="text-[13px] mx-muted mt-1">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
           </div>
+          {editMode && (
+            <button onClick={() => setSelected(selected.size === visible.length ? new Set<string>() : new Set<string>(visible.map((c) => c.id)))} className="mx-chip">
+              {selected.size === visible.length && visible.length > 0 ? "Снять" : "Все"}
+            </button>
+          )}
           <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-chip" style={editMode ? { background: "var(--mx-accent)", color: "var(--mx-accent-text)" } : undefined}>
             {editMode ? "Готово" : "Изменить"}
           </button>
@@ -334,7 +340,7 @@ export function ChatListPane({
       </div>
 
       {editMode && (
-        <div className="absolute inset-x-0 bottom-0 mx-glass mx-safe-bottom flex" style={{ borderWidth: "1px 0 0", zIndex: 20 }}>
+        <div className="absolute left-3 right-3 mx-glass flex mx-selbar" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)", zIndex: 30 }}>
           {[
             { label: "Прочитано", icon: <ReadIcon size={20} />, run: () => { markRead(selectedIds); exitEdit(); } },
             { label: "Закрепить", icon: <Pin size={20} />, run: () => bulk({ pinned: true }) },

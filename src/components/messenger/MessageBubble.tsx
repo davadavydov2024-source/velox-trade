@@ -213,7 +213,7 @@ export function MessageRow({
   } else if (msg.kind === "sticker") {
     content = msg.mediaUrl ? (
       <div className="relative">
-        <StickerMedia url={msg.mediaUrl ?? ""} size={160} />
+        <StickerMedia url={msg.mediaUrl ?? ""} size={190} />
         <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}</span>
       </div>
     ) : (
