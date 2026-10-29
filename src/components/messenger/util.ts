@@ -63,6 +63,8 @@ export function kindLabel(kind: MMsgKind): string {
       return "Видеосообщение";
     case "file":
       return "Файл";
+    case "gift":
+      return "Подарок 🎁";
     default:
       return "";
   }
@@ -190,3 +192,19 @@ export const EMOJI_GROUPS: { label: string; icon: string; items: string[] }[] = 
     items: "🎮 🎧 🎵 🎬 📷 📱 💻 ⌚ 💡 💰 💳 🎁 🔑 🔒 📦 🚀 ✈️ 🚗 🏠 ⚽ 🏀 🎲 🧩 ✅ ❌ ⚠️ ❓ ❗ 💬 👀 🤖 👻".split(" "),
   },
 ];
+
+const MONTHS_GEN = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+/** «25 мая» или «19 дек 1985 (40 лет)» из «ММ-ДД» / «ГГГГ-ММ-ДД». */
+export function birthdayText(v?: string | null): string {
+  if (!v) return "";
+  const m = /^(?:(\d{4})-)?(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return "";
+  const mon = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  if (mon < 0 || mon > 11) return "";
+  if (!m[1]) return `${day} ${MONTHS_GEN[mon]}`;
+  const now = new Date();
+  let age = now.getFullYear() - Number(m[1]);
+  if (now.getMonth() < mon || (now.getMonth() === mon && now.getDate() < day)) age--;
+  return `${day} ${MONTHS_GEN[mon]} ${m[1]} (${age} ${plural(age, "год", "года", "лет")})`;
+}

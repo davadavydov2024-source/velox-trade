@@ -1,0 +1,333 @@
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  increment,
+} from "firebase/firestore";
+import { db, auth } from "./firebase";
+import { Order, TopUpRequest, UserProfile, UserBadge, NAME_CHANGE_COOLDOWN_MS } from "@/types";
+import { sendOrderChatMessage } from "./orderChats";
+import { stripUndefined } from "./stripUndefined";
+import { notifyTelegram } from "./telegramNotify";
+import { notifyAdminEvent } from "./adminNotifyClient";
+
+const usersCol = collection(db, "users");
+const ordersCol = collection(db, "orders");
+const topUpsCol = collection(db, "topups");
+
+function generateReferralCode(): string {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+export async function ensureUserProfile(
+  uid: string,
+  email: string,
+  displayName: string,
+  photoURL?: string,
+  language?: "ru" | "en" | "zh",
+  age?: number
+) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { lastLoginAt: Date.now() });
+    return { uid: snap.id, ...snap.data() } as UserProfile;
+  }
+  const referralCode = generateReferralCode();
+  const profile: Omit<UserProfile, "uid"> = {
+    email,
+    displayName,
+    photoURL: photoURL ?? null,
+    balance: 0,
+    badges: ["user"],
+    emailVerified: false,
+    banned: false,
+    createdAt: Date.now(),
+    lastLoginAt: Date.now(),
+    language: language ?? "ru",
+    referralCode,
+    // Возраст указывается один раз на регистрации (см. /auth/register) — только для админа,
+    // публично на сайте нигде не показывается.
+    ...(age !== undefined ? { age } : {}),
+  };
+  await setDoc(ref, profile);
+  await setDoc(doc(db, "referralCodes", referralCode), { uid });
+  notifyAdminEvent("registration", uid);
+  return { uid, ...profile } as UserProfile;
+}
+
+/** Для пользователей, созданных до появления реферальной системы — генерирует и сохраняет код при первом обращении. */
+export async function getOrCreateReferralCode(uid: string): Promise<string> {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  const existing = snap.data()?.referralCode;
+  if (existing) return existing;
+
+  const referralCode = generateReferralCode();
+  await updateDoc(ref, { referralCode });
+  await setDoc(doc(db, "referralCodes", referralCode), { uid });
+  return referralCode;
+}
+
+/** Меняет язык интерфейса в профиле пользователя (вызывается из настроек). */
+export async function setUserLanguage(uid: string, language: "ru" | "en" | "zh") {
+  return updateDoc(doc(db, "users", uid), { language });
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, "users", uid));
+  if (!snap.exists()) return null;
+  return { uid, ...snap.data() } as UserProfile;
+}
+
+/**
+ * Firebase Auth сам знает, подтверждён ли email (user.emailVerified), но это отдельно от нашего
+ * профиля в Firestore. Раньше emailVerified в профиле проставлялся один раз при регистрации (false)
+ * и никогда не обновлялся — из-за этого раздел "Безопасность" всегда показывал "не подтверждён",
+ * даже если человек реально перешёл по ссылке в письме. Эта функция подтягивает реальный статус.
+ */
+export async function syncEmailVerified(uid: string, verifiedInAuth: boolean): Promise<void> {
+  if (!verifiedInAuth) return;
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists() && !(snap.data() as UserProfile).emailVerified) {
+    await updateDoc(ref, { emailVerified: true });
+  }
+}
+
+export async function getAllUsers(): Promise<UserProfile[]> {
+  const snap = await getDocs(query(usersCol, orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile);
+}
+
+/** Все записи о регистрациях с их IP — для /admin/registrations. См. api/auth/log-registration. */
+export async function getRegistrationLog(): Promise<{ uid: string; ip: string; userAgent: string; createdAt: number }[]> {
+  const snap = await getDocs(query(collection(db, "registrationLog"), orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => d.data() as { uid: string; ip: string; userAgent: string; createdAt: number });
+}
+
+export async function setUserBalance(uid: string, newBalance: number) {
+  return updateDoc(doc(db, "users", uid), { balance: newBalance });
+}
+
+export async function adjustUserBalance(uid: string, delta: number) {
+  return updateDoc(doc(db, "users", uid), { balance: increment(delta) });
+}
+
+export async function setUserBadges(uid: string, badges: UserBadge[]) {
+  return updateDoc(doc(db, "users", uid), { badges });
+}
+
+/** Изменение ника (без ограничений по времени — 7-дневный кулдаун в updateProfileInfo действует
+ * только на самостоятельное изменение пользователем) и оформления ника (цвет/шрифт) — доступно
+ * только администратору, см. /admin/users. Пользователь сам цвет/шрифт себе выставить не может. */
+export async function adminUpdateNickname(uid: string, changes: { displayName?: string; nameColor?: string; nameFont?: string }) {
+  const update: Record<string, unknown> = {};
+  if (changes.displayName !== undefined) {
+    const trimmed = changes.displayName.trim();
+    if (trimmed.length < 2) {
+      const err = new Error("Ник не может быть пустым — минимум 2 символа");
+      (err as any).code = "invalid-name";
+      throw err;
+    }
+    update.displayName = trimmed;
+  }
+  if (changes.nameColor !== undefined) update.nameColor = changes.nameColor;
+  if (changes.nameFont !== undefined) update.nameFont = changes.nameFont;
+  if (Object.keys(update).length === 0) return;
+  return updateDoc(doc(db, "users", uid), update);
+}
+
+/** Назначает/снимает роль персонала (менеджер поддержки или помощник по выдаче) — без доступа к админке. */
+export async function setStaffRole(uid: string, role: "manager" | "helper" | null) {
+  return updateDoc(doc(db, "users", uid), { staffRole: role });
+}
+
+export async function setUserBan(uid: string, banned: boolean, reason?: string, until?: number | "forever" | null) {
+  await updateDoc(doc(db, "users", uid), {
+    banned,
+    banReason: reason ?? null,
+    banUntil: until ?? null,
+  });
+  if (banned) {
+    notifyTelegram(uid, `🚫 Ваш аккаунт заблокирован.${reason ? `\nПричина: ${reason}` : ""}`);
+  } else {
+    notifyTelegram(uid, "✅ Блокировка аккаунта снята.");
+  }
+}
+
+// ---- Orders ----
+
+export async function createOrder(order: Omit<Order, "id" | "createdAt">) {
+  const ref = await addDoc(ordersCol, { ...order, createdAt: Date.now() });
+  const itemsText = order.items.map((i) => `${i.name} × ${i.quantity}`).join(", ");
+  notifyTelegram(order.userId, `✅ Покупка оформлена: ${itemsText}\nСумма: ${order.total} ₽`);
+  return ref;
+}
+
+export async function getOrdersForUser(userId: string): Promise<Order[]> {
+  // Без orderBy: where + orderBy на разных полях требует составного индекса в Firestore.
+  // Сортируем на клиенте, чтобы не заставлять админа вручную создавать индекс в консоли.
+  const snap = await getDocs(query(ordersCol, where("userId", "==", userId)));
+  const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+  return orders.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Продажи продавца — заказы, где он sellerId (для страницы «Мои продажи»). */
+export async function getOrdersForSeller(sellerId: string): Promise<Order[]> {
+  const snap = await getDocs(query(ordersCol, where("sellerId", "==", sellerId)));
+  const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+  return orders.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getAllOrders(): Promise<Order[]> {
+  const snap = await getDocs(query(ordersCol, orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+}
+
+export async function getOrderById(orderId: string): Promise<Order | null> {
+  const snap = await getDoc(doc(db, "orders", orderId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Order;
+}
+
+/** Покупатель подтверждает получение предмета — только после этого можно оставить отзыв. */
+export async function confirmOrderReceipt(order: Order, buyerName: string) {
+  // ВАЖНО: подтверждение должно идти через сервер (api/orders/confirm-receipt). Раньше тут был прямой
+  // updateDoc статуса — заказ становился «подтверждённым», но выплата продавцу (холд 48 ч) не создавалась,
+  // и продавец не получал деньги вообще. Сервер в одной транзакции ставит статус и создаёт выплату.
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Нужно войти в аккаунт");
+  const res = await fetch("/api/orders/confirm-receipt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ orderId: order.id }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Не удалось подтвердить получение");
+
+  // Уведомление продавцу (Telegram + пуш) уже отправил сервер.
+  const holdNote = order.paymentMethod === "telegram_stars" ? "" : " Деньги будут зачислены продавцу через 48 часов.";
+  await sendOrderChatMessage(order.id, order.userId, order.sellerId, "system", `✅ ${buyerName} подтвердил(а) получение товара.${holdNote}`);
+  // Проверка достижений (например бейдж "buyer" за первую покупку) — не критично для основного
+  // действия, поэтому не ждём и не роняем подтверждение заказа, если это не сработает.
+  auth.currentUser
+    ?.getIdToken()
+    .then((idToken) => fetch("/api/users/check-achievements", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } }))
+    .catch(() => {});
+}
+
+/** Продавец отменяет ещё не подтверждённый заказ — деньги возвращаются покупателю, товар возвращается на склад. */
+export async function cancelOrderBySeller(orderId: string, reason?: string): Promise<void> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Нужно войти в аккаунт");
+  const res = await fetch("/api/orders/seller-cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ orderId, reason }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось отменить заказ");
+}
+
+/**
+ * Обновляет ник и/или аватар с недельным ограничением на смену (защита от спама сменой ника).
+ * Бросает Error с кодом "name-cooldown" / "avatar-cooldown", если срок ещё не прошёл.
+ */
+export async function updateProfileInfo(
+  uid: string,
+  current: UserProfile,
+  changes: { displayName?: string; photoURL?: string | null; bio?: string; username?: string }
+) {
+  const now = Date.now();
+  const update: Record<string, unknown> = {};
+
+  if (changes.displayName !== undefined && changes.displayName !== current.displayName) {
+    // Проверка не только в форме (/profile) — так же и здесь, на уровне самой функции, чтобы имя
+    // нельзя было обнулить в обход формы (например, прямым вызовом updateProfileInfo). Один пробел
+    // или пустая строка раньше проходили без единой ошибки — ник становился визуально пустым.
+    const trimmed = changes.displayName.trim();
+    if (trimmed.length < 2) {
+      const err = new Error("Имя не может быть пустым");
+      (err as any).code = "invalid-name";
+      throw err;
+    }
+    if (current.lastNameChangeAt && now - current.lastNameChangeAt < NAME_CHANGE_COOLDOWN_MS) {
+      const err = new Error("Ник можно менять раз в 7 дней");
+      (err as any).code = "name-cooldown";
+      throw err;
+    }
+    update.displayName = trimmed;
+    update.lastNameChangeAt = now;
+  }
+
+  if (changes.photoURL !== undefined && changes.photoURL !== current.photoURL) {
+    if (current.lastAvatarChangeAt && now - current.lastAvatarChangeAt < NAME_CHANGE_COOLDOWN_MS) {
+      const err = new Error("Аватар можно менять раз в 7 дней");
+      (err as any).code = "avatar-cooldown";
+      throw err;
+    }
+    update.photoURL = changes.photoURL;
+    update.lastAvatarChangeAt = now;
+  }
+
+  if (changes.bio !== undefined) {
+    update.bio = changes.bio;
+  }
+
+  // ВАЖНО: юзернейм нужно сохранить не только в отдельной коллекции "usernames" (там резервируется
+  // уникальность), но и в самом документе пользователя — иначе после перезагрузки страницы он пропадает.
+  if (changes.username !== undefined && changes.username !== current.username) {
+    update.username = changes.username;
+  }
+
+  if (Object.keys(update).length > 0) {
+    await updateDoc(doc(db, "users", uid), update);
+  }
+}
+
+// ---- Top-up requests (ручное пополнение — заявка обрабатывается администратором вручную) ----
+
+export async function createTopUpRequest(data: Omit<TopUpRequest, "id" | "createdAt" | "status">) {
+  // stripUndefined: необязательный comment приходит как undefined, а Firestore такое значение не принимает.
+  const ref = await addDoc(topUpsCol, { ...stripUndefined(data), status: "pending", createdAt: Date.now() });
+  notifyAdminEvent("topup", ref.id);
+  return ref;
+}
+
+export async function getUserTopUpRequests(userId: string): Promise<TopUpRequest[]> {
+  // Без orderBy: where + orderBy на разных полях требует составного индекса в Firestore.
+  const snap = await getDocs(query(topUpsCol, where("userId", "==", userId)));
+  const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TopUpRequest);
+  return requests.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getTopUpRequests(): Promise<TopUpRequest[]> {
+  const snap = await getDocs(query(topUpsCol, orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TopUpRequest);
+}
+
+export async function setTopUpStatus(id: string, status: "approved" | "rejected") {
+  return updateDoc(doc(db, "topups", id), { status });
+}
+
+/** Админ: принудительно обновляет сайт у ВСЕХ пользователей (перезагрузка страницы у всех вкладок). */
+export async function forceReloadAllUsers() {
+  return setDoc(doc(db, "settings", "forceReload"), { timestamp: Date.now() });
+}
+
+/** Админ: принудительно обновляет сайт у ОДНОГО конкретного пользователя. */
+export async function forceReloadUser(uid: string) {
+  return updateDoc(doc(db, "users", uid), { forceReloadAt: Date.now() });
+}
+
+// ---- Admin check ----
+
+export { isAdminUid } from "./isAdmin";

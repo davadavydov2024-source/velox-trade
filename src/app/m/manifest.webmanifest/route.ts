@@ -17,9 +17,9 @@ export function GET() {
     theme_color: "#0b0b0d",
     lang: "ru",
     icons: [
-      { src: "/miligram/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/miligram/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/miligram/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/m/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/m/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/m/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
   return new NextResponse(JSON.stringify(manifest), {

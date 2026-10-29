@@ -1,0 +1,669 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --color-bg: #0b0c10;
+  --color-surface: #14161c;
+  --color-border: #242831;
+  --color-accent: #c8f542;
+  --color-accent-dark: #b2dd2c;
+  --color-accent-light: #dcff7a;
+}
+
+html,
+body {
+  background-color: #0b0c10;
+  color: #eceef2;
+  overflow-x: hidden;
+  max-width: 100vw;
+  font-family: var(--font-onest), system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-color: #2f3440 #0b0c10;
+}
+
+@layer components {
+  /* Плоские поверхности без размытия и свечения: граница и контраст тона вместо «стекла». */
+  .glass {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+  }
+
+  .font-display {
+    font-family: var(--font-unbounded), var(--font-onest), system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-light text-black font-semibold rounded-[12px] px-5 py-3 transition-colors duration-150 active:translate-y-px;
+  }
+
+  .btn-secondary {
+    @apply glass hover:bg-white/[0.06] text-white font-medium rounded-[12px] px-5 py-3 transition-colors duration-150 active:translate-y-px;
+  }
+
+  .input-field {
+    @apply w-full bg-surface border border-border rounded-[12px] px-4 py-3 text-white placeholder:text-white/30 outline-none focus:border-accent transition-colors;
+  }
+
+  .card {
+    @apply glass rounded-[18px] transition-colors duration-200;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 text-[13px] font-medium px-3.5 py-2 rounded-[10px] border border-border bg-surface text-white/65 hover:text-white hover:border-white/20 transition-colors whitespace-nowrap;
+  }
+  .chip-on {
+    @apply bg-accent border-accent text-black hover:text-black hover:border-accent;
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-glow {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+/* ===== Маскот: появление, парение и частицы ===== */
+@keyframes mascot-enter-right {
+  0% {
+    opacity: 0;
+    transform: translateX(60px) translateY(20px) scale(0.6) rotate(8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-8px) translateY(-4px) scale(1.06) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes mascot-enter-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-60px) translateY(20px) scale(0.6) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(8px) translateY(-4px) scale(1.06) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes mascot-enter-bottom {
+  0% {
+    opacity: 0;
+    transform: translateY(80px) scale(0.5) rotate(-6deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-14px) scale(1.08) rotate(3deg);
+  }
+  75% {
+    transform: translateY(4px) scale(0.98) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.mascot-enter-right {
+  animation: mascot-enter-right 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.mascot-enter-left {
+  animation: mascot-enter-left 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.mascot-enter-bottom {
+  animation: mascot-enter-bottom 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes mascot-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.75);
+  }
+}
+.mascot-exit {
+  animation: mascot-exit 0.4s ease-in forwards;
+}
+
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.mascot-float {
+  animation: mascot-float 3s ease-in-out infinite;
+}
+
+@keyframes mascot-glow-pulse-kf {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+.mascot-glow-pulse {
+  animation: mascot-glow-pulse-kf 2.2s ease-in-out infinite;
+}
+
+@keyframes mascot-particle-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift, 0px), -160px) scale(1) rotate(180deg);
+  }
+}
+
+/* ===== Колесо Фортуны: лампочки по кругу, блики, указатель, конфетти ===== */
+@keyframes wheel-bulb-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    box-shadow: 0 0 4px 1px currentColor;
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 9px 3px currentColor;
+  }
+}
+.wheel-bulb {
+  animation: wheel-bulb-twinkle 1.6s ease-in-out infinite;
+}
+.wheel-bulb.spinning {
+  animation-duration: 0.35s;
+}
+
+@keyframes wheel-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.04);
+  }
+}
+.wheel-ambient-glow {
+  animation: wheel-glow-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes wheel-pointer-bounce {
+  0%,
+  100% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  25% {
+    transform: translateX(-50%) rotate(-8deg);
+  }
+  75% {
+    transform: translateX(-50%) rotate(8deg);
+  }
+}
+.wheel-pointer-spinning {
+  animation: wheel-pointer-bounce 0.25s ease-in-out infinite;
+}
+
+@keyframes wheel-confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--cx, 0px), 160px) rotate(var(--cr, 360deg));
+  }
+}
+.wheel-confetti-piece {
+  animation: wheel-confetti-fall 1.5s ease-in forwards;
+}
+
+/* ===== Лента живых покупок на главной ===== */
+@keyframes activity-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.activity-marquee-track {
+  animation: activity-marquee 32s linear infinite;
+}
+.activity-marquee-track:hover {
+  animation-play-state: paused;
+}
+@keyframes activity-card-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.activity-card-enter {
+  animation: activity-card-enter 0.35s ease-out;
+}
+
+/* ===== Фон и анимации на страницах входа/регистрации ===== */
+@keyframes auth-blob-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(6%, 8%) scale(1.15); }
+  66% { transform: translate(-4%, 4%) scale(0.9); }
+}
+@keyframes auth-blob-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-8%, -5%) scale(0.9); }
+  66% { transform: translate(5%, -8%) scale(1.2); }
+}
+@keyframes auth-blob-3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.25); }
+}
+.auth-blob-1 { animation: auth-blob-1 16s ease-in-out infinite; }
+.auth-blob-2 { animation: auth-blob-2 20s ease-in-out infinite; }
+.auth-blob-3 { animation: auth-blob-3 12s ease-in-out infinite; }
+@keyframes auth-blob-4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10%, 10%) scale(1.3); }
+}
+.auth-blob-4 { animation: auth-blob-4 14s ease-in-out infinite; }
+
+@keyframes auth-mesh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.auth-mesh-spin { animation: auth-mesh-spin 30s linear infinite; }
+
+/* Вращающаяся неоновая рамка вокруг карточки входа/регистрации — обёртка с conic-gradient
+   больше самой карточки, вращается, а сама карточка (белый/тёмный фон) лежит поверх и закрывает
+   середину, оставляя видимым только тонкий кольцевой обод. */
+@keyframes auth-border-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.auth-glow-border {
+  position: relative;
+}
+.auth-glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from 0deg, var(--color-accent), #4a6cf7, #22c55e, #e879f9, var(--color-accent));
+  animation: auth-border-spin 4s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: 0;
+}
+
+@keyframes auth-card-rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.auth-card-rise { animation: auth-card-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes auth-title-sheen {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.auth-title-sheen {
+  background-size: 200% auto;
+  animation: auth-title-sheen 6s linear infinite;
+}
+
+@keyframes auth-float-particle {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.5; }
+  100% { transform: translateY(-90vh) translateX(20px); opacity: 0; }
+}
+.auth-float-particle { animation: auth-float-particle linear infinite; }
+
+@keyframes auth-pill-pop {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.auth-pill-pop { animation: auth-pill-pop 0.25s ease-out; }
+
+/* Слайд-переход между "страницами" мастера регистрации — направление зависит от того, идём мы
+   вперёд (Далее) или назад (Назад), см. .auth-step-forward / .auth-step-back в register/page.tsx. */
+@keyframes auth-step-in-right {
+  from { opacity: 0; transform: translateX(36px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes auth-step-in-left {
+  from { opacity: 0; transform: translateX(-36px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.auth-step-forward { animation: auth-step-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.auth-step-back { animation: auth-step-in-left 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes auth-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.auth-spin-slow { animation: auth-spin-slow 6s linear infinite; }
+
+
+
+
+/* Эффект отправки фото в чате (см. components/ChatStatus.tsx → UploadingPhotoBubble) */
+@keyframes upload-sweep {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+@keyframes upload-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.upload-sweep {
+  animation: upload-sweep 1.6s ease-in-out infinite;
+}
+.upload-breathe {
+  animation: upload-breathe 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .upload-sweep,
+  .upload-breathe {
+    animation: none;
+  }
+}
+
+/* ===== Колесо Фортуны 2.0: результат, лучи, взрыв конфетти, проигрыш ===== */
+@keyframes wheel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.wheel-fade-in {
+  animation: wheel-fade-in 0.35s ease-out both;
+}
+
+/* Карточка приза «выпрыгивает» с перелётом */
+@keyframes wheel-card-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) translateY(40px) rotate(-4deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06) translateY(-6px) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+.wheel-card-pop {
+  animation: wheel-card-pop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) 0.15s both;
+}
+
+/* Вращающиеся лучи позади карточки победы */
+@keyframes wheel-rays-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+.wheel-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 170vmax;
+  height: 170vmax;
+  transform: translate(-50%, -50%);
+  animation: wheel-rays-spin 28s linear infinite;
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 55%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 55%);
+  pointer-events: none;
+}
+
+/* Вспышка при редком выигрыше */
+@keyframes wheel-flash {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.wheel-flash {
+  animation: wheel-flash 0.9s ease-out forwards;
+}
+
+/* Кольцо вокруг приза пульсирует цветом редкости */
+@keyframes wheel-ring-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 22px 2px var(--c), inset 0 0 18px var(--c);
+  }
+  50% {
+    box-shadow: 0 0 46px 8px var(--c), inset 0 0 28px var(--c);
+  }
+}
+.wheel-ring-pulse {
+  animation: wheel-ring-pulse 1.8s ease-in-out infinite;
+}
+
+/* Искры вокруг приза */
+@keyframes wheel-sparkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(90deg);
+  }
+}
+.wheel-sparkle {
+  animation: wheel-sparkle 1.6s ease-in-out infinite;
+}
+
+/* Выигрышный сектор на колесе мигает */
+@keyframes wheel-win-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.wheel-win-pulse {
+  animation: wheel-win-pulse 0.9s ease-in-out infinite;
+}
+
+/* Проигрыш: колесо «вздрагивает» и тускнеет */
+@keyframes wheel-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-9px) rotate(-1.2deg);
+  }
+  30% {
+    transform: translateX(8px) rotate(1deg);
+  }
+  45% {
+    transform: translateX(-6px) rotate(-0.6deg);
+  }
+  60% {
+    transform: translateX(4px);
+  }
+  80% {
+    transform: translateX(-2px);
+  }
+}
+.wheel-shake {
+  animation: wheel-shake 0.7s ease-in-out;
+}
+.wheel-lose {
+  filter: grayscale(0.75) brightness(0.75);
+  transition: filter 0.8s ease;
+}
+
+/* Взрыв конфетти из центра: вверх-в-стороны, потом падение */
+@keyframes wheel-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--dx) * 1.2), calc(var(--dy) + 62vh)) rotate(calc(var(--rot) * 2.2)) scale(1);
+  }
+}
+.wheel-burst-piece {
+  animation: wheel-burst var(--dur, 2.2s) cubic-bezier(0.2, 0.7, 0.4, 1) var(--delay, 0s) forwards;
+}
+
+/* Дождь монет при выигрыше денег */
+@keyframes wheel-coin-rain {
+  0% {
+    opacity: 0;
+    transform: translate(0, -12vh) rotate(0deg);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(var(--sway, 0px), 108vh) rotate(var(--rot, 360deg));
+  }
+}
+.wheel-coin-piece {
+  animation: wheel-coin-rain var(--dur, 3s) linear var(--delay, 0s) forwards;
+}
+
+/* Грустные капли при проигрыше */
+@keyframes wheel-sad-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-8vh);
+  }
+  20% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(105vh);
+  }
+}
+.wheel-sad-piece {
+  animation: wheel-sad-drop var(--dur, 3s) linear var(--delay, 0s) infinite;
+}
+
+/* Блик «пробегает» по заголовку победы */
+@keyframes wheel-title-shine {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.wheel-title-shine {
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wheel-title-shine 2.4s linear infinite;
+}
+
+/* Плавное «затухание» подсказки пропуска */
+@keyframes wheel-skip-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.wheel-skip-in {
+  animation: wheel-skip-in 0.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel-rays,
+  .wheel-ring-pulse,
+  .wheel-sparkle,
+  .wheel-win-pulse,
+  .wheel-sad-piece,
+  .wheel-title-shine {
+    animation: none;
+  }
+  .wheel-burst-piece,
+  .wheel-coin-piece {
+    display: none;
+  }
+}

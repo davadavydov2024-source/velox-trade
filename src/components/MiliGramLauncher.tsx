@@ -10,10 +10,10 @@ import { usePathname } from "next/navigation";
  */
 export function MiliGramLauncher() {
   const pathname = usePathname();
-  if (pathname === "/m" || pathname.startsWith("/m/") || pathname.startsWith("/m?") || pathname.startsWith("/admin") || pathname.startsWith("/auth")) return null;
+  if (pathname === "/m" || pathname.startsWith("/m/") || pathname.startsWith("/admin") || pathname.startsWith("/auth")) return null;
   return (
     <Link
-      href="/m"
+      href="/m/app"
       aria-label="Открыть MiliGram"
       title="MiliGram — мессенджер"
       className="fixed right-4 z-40 bottom-[calc(76px+env(safe-area-inset-bottom))] lg:bottom-6 group flex items-center gap-2"

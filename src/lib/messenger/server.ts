@@ -225,7 +225,7 @@ export async function postMessage(o: PostOpts): Promise<string> {
         const muted = !!(st?.muted && (!st.mutedUntil || st.mutedUntil > now));
         if (muted && !mentioned) return Promise.resolve();
         const title = mentioned ? `${sender.account.displayName} упомянул(а) вас в ${chat.title ?? "чате"}` : base;
-        return sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m?chat=${chat.id}` }, "messages");
+        return sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m/app?chat=${chat.id}` }, "messages");
       })
     );
   } catch (err) {

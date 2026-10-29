@@ -27,11 +27,8 @@ export interface MPending {
   duration?: number;
   waveform?: number[];
   createdAt: number;
-  status: "sending" | "sent" | "failed";
-  /** id настоящего сообщения, который вернул сервер — по нему плашка «отправляется» заменяется настоящим сообщением */
-  serverId?: string;
-  width?: number;
-  height?: number;
+  status: "sending" | "failed";
   progress?: number;
+  serverId?: string; // id настоящего сообщения после ответа сервера — по нему плашка «отправляется» плавно заменяется
   retry?: () => void;
 }

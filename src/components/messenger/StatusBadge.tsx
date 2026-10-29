@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { isPremium } from "@/lib/messenger/premium";
 import { giftById } from "@/lib/messenger/gifts";

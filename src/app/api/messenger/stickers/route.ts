@@ -156,7 +156,7 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   const stickers = results.filter((r): r is { url: string; emoji: string } => !!r);
   if (stickers.length === 0) return fail("Не удалось скачать стикеры из этого набора", 502);
   const now = Date.now();
-  const pack: MessengerStickerPack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: now, updatedAt: now };
+  const pack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: now, updatedAt: now } as MessengerStickerPack;
   await db.collection("messengerStickerPacks").doc(slug).set(pack);
   await userRef.set({ slugs: FieldValue.arrayUnion(slug) }, { merge: true });
   return NextResponse.json({ ok: true, slug, title: pack.title, count: stickers.length, skipped: items.length - stickers.length });

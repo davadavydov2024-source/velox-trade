@@ -1,0 +1,605 @@
+import { safeEqual } from "@/lib/secureRandom";
+import { NextRequest, NextResponse } from "next/server";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import {
+  sendTelegramMessage,
+  sendTelegramPhoto,
+  editTelegramMessage,
+  answerCallbackQuery,
+  answerPreCheckoutQuery,
+  sendInvoice,
+  generateSixDigitCode,
+} from "@/lib/telegramBot";
+import { getBotState, setBotState } from "@/lib/telegramBotState";
+import {
+  mainMenuText,
+  mainMenuButtons,
+  FEEDBACK_MENU_TEXT,
+  feedbackMenuButtons,
+  TOPUP_INSTRUCTIONS,
+  SUPPORT_INSTRUCTIONS,
+  PARTNERSHIP_INSTRUCTIONS,
+  backOnlyButtons,
+  starsBalanceButtons,
+  DONATE_MIN,
+  DONATE_MAX,
+  DONATE_PROMPT_TEXT,
+} from "@/lib/telegramMenus";
+import {
+  adminMenuButtons,
+  ADMIN_MENU_TEXT,
+  sendPendingSellRequests,
+  approveSellRequestFromBot,
+  rejectSellRequestFromBot,
+  sendPendingTopUps,
+  approveTopUpFromBot,
+  rejectTopUpFromBot,
+  sendPendingStarsWithdrawals,
+  approveStarsWithdrawalFromBot,
+  rejectStarsWithdrawalFromBot,
+  promoMenuButtons,
+  PROMO_CREATE_INSTRUCTIONS,
+  createPromoCodeFromText,
+  sendActivePromoCodes,
+  deactivatePromoCodeFromBot,
+} from "@/lib/telegramAdminPanel";
+import {
+  approveProductEditFromBot,
+  rejectProductEditFromBot,
+  askBanFromBot,
+  banFromBot,
+  cancelBanFromBot,
+} from "@/lib/telegramAdminModeration";
+import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
+import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
+import { fulfillStarsInvoice, validateStarsPreCheckout, logStarsIssue } from "@/lib/starsOrders";
+import { getStarsBalanceMessage, requestStarsWithdrawal, MIN_STARS_WITHDRAWAL } from "@/lib/telegramStarsWithdrawals";
+import {
+  contestMenuButtons,
+  CONTEST_MENU_TEXT,
+  startContestWizard,
+  handleContestWinnersStep,
+  handleContestPhotoStep,
+  handleContestTextStep,
+  handleContestButtonTextStep,
+  handleContestColorChoice,
+  handleContestChannelStep,
+  handleContestJoin,
+  sendActiveContestsList,
+} from "@/lib/telegramContests";
+import { STICKER_ADMIN_INSTRUCTIONS, handleStickerCallback, importStickerSetFromBot, parseStickerSetName } from "@/lib/telegramStickerAdmin";
+
+export const runtime = "nodejs";
+export const maxDuration = 60; // импорт стикер-пака качает десятки файлов
+
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+const safeEqualStr = safeEqual;
+const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ? Number(process.env.TELEGRAM_ADMIN_CHAT_ID) : null;
+const SITE_NAME = "Velox Trade";
+
+const PARTNERSHIP_TRIGGER = "хочу сотрудничать с velox trade";
+
+const KIND_ICON: Record<ForwardKind, string> = { topup: "💰", support: "🆘", partnership: "🤝" };
+const KIND_LABEL: Record<ForwardKind, string> = {
+  topup: "Пополнение/вывод",
+  support: "Поддержка",
+  partnership: "Запрос на сотрудничество",
+};
+
+function isAdminChat(chatId: number): boolean {
+  return ADMIN_CHAT_ID !== null && chatId === ADMIN_CHAT_ID;
+}
+
+/**
+ * Показывает главное меню — фото с подписью, если админ загрузил баннер в /admin/settings
+ * (settings/telegramBot → welcomeImage), иначе обычным текстом, как раньше. Используется на
+ * /start и при возврате в главное меню из нераспознанного сообщения.
+ */
+async function sendMainMenu(chatId: number, firstName: string, username: string | null) {
+  const text = mainMenuText(firstName, username);
+  const buttons = mainMenuButtons(isAdminChat(chatId));
+  const settingsSnap = await adminDb().collection("settings").doc("telegramBot").get();
+  const welcomeImage = (settingsSnap.data() as { welcomeImage?: string } | undefined)?.welcomeImage;
+  if (welcomeImage) {
+    const sent = await sendTelegramPhoto(chatId, welcomeImage, text, buttons);
+    if (sent) return;
+    // Если Telegram не принял картинку (битая ссылка, слишком большой файл и т.п.) — не оставляем
+    // человека без меню вообще, просто падаем обратно на текст.
+  }
+  await sendTelegramMessage(chatId, text, buttons);
+}
+
+async function forwardToAdmin(kind: ForwardKind, chatId: number, firstName: string, userTag: string, text: string) {
+  if (!ADMIN_CHAT_ID) return;
+  const body = `${KIND_ICON[kind]} ${KIND_LABEL[kind]} от ${firstName} (${userTag}):\n\n${text}\n\n↩️ Чтобы ответить человеку — сделай Reply прямо на это сообщение.`;
+  const messageId = await sendTelegramMessage(ADMIN_CHAT_ID, body);
+  if (messageId) {
+    await rememberForwardedMessage(messageId, { chatId, firstName, userTag, kind, createdAt: Date.now() });
+  }
+}
+
+async function handleAccountLinking(code: string, chatId: number, telegramUsername: string | null): Promise<boolean> {
+  const db = adminDb();
+
+  // Подтверждение регистрации по паролю через бота (см. api/auth/tg-verify/*): человек открыл
+  // ссылку start=verify_<token> — запоминаем его chatId в заявке и присылаем 6-значный код сюда,
+  // в Telegram (раньше код уходил на почту). Дальше он вводит его на странице регистрации.
+  if (code.startsWith("verify_")) {
+    const verifyRef = db.collection("tgVerifyRequests").doc(code.slice("verify_".length));
+    const verifySnap = await verifyRef.get();
+    if (!verifySnap.exists) {
+      await sendTelegramMessage(chatId, "Эта ссылка уже не действует. Вернись на сайт и начни регистрацию заново.");
+      return true;
+    }
+    const v = verifySnap.data() as { code: string; createdAt: number; status: string };
+    if (Date.now() - v.createdAt > 10 * 60 * 1000) {
+      await sendTelegramMessage(chatId, "Ссылка устарела (прошло больше 10 минут). Вернись на сайт и начни регистрацию заново.");
+      return true;
+    }
+    if (v.status !== "verified") {
+      await verifyRef.update({ status: "sent", chatId, telegramUsername });
+    }
+    await sendTelegramMessage(chatId, `Твой код подтверждения регистрации на ${SITE_NAME}: ${v.code}\n\nВведи его на сайте. Код действует 10 минут. Если ты не регистрировался(-ась) — просто проигнорируй это сообщение.`);
+    return true;
+  }
+
+  const linkReqRef = db.collection("telegramLinkRequests").doc(code);
+  const linkReqSnap = await linkReqRef.get();
+  if (linkReqSnap.exists) {
+    const { uid } = linkReqSnap.data() as { uid: string };
+    await db.collection("telegramLinks").doc(uid).set({ chatId, telegramUsername, linkedAt: Date.now() });
+    await linkReqRef.delete();
+    await sendTelegramMessage(chatId, `Telegram успешно привязан к твоему аккаунту ${SITE_NAME}! Теперь при входе с нового устройства код будет приходить сюда.`);
+    return true;
+  }
+
+  const regReqRef = db.collection("telegramRegisterRequests").doc(code);
+  const regReqSnap = await regReqRef.get();
+  if (regReqSnap.exists) {
+    const { email, displayName, status, age, username: wantedUsername } = regReqSnap.data() as { email: string; displayName: string; status: string; age?: number; username?: string };
+
+    if (status === "done") {
+      await sendTelegramMessage(chatId, "Этот аккаунт уже зарегистрирован. Просто открой сайт и войди по коду.");
+      return true;
+    }
+
+    const auth = adminAuth();
+    let uid: string;
+    try {
+      const existing = await auth.getUserByEmail(email);
+      uid = existing.uid;
+    } catch {
+      // Владение аккаунтом здесь уже подтверждено самим фактом открытия бота (Telegram — и есть
+      // подтверждение), поэтому отдельный код на почту не требуем — почта у нас не настроена, и
+      // именно из-за него регистрация падала. Почту при этом честно НЕ считаем подтверждённой.
+      const created = await auth.createUser({ email, displayName, emailVerified: false });
+      uid = created.uid;
+      await db.collection("users").doc(uid).set({
+        email,
+        displayName,
+        photoURL: null,
+        balance: 0,
+        badges: ["user"],
+        emailVerified: false,
+        banned: false,
+        createdAt: Date.now(),
+        lastLoginAt: Date.now(),
+        // Возраст указывается один раз на регистрации — только для админа, см. комментарий на
+        // UserProfile.age в types/index.ts.
+        ...(age !== undefined ? { age } : {}),
+      });
+
+      // Юзернейм, выбранный при регистрации: занимаем его здесь, на сервере (create() падает, если
+      // имя уже занято — тогда просто оставляем без юзернейма, и сайт попросит придумать другой при
+      // первом входе, см. UsernameGate).
+      if (wantedUsername && /^[a-z0-9_]{3,20}$/.test(wantedUsername)) {
+        try {
+          await db.collection("usernames").doc(wantedUsername).create({ uid, createdAt: Date.now() });
+          await db.collection("users").doc(uid).update({ username: wantedUsername });
+        } catch {
+          // имя занято — не критично для регистрации
+        }
+      }
+    }
+
+    await db.collection("telegramLinks").doc(uid).set({ chatId, telegramUsername, linkedAt: Date.now() });
+
+    const loginCode = generateSixDigitCode();
+    await db.collection("loginCodes").doc(uid).set({
+      code: loginCode,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+    });
+
+    await regReqRef.update({ status: "done", uid });
+    await sendTelegramMessage(
+      chatId,
+      `Аккаунт ${SITE_NAME} создан! Код для входа на сайте: ${loginCode}\nВведи его на странице входа (вкладка «Код в Telegram»). Код действителен 10 минут.`
+    );
+    return true;
+  }
+
+  return false;
+}
+
+export async function POST(req: NextRequest) {
+  // Без секрета любой мог бы прислать поддельное обновление «от имени» любого Telegram-пользователя
+  // (в т.ч. админа). Поэтому секрет обязателен: TELEGRAM_WEBHOOK_SECRET + setWebhook с secret_token.
+  if (!WEBHOOK_SECRET) {
+    console.error("telegram/webhook: TELEGRAM_WEBHOOK_SECRET не задан — запрос отклонён");
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+  const secretHeader = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
+  if (!safeEqualStr(secretHeader, WEBHOOK_SECRET)) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+
+  try {
+    const update = await req.json();
+
+    const preCheckout = update?.pre_checkout_query;
+    if (preCheckout) {
+      // Telegram ждёт ответ ~10 секунд, иначе оплата сорвётся. Проверяем счёт (наличие, цена, срок) и
+      // отказываем с понятным текстом, ПОКА звёзды ещё не списаны. Если сама проверка упала — не
+      // блокируем оплату (лучше оформить заказ позже, чем потерять платёж), ошибку пишем в лог.
+      let verdict: { ok: boolean; message?: string } = { ok: true };
+      try {
+        verdict = await validateStarsPreCheckout(preCheckout.invoice_payload ?? "", preCheckout.total_amount ?? 0);
+      } catch (err) {
+        console.error("validateStarsPreCheckout error:", err);
+      }
+      await answerPreCheckoutQuery(preCheckout.id, verdict.ok, verdict.ok ? undefined : verdict.message);
+      return NextResponse.json({ ok: true });
+    }
+
+    const callback = update?.callback_query;
+    if (callback) {
+      const chatId: number = callback.message.chat.id;
+      const messageId: number = callback.message.message_id;
+      const data: string = callback.data;
+      const firstName: string = callback.from?.first_name ?? "друг";
+      const username: string | null = callback.from?.username ?? null;
+
+      // Участие в конкурсе — единственный callback с содержательным всплывающим текстом (успех/
+      // ошибка подписки/уже участвует), поэтому отвечаем на него отдельно и сразу выходим — Telegram
+      // не позволяет ответить на один и тот же callback дважды (answerCallbackQuery ниже безусловный).
+      if (data.startsWith("contest_join_")) {
+        const contestId = data.slice("contest_join_".length);
+        try {
+          const replyText = await handleContestJoin(contestId, chatId, firstName, username);
+          await answerCallbackQuery(callback.id, replyText);
+        } catch (err) {
+          // ВАЖНО: раньше исключение здесь долетало до общего catch внизу всей функции, который
+          // просто логирует и отвечает {ok:true} — answerCallbackQuery так и не вызывался, и кнопка
+          // "Участвовать" визуально просто гасла без всплывающего текста и без ошибки (симптом
+          // "кнопка не работает, вообще ничего не происходит"). Теперь при любом сбое пользователь
+          // всё равно получает всплывающее уведомление, а точная причина падения — в логе ниже.
+          console.error("handleContestJoin error:", err);
+          await answerCallbackQuery(callback.id, "Что-то пошло не так, попробуй ещё раз чуть позже.");
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      await answerCallbackQuery(callback.id);
+
+      if (data === "menu_back") {
+        await setBotState(chatId, null);
+        await editTelegramMessage(chatId, messageId, mainMenuText(firstName, username), mainMenuButtons(isAdminChat(chatId)));
+      } else if (data === "menu_feedback") {
+        await setBotState(chatId, null);
+        await editTelegramMessage(chatId, messageId, FEEDBACK_MENU_TEXT, feedbackMenuButtons());
+      } else if (data === "menu_topup") {
+        await setBotState(chatId, "awaiting_topup");
+        await editTelegramMessage(chatId, messageId, TOPUP_INSTRUCTIONS, backOnlyButtons("menu_feedback"));
+      } else if (data === "menu_support") {
+        await setBotState(chatId, "awaiting_support");
+        await editTelegramMessage(chatId, messageId, SUPPORT_INSTRUCTIONS, backOnlyButtons("menu_feedback"));
+      } else if (data === "menu_partnership") {
+        await setBotState(chatId, "awaiting_partnership");
+        await editTelegramMessage(chatId, messageId, PARTNERSHIP_INSTRUCTIONS, backOnlyButtons("menu_back"));
+      } else if (data === "menu_donate") {
+        await setBotState(chatId, "awaiting_donate_amount");
+        await editTelegramMessage(chatId, messageId, DONATE_PROMPT_TEXT, backOnlyButtons("menu_back"));
+      } else if (data === "cmd_balance") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+        } else {
+          await sendTelegramMessage(chatId, await getBalanceMessage(uid));
+        }
+      } else if (data === "cmd_orders") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+        } else {
+          await sendTelegramMessage(chatId, await getRecentOrdersMessage(uid));
+        }
+      } else if (data === "cmd_stars_balance") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+        } else {
+          const uidSnap = await adminDb().collection("users").doc(uid).get();
+          const canWithdraw = (uidSnap.data()?.starsBalance ?? 0) >= MIN_STARS_WITHDRAWAL;
+          await editTelegramMessage(chatId, messageId, await getStarsBalanceMessage(uid), starsBalanceButtons(canWithdraw));
+        }
+      } else if (data === "stars_withdraw_request") {
+        const uid = await findUidByChatId(chatId);
+        if (!uid) {
+          await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту.");
+        } else {
+          const uidSnap = await adminDb().collection("users").doc(uid).get();
+          const nick: string = uidSnap.data()?.displayName ?? firstName;
+          const replyText = await requestStarsWithdrawal(uid, nick);
+          await sendTelegramMessage(chatId, replyText);
+          if (ADMIN_CHAT_ID && replyText.startsWith("✅")) {
+            await sendTelegramMessage(ADMIN_CHAT_ID, `⭐ Новая заявка на вывод Stars от ${nick} — раздел «Заявки на вывод Stars» в админке.`);
+          }
+        }
+      } else if (isAdminChat(chatId)) {
+        // Уведомления с фото редактируются через подпись (caption), а не текст — иначе Telegram вернёт ошибку.
+        const hasPhoto = Array.isArray(callback.message.photo) && callback.message.photo.length > 0;
+        if (data === "admin_menu") {
+          await setBotState(chatId, null);
+          await editTelegramMessage(chatId, messageId, ADMIN_MENU_TEXT, adminMenuButtons());
+        } else if (data === "admin_sell_requests") {
+          await sendPendingSellRequests(chatId);
+        } else if (data === "admin_topups") {
+          await sendPendingTopUps(chatId);
+        } else if (data === "admin_stars_withdrawals") {
+          await sendPendingStarsWithdrawals(chatId);
+        } else if (data === "admin_stickers") {
+          await setBotState(chatId, "admin_awaiting_stickers");
+          await sendTelegramMessage(chatId, STICKER_ADMIN_INSTRUCTIONS);
+        } else if (data.startsWith("stk_")) {
+          await handleStickerCallback(chatId, messageId, data);
+        } else if (data === "admin_promo_menu") {
+          await editTelegramMessage(chatId, messageId, "🎁 Промокоды:", promoMenuButtons());
+        } else if (data === "admin_promo_new") {
+          await setBotState(chatId, "admin_awaiting_promo_create");
+          await sendTelegramMessage(chatId, PROMO_CREATE_INSTRUCTIONS);
+        } else if (data === "admin_promo_list") {
+          await sendActivePromoCodes(chatId);
+        } else if (data === "admin_contest_menu") {
+          await editTelegramMessage(chatId, messageId, CONTEST_MENU_TEXT, contestMenuButtons());
+        } else if (data === "contest_new") {
+          await startContestWizard(chatId);
+        } else if (data === "contest_active_list") {
+          await sendActiveContestsList(chatId);
+        } else if (data.startsWith("contest_color_")) {
+          await handleContestColorChoice(chatId, messageId, data.slice("contest_color_".length));
+        } else if (data.startsWith("sell_approve_")) {
+          await approveSellRequestFromBot(chatId, messageId, data.slice("sell_approve_".length), hasPhoto);
+        } else if (data.startsWith("sell_reject_")) {
+          await rejectSellRequestFromBot(chatId, messageId, data.slice("sell_reject_".length), hasPhoto);
+        } else if (data.startsWith("pedit_approve_")) {
+          await approveProductEditFromBot(chatId, messageId, data.slice("pedit_approve_".length), hasPhoto);
+        } else if (data.startsWith("pedit_reject_")) {
+          await rejectProductEditFromBot(chatId, messageId, data.slice("pedit_reject_".length), hasPhoto);
+        } else if (data.startsWith("ban_ask_")) {
+          await askBanFromBot(chatId, messageId, data.slice("ban_ask_".length), hasPhoto);
+        } else if (data.startsWith("ban_yes_")) {
+          await banFromBot(chatId, messageId, data.slice("ban_yes_".length), hasPhoto);
+        } else if (data.startsWith("ban_no_")) {
+          await cancelBanFromBot(chatId, messageId, data.slice("ban_no_".length), hasPhoto);
+        } else if (data.startsWith("topup_approve_")) {
+          await approveTopUpFromBot(chatId, messageId, data.slice("topup_approve_".length));
+        } else if (data.startsWith("topup_reject_")) {
+          await rejectTopUpFromBot(chatId, messageId, data.slice("topup_reject_".length));
+        } else if (data.startsWith("stars_withdraw_approve_")) {
+          await approveStarsWithdrawalFromBot(chatId, messageId, data.slice("stars_withdraw_approve_".length));
+        } else if (data.startsWith("stars_withdraw_reject_")) {
+          await rejectStarsWithdrawalFromBot(chatId, messageId, data.slice("stars_withdraw_reject_".length));
+        } else if (data.startsWith("promo_deactivate_")) {
+          await deactivatePromoCodeFromBot(chatId, messageId, data.slice("promo_deactivate_".length));
+        }
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    const message = update?.message;
+    if (!message) return NextResponse.json({ ok: true });
+
+    const chatId: number | undefined = message?.chat?.id;
+    if (!chatId) return NextResponse.json({ ok: true });
+
+    if (message.successful_payment) {
+      const totalAmount = message.successful_payment.total_amount;
+      const payload: string = message.successful_payment.invoice_payload ?? "";
+      const firstName: string = message.from?.first_name ?? "друг";
+      const userTag = message.from?.username ? `@${message.from.username}` : `id${chatId}`;
+
+      // Счёт за товар (кнопка "Купить за Telegram Stars" на сайте) — payload вида "stars_<id>".
+      // Отличаем от доната (payload "donate_..."), который просто благодарит и уведомляет админа.
+      if (payload.startsWith("stars_")) {
+        const invoiceId = payload.slice("stars_".length);
+        try {
+          const replyText = await fulfillStarsInvoice(invoiceId, totalAmount, {
+            chargeId: message.successful_payment.telegram_payment_charge_id,
+            payerTgId: message.from?.id,
+          });
+          await sendTelegramMessage(chatId, replyText);
+        } catch (err) {
+          // Платёж не потерян: запись в starsPaymentIssues (там есть charge id для ручного возврата),
+          // а Telegram-вебхук повторит update — fulfillStarsInvoice идемпотентна.
+          await logStarsIssue({
+            type: "fulfill-exception",
+            invoiceId,
+            starsAmount: totalAmount,
+            chargeId: message.successful_payment.telegram_payment_charge_id ?? null,
+            payerTgId: message.from?.id ?? null,
+            error: String((err as any)?.message ?? err),
+          });
+          // Деньги Telegram уже списал — молчать нельзя ни при какой ошибке, иначе покупатель
+          // заплатил, а заказа не увидит и не поймёт, что случилось.
+          console.error("fulfillStarsInvoice error:", err);
+          await sendTelegramMessage(
+            chatId,
+            `Оплата ${totalAmount} ⭐ прошла, но при оформлении заказа произошла ошибка. Напиши в поддержку на сайте — разберёмся и оформим вручную.`
+          );
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      await sendTelegramMessage(chatId, `Спасибо за поддержку — ${totalAmount} ⭐! 💫`);
+      if (ADMIN_CHAT_ID) {
+        await sendTelegramMessage(ADMIN_CHAT_ID, `💫 Донат от ${firstName} (${userTag}): ${totalAmount} ⭐`);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // Фото для поста конкурса (см. lib/telegramContests.ts → handleContestPhotoStep) — приходит
+    // без message.text, поэтому обрабатывается отдельной веткой ДО общей проверки на текст ниже,
+    // иначе такое сообщение молча терялось бы.
+    if (message.photo && isAdminChat(chatId)) {
+      const mode = await getBotState(chatId);
+      if (mode === "admin_contest_photo") {
+        // Telegram присылает несколько размеров одного фото — берём последний (самый большой).
+        const largest = message.photo[message.photo.length - 1];
+        await handleContestPhotoStep(chatId, largest.file_id, false);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    // Админ прислал стикер — берём весь его набор в MiliGram.
+    if (isAdminChat(chatId) && typeof message.sticker?.set_name === "string") {
+      await setBotState(chatId, null);
+      await importStickerSetFromBot(chatId, message.sticker.set_name, message.caption ?? "");
+      return NextResponse.json({ ok: true });
+    }
+
+    const text: string | undefined = message?.text;
+    if (!text) return NextResponse.json({ ok: true });
+
+    const firstName: string = message?.from?.first_name ?? "друг";
+    const telegramUsername: string | null = message?.from?.username ?? null;
+
+    if (isAdminChat(chatId) && message.reply_to_message) {
+      const mapping = await findForwardedMessage(message.reply_to_message.message_id);
+      if (mapping) {
+        await sendTelegramMessage(mapping.chatId, `💬 Ответ от ${SITE_NAME}:\n\n${text}`);
+        await sendTelegramMessage(chatId, `✅ Отправлено пользователю ${mapping.userTag}`);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    if (isAdminChat(chatId) && !text.startsWith("/")) {
+      const stickerSet = parseStickerSetName(text);
+      if (stickerSet) {
+        await setBotState(chatId, null);
+        await importStickerSetFromBot(chatId, stickerSet, text);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    if (text.startsWith("/start")) {
+      const parts = text.trim().split(/\s+/);
+      const code = parts[1];
+
+      // Диплинк с кнопки "Участвовать" под постом конкурса: t.me/bot?start=contest_<id>.
+      // Раньше это была callback_data-кнопка, ответ на которую Telegram показывал мимолётным
+      // тостом поверх канала — часть пользователей его просто не замечала, из-за чего казалось,
+      // что кнопка не работает. Теперь это открывает чат с ботом, и результат (успех или точная
+      // причина ошибки — например, "сначала подключи аккаунт") приходит обычным сообщением.
+      if (code?.startsWith("contest_")) {
+        const contestId = code.slice("contest_".length);
+        try {
+          const replyText = await handleContestJoin(contestId, chatId, firstName, telegramUsername);
+          await sendTelegramMessage(chatId, replyText, backOnlyButtons("menu_back"));
+        } catch (err) {
+          console.error("handleContestJoin error (deep-link):", err);
+          await sendTelegramMessage(chatId, "Что-то пошло не так, попробуй ещё раз чуть позже.", backOnlyButtons("menu_back"));
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      const handled = code ? await handleAccountLinking(code, chatId, telegramUsername) : false;
+      if (!handled) {
+        await setBotState(chatId, null);
+        await sendMainMenu(chatId, firstName, telegramUsername);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (text.startsWith("/admin")) {
+      if (!isAdminChat(chatId)) return NextResponse.json({ ok: true });
+      await setBotState(chatId, null);
+      await sendTelegramMessage(chatId, ADMIN_MENU_TEXT, adminMenuButtons());
+      return NextResponse.json({ ok: true });
+    }
+
+    if (text.startsWith("/balance") || text.startsWith("/orders")) {
+      const uid = await findUidByChatId(chatId);
+      if (!uid) {
+        await sendTelegramMessage(chatId, "Твой Telegram ещё не привязан к аккаунту. Зайди на сайт в «Безопасность» → «Подключить Telegram».");
+      } else if (text.startsWith("/balance")) {
+        await sendTelegramMessage(chatId, await getBalanceMessage(uid));
+      } else {
+        await sendTelegramMessage(chatId, await getRecentOrdersMessage(uid));
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    const mode = await getBotState(chatId);
+    const userTag = telegramUsername ? `@${telegramUsername}` : `id${chatId}`;
+
+    if (mode === "admin_awaiting_promo_create" && isAdminChat(chatId)) {
+      const reply = await createPromoCodeFromText(text);
+      await sendTelegramMessage(chatId, reply);
+      await setBotState(chatId, null);
+    } else if (mode === "admin_awaiting_stickers" && isAdminChat(chatId)) {
+      const stickerSet = parseStickerSetName(text, true);
+      if (!stickerSet) {
+        await sendTelegramMessage(chatId, STICKER_ADMIN_INSTRUCTIONS);
+      } else {
+        await setBotState(chatId, null);
+        await importStickerSetFromBot(chatId, stickerSet, text);
+      }
+    } else if (mode === "admin_contest_winners" && isAdminChat(chatId)) {
+      await handleContestWinnersStep(chatId, text);
+    } else if (mode === "admin_contest_photo" && isAdminChat(chatId)) {
+      // Сюда попадаем только если это НЕ фото (см. отдельную ветку message.photo выше) — то есть
+      // ожидаем текстовое "пропустить", любой другой текст просим прислать фото или пропустить явно.
+      if (text.trim().toLowerCase().includes("пропустить")) {
+        await handleContestPhotoStep(chatId, null, true);
+      } else {
+        await sendTelegramMessage(chatId, "Пришли фото или напиши «пропустить».");
+      }
+    } else if (mode === "admin_contest_text" && isAdminChat(chatId)) {
+      await handleContestTextStep(chatId, text);
+    } else if (mode === "admin_contest_button_text" && isAdminChat(chatId)) {
+      await handleContestButtonTextStep(chatId, text);
+    } else if (mode === "admin_contest_channel" && isAdminChat(chatId)) {
+      await handleContestChannelStep(chatId, text);
+    } else if (mode === "awaiting_donate_amount") {
+      const amount = Number(text.trim());
+      if (!Number.isInteger(amount) || amount < DONATE_MIN || amount > DONATE_MAX) {
+        await sendTelegramMessage(chatId, `Введи целое число от ${DONATE_MIN} до ${DONATE_MAX}.`);
+        return NextResponse.json({ ok: true });
+      }
+      await sendInvoice(chatId, "Поддержка проекта", `Донат ${SITE_NAME} — ${amount} ⭐`, `donate_${chatId}_${Date.now()}`, amount);
+      await setBotState(chatId, null);
+    } else if (mode === "awaiting_topup") {
+      await forwardToAdmin("topup", chatId, firstName, userTag, text);
+      await sendTelegramMessage(chatId, "Спасибо! Администратор скоро свяжется с тобой.", backOnlyButtons("menu_back"));
+      await setBotState(chatId, null);
+    } else if (mode === "awaiting_support") {
+      await forwardToAdmin("support", chatId, firstName, userTag, text);
+      await sendTelegramMessage(chatId, "Обращение принято, администратор скоро ответит.", backOnlyButtons("menu_back"));
+      await setBotState(chatId, null);
+    } else if (mode === "awaiting_partnership" || text.trim().toLowerCase().includes(PARTNERSHIP_TRIGGER)) {
+      await forwardToAdmin("partnership", chatId, firstName, userTag, text);
+      await sendTelegramMessage(chatId, "Заявка на сотрудничество отправлена. Ожидай ответа администратора.", backOnlyButtons("menu_back"));
+      await setBotState(chatId, null);
+    } else {
+      await sendMainMenu(chatId, firstName, telegramUsername);
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Telegram webhook error:", err);
+    return NextResponse.json({ ok: true });
+  }
+}

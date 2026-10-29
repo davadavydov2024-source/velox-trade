@@ -5,6 +5,7 @@ import { Bookmark, Check, Megaphone, Search, Users, UserRound, X } from "lucide-
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { cacheAccounts } from "./hooks";
 import { MAccount, MChatType } from "./mtypes";
 import { lastSeenText } from "./util";
@@ -44,13 +45,13 @@ export function PersonRow({ acc, selected, onPress, right }: { acc: MAccount; se
       <Avatar src={acc.photoURL} name={acc.displayName} seed={acc.uid} size={46} />
       <div className="min-w-0 flex-1">
         <p className="font-medium truncate flex items-center gap-1">
-          {acc.displayName} {acc.verified && <VerifiedBadge />}
+          {acc.displayName} {acc.verified && <VerifiedBadge />}<StatusBadge acc={acc} />
         </p>
-        <p className="text-[13px] vc-muted truncate">@{acc.handle} · {lastSeenText(acc)}</p>
+        <p className="text-[13px] mx-muted truncate">@{acc.handle} · {lastSeenText(acc)}</p>
       </div>
       {selected !== undefined && (
-        <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected ? "var(--vc-accent)" : "var(--vc-muted)", background: selected ? "var(--vc-accent)" : "transparent" }}>
-          {selected && <Check size={14} color="var(--vc-accent-text)" />}
+        <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected ? "var(--mx-accent)" : "var(--mx-muted)", background: selected ? "var(--mx-accent)" : "transparent" }}>
+          {selected && <Check size={14} color="var(--mx-accent-text)" />}
         </span>
       )}
       {right}
@@ -146,29 +147,29 @@ export function NewChatSheet({ open, onClose, me, myHandle, onOpenChat }: { open
             { m: "channel" as const, icon: <Megaphone size={22} />, label: "Создать канал", color: "#ff9500" },
           ].map((i) => (
             <button key={i.m} onClick={() => setMode(i.m)} className="w-full flex items-center gap-3.5 px-5 py-3.5 text-left active:bg-white/5">
-              <span className="vc-icon-box" style={{ background: i.color, width: 38, height: 38, borderRadius: 11 }}>{i.icon}</span>
+              <span className="mx-icon-box" style={{ background: i.color, width: 38, height: 38, borderRadius: 11 }}>{i.icon}</span>
               <span className="text-[16px]">{i.label}</span>
             </button>
           ))}
         </div>
       ) : step === "details" ? (
         <div className="p-4 space-y-3 pb-8">
-          <input className="vc-input" placeholder={mode === "group" ? "Название группы" : "Название канала"} value={title} maxLength={64} onChange={(e) => setTitle(e.target.value)} autoFocus />
-          <textarea className="vc-input" placeholder="Описание (необязательно)" value={description} maxLength={300} rows={3} onChange={(e) => setDescription(e.target.value)} />
+          <input className="mx-input" placeholder={mode === "group" ? "Название группы" : "Название канала"} value={title} maxLength={64} onChange={(e) => setTitle(e.target.value)} autoFocus />
+          <textarea className="mx-input" placeholder="Описание (необязательно)" value={description} maxLength={300} rows={3} onChange={(e) => setDescription(e.target.value)} />
           {mode === "channel" && (
-            <input className="vc-input" placeholder="@адрес — чтобы канал был публичным (необязательно)" value={chHandle} maxLength={24} autoCapitalize="none" onChange={(e) => setChHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+            <input className="mx-input" placeholder="@адрес — чтобы канал был публичным (необязательно)" value={chHandle} maxLength={24} autoCapitalize="none" onChange={(e) => setChHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
           )}
-          <p className="vc-muted text-[13px]">{picked.length} {picked.length === 1 ? "участник" : "участников"} кроме вас</p>
-          <button className="vc-btn" disabled={busy || title.trim().length < 2} onClick={() => create(mode === "group" ? "group" : "channel", picked.map((p) => p.handle))}>
+          <p className="mx-muted text-[13px]">{picked.length} {picked.length === 1 ? "участник" : "участников"} кроме вас</p>
+          <button className="mx-btn" disabled={busy || title.trim().length < 2} onClick={() => create(mode === "group" ? "group" : "channel", picked.map((p) => p.handle))}>
             {busy ? "Создаю…" : mode === "group" ? "Создать группу" : "Создать канал"}
           </button>
-          <button className="vc-btn vc-btn-ghost" onClick={() => setStep("pick")}>Назад</button>
+          <button className="mx-btn mx-btn-ghost" onClick={() => setStep("pick")}>Назад</button>
         </div>
       ) : (
         <div className="pb-24">
           <div className="px-4 pb-2">
-            <div className="flex items-center gap-2 rounded-xl px-3 h-10" style={{ background: "var(--vc-surface2)" }}>
-              <Search size={17} className="vc-muted" />
+            <div className="flex items-center gap-2 rounded-xl px-3 h-10" style={{ background: "var(--mx-surface2)" }}>
+              <Search size={17} className="mx-muted" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Имя или @username" className="bg-transparent outline-none flex-1 text-[16px]" autoFocus autoCapitalize="none" />
               {loading && <Spinner size={16} />}
             </div>
@@ -176,7 +177,7 @@ export function NewChatSheet({ open, onClose, me, myHandle, onOpenChat }: { open
           {mode !== "dm" && picked.length > 0 && (
             <div className="flex flex-wrap gap-2 px-4 pb-2">
               {picked.map((p) => (
-                <button key={p.uid} onClick={() => togglePick(p)} className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full text-[13px]" style={{ background: "var(--vc-surface2)" }}>
+                <button key={p.uid} onClick={() => togglePick(p)} className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full text-[13px]" style={{ background: "var(--mx-surface2)" }}>
                   <Avatar src={p.photoURL} name={p.displayName} seed={p.uid} size={22} /> {p.displayName.split(" ")[0]} <X size={13} />
                 </button>
               ))}
@@ -188,8 +189,8 @@ export function NewChatSheet({ open, onClose, me, myHandle, onOpenChat }: { open
               <span className="font-medium">Избранное</span>
             </button>
           )}
-          {q.trim().length < 2 && <p className="vc-muted text-center py-8 text-[14px] px-8">Введи минимум 2 символа, чтобы найти человека по @username или публичный канал.</p>}
-          {q.trim().length >= 2 && !loading && people.length === 0 && <p className="vc-muted text-center py-8">Никого не найдено</p>}
+          {q.trim().length < 2 && <p className="mx-muted text-center py-8 text-[14px] px-8">Введи минимум 2 символа, чтобы найти человека по @username или публичный канал.</p>}
+          {q.trim().length >= 2 && !loading && people.length === 0 && <p className="mx-muted text-center py-8">Никого не найдено</p>}
           {people.map((a) =>
             mode === "dm" ? (
               <PersonRow key={a.uid} acc={a} onPress={() => !busy && create("dm", [a.handle])} />
@@ -197,16 +198,16 @@ export function NewChatSheet({ open, onClose, me, myHandle, onOpenChat }: { open
               <PersonRow key={a.uid} acc={a} selected={picked.some((x) => x.uid === a.uid)} onPress={() => togglePick(a)} />
             )
           )}
-          {mode === "dm" && channels.length > 0 && <p className="vc-muted text-[13px] uppercase tracking-wide px-5 pt-3 pb-1">Каналы</p>}
+          {mode === "dm" && channels.length > 0 && <p className="mx-muted text-[13px] uppercase tracking-wide px-5 pt-3 pb-1">Каналы</p>}
           {mode === "dm" && channels.map((c) => (
             <button key={c.chatId} disabled={busy} onClick={() => joinChannel(c.handle)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-white/5">
               <Avatar src={c.photoURL} name={c.title} seed={c.chatId} size={46} />
-              <div className="min-w-0 flex-1"><p className="font-medium truncate">{c.title}</p><p className="text-[13px] vc-muted truncate">@{c.handle} · {c.subscribers} подписчиков · нажми, чтобы подписаться</p></div>
+              <div className="min-w-0 flex-1"><p className="font-medium truncate">{c.title}</p><p className="text-[13px] mx-muted truncate">@{c.handle} · {c.subscribers} подписчиков · нажми, чтобы подписаться</p></div>
             </button>
           ))}
           {mode !== "dm" && (
-            <div className="fixed-bottom sticky bottom-0 p-4" style={{ background: "linear-gradient(transparent, var(--vc-surface) 35%)" }}>
-              <button className="vc-btn" disabled={mode === "group" && picked.length === 0} onClick={() => setStep("details")}>
+            <div className="fixed-bottom sticky bottom-0 p-4" style={{ background: "linear-gradient(transparent, var(--mx-surface) 35%)" }}>
+              <button className="mx-btn" disabled={mode === "group" && picked.length === 0} onClick={() => setStep("details")}>
                 Далее{picked.length ? ` (${picked.length})` : ""}
               </button>
             </div>

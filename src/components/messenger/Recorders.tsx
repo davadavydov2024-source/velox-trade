@@ -162,13 +162,7 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
   const [result, setResult] = useState<{ url: string; video: RecordedVideo } | null>(null);
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
-  useEffect(() => setTarget(document.getElementById("vc-root")), []);
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  });
+  useEffect(() => setTarget(document.getElementById("mx-root")), []);
 
   const openCamera = useCallback(async (mode: "user" | "environment") => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -260,11 +254,12 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
   };
 
   if (!target) return null;
-  const SIZE = 280;
+  // размер кружка подстраивается под экран — раньше фиксированные 280 px вылезали на узких телефонах
+  const SIZE = Math.max(180, Math.min(280, (typeof window !== "undefined" ? Math.min(window.innerWidth - 56, window.innerHeight - 260) : 280)));
   const r = SIZE / 2 + 8;
   const c = 2 * Math.PI * r;
   return createPortal(
-    <div className="absolute inset-0 flex flex-col items-center justify-center vc-fade" style={{ zIndex: 70, background: "rgba(0,0,0,0.92)" }}>
+    <div className="absolute inset-0 flex flex-col items-center justify-center mx-fade" style={{ zIndex: 70, background: "rgba(0,0,0,0.92)" }}>
       <button onClick={close} className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: "rgba(255,255,255,0.14)", marginTop: "env(safe-area-inset-top)" }} aria-label="Закрыть">
         <X size={22} />
       </button>
@@ -277,7 +272,7 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
             <svg className="absolute inset-0 -rotate-90" width={SIZE + 24} height={SIZE + 24}>
               <circle cx={(SIZE + 24) / 2} cy={(SIZE + 24) / 2} r={r - 4} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={4} />
               {recording && (
-                <circle cx={(SIZE + 24) / 2} cy={(SIZE + 24) / 2} r={r - 4} fill="none" stroke="var(--vc-accent)" strokeWidth={4} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - seconds / MAX_NOTE_SEC)} />
+                <circle cx={(SIZE + 24) / 2} cy={(SIZE + 24) / 2} r={r - 4} fill="none" stroke="var(--mx-accent)" strokeWidth={4} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - seconds / MAX_NOTE_SEC)} />
               )}
             </svg>
             <div className="absolute rounded-full overflow-hidden bg-black" style={{ inset: 12 }}>
@@ -296,7 +291,7 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
                 <button onClick={retake} className="w-12 h-12 rounded-full flex items-center justify-center text-white" style={{ background: "rgba(255,255,255,0.14)" }} aria-label="Переснять">
                   <RefreshCcw size={20} />
                 </button>
-                <button onClick={() => onSend(result.video)} className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "var(--vc-accent)", color: "var(--vc-accent-text)" }} aria-label="Отправить">
+                <button onClick={() => onSend(result.video)} className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }} aria-label="Отправить">
                   <Send size={26} />
                 </button>
               </>
@@ -306,7 +301,7 @@ export function VideoNoteRecorder({ onCancel, onSend }: { onCancel: () => void; 
                 <button
                   onClick={recording ? stopRecording : startRecording}
                   className="w-16 h-16 rounded-full flex items-center justify-center"
-                  style={{ background: recording ? "#fff" : "var(--vc-danger)" }}
+                  style={{ background: recording ? "#fff" : "var(--mx-danger)" }}
                   aria-label={recording ? "Остановить" : "Записать"}
                 >
                   {recording ? <Check size={28} color="#000" /> : <span className="w-6 h-6 rounded-full bg-white" />}

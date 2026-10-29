@@ -133,7 +133,7 @@ export async function importTelegramStickerSet(opts: { name: string; createdBy: 
     const stickers = results.filter((r): r is { url: string; emoji: string; thumb?: string } => !!r);
     if (stickers.length === 0) return { ok: false, error: "Не удалось скачать стикеры из этого набора" };
     const now = Date.now();
-    const pack: MessengerStickerPack = {
+    const pack = {
       slug,
       title: String(set.title ?? name).slice(0, 60),
       // набор с премиум-эффектами Telegram по умолчанию делаем «только для Mili Premium» — админ может переключить кнопкой в боте
@@ -144,7 +144,7 @@ export async function importTelegramStickerSet(opts: { name: string; createdBy: 
       tgName: name,
       createdAt: now,
       updatedAt: now,
-    };
+    } as MessengerStickerPack;
     await db.collection("messengerStickerPacks").doc(slug).set(pack);
     return { ok: true, pack, reused: false, animated: stickers.filter((s) => /\.(webm|json)$/i.test(s.url)).length, skipped: items.length - stickers.length, premiumEffects };
   } finally {

@@ -1,0 +1,397 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useAuth } from "@/lib/authContext";
+import { Wallet, ShieldCheck, User, Save, Copy, ShoppingBag, Star, CalendarDays, Mail, MessageCircle, CheckCircle2, Plus, Tag, Crown, Sparkles } from "lucide-react";
+import { updateProfileInfo, getOrdersForUser } from "@/lib/users";
+import { getTelegramLink } from "@/lib/telegramLink";
+import { claimUsername, isUsernameAvailable, usernameFormatError } from "@/lib/usernames";
+import { useToast } from "@/lib/toastContext";
+import { isValidImageSrc, safeImageSrc } from "@/lib/safeImage";
+import { NAME_CHANGE_COOLDOWN_MS, BADGE_COLOR, BADGE_LABEL, CHECKMARK_BADGES } from "@/types";
+import { ImageUploadField } from "@/components/ImageUploadField";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { StyledNickname } from "@/components/StyledNickname";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { PayoutHoldCard } from "@/components/PayoutHoldCard";
+import { useMyPayouts } from "@/lib/payoutsClient";
+import { isAdminUid } from "@/lib/users";
+
+function cooldownLeft(lastChangeAt?: number): number {
+  if (!lastChangeAt) return 0;
+  return Math.max(0, lastChangeAt + NAME_CHANGE_COOLDOWN_MS - Date.now());
+}
+
+function formatDays(ms: number): string {
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+  return `${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
+}
+
+export default function ProfilePage() {
+  const { profile, user, refreshProfile } = useAuth();
+  const payouts = useMyPayouts();
+  const { toast } = useToast();
+  const [name, setName] = useState(profile?.displayName ?? "");
+  const [username, setUsername] = useState(profile?.username ?? "");
+  const [bio, setBio] = useState(profile?.bio ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(profile?.photoURL ?? "");
+  const [saving, setSaving] = useState(false);
+  const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
+  const [tgLinked, setTgLinked] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getTelegramLink(user.uid)
+      .then((l) => setTgLinked(!!l))
+      .catch(() => setTgLinked(null));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    getOrdersForUser(user.uid)
+      .then((orders) => setPurchaseCount(orders.filter((o) => o.status === "confirmed").length))
+      .catch(() => setPurchaseCount(null));
+  }, [user]);
+
+  // Рейтинг в своём профиле берётся из сохранённых счётчиков, которые могли отстать от реальных
+  // отзывов. Запрос профиля через сервер пересчитывает их по отзывам — после этого перечитываем свой.
+  useEffect(() => {
+    if (!user) return;
+    fetch(`/api/public-profile?uid=${encodeURIComponent(user.uid)}`)
+      .then(() => refreshProfile())
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
+  if (!profile || !user) return null;
+
+  const nameCooldown = cooldownLeft(profile.lastNameChangeAt);
+  const avatarCooldown = cooldownLeft(profile.lastAvatarChangeAt);
+  const avgRating = profile.ratingCount ? (profile.ratingSum ?? 0) / profile.ratingCount : null;
+  const isAdmin = isAdminUid(user.uid);
+  const hasStars = (profile.starsBalance ?? 0) > 0;
+  const checkmarks = profile.badges.filter((b) => CHECKMARK_BADGES.includes(b));
+  const otherBadges = profile.badges.filter((b) => !CHECKMARK_BADGES.includes(b));
+  const memberSince = new Date(profile.createdAt).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  // Кнопка "Сохранить" активна только когда что-то реально изменилось — раньше она была всегда
+  // нажата и непонятно было, есть ли что сохранять.
+  const dirty =
+    name.trim() !== profile.displayName ||
+    username.trim().toLowerCase() !== (profile.username ?? "") ||
+    avatarUrl !== (profile.photoURL ?? "") ||
+    bio !== (profile.bio ?? "");
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const trimmedName = name.trim();
+      const nameChanged = trimmedName !== profile!.displayName;
+      // Раньше здесь проверки не было вообще — если ввести один пробел (или несколько), trim() даёт
+      // пустую строку, но она всё равно проходила как "новое имя", и профиль оставался с пустым
+      // именем без единой ошибки. Теперь пустое/слишком короткое имя (после trim) не сохраняется.
+      if (nameChanged && trimmedName.length < 2) {
+        toast("warning", "Имя не может быть пустым — минимум 2 символа");
+        setSaving(false);
+        return;
+      }
+      if (nameChanged && trimmedName.length > 20) {
+        toast("warning", "Имя слишком длинное — максимум 20 символов");
+        setSaving(false);
+        return;
+      }
+
+      if (profile!.username && !username.trim()) {
+        toast("warning", "Юзернейм обязателен — его можно изменить, но нельзя убрать");
+        setSaving(false);
+        return;
+      }
+      const usernameChanged = username.trim().toLowerCase() !== (profile!.username ?? "");
+      if (usernameChanged && username.trim()) {
+        const formatErr = usernameFormatError(username);
+        if (formatErr) {
+          toast("warning", formatErr);
+          setSaving(false);
+          return;
+        }
+        const available = await isUsernameAvailable(username);
+        if (!available) {
+          toast("warning", "Этот юзернейм уже занят");
+          setSaving(false);
+          return;
+        }
+      }
+
+      const avatarChanged = avatarUrl !== (profile!.photoURL ?? "");
+      if (avatarChanged && avatarUrl && !isValidImageSrc(avatarUrl)) {
+        toast("warning", "Ссылка на аватар должна начинаться с http:// или https://");
+        setSaving(false);
+        return;
+      }
+
+      // Сначала резервируем новый юзернейм (и освобождаем старый), потом пишем сам профиль —
+      // если резервирование не удастся (например, кто-то успел занять его первым), профиль не тронется.
+      if (usernameChanged && username.trim()) {
+        await claimUsername(user!.uid, username.trim(), profile!.username);
+      }
+
+      await updateProfileInfo(user!.uid, profile!, {
+        displayName: nameChanged ? trimmedName : undefined,
+        photoURL: avatarChanged ? avatarUrl.trim() || null : undefined,
+        bio,
+        username: usernameChanged && username.trim() ? username.trim().toLowerCase() : undefined,
+      });
+
+      await refreshProfile();
+      toast("success", "Профиль обновлён");
+    } catch (err: any) {
+      if (err?.code === "name-cooldown" || err?.code === "avatar-cooldown" || err?.code === "invalid-name") {
+        toast("error", err.message);
+      } else if (err?.code === "permission-denied") {
+        toast("error", "Нет доступа к базе данных. Проверь правила Firestore.");
+      } else {
+        toast("error", "Не удалось сохранить изменения");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <OnboardingChecklist />
+      <div className="card overflow-hidden">
+        {/* Обложка. На своём профиле у каждого есть кнопки «Добавить/Сменить баннер». */}
+        <ProfileBanner
+          url={profile.bannerURL}
+          editable
+          onChange={() => refreshProfile()}
+          className="h-32 sm:h-44"
+        />
+
+        <div className="px-5 sm:px-6 pb-6 -mt-12 sm:-mt-14 relative">
+          <div className="flex items-end gap-4 flex-wrap sm:flex-nowrap">
+            <div className="relative shrink-0">
+              {/* Мягкое свечение в цвет акцента за аватаром */}
+              <div className="absolute inset-0 rounded-full bg-accent/40 blur-xl scale-110" />
+              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-surface ring-4 ring-bg shadow-[0_0_0_2px_var(--color-accent)]">
+                <Image src={safeImageSrc(profile.photoURL, "/placeholder.svg")} alt={profile.displayName} fill className="object-cover" sizes="112px" />
+              </div>
+              <span className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-green-400 border-[3px] border-bg" title="В сети" />
+            </div>
+
+            <div className="flex-1 min-w-0 pb-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="text-2xl font-extrabold leading-tight">
+                  <StyledNickname name={profile.displayName} nameColor={profile.nameColor} nameFont={profile.nameFont} />
+                </h1>
+                {checkmarks.map((b) => (
+                  <ShieldCheck key={b} size={19} style={{ color: BADGE_COLOR[b] }} aria-label={BADGE_LABEL[b]} />
+                ))}
+                {isAdmin && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400/20 to-accent/20 text-amber-300 border border-amber-400/30">
+                    <Crown size={11} /> Админ
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <span className="text-sm text-white/45">{profile.username ? `@${profile.username}` : "Юзернейм не задан"}</span>
+                <span className="text-white/15">•</span>
+                <span className="flex items-center gap-1 text-xs text-white/40">
+                  <CalendarDays size={12} /> с {memberSince}
+                </span>
+              </div>
+            </div>
+
+            {profile.username && (
+              <div className="flex items-center gap-2 sm:pb-1 w-full sm:w-auto">
+                <Link href={`/seller/${profile.username}`} className="btn-secondary px-3.5 py-2 text-xs flex-1 sm:flex-none text-center">
+                  Как видят другие
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const link = `${window.location.origin}/seller/${profile.username}`;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ title: "Мой профиль", url: link });
+                      } catch {
+                        // Пользователь закрыл системное окно "Поделиться" — это не ошибка
+                      }
+                    } else {
+                      navigator.clipboard.writeText(link);
+                      toast("success", "Ссылка на профиль скопирована");
+                    }
+                  }}
+                  className="btn-secondary px-3 py-2 text-xs flex items-center gap-1.5"
+                  aria-label="Поделиться профилем"
+                >
+                  <Copy size={13} /> <span className="hidden sm:inline">Поделиться</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {profile.bio && <p className="text-sm text-white/60 mt-4 leading-relaxed">{profile.bio}</p>}
+
+          {otherBadges.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {otherBadges.map((b) => (
+                <span
+                  key={b}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                  style={{ background: `${BADGE_COLOR[b]}22`, color: BADGE_COLOR[b], boxShadow: `inset 0 0 0 1px ${BADGE_COLOR[b]}33` }}
+                >
+                  {BADGE_LABEL[b]}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className={`grid gap-3 mt-5 grid-cols-2 sm:grid-cols-4 ${hasStars ? "lg:grid-cols-5" : ""}`}>
+            <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30">
+              <Wallet size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold text-accent leading-none">{profile.balance.toFixed(0)} ₽</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Баланс</p>
+            </div>
+            <Link
+              href="/profile/stars"
+              className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/15 to-yellow-400/[0.03] border border-yellow-400/25 hover:border-yellow-400/50 transition-colors"
+            >
+              <Sparkles size={15} className="text-yellow-300 mb-2" />
+              <p className="text-xl font-extrabold text-yellow-300 leading-none">{profile.starsWallet ?? 0} ⭐</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Баланс ⭐ · пополнить</p>
+            </Link>
+            {hasStars && (
+              <div className="relative overflow-hidden rounded-card p-3.5 bg-gradient-to-br from-yellow-400/10 to-yellow-400/[0.02] border border-yellow-400/15">
+                <Sparkles size={15} className="text-yellow-300 mb-2" />
+                <p className="text-xl font-extrabold text-yellow-300 leading-none">{profile.starsBalance} ⭐</p>
+                <p className="text-[11px] text-white/45 mt-1.5">Stars с продаж</p>
+              </div>
+            )}
+            <div className="rounded-card p-3.5 bg-white/[0.03] border border-white/[0.06]">
+              <ShoppingBag size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold leading-none">{purchaseCount ?? "—"}</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Покупок</p>
+            </div>
+            <div className="rounded-card p-3.5 bg-white/[0.03] border border-white/[0.06]">
+              <Star size={15} className="text-accent mb-2" />
+              <p className="text-xl font-extrabold leading-none">{avgRating !== null ? avgRating.toFixed(1) : "—"}</p>
+              <p className="text-[11px] text-white/45 mt-1.5">Рейтинг {profile.ratingCount ? `(${profile.ratingCount})` : ""}</p>
+            </div>
+          </div>
+
+          {payouts && (payouts.escrowTotal > 0 || payouts.holdingTotal > 0) && (
+            <div className="mt-4">
+              <PayoutHoldCard data={payouts} />
+            </div>
+          )}
+
+          {tgLinked !== null && (
+            <Link
+              href="/profile/security"
+              className={`mt-4 flex items-center gap-2.5 px-3.5 py-2.5 rounded-btn text-xs transition-colors ${
+                tgLinked
+                  ? "bg-green-500/[0.07] border border-green-500/20 text-green-400/90 hover:bg-green-500/10"
+                  : "bg-yellow-500/[0.07] border border-yellow-500/25 text-yellow-300/90 hover:bg-yellow-500/10"
+              }`}
+            >
+              {tgLinked ? <CheckCircle2 size={15} className="shrink-0" /> : <MessageCircle size={15} className="shrink-0" />}
+              <span className="flex-1">
+                {tgLinked
+                  ? "Telegram подключён — уведомления и вход по коду работают"
+                  : "Telegram не подключён — подключи, чтобы получать уведомления о сделках и входить по коду"}
+              </span>
+              {!tgLinked && <span className="font-semibold shrink-0">Подключить →</span>}
+            </Link>
+          )}
+
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <Link href="/profile/topup" className="btn-primary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+              <Plus size={15} strokeWidth={3} /> Пополнить
+            </Link>
+            <Link href="/profile/orders" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+              <ShoppingBag size={15} /> Заказы
+            </Link>
+            <Link href="/profile/sell" className="btn-secondary px-3 py-2.5 text-sm flex items-center justify-center gap-1.5">
+              <Tag size={15} /> Продать
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSaveProfile} className="card p-6 space-y-4">
+        <h2 className="font-bold flex items-center gap-2">
+          <User size={18} className="text-accent" /> Редактировать профиль
+        </h2>
+        {!profile.username && (
+          <p className="text-xs text-white/30">Придумай имя пользователя ниже, чтобы получить ссылку на свой профиль, которой можно делиться.</p>
+        )}
+
+        <div>
+          <ImageUploadField
+            value={avatarUrl ?? ""}
+            onChange={setAvatarUrl}
+            folder="avatars"
+            label="Аватар"
+            shape="round"
+            size={80}
+            disabled={avatarCooldown > 0}
+          />
+          {avatarCooldown > 0 ? (
+            <p className="text-[11px] text-yellow-400/70 mt-1.5">Следующая смена доступна через {formatDays(avatarCooldown)}</p>
+          ) : (
+            <p className="text-[11px] text-white/30 mt-1.5">Менять можно раз в 7 дней</p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block">Ник</label>
+          <input
+            autoComplete="off"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={nameCooldown > 0}
+            className="input-field py-2.5 disabled:opacity-40"
+          />
+          {nameCooldown > 0 && (
+            <p className="text-[11px] text-yellow-400/70 mt-1">Следующая смена доступна через {formatDays(nameCooldown)}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block">Юзернейм (для ссылки на профиль продавца)</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">@</span>
+            <input
+              autoComplete="off"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              placeholder="my_nickname"
+              className="input-field py-2.5 pl-7"
+            />
+          </div>
+          <p className="text-[11px] text-white/30 mt-1">3-20 символов: латиница, цифры, подчёркивание. Без недельного лимита.</p>
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block">О себе (необязательно)</label>
+          <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={2} className="input-field py-2.5" />
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 mb-1 block flex items-center gap-1.5">
+            <Mail size={12} /> Email
+          </label>
+          <p className="text-sm text-white/60">{profile.email}</p>
+        </div>
+
+        <button disabled={saving || !dirty} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+          <Save size={15} /> {saving ? "Сохраняем..." : dirty ? "Сохранить" : "Нет изменений"}
+        </button>
+      </form>
+    </div>
+  );
+}

@@ -1,0 +1,54 @@
+/* Лёгкая «шлифовка» сайта Velox Trade: только мягкие улучшения поверх существующих стилей (ничего не ломает) */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+::selection {
+  background: color-mix(in srgb, var(--color-accent, #ff9800) 45%, transparent);
+  color: #fff;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent, #ff9800);
+  outline-offset: 2px;
+}
+
+/* карточки и кнопки: плавные переходы и мягкое свечение */
+.card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+a.card:hover,
+button.card:hover {
+  border-color: color-mix(in srgb, var(--color-accent, #ff9800) 35%, transparent);
+}
+.btn-primary {
+  box-shadow: 0 8px 22px -10px var(--color-accent, #ff9800);
+}
+.btn-primary:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 10px 26px -10px var(--color-accent, #ff9800);
+}
+.btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--color-accent, #ff9800) 40%, transparent);
+}
+.input-field:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent, #ff9800) 20%, transparent);
+}
+
+/* аккуратные полосы прокрутки */
+* {
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-accent, #ff9800) 55%, #151922);
+  border-radius: 999px;
+  border: 2px solid #0d1017;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

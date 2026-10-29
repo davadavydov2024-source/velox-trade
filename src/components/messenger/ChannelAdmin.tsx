@@ -136,7 +136,7 @@ export function ChannelSettingsSheet({ open, onClose, chat, me, onCounts }: { op
         </Section>
         {chat.createdBy === me && (
           <Section>
-            <button className="w-full px-4 py-3 text-left" style={{ color: "var(--mx-danger)" }} onClick={() => confirm(`Удалить ${kind} «${chat.title}» навсегда? Это нельзя отменить.`) && run(async () => { await mApi("members", { chatId: chat.id, action: "deleteChat" }); location.href = "/m"; })}>Удалить {kind}</button>
+            <button className="w-full px-4 py-3 text-left" style={{ color: "var(--mx-danger)" }} onClick={() => confirm(`Удалить ${kind} «${chat.title}» навсегда? Это нельзя отменить.`) && run(async () => { await mApi("members", { chatId: chat.id, action: "deleteChat" }); location.href = "/m/app"; })}>Удалить {kind}</button>
           </Section>
         )}
       </div>

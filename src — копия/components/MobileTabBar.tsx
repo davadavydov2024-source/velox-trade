@@ -1,0 +1,109 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { Home, LayoutGrid, Plus, MessageSquare, User as UserIcon } from "lucide-react";
+import { useAuth } from "@/lib/authContext";
+import { safeImageSrc } from "@/lib/safeImage";
+import { useUnread } from "@/lib/unreadContext";
+
+const SELL_HREF = "/profile/sell";
+
+/**
+ * Нижняя шторка навигации (только мобильные). Плавающая «стеклянная» панель с отступами от краёв,
+ * в центре — выделенная кнопка «Продать», у залогиненного вместо иконки профиля его аватар.
+ * main в layout.tsx имеет нижний отступ под эту панель (pb-24).
+ */
+export function MobileTabBar() {
+  const pathname = usePathname();
+  const { user, profile } = useAuth();
+  const { total: unreadTotal } = useUnread();
+
+  if (pathname.startsWith("/admin")) return null;
+
+  const left = [
+    { href: "/", label: "Главная", icon: Home },
+    { href: "/catalog", label: "Каталог", icon: LayoutGrid },
+  ];
+  const right = [
+    { href: "/chats", label: "Чаты", icon: MessageSquare },
+    user ? { href: "/profile", label: "Профиль", icon: UserIcon } : { href: "/auth/login", label: "Войти", icon: UserIcon },
+  ];
+
+  // Активной считаем самую «глубокую» подходящую вкладку: /profile/sell не подсвечивает «Профиль».
+  const all = [...left, { href: SELL_HREF }, ...right];
+  const activeHref = all
+    .map((t) => t.href)
+    .filter((href) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/")))
+    .sort((a, b) => b.length - a.length)[0];
+
+  // Обычная функция, а не вложенный компонент: иначе вкладки пересоздавались бы на каждый рендер и
+  // анимации перехода между ними сбрасывались бы.
+  const renderTab = ({ href, label, icon: Icon }: { href: string; label: string; icon: typeof Home }) => {
+    const active = href === activeHref;
+    const isProfile = href === "/profile" && !!user && !!profile?.photoURL;
+    return (
+      <Link
+        key={href}
+        href={href}
+        aria-current={active ? "page" : undefined}
+        className="relative flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 group select-none"
+      >
+        {/* Мягкая «капсула» под активной вкладкой */}
+        <span
+          className={`absolute inset-x-1.5 top-1 bottom-0.5 rounded-2xl transition-all duration-300 ${
+            active ? "bg-accent/15 opacity-100 scale-100" : "opacity-0 scale-90"
+          }`}
+        />
+        <span className={`relative transition-transform duration-300 ${active ? "-translate-y-0.5 scale-110" : "group-active:scale-90"}`}>
+          {isProfile ? (
+            <span className={`block relative w-[22px] h-[22px] rounded-full overflow-hidden ring-2 transition-colors ${active ? "ring-accent" : "ring-white/25"}`}>
+              <Image src={safeImageSrc(profile!.photoURL, "/placeholder.svg")} alt="" fill className="object-cover" sizes="22px" />
+            </span>
+          ) : (
+            <Icon size={22} strokeWidth={active ? 2.4 : 1.9} className={`transition-colors ${active ? "text-accent" : "text-white/45"}`} />
+          )}
+          {href === "/chats" && unreadTotal > 0 && (
+            <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[17px] text-center ring-2 ring-surface animate-pulse">
+              {unreadTotal > 99 ? "99+" : unreadTotal}
+            </span>
+          )}
+        </span>
+        <span className={`relative text-[10.5px] leading-none font-medium transition-colors ${active ? "text-accent" : "text-white/40"}`}>{label}</span>
+        <span
+          className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-accent transition-all duration-300 ${
+            active ? "w-4 opacity-100" : "w-0 opacity-0"
+          }`}
+        />
+      </Link>
+    );
+  };
+
+  const sellActive = activeHref === SELL_HREF;
+
+  return (
+    <nav
+      className="lg:hidden fixed bottom-0 inset-x-0 z-40 pointer-events-none"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      aria-label="Основная навигация"
+    >
+      <div className="pointer-events-auto relative mx-auto flex items-end bg-bg border-t border-border px-1.5">
+        {left.map(renderTab)}
+
+        {/* Центральная кнопка «Продать» — приподнята над панелью */}
+        <Link href={SELL_HREF} aria-label="Продать" className="relative flex-1 flex justify-center select-none">
+          <span
+            className={`-mt-5 mb-2 w-12 h-12 rounded-[16px] flex items-center justify-center text-black ring-[5px] ring-bg bg-accent transition-transform duration-200 active:scale-90 ${
+              sellActive ? "scale-105" : ""
+            }`}
+          >
+            <Plus size={24} strokeWidth={3} className={`transition-transform duration-300 ${sellActive ? "rotate-90" : ""}`} />
+          </span>
+        </Link>
+
+        {right.map(renderTab)}
+      </div>
+    </nav>
+  );
+}

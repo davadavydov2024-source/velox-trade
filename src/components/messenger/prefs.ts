@@ -30,6 +30,6 @@ export const useMxPrefs = create<MxPrefs>()(
       setTextSize: (textSize) => set({ textSize }),
       setEnterToSend: (enterToSend) => set({ enterToSend }),
     }),
-    { name: "vc-prefs" }
+    { name: "mx-prefs" }
   )
 );

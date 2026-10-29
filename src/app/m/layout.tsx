@@ -4,7 +4,7 @@ import { MxRoot } from "@/components/messenger/MxRoot";
 export const metadata: Metadata = {
   title: "MiliGram",
   description: "MiliGram — мессенджер Velox Trade",
-  manifest: "/m/manifest.webmanifest",
+  manifest: "/miligram/manifest.webmanifest",
   robots: { index: false, follow: false },
   icons: {
     icon: [{ url: "/miligram/icon-192.png", sizes: "192x192", type: "image/png" }],

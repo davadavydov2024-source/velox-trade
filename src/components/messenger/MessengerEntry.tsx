@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import { mApiPublic } from "./api";
 
-export const GATE_STORAGE_KEY = "vc-gate";
+export const GATE_STORAGE_KEY = "mx-gate";
 const GATE_TTL_MS = 15 * 60 * 1000;
 
 export function saveGateToken(token: string) {
@@ -74,7 +74,7 @@ function GateSheet({ onClose }: { onClose: () => void }) {
       const res = await mApiPublic<{ gateToken: string }>("gate", { code: code.trim() });
       saveGateToken(res.gateToken);
       onClose();
-      router.push(user ? "/vc/start?step=profile" : "/vc/start?step=account");
+      router.push(user ? "/m/start?step=profile" : "/m/start?step=account");
     } catch (err: any) {
       setError(err?.message || "Неверный код");
       setBusy(false);

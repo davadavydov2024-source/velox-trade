@@ -1,0 +1,182 @@
+import { randomInt } from "crypto";
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
+export interface InlineButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+}
+
+async function tgCall<T = unknown>(method: string, body: Record<string, unknown>, attempt = 0, quiet = false): Promise<T | null> {
+  if (!BOT_TOKEN) {
+    console.error(`tgCall(${method}): TELEGRAM_BOT_TOKEN не задан на сервере`);
+    return null;
+  }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      // Раньше эта ошибка проглатывалась молча — из-за этого было невозможно понять, почему
+      // рассылка/бот "просто не работает" (частые причины: бот заблокирован конкретным
+      // пользователем — error_code 403, неверный chat_id, HTML-разметка с незакрытым тегом и т.п.)
+      if (!quiet) console.error(`tgCall(${method}) Telegram API error:`, data.error_code, data.description);
+      // 429 — Telegram сам просит подождать retry_after секунд перед следующим запросом (обычно
+      // при частой рассылке многим пользователям подряд). Одна повторная попытка после паузы
+      // спасает большинство сообщений от "теряется молча из-за rate limit".
+      if (data.error_code === 429 && data.parameters?.retry_after && attempt < 1) {
+        await new Promise((r) => setTimeout(r, (data.parameters.retry_after + 1) * 1000));
+        return tgCall<T>(method, body, attempt + 1, quiet);
+      }
+      return null;
+    }
+    return data.result as T;
+  } catch (err) {
+    console.error(`tgCall(${method}) network error:`, err);
+    return null;
+  }
+}
+
+/** Возвращает message_id отправленного сообщения (нужно, чтобы потом распознать Reply админа
+ * на него) или null при ошибке. */
+export async function sendTelegramMessage(chatId: number, text: string, buttons?: InlineButton[][], parseMode?: "HTML"): Promise<number | null> {
+  const result = await tgCall<{ message_id: number }>("sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: parseMode,
+    reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
+  });
+  return result?.message_id ?? null;
+}
+
+export async function sendTelegramPhoto(chatId: number, photoUrl: string, caption?: string, buttons?: InlineButton[][]): Promise<boolean> {
+  const result = await tgCall("sendPhoto", {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption,
+    reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
+  });
+  return result !== null;
+}
+
+export async function editTelegramMessage(chatId: number, messageId: number, text: string, buttons?: InlineButton[][]): Promise<boolean> {
+  const reply_markup = buttons ? { inline_keyboard: buttons } : undefined;
+  // Сначала как обычное текстовое сообщение (тихо — ошибку не логируем, она ожидаема для сообщений с фото).
+  const asText = await tgCall("editMessageText", { chat_id: chatId, message_id: messageId, text, reply_markup }, 0, true);
+  if (asText !== null) return true;
+  // Меню, отправленное вместе с фото (например приветствие бота), — у него нет текста, только подпись
+  // (caption): editMessageText отвечает "there is no text in the message to edit" и кнопки "не работают".
+  // Тогда правим подпись. Лимит подписи в Telegram — 1024 символа.
+  const caption = text.length > 1024 ? `${text.slice(0, 1021)}…` : text;
+  const asCaption = await tgCall("editMessageCaption", { chat_id: chatId, message_id: messageId, caption, reply_markup });
+  return asCaption !== null;
+}
+
+/** Используется при удалении конкурса из /admin/contests — стираем сам пост в канале, а не только
+ * запись в базе. messageId может быть -1 (конкурс с фото — см. sendPhotoToChannelAndGetId в
+ * telegramContests.ts, там message_id не сохраняется), в этом случае удалять нечего, пост в канале
+ * останется — тихо игнорируем это в вызывающем коде, а не считаем ошибкой. */
+export async function deleteTelegramMessage(chatId: string | number, messageId: number): Promise<boolean> {
+  const result = await tgCall("deleteMessage", { chat_id: chatId, message_id: messageId });
+  return result !== null;
+}
+
+export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<boolean> {
+  const result = await tgCall("answerCallbackQuery", { callback_query_id: callbackQueryId, text });
+  return result !== null;
+}
+
+export async function sendInvoice(chatId: number, title: string, description: string, payload: string, amountStars: number): Promise<boolean> {
+  const result = await tgCall("sendInvoice", {
+    chat_id: chatId,
+    title,
+    description,
+    payload,
+    currency: "XTR",
+    prices: [{ label: title, amount: amountStars }],
+  });
+  return result !== null;
+}
+
+/** Возврат Stars покупателю (Bot API refundStarPayment). Нужен telegram_payment_charge_id из
+ * successful_payment — мы сохраняем его в starsInvoices. true = Telegram подтвердил возврат. */
+export async function refundStarPayment(userId: number, telegramPaymentChargeId: string): Promise<boolean> {
+  const result = await tgCall("refundStarPayment", { user_id: userId, telegram_payment_charge_id: telegramPaymentChargeId });
+  return result !== null;
+}
+
+export async function answerPreCheckoutQuery(preCheckoutQueryId: string, ok: boolean, errorMessage?: string): Promise<boolean> {
+  const result = await tgCall("answerPreCheckoutQuery", { pre_checkout_query_id: preCheckoutQueryId, ok, error_message: errorMessage });
+  return result !== null;
+}
+
+export function generateSixDigitCode(): string {
+  return String(randomInt(100000, 1000000));
+}
+
+/** Проверяет, состоит ли пользователь в канале/группе — используется для условия "подпишись,
+ * чтобы участвовать в конкурсе" (см. lib/telegramContests.ts → handleContestJoin). channelId может
+ * быть публичным username вида "@channel" или числовым chat_id.
+ * ВАЖНО: бот должен быть добавлен в канал администратором — иначе getChatMember вернёт ошибку
+ * (Bad Request / Forbidden), и tgCall тихо отдаст null, из-за чего эта функция вернёт false, даже
+ * если человек реально подписан. Это самая частая причина "участие не работает, хотя я подписан". */
+export type MembershipCheck =
+  | { status: "member" }
+  | { status: "not_member" }
+  /** getChatMember вернул ошибку/не ответил — самая частая причина: бот не добавлен в канал
+   * администратором (для каналов бот обязан быть их участником/админом, чтобы вообще узнавать
+   * статус других юзеров), либо в channelId опечатка. Раньше это тихо приравнивалось к
+   * "not_member", из-за чего ВСЕ подписчики без исключения получали "сначала подпишись" — хотя
+   * реальная причина была в самом боте, а не в пользователе. */
+  | { status: "error" };
+
+export async function checkChannelMembership(channelId: string, userId: number): Promise<MembershipCheck> {
+  const result = await tgCall<{ status: string }>("getChatMember", { chat_id: channelId, user_id: userId });
+  if (!result) return { status: "error" };
+  // "left" и "kicked" — не подписан/забанен; всё остальное (member, administrator, creator,
+  // restricted) считаем действующим подписчиком.
+  return result.status === "left" || result.status === "kicked" ? { status: "not_member" } : { status: "member" };
+}
+
+// ===================== Подарки (мишки, букеты и т.п. за Stars) =====================
+// Telegram Bot API: getAvailableGifts/sendGift. Подарить можно, только если у САМОГО бота есть
+// накопленные Stars (реально пополняются за счёт оплат через sendInvoice — донаты, покупки
+// товаров и т.п.) — sendGift списывает звёзды с баланса бота, а не эмулирует их. Если у бота
+// звёзд не хватает, Telegram просто вернёт ошибку — tgCall её залогирует и вернёт null.
+
+export interface TelegramGift {
+  id: string;
+  starCount: number;
+}
+
+/** Список доступных в магазине подарков (мишки, букеты, сердца и т.п.), отсортированный по
+ * убыванию цены — удобно для "жадной" раздачи как можно более дорогими подарками. */
+export async function getAvailableGifts(): Promise<TelegramGift[]> {
+  const result = await tgCall<{ gifts: { id: string; star_count: number }[] }>("getAvailableGifts", {});
+  if (!result?.gifts) return [];
+  return result.gifts
+    .map((g) => ({ id: g.id, starCount: g.star_count }))
+    .sort((a, b) => b.starCount - a.starCount);
+}
+
+/** Дарит один подарок из каталога пользователю (user_id — тот же, что chatId в личном чате с
+ * ботом). Списывает starCount этого подарка с реального баланса Stars бота. */
+export async function sendGift(userId: number, giftId: string, text?: string): Promise<boolean> {
+  const result = await tgCall("sendGift", { user_id: userId, gift_id: giftId, text });
+  return result !== null;
+}
+
+/** Как editTelegramMessage, но для сообщений-ФОТО: у них нет text, редактируется подпись (caption).
+ * Нужно, когда админ жмёт кнопку под уведомлением с фото — editMessageText на таком сообщении падает. */
+export async function editTelegramCaption(chatId: number, messageId: number, caption: string, buttons?: InlineButton[][]): Promise<boolean> {
+  const result = await tgCall("editMessageCaption", {
+    chat_id: chatId,
+    message_id: messageId,
+    caption: caption.slice(0, 1000),
+    reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
+  });
+  return result !== null;
+}
