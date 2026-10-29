@@ -126,7 +126,7 @@ export function MessageRow({
   if (msg.kind === "gift" && msg.gift) {
     return (
       <div data-mid={msg.id}>
-        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
+        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} docId={msg.gift.giftDocId} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
       </div>
     );
   }

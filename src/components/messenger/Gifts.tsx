@@ -130,6 +130,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
   const [message, setMessage] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
   const [q, setQ] = useState("");
   const sample = useMemo(() => rollNft(1, 1), [picked?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [target, setTarget] = useState<{ uid: string; name: string } | null>(toUid ? { uid: toUid, name: toName ?? "" } : null);
@@ -138,7 +139,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
   useEffect(() => {
     if (!open) return;
     setTarget(toUid ? { uid: toUid, name: toName ?? "" } : null);
-    setPicked(null); setMessage(""); setAnonymous(false); setQ("");
+    setPicked(null); setMessage(""); setAnonymous(false); setQ(""); setSent(false);
     mApi<{ wallet: number; stock: Record<string, number> }>("gifts").then((d) => { setWallet(d.wallet); setStock(d.stock ?? {}); }).catch(() => {});
   }, [open, toUid, toName]);
 
@@ -152,7 +153,8 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
       setWallet(r.wallet);
       toast("success", r.nft ? `NFT «${picked.title}» №${r.nft.number} отправлен ✨` : `Подарок «${picked.title}» отправлен 🎁`);
       onSent?.();
-      onClose();
+      setSent(true);
+      window.setTimeout(() => { setSent(false); onClose(); }, 1500);
     } catch (err) {
       if (err instanceof MApiError && err.data?.needTopup) {
         toast("error", err.message);
@@ -173,6 +175,17 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
             {results.map((a: MAccount) => <PersonRow key={a.uid} acc={a} onPress={() => setTarget({ uid: a.uid, name: a.displayName })} />)}
           </div>
         </div>
+      ) : sent && picked ? (
+        <div className="px-6 pb-10 pt-4 flex flex-col items-center text-center mx-pop">
+          <div className="mx-gift-burst">
+            {picked.nft ? <NftArt gift={picked} nft={sample} size={150} sample /> : <GiftArt gift={picked} size={150} />}
+            <span className="mx-confetti" aria-hidden>🎉</span>
+            <span className="mx-confetti c2" aria-hidden>✨</span>
+            <span className="mx-confetti c3" aria-hidden>⭐</span>
+          </div>
+          <p className="text-[22px] font-semibold mt-4">Подарок отправлен!</p>
+          <p className="mx-muted text-[14.5px] mt-1">«{picked.title}» уже у {target.name || "получателя"}</p>
+        </div>
       ) : picked ? (
         <div className="px-5 pb-6 flex flex-col items-center">
           <div className="mx-shop-hero" style={{ background: `radial-gradient(circle at 50% 30%, ${picked.colors[0]}, ${picked.colors[1]})` }}>
@@ -185,13 +198,29 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
             </div>
           </div>
           {picked.nft && <p className="mx-muted text-[13px] text-center mt-3">Номер, модель, фон и узор выпадут случайно — у каждого экземпляра они свои. Пример выше — только образец.</p>}
-          <textarea className="mx-input mt-4 w-full" rows={2} maxLength={GIFT_MESSAGE_MAX} placeholder="Добавить подпись (необязательно)" value={message} onChange={(e) => setMessage(e.target.value)} />
-          <div className="mx-card w-full mt-3 px-4 py-3 flex items-center justify-between">
-            <span>Скрыть моё имя</span>
-            <Switch on={anonymous} onChange={setAnonymous} />
+          <div className="mx-card w-full mt-4">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Avatar src={undefined} name={target.name || "?"} seed={target.uid} size={36} />
+              <div className="min-w-0 flex-1">
+                <p className="mx-muted text-[12.5px]">Кому</p>
+                <p className="text-[15.5px] font-medium truncate">{target.name || "Получатель"}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0 pr-3">
+                <p>Скрыть моё имя</p>
+                <p className="mx-muted text-[12.5px]">Получатель увидит «Анонимный отправитель»</p>
+              </div>
+              <Switch on={anonymous} onChange={setAnonymous} />
+            </div>
           </div>
-          <p className="mx-muted text-[13px] mt-3">Баланс: {wallet === null ? "…" : money(wallet)}</p>
-          <button className="mx-btn w-full mt-3" onClick={send} disabled={busy}>{busy ? <Spinner size={18} /> : `Отправить за ${money(picked.price)}`}</button>
+          <textarea className="mx-input mt-3 w-full" rows={2} maxLength={GIFT_MESSAGE_MAX} placeholder="Добавить подпись (необязательно)" value={message} onChange={(e) => setMessage(e.target.value)} />
+          <p className="mx-muted text-[13px] mt-3">Ваш баланс: <b style={{ color: "var(--mx-text)" }}>{wallet === null ? "…" : money(wallet)}</b></p>
+          {wallet !== null && wallet < picked.price ? (
+            <button className="mx-btn w-full mt-3" onClick={() => window.open("/profile/stars", "_blank")}>Пополнить ⭐ · не хватает {picked.price - wallet}</button>
+          ) : (
+            <button className="mx-btn w-full mt-3" onClick={send} disabled={busy}>{busy ? <Spinner size={18} /> : `Отправить подарок за ${money(picked.price)}`}</button>
+          )}
           <button className="mx-btn-ghost w-full mt-1 py-2" onClick={() => setPicked(null)}>Выбрать другой</button>
         </div>
       ) : (
@@ -234,6 +263,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const [cat, setCat] = useState<"all" | GiftCategory>("all");
   const [open, setOpen] = useState<GiftView | null>(null);
   const [shop, setShop] = useState(false);
+  const [selling, setSelling] = useState<GiftView | null>(null);
+  const [sellBusy, setSellBusy] = useState(false);
 
   const load = useCallback(() => {
     mApi<{ gifts: GiftView[] }>(`gifts?uid=${mine ? "me" : encodeURIComponent(uid)}`).then((d) => setGifts(d.gifts)).catch(() => setGifts([]));
@@ -252,8 +283,9 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const convert = async (g: GiftView) => {
     const def = giftById(g.giftId);
     const back = Math.floor(g.price * GIFT_CONVERT_RATE);
-    if (!def || !confirm(`Обменять «${def.title}» на ${back} ⭐? Подарок исчезнет из профиля.`)) return;
-    try { await mApi("gifts", { action: "convert", id: g.id }); toast("success", `+${back} ⭐ на балансе`); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
+    if (!def || sellBusy) return;
+    setSellBusy(true);
+    try { await mApi("gifts", { action: "convert", id: g.id }); toast("success", `Продано: +${back} ⭐ на балансе`); setSelling(null); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); } finally { setSellBusy(false); }
   };
 
   if (gifts === null) return <div className="flex justify-center py-10"><Spinner /></div>;
@@ -289,7 +321,9 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
                   <span style={{ fontSize: 52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{d.emoji}</span>
                 )}
                 {g.from && <span className="absolute top-1.5 left-1.5"><Avatar src={g.from.photoURL} name={g.from.displayName} seed={g.from.uid} size={22} /></span>}
-                {g.hidden && <EyeOff size={14} className="absolute bottom-1.5 right-1.5 text-white/80" />}
+                {g.nft && <span className="mx-tile-num">#{g.nft.number}</span>}
+                <span className="mx-tile-price">{money(g.price)}</span>
+                {g.hidden && <EyeOff size={14} className="absolute top-1.5 right-1.5 text-white/80" />}
               </button>
             );
           })}
@@ -304,27 +338,60 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
       <Sheet open={!!open && !!def} onClose={() => setOpen(null)} zIndex={65}>
         {open && def && (
           <div className="px-5 pb-8 flex flex-col items-center">
-            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
-            <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
-            <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
-            <div className="flex items-center gap-2 mt-3">
-              {open.from ? (
-                <><Avatar src={open.from.photoURL} name={open.from.displayName} seed={open.from.uid} size={28} /><span className="text-[15px]">{open.from.displayName}</span></>
-              ) : (
-                <span className="mx-muted text-[14.5px]">Анонимный отправитель</span>
-              )}
+            <div className="mx-shop-hero" style={{ background: `radial-gradient(circle at 50% 30%, ${def.colors[0]}, ${def.colors[1]})` }}>
+              <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
+              <p className="text-[21px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="mx-price-pill">{money(open.price)}</span>
+                {open.nft && <span className="mx-shop-ribbon nft static">NFT</span>}
+              </div>
             </div>
-            {open.anonymous && open.from && <p className="mx-muted text-[12.5px] mt-1">Отправлен анонимно — другие не видят имя</p>}
+            <div className="mx-card w-full mt-4">
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="mx-muted">От кого</span>
+                {open.from ? (
+                  <span className="flex items-center gap-2"><Avatar src={open.from.photoURL} name={open.from.displayName} seed={open.from.uid} size={24} /><span className="text-[15px]">{open.from.displayName}</span></span>
+                ) : (
+                  <span className="text-[15px]">Анонимный отправитель</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="mx-muted">Дата</span>
+                <span className="text-[15px]">{new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</span>
+              </div>
+            </div>
+            {open.anonymous && open.from && <p className="mx-muted text-[12.5px] mt-2">Отправлен анонимно — другие не видят имя</p>}
             {open.nft && <NftTraits nft={open.nft} />}
-            {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
+            {open.message && <p className="mx-card px-4 py-3 mt-3 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
             {mine && (
               <div className="w-full mt-5 flex flex-col gap-2">
-                <button className="mx-btn" onClick={() => toggle(open)}>{open.hidden ? <><Eye size={16} className="inline mr-1.5 -mt-0.5" />Показать в профиле</> : <><EyeOff size={16} className="inline mr-1.5 -mt-0.5" />Скрыть из профиля</>}</button>
-                {!open.nft && <button className="mx-btn-ghost py-2" onClick={() => convert(open)}><Repeat size={15} className="inline mr-1.5 -mt-0.5" />Обменять на {Math.floor(open.price * GIFT_CONVERT_RATE)} ⭐</button>}
+                {!open.nft && <button className="mx-btn" onClick={() => setSelling(open)}><Repeat size={16} className="inline mr-1.5 -mt-0.5" />Продать за {Math.floor(open.price * GIFT_CONVERT_RATE)} ⭐</button>}
+                <button className={open.nft ? "mx-btn" : "mx-btn-ghost py-2"} onClick={() => toggle(open)}>{open.hidden ? <><Eye size={16} className="inline mr-1.5 -mt-0.5" />Показать в профиле</> : <><EyeOff size={16} className="inline mr-1.5 -mt-0.5" />Скрыть из профиля</>}</button>
               </div>
             )}
           </div>
         )}
+      </Sheet>
+
+      <Sheet open={!!selling} onClose={() => setSelling(null)} title="Продать подарок" zIndex={70}>
+        {selling && (() => {
+          const sd = giftById(selling.giftId);
+          if (!sd) return null;
+          const back = Math.floor(selling.price * GIFT_CONVERT_RATE);
+          return (
+            <div className="px-5 pb-8 flex flex-col items-center text-center">
+              <GiftArt gift={sd} size={120} imageUrl={selling.nft?.imageUrl} nft={selling.nft} />
+              <p className="text-[19px] font-semibold mt-3">{sd.title}</p>
+              <div className="mx-card w-full mt-4">
+                <div className="flex items-center justify-between px-4 py-3"><span className="mx-muted">Цена подарка</span><span>{money(selling.price)}</span></div>
+                <div className="flex items-center justify-between px-4 py-3"><span className="mx-muted">Вы получите</span><b style={{ color: "var(--mx-accent)" }}>+{money(back)}</b></div>
+              </div>
+              <p className="mx-muted text-[13px] mt-3">Подарок исчезнет из профиля, а звёзды сразу придут на баланс. Это нельзя отменить.</p>
+              <button className="mx-btn w-full mt-4" onClick={() => convert(selling)} disabled={sellBusy}>{sellBusy ? <Spinner size={18} /> : `Продать за ${money(back)}`}</button>
+              <button className="mx-btn-ghost w-full mt-1 py-2" onClick={() => setSelling(null)}>Отмена</button>
+            </div>
+          );
+        })()}
       </Sheet>
     </div>
   );
@@ -332,19 +399,41 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
 
 /* ───────────── Карточка подарка в чате ───────────── */
 
-export function GiftMessageCard({ giftId, text, price, mine, senderName, anonymous, toName, nft }: { giftId: string; text?: string; price: number; mine: boolean; senderName: string; anonymous?: boolean; toName: string; nft?: GiftNft }) {
+export function GiftMessageCard({ giftId, text, price, mine, senderName, anonymous, toName, nft, docId }: { giftId: string; text?: string; price: number; mine: boolean; senderName: string; anonymous?: boolean; toName: string; nft?: GiftNft; docId?: string }) {
+  const { toast } = useToast();
+  const [sellOpen, setSellOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [sold, setSold] = useState(false);
   const g = giftById(giftId);
   if (!g) return null;
-  const who = mine ? "Вы отправили подарок" : anonymous ? "Вам отправили подарок" : `${senderName} отправил(а) подарок`;
+  const back = Math.floor(price * GIFT_CONVERT_RATE);
+  const canSell = !mine && !nft && !!docId && !sold;
+  const who = mine ? `Вы отправили подарок — ${toName}` : anonymous ? "Вам отправили подарок" : `${senderName} отправил(а) подарок`;
+  const sell = async () => {
+    if (!docId || busy) return;
+    setBusy(true);
+    try { await mApi("gifts", { action: "convert", id: docId }); toast("success", `Продано: +${back} ⭐ на балансе`); setSold(true); setSellOpen(false); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); } finally { setBusy(false); }
+  };
   return (
     <div className="flex justify-center my-3">
-      <div className="mx-glass rounded-2xl px-6 py-4 flex flex-col items-center text-center" style={{ maxWidth: 260 }}>
-        <p className="text-[13.5px] mx-muted">{mine ? `${who} — ${toName}` : who}</p>
-        <div className="my-2"><GiftArt gift={g} size={120} nft={nft} /></div>
-        <p className="font-semibold">{g.title}{nft ? ` #${nft.number}` : ""}</p>
-        <p className="mx-muted text-[12.5px]">{money(price)}</p>
-        {text && <p className="mt-2 text-[14px] whitespace-pre-wrap">{text}</p>}
+      <div className="mx-gift-card" style={{ background: `radial-gradient(circle at 50% 28%, ${g.colors[0]}, ${g.colors[1]})` }}>
+        <p className="mx-gift-card-who">{who}</p>
+        <div className="my-2"><GiftArt gift={g} size={128} nft={nft} /></div>
+        <p className="font-semibold text-[16.5px]">{g.title}{nft ? ` #${nft.number}` : ""}</p>
+        <span className="mx-price-pill" style={{ marginTop: 6 }}>{money(price)}</span>
+        {text && <p className="mt-2.5 text-[14px] whitespace-pre-wrap">{text}</p>}
+        {sold && <p className="mx-gift-card-who mt-2.5">Продан за {money(back)}</p>}
+        {canSell && <button className="mx-gift-card-btn" onClick={() => setSellOpen(true)}>Продать за {money(back)}</button>}
       </div>
+      <Sheet open={sellOpen} onClose={() => setSellOpen(false)} title="Продать подарок" zIndex={70}>
+        <div className="px-5 pb-8 flex flex-col items-center text-center">
+          <GiftArt gift={g} size={110} />
+          <p className="text-[19px] font-semibold mt-3">{g.title}</p>
+          <p className="mx-muted text-[14px] mt-1">Вы получите +{money(back)} на баланс. Подарок исчезнет, это нельзя отменить.</p>
+          <button className="mx-btn w-full mt-4" onClick={sell} disabled={busy}>{busy ? <Spinner size={18} /> : `Продать за ${money(back)}`}</button>
+          <button className="mx-btn-ghost w-full mt-1 py-2" onClick={() => setSellOpen(false)}>Отмена</button>
+        </div>
+      </Sheet>
     </div>
   );
 }
