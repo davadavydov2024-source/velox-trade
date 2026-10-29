@@ -9,7 +9,7 @@ import type { GiftNft } from "./gifts";
 
 export interface NftTrait { name: string; rarity: number }
 export interface NftBackdrop extends NftTrait { colors: [string, string] }
-export interface NftModel extends NftTrait { hue: number; sat: number; flip?: boolean; bright?: number; anim?: "rainbow" | "holo" }
+export interface NftModel extends NftTrait { hue: number; sat: number; flip?: boolean; bright?: number; anim?: "rainbow" | "holo" | "pulse" | "shimmer" | "flame" | "aurora" | "glitch" | "spin" }
 
 export const NFT_BACKDROPS: NftBackdrop[] = [
   { name: "Полночь", colors: ["#2a3f8f", "#070a1f"], rarity: 140 },
