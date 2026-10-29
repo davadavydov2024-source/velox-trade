@@ -236,3 +236,16 @@
 @keyframes mx-nft-aurora { from { filter: hue-rotate(calc(var(--nft-hue, 0) * 1deg)) saturate(var(--nft-sat, 1.6)) drop-shadow(0 6px 10px rgba(0,0,0,.5)); } to { filter: hue-rotate(calc(var(--nft-hue, 0) * 1deg + 90deg)) saturate(var(--nft-sat, 1.6)) drop-shadow(0 6px 10px rgba(0,0,0,.5)); } }
 .mx-nft-aurora { animation: mx-nft-aurora 5s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .mx-nft-pulse, .mx-nft-spin, .mx-nft-glitch, .mx-nft-shimmer, .mx-nft-flame, .mx-nft-aurora { animation: none !important; } }
+
+/* ===== Магазин подарков и NFT в стиле Telegram ===== */
+.mx-shop-card { position: relative; display: flex; flex-direction: column; align-items: center; padding: 10px 6px 8px; border-radius: 18px; background: var(--mx-surface); border: 1px solid var(--mx-line); transition: transform 0.12s, border-color 0.15s; cursor: pointer; color: var(--mx-text); }
+.mx-shop-card:active { transform: scale(0.96); }
+.mx-shop-card:hover { border-color: var(--mx-accent); }
+.mx-shop-title { font-size: 13px; margin-top: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-shop-left { font-size: 11px; color: var(--mx-muted); margin-top: 1px; min-height: 14px; }
+.mx-price-pill { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 12px; margin-top: 6px; border-radius: 999px; background: var(--mx-accent); color: var(--mx-accent-text); font-size: 13px; font-weight: 700; }
+.mx-shop-ribbon { position: absolute; top: 6px; right: 6px; z-index: 2; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; padding: 2px 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.5); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.mx-shop-ribbon.nft { background: linear-gradient(135deg, #8b5cf6, #3390ec); }
+.mx-shop-ribbon.static { position: static; font-size: 11px; padding: 3px 9px; }
+.mx-balance-chip { font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px; background: var(--mx-surface2); color: var(--mx-text); }
+.mx-shop-hero { width: 100%; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 18px; border-radius: 26px; border: 1px solid var(--mx-line); }
