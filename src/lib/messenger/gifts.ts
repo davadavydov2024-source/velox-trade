@@ -108,6 +108,8 @@ export interface MessengerGift {
   pinned?: boolean; // закреплён вверху профиля (до GIFT_PIN_MAX)
   upgradedFrom?: string; // id обычного подарка, из которого сделали NFT
   transferredAt?: number; // когда NFT передали новому владельцу
+  listPrice?: number; // NFT выставлен на маркет за столько ⭐
+  soldFor?: number; // за сколько ⭐ NFT купили в последний раз
 }
 
 /** Задел под NFT: уникальный экземпляр подарка (как в Telegram — номер, модель, фон, узор). Пока не выдаётся. */
@@ -130,7 +132,24 @@ export interface GiftView {
   hidden: boolean;
   anonymous: boolean;
   pinned?: boolean;
+  listPrice?: number;
   upgradedFrom?: string;
   from: { uid: string; displayName: string; photoURL: string | null } | null; // null — анонимно
   nft?: GiftNft;
+}
+
+/** Маркет NFT: продажа за ⭐ между людьми. С продажи удерживается комиссия. */
+export const GIFT_MARKET_MIN = 5;
+export const GIFT_MARKET_MAX = 100000;
+export const GIFT_MARKET_FEE = 0.05;
+
+/** Лот на маркете: GET /api/messenger/gifts?market=1 */
+export interface MarketItem {
+  id: string;
+  giftId: string;
+  price: number; // цена лота в ⭐
+  nft: GiftNft;
+  mine: boolean;
+  at: number;
+  seller: { uid: string; displayName: string; photoURL: string | null } | null;
 }
