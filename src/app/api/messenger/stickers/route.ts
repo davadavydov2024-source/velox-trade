@@ -3,12 +3,11 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { fail, requireMessenger } from "@/lib/messenger/server";
 import { randomBytes } from "crypto";
-import { gunzipSync } from "zlib";
 import { put } from "@vercel/blob";
 import { rateLimit } from "@/lib/rateLimit";
 import { isPremium } from "@/lib/messenger/premium";
 import { isAdminUid } from "@/lib/adminGuard";
-import type { MessengerSticker, MessengerStickerPack } from "@/lib/messenger/types";
+import type { MessengerStickerPack } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (b.action === "import") {
     // Импорт из Telegram — только админ (в админ-панели мессенджера: Настройки → Админ-панель → Стикеры).
     if (!isAdminUid(me.uid)) return fail("Импорт стикеров из Telegram доступен только администраторам", 403);
-    return importFromTelegram(me, String(b.url ?? ""), b.premium === true, b.force === true);
+    return importFromTelegram(me, String(b.url ?? ""), b.premium === true);
   }
   if (!slugOk(b.slug)) return fail("Набор не найден", 404);
   const db = adminDb();
@@ -100,8 +99,8 @@ async function tg<T>(token: string, method: string, params: Record<string, strin
   return j?.ok ? (j.result as T) : null;
 }
 
-/** POST { action: "import", url, premium? } (только админ) — скачать набор из Telegram в MiliGram и опубликовать: пользователи добавляют его из каталога. Анимированные (.tgs → Lottie) и видео (.webm) стикеры сохраняются анимированными. */
-async function importFromTelegram(me: { uid: string; account: any }, input: string, premiumPack: boolean, force = false) {
+/** POST { action: "import", url, premium? } (только админ) — скачать набор из Telegram в MiliGram и опубликовать: пользователи добавляют его из каталога. Анимированные и видео-стикеры сохраняются статичным превью. */
+async function importFromTelegram(me: { uid: string; account: any }, input: string, premiumPack: boolean) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return fail("Импорт из Telegram не настроен: на сервере нет TELEGRAM_BOT_TOKEN", 500);
   const name = parseSetName(input);
@@ -114,7 +113,7 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
 
   // уже привозили этот набор — просто добавляем, без повторной загрузки
   const existing = await db.collection("messengerStickerPacks").where("tgName", "==", name).limit(1).get();
-  if (!existing.empty && !force) { // force — скачать заново (например, набор привозили раньше без анимации)
+  if (!existing.empty) {
     const pack = existing.docs[0].data() as MessengerStickerPack;
     if (pack.premium !== premiumPack) await existing.docs[0].ref.update({ premium: premiumPack, updatedAt: Date.now() });
     await userRef.set({ slugs: FieldValue.arrayUnion(pack.slug) }, { merge: true });
@@ -126,66 +125,27 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   if (!set || !set.stickers?.length) return fail("Набор не найден в Telegram (проверь ссылку)", 404);
   const items = set.stickers.slice(0, MAX_STICKERS);
 
-  let slug = existing.empty ? base : existing.docs[0].id;
-  if (existing.empty) for (let i = 0; i < 5 && (await db.collection("messengerStickerPacks").doc(slug).get()).exists; i++) slug = `${base.slice(0, 27)}_${randomBytes(2).toString("hex")}`;
+  let slug = base;
+  for (let i = 0; i < 5 && (await db.collection("messengerStickerPacks").doc(slug).get()).exists; i++) slug = `${base.slice(0, 27)}_${randomBytes(2).toString("hex")}`;
 
-  const results: (MessengerSticker | null)[] = new Array(items.length).fill(null);
+  const results: ({ url: string; emoji: string } | null)[] = new Array(items.length).fill(null);
   let next = 0;
-
-  const fetchTg = async (fileId: string) => {
-    const f = await tg<{ file_path?: string }>(token, "getFile", { file_id: fileId });
-    if (!f?.file_path) return null;
-    const res = await fetch(`${TG}/file/bot${token}/${f.file_path}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    return { buf: Buffer.from(await res.arrayBuffer()), path: f.file_path };
-  };
-  // статичная картинка (превью анимированного стикера или обычный стикер)
-  const putImage = async (fileId: string | undefined, key: string): Promise<string | undefined> => {
-    if (!fileId) return undefined;
-    const f = await fetchTg(fileId);
-    if (!f || f.buf.length > 600_000) return undefined;
-    const ext = f.path.split(".").pop()?.toLowerCase() === "png" ? "png" : "webp";
-    return (await put(`messenger-stickers/${slug}/${key}.${ext}`, f.buf, { access: "public", contentType: ext === "png" ? "image/png" : "image/webp", addRandomSuffix: true })).url;
-  };
-
   const worker = async () => {
     while (next < items.length) {
       const i = next++;
       const st = items[i];
-      const emoji = st.emoji ?? "";
       try {
-        if (st.is_animated) {
-          // .tgs = сжатый gzip Lottie-JSON: распаковываем и храним как .json — приложение проигрывает его само
-          const f = await fetchTg(st.file_id);
-          if (f && f.buf.length <= 400_000) {
-            try {
-              const json = gunzipSync(f.buf);
-              JSON.parse(json.toString("utf8"));
-              if (json.length <= 1_500_000) {
-                const blob = await put(`messenger-stickers/${slug}/${i}.json`, json, { access: "public", contentType: "application/json", addRandomSuffix: true });
-                results[i] = { url: blob.url, emoji, kind: "lottie", preview: await putImage(st.thumbnail?.file_id, `${i}_p`) };
-                continue;
-              }
-            } catch (e) {
-              console.error("tgs decode failed:", e);
-            }
-          }
-          const still = await putImage(st.thumbnail?.file_id, String(i)); // не вышло — хотя бы картинка
-          if (still) results[i] = { url: still, emoji, kind: "image" };
-        } else if (st.is_video) {
-          // видео-стикер .webm — сохраняем как есть, проигрывается <video>
-          const f = await fetchTg(st.file_id);
-          if (f && f.buf.length <= 700_000) {
-            const blob = await put(`messenger-stickers/${slug}/${i}.webm`, f.buf, { access: "public", contentType: "video/webm", addRandomSuffix: true });
-            results[i] = { url: blob.url, emoji, kind: "video", preview: await putImage(st.thumbnail?.file_id, `${i}_p`) };
-            continue;
-          }
-          const still = await putImage(st.thumbnail?.file_id, String(i));
-          if (still) results[i] = { url: still, emoji, kind: "image" };
-        } else {
-          const url = await putImage(st.file_id, String(i));
-          if (url) results[i] = { url, emoji, kind: "image" };
-        }
+        const fileId = st.is_animated || st.is_video ? st.thumbnail?.file_id : st.file_id; // .tgs/.webm не показать как картинку — берём превью
+        if (!fileId) continue;
+        const f = await tg<{ file_path?: string }>(token, "getFile", { file_id: fileId });
+        if (!f?.file_path) continue;
+        const res = await fetch(`${TG}/file/bot${token}/${f.file_path}`, { cache: "no-store" });
+        if (!res.ok) continue;
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > 600_000) continue;
+        const ext = f.file_path.split(".").pop()?.toLowerCase() === "png" ? "png" : "webp";
+        const blob = await put(`messenger-stickers/${slug}/${i}.${ext}`, buf, { access: "public", contentType: ext === "png" ? "image/png" : "image/webp", addRandomSuffix: true });
+        results[i] = { url: blob.url, emoji: st.emoji ?? "" };
       } catch (e) {
         console.error("sticker import item failed:", e);
       }
@@ -193,10 +153,10 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   };
   await Promise.all(Array.from({ length: 8 }, worker));
 
-  const stickers = results.filter((r): r is MessengerSticker => !!r);
+  const stickers = results.filter((r): r is { url: string; emoji: string } => !!r);
   if (stickers.length === 0) return fail("Не удалось скачать стикеры из этого набора", 502);
   const now = Date.now();
-  const pack: MessengerStickerPack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: existing.empty ? now : (existing.docs[0].data() as MessengerStickerPack).createdAt ?? now, updatedAt: now };
+  const pack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: now, updatedAt: now } as MessengerStickerPack;
   await db.collection("messengerStickerPacks").doc(slug).set(pack);
   await userRef.set({ slugs: FieldValue.arrayUnion(slug) }, { merge: true });
   return NextResponse.json({ ok: true, slug, title: pack.title, count: stickers.length, skipped: items.length - stickers.length });

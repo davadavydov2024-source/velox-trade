@@ -125,16 +125,12 @@ export interface MessengerReport {
   status: "open" | "resolved";
 }
 
-export type StickerKind = "image" | "video" | "lottie";
-/** Один стикер набора. image — картинка (в т.ч. GIF/анимированный WEBP), video — .webm, lottie — .json (из .tgs Telegram). preview — статичная картинка-заглушка. */
-export interface MessengerSticker { url: string; emoji: string; kind?: StickerKind; preview?: string }
-
 export interface MessengerStickerPack {
   slug: string; // ссылка: /m?stickers=<slug>
   title: string;
   premium: boolean; // добавить и отправлять могут только с Mili Premium
   published: boolean;
-  stickers: MessengerSticker[];
+  stickers: { url: string; emoji: string; thumb?: string }[]; // url: .webp/.png, .webm (видео) или .json (Lottie); thumb — статичное превью анимации
   createdBy?: string; // кто привёз набор
   tgName?: string; // имя набора в Telegram (t.me/addstickers/<tgName>), если импортирован
   createdAt: number;

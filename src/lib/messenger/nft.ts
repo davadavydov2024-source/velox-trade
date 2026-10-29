@@ -35,6 +35,24 @@ export const NFT_BACKDROPS: NftBackdrop[] = [
   { name: "Бездна", colors: ["#1c1f5c", "#000000"], rarity: 15 },
   { name: "Закат Velox", colors: ["#ff9800", "#3a0d45"], rarity: 12 },
   { name: "Радужная дымка", colors: ["#ff6ec7", "#3a1c9e"], rarity: 8 },
+  // — ещё новые
+  { name: "Мята", colors: ["#7df2c8", "#06231b"], rarity: 90 },
+  { name: "Персик", colors: ["#ffb199", "#2e1410"], rarity: 85 },
+  { name: "Индиго", colors: ["#4b3fd1", "#0a0720"], rarity: 80 },
+  { name: "Болото", colors: ["#6b8f2a", "#0f1705"], rarity: 70 },
+  { name: "Неоновый город", colors: ["#ff2fd1", "#071a3a"], rarity: 22 },
+  { name: "Туманность", colors: ["#9b5cff", "#0a2a5c"], rarity: 14 },
+  { name: "Чёрное золото", colors: ["#f0c040", "#000000"], rarity: 6 },
+  // — коллекция «Анимации»
+  { name: "Сумерки", colors: ["#6a4cff", "#0b0620"], rarity: 80 },
+  { name: "Карамель", colors: ["#ff7ab8", "#3a1030"], rarity: 85 },
+  { name: "Глубокий лес", colors: ["#2f8f4e", "#04140a"], rarity: 80 },
+  { name: "Медь", colors: ["#d98a4a", "#1f0f06"], rarity: 70 },
+  { name: "Ледник", colors: ["#9be7ff", "#0a2233"], rarity: 60 },
+  { name: "Электрик", colors: ["#2f6bff", "#00071f"], rarity: 28 },
+  { name: "Хамелеон", colors: ["#00e0b0", "#5a1fd1"], rarity: 16 },
+  { name: "Звёздная пыль", colors: ["#c9b6ff", "#0b0820"], rarity: 10 },
+  { name: "Солнечное затмение", colors: ["#ffb347", "#000000"], rarity: 5 },
 ];
 
 export const NFT_MODELS: NftModel[] = [
@@ -53,6 +71,20 @@ export const NFT_MODELS: NftModel[] = [
   { name: "Обсидиан", hue: 260, sat: 0.6, bright: 0.55, rarity: 25 },
   { name: "Радужный", hue: 0, sat: 1.5, anim: "rainbow", rarity: 12 },
   { name: "Голограмма", hue: 200, sat: 1.3, anim: "holo", rarity: 8 },
+  // — ещё новые
+  { name: "Закатный", hue: 20, sat: 1.5, rarity: 60 },
+  { name: "Хром", hue: 210, sat: 0.35, bright: 1.25, rarity: 28 },
+  { name: "Пульсар", hue: 300, sat: 2.0, anim: "pulse", rarity: 14 },
+  { name: "Призма", hue: 0, sat: 1.8, anim: "rainbow", rarity: 6 },
+  // — коллекция «Анимации»
+  { name: "Янтарный", hue: 30, sat: 1.6, rarity: 55 },
+  { name: "Сапфир", hue: 215, sat: 1.9, rarity: 32 },
+  { name: "Аметистовый", hue: 270, sat: 1.8, rarity: 30 },
+  { name: "Мираж", hue: 160, sat: 1.4, anim: "shimmer", rarity: 16 },
+  { name: "Магма", hue: 10, sat: 2.2, anim: "flame", rarity: 12 },
+  { name: "Аврора", hue: 140, sat: 1.8, anim: "aurora", rarity: 9 },
+  { name: "Глитч", hue: 320, sat: 2.0, anim: "glitch", rarity: 7 },
+  { name: "Квазар", hue: 220, sat: 2.4, anim: "spin", rarity: 4 },
 ];
 
 export const NFT_SYMBOLS: NftTrait[] = [
@@ -61,10 +93,16 @@ export const NFT_SYMBOLS: NftTrait[] = [
   // — новые
   { name: "Снежинки", rarity: 150 }, { name: "Цветы", rarity: 130 }, { name: "Лучи", rarity: 110 }, { name: "Ноты", rarity: 100 },
   { name: "Клеверы", rarity: 90 }, { name: "Пики", rarity: 60 }, { name: "Инь-ян", rarity: 40 },
+  // — ещё новые
+  { name: "Пламя", rarity: 70 }, { name: "Капли", rarity: 120 }, { name: "Планеты", rarity: 35 },
+  // — коллекция «Анимации»
+  { name: "Бабочки", rarity: 90 }, { name: "Кометы", rarity: 55 }, { name: "Ключи", rarity: 50 }, { name: "Глаза", rarity: 45 },
 ];
 export const NFT_SYMBOL_CHARS: Record<string, string> = {
   "Звёзды": "★", "Сердца": "♥", "Молнии": "ϟ", "Луны": "☾", "Искры": "✦", "Кристаллы": "◆", "Короны": "♛",
   "Снежинки": "❄", "Цветы": "✿", "Лучи": "☀", "Ноты": "♪", "Клеверы": "♣", "Пики": "♠", "Инь-ян": "☯",
+  "Пламя": "🔥", "Капли": "💧", "Планеты": "🪐",
+  "Бабочки": "🦋", "Кометы": "☄", "Ключи": "🗝", "Глаза": "👁",
 };
 
 function pick<T extends NftTrait>(list: T[], rnd: number): T {
