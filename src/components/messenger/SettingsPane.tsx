@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift } from "lucide-react";
+import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -9,11 +9,16 @@ import { getDeviceId } from "@/lib/messenger/client";
 import { isPremium } from "@/lib/messenger/premium";
 import { mApi, mUpload, MApiError } from "./api";
 import { GiftsProfileTab } from "./Gifts";
+import { PerksList, StatusPicker } from "./PremiumExtras";
+import { StickersSettings } from "./StickersUI";
+import { AdminPanel } from "./AdminPanel";
+import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -329,7 +334,7 @@ function DevicesPage({ onBack }: { onBack: () => void }) {
 
 type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number };
 
-function PremiumPage({ onBack }: { onBack: () => void }) {
+function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccount }) {
   const { toast } = useToast();
   const [info, setInfo] = useState<PremiumInfo | null>(null);
   const load = () => mApi<PremiumInfo>("premium").then(setInfo).catch(() => {});
@@ -353,8 +358,10 @@ function PremiumPage({ onBack }: { onBack: () => void }) {
         <div className="mx-card"><div className="px-5 py-6 text-center">
           <div className="text-5xl mb-2">⭐</div>
           <p className="text-[19px] font-semibold mb-1">{info?.premium ? "Premium активен" : "Mili Premium"}</p>
-          <p className="mx-muted text-[14px]">{info?.premium && info.premiumUntil ? `До ${new Date(info.premiumUntil).toLocaleDateString("ru-RU")}` : "Премиум-стикеры, больше папок и закреплённых чатов."}</p>
+          <p className="mx-muted text-[14px]">{info?.premium && info.premiumUntil ? `До ${new Date(info.premiumUntil).toLocaleDateString("ru-RU")}` : "Статус рядом с ником, премиум-стикеры, больше папок и закреплённых чатов."}</p>
         </div></div>
+        <PerksList />
+        <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
             <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
@@ -417,14 +424,35 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
 
   if (page === "folders") return <div className="flex flex-col h-full"><FoldersPage folders={folders} onBack={back} /></div>;
   if (page === "devices") return <div className="flex flex-col h-full"><DevicesPage onBack={back} /></div>;
-  if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} /></div>;
+  if (page === "docs") {
+    const docs: [string, string, string][] = [["/rules", "Правила платформы", "Что можно и нельзя в Velox Trade и MiliGram"], ["/privacy", "Политика конфиденциальности", "Какие данные мы храним и как защищаем"], ["/terms", "Пользовательское соглашение", "Условия использования сервиса"]];
+    return (
+      <div className="flex flex-col h-full">
+        <PageHeader title="Документы" onBack={back} />
+        <div className="mx-scroll flex-1 pt-4 pb-24 px-4 space-y-4">
+          <div className="mx-card">
+            {docs.map(([href, title, sub]) => (
+              <a key={href} href={href} target="_blank" rel="noreferrer" className="flex items-center gap-3.5 px-4 py-3 active:bg-white/5">
+                <IconBox color="#8e8e93"><FileText size={17} /></IconBox>
+                <span className="flex-1 min-w-0"><span className="block text-[16px]">{title}</span><span className="block mx-muted text-[13px]">{sub}</span></span>
+                <ChevronRight size={18} className="mx-muted" />
+              </a>
+            ))}
+          </div>
+          <p className="mx-muted text-[12.5px] px-2">Администрация может открывать переписку только для безопасности (по жалобе или при расследовании нарушений), каждый такой доступ записывается в журнал. Подробнее — в Политике конфиденциальности, п. 5.3–5.5.</p>
+        </div>
+      </div>
+    );
+  }
+  if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
+  if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
   if (page) {
     return (
       <div className="flex flex-col h-full">
         <PageHeader
           onBack={back}
-          title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши" }[page]}
+          title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши", admin: "Админ-панель", docs: "Документы" }[page]}
         />
         <div className="mx-scroll flex-1 pt-3 pb-24 px-4">
           {page === "notifications" && (
@@ -508,7 +536,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
               </div>
             </div>
           )}
-          {page === "stickers" && <div className="mx-card"><div className="px-4 py-5 text-center mx-muted">Стикеры появятся позже. Эмодзи доступны в поле ввода.</div></div>}
+          {page === "stickers" && <StickersSettings />}
           {page === "language" && (
             <div className="mx-card"><div className="flex items-center justify-between px-4 py-3.5">Русский <Check size={20} style={{ color: "var(--mx-accent)" }} /></div></div>
           )}
@@ -548,7 +576,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
             </button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
             <p className="text-[23px] font-bold mt-3 flex items-center gap-1.5 justify-center">
-              {account.displayName} {account.verified && <VerifiedBadge size={18} />}
+              {account.displayName} {account.verified && <VerifiedBadge size={18} />}<StatusBadge acc={account} size={20} />
             </p>
             <p className="mx-muted text-[14.5px] mt-0.5">@{account.handle}</p>
             <div className="flex items-center gap-2 mt-2.5 flex-wrap justify-center">
@@ -575,8 +603,10 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
+          {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
+          <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
         </Section>
 
         <Section>
@@ -599,6 +629,12 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
             <LogOut size={20} /> Выйти
           </button>
         </Section>
+        <button
+          className="block mx-auto text-center text-[11.5px] mx-muted pb-2 break-all px-6"
+          onClick={() => { try { navigator.clipboard.writeText(me); toast("success", "ID аккаунта скопирован"); } catch { toast("info", me); } }}
+        >
+          ID аккаунта: {me}{isAdminUid(me) ? " · админ" : ""}
+        </button>
         <p className="text-center text-[12.5px] mx-muted pb-4">Velox Chat · сообщения не шифруются сквозным образом</p>
       </div>
       <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} />
@@ -622,3 +658,4 @@ export function InstallSteps() {
     </div>
   );
 }
+
