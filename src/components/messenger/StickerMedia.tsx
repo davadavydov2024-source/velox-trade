@@ -5,6 +5,25 @@ import { stickerKindOf } from "@/lib/messenger/stickers";
 import type { StickerKind } from "@/lib/messenger/types";
 import { safeImageSrc } from "@/lib/safeImage";
 
+let lottiePromise: Promise<any> | null = null;
+/** Lottie подгружается один раз с CDN (версия зафиксирована) — отдельный npm-пакет в проекте не нужен. */
+function loadLottie(): Promise<any> {
+  if (typeof window === "undefined") return Promise.reject(new Error("ssr"));
+  const w = window as any;
+  if (w.lottie) return Promise.resolve(w.lottie);
+  if (!lottiePromise) {
+    lottiePromise = new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js";
+      el.async = true;
+      el.onload = () => (w.lottie ? resolve(w.lottie) : reject(new Error("no lottie")));
+      el.onerror = () => { lottiePromise = null; reject(new Error("lottie load")); };
+      document.head.appendChild(el);
+    });
+  }
+  return lottiePromise;
+}
+
 /** true, пока элемент виден на экране (пауза анимаций вне экрана — экономит батарею, когда в сетке десятки стикеров). */
 function useInView<T extends Element>(): [React.RefObject<T>, boolean] {
   const ref = useRef<T>(null);
@@ -51,11 +70,10 @@ export function StickerMedia({ url, preview, kind, size = 160, animate = true, e
     let cancelled = false;
     (async () => {
       try {
-        const [mod, res] = await Promise.all([import("lottie-web"), fetch(url)]);
+        const [lottie, res] = await Promise.all([loadLottie(), fetch(url)]);
         if (!res.ok) throw new Error("fetch");
         const data = await res.json();
         if (cancelled || !lottieBox.current) return;
-        const lottie: any = (mod as any).default ?? mod;
         animRef.current = lottie.loadAnimation({ container: lottieBox.current, renderer: "svg", loop: true, autoplay: true, animationData: data, rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
         setLottieReady(true);
       } catch {

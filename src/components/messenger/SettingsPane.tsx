@@ -629,6 +629,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
             <LogOut size={20} /> Выйти
           </button>
         </Section>
+
         <button
           className="block mx-auto text-center text-[11.5px] mx-muted pb-2 break-all px-6"
           onClick={() => { try { navigator.clipboard.writeText(me); toast("success", "ID аккаунта скопирован"); } catch { toast("info", me); } }}

@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { requireAdmin, logAdminAccess } from "@/lib/adminGuard";
 import { dmChatId, ensureServiceAccount, postMessage, sendServiceMessage, SERVICE_UID, type MessengerAuth } from "@/lib/messenger/server";
 import { giftById, GIFT_MESSAGE_MAX, type GiftNft, type MessengerGift } from "@/lib/messenger/gifts";
-import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, rollNft } from "@/lib/messenger/nft";
+import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, rollNft, type NftTrait } from "@/lib/messenger/nft";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         for (const [key, list] of [["model", NFT_MODELS], ["backdrop", NFT_BACKDROPS], ["symbol", NFT_SYMBOLS]] as const) {
           const v = b.nft[key];
           if (typeof v === "string" && v) {
-            if (!list.some((t) => t.name === v)) return err(`Неизвестный признак NFT: ${v}`);
+            if (!(list as readonly NftTrait[]).some((t) => t.name === v)) return err(`Неизвестный признак NFT: ${v}`);
             want[key] = v;
           }
         }

@@ -11,14 +11,30 @@ import { StickerPacksAdmin } from "./StickerPacksAdmin";
 import { AdminNft } from "./AdminNft";
 import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, type NftTrait } from "@/lib/messenger/nft";
 
-type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number };
+type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number; newToday: number; nft: number; stories: number };
+type AuditItem = { id: string; at: number; action: string; adminName: string; targetName: string; info: Record<string, any> };
+
+function auditLabel(a: AuditItem): string {
+  const i = a.info;
+  switch (a.action) {
+    case "messenger_grant_premium": return `Выдан Premium на ${i.days} дн.`;
+    case "messenger_revoke_premium": return "Снят Premium";
+    case "messenger_grant_stars": return `Начислено ${i.amount} ⭐`;
+    case "messenger_grant_gift": return `Подарок «${giftById(String(i.giftId))?.title ?? i.giftId}» × ${i.count ?? 1}`;
+    case "messenger_revoke_gift": return "Подарок отобран";
+    case "messenger_sticker_pack_save": return `Набор стикеров сохранён: ${i.slug} (${i.count} шт)`;
+    case "messenger_sticker_pack_delete": return `Набор стикеров удалён: ${i.slug}`;
+    case "read_chat": return "Открыта переписка (по жалобе)";
+    default: return a.action;
+  }
+}
 type Report = { id: string; reporterUid: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string; reason: string; createdAt: number };
 type ReadMsg = { id: string; from: string; kind: string; text: string; mediaUrl: string | null; createdAt: number; deleted: boolean };
 type ReadResult = { chat: { id: string; type: string; title: string | null }; messages: ReadMsg[]; accounts: Record<string, { displayName: string; handle: string }>; highlightAt: number | null };
 type GrantInfo = { account: { uid: string; handle: string; displayName: string; premiumUntil: number; verified: boolean; banned: boolean }; wallet: number; gifts: { id: string; giftId: string; at: number; nft: { number: number; supply: number; model: string; backdrop: string; symbol: string } | null; byAdmin: boolean }[] };
 type Past = { id: string; text: string; target: string; sent: number; createdAt: number; done: boolean };
 const TARGETS: [string, string][] = [["all", "Всем"], ["premium", "Только Mili Premium"], ["verified", "Только с галочкой"]];
-const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"]] as const;
+const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["audit", "Журнал"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 async function call<T = any>(url: string, body?: unknown): Promise<T> {
@@ -33,6 +49,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("stats");
   const [stats, setStats] = useState<Stats | null>(null);
+  const [audit, setAudit] = useState<AuditItem[] | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [people, setPeople] = useState<MAccount[]>([]);
   const [q, setQ] = useState("");
@@ -97,6 +114,11 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
       await loadInfo(giveTo.uid);
     } catch (e: any) { toast("error", e.message); } finally { setBusyKey(""); }
   };
+  useEffect(() => {
+    if (tab !== "audit") return;
+    setAudit(null);
+    call<{ items: AuditItem[] }>("/api/admin/messenger/audit").then((d) => setAudit(d.items)).catch((e: any) => { toast("error", e.message); setAudit([]); });
+  }, [tab, toast]);
   const selGift = giftById(giftId);
 
   const start = async () => {
@@ -136,6 +158,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
             {stat("аккаунтов", stats?.accounts)}{stat("с Mili Premium", stats?.premium)}
             {stat("чатов", stats?.chats)}{stat("подарков отправлено", stats?.gifts)}
             {stat("наборов стикеров", stats?.stickerPacks)}{stat("открытых жалоб", stats?.openReports)}
+            {stat("новых за 24 часа", stats?.newToday)}{stat("NFT выдано", stats?.nft)}
+            {stat("активных историй", stats?.stories)}
           </div>
         )}
 
@@ -361,6 +385,18 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
         {tab === "nft" && <AdminNft />}
         {tab === "stickers" && <StickerPacksAdmin />}
+
+        {tab === "audit" && (
+          <div className="mx-card">
+            <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Последние действия администраторов</p>
+            {audit === null ? <div className="flex justify-center py-6"><Spinner /></div> : audit.length === 0 ? <p className="mx-muted px-4 py-4 text-[14px]">Записей пока нет</p> : audit.map((a) => (
+              <div key={a.id} className="px-4 py-2.5">
+                <p className="text-[14.5px]">{auditLabel(a)}</p>
+                <p className="mx-muted text-[12.5px]">{a.adminName}{a.targetName ? ` → ${a.targetName}` : ""} · {new Date(a.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

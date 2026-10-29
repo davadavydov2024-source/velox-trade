@@ -53,6 +53,13 @@ export const NFT_MODELS: NftModel[] = [
   { name: "Обсидиан", hue: 260, sat: 0.6, bright: 0.55, rarity: 25 },
   { name: "Радужный", hue: 0, sat: 1.5, anim: "rainbow", rarity: 12 },
   { name: "Голограмма", hue: 200, sat: 1.3, anim: "holo", rarity: 8 },
+  // — анимированные модели
+  { name: "Пульс", hue: 320, sat: 1.6, anim: "pulse", rarity: 40 },
+  { name: "Мерцание", hue: 50, sat: 1.5, anim: "shimmer", rarity: 30 },
+  { name: "Пламя", hue: 15, sat: 2, anim: "flame", rarity: 20 },
+  { name: "Аврора", hue: 150, sat: 1.6, anim: "aurora", rarity: 15 },
+  { name: "Глитч", hue: 180, sat: 2, anim: "glitch", rarity: 15 },
+  { name: "Вихрь", hue: 260, sat: 1.5, anim: "spin", rarity: 10 },
 ];
 
 export const NFT_SYMBOLS: NftTrait[] = [
