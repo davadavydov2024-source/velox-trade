@@ -1,14 +1,14 @@
 "use client";
 
-import { ReactNode, useRef, useState } from "react";
+import { ReactNode, useRef } from "react";
 import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
-import { bigEmojiOf } from "@/lib/messenger/emoji";
 import { formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
+import { StickerMedia } from "./StickerMedia";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
 
@@ -126,12 +126,11 @@ export function MessageRow({
   if (msg.kind === "gift" && msg.gift) {
     return (
       <div data-mid={msg.id}>
-        <GiftMessageCard docId={msg.gift.giftDocId} giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
+        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
       </div>
     );
   }
 
-  const bigEmoji = msg.kind === "text" && !msg.replyTo && !msg.forwardedFrom ? bigEmojiOf(msg.text) : null;
   const isNote = msg.kind === "videoNote";
   const isSticker = msg.kind === "sticker" && !!msg.mediaUrl;
   const isMedia = msg.kind === "image";
@@ -214,8 +213,7 @@ export function MessageRow({
   } else if (msg.kind === "sticker") {
     content = msg.mediaUrl ? (
       <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={safeImageSrc(msg.mediaUrl)} alt="" width={160} height={160} className="block" style={{ width: 160, height: 160, objectFit: "contain" }} draggable={false} />
+        <StickerMedia url={msg.mediaUrl} size={160} />
         <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}</span>
       </div>
     ) : (
@@ -279,14 +277,6 @@ export function MessageRow({
         )}
       </>
     );
-  } else if (bigEmoji) {
-    content = (
-      <>
-        <BigEmoji text={bigEmoji} />
-        {meta}
-        <div className="clear-both" />
-      </>
-    );
   } else {
     content = (
       <>
@@ -299,7 +289,7 @@ export function MessageRow({
     );
   }
 
-  const bubbleClass = `mx-bubble ${bigEmoji ? "mxg-bigemoji" : ""} ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""} ${pending?.status === "sending" ? "sending" : ""} ${pending?.status === "failed" ? "failed" : ""}`;
+  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""} ${pending?.status === "sending" ? "sending" : ""} ${pending?.status === "failed" ? "failed" : ""}`;
 
   return (
     <div
@@ -377,23 +367,5 @@ export function MessageRow({
         )}
       </div>
     </div>
-  );
-}
-
-
-/** Крупные эмодзи без «пузыря»: всплывают при показе, подпрыгивают по тапу. */
-function BigEmoji({ text }: { text: string }) {
-  const [jump, setJump] = useState(0);
-  const count = Array.from(text.replace(/\uFE0F/g, "")).length;
-  const size = count <= 1 ? 76 : count === 2 ? 58 : 46;
-  return (
-    <span
-      key={jump}
-      className={`mxg-emoji ${jump ? "jump" : ""}`}
-      style={{ fontSize: size }}
-      onClick={(e) => { e.stopPropagation(); setJump((n) => n + 1); }}
-    >
-      {text}
-    </span>
   );
 }

@@ -197,3 +197,26 @@
 .mx-av-check { position: absolute; right: -3px; bottom: -3px; width: 22px; height: 22px; border-radius: 999px; background: var(--mx-accent); color: var(--mx-accent-text); border: 2.5px solid var(--mx-bg); display: flex; align-items: center; justify-content: center; transform: scale(0); transition: transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .mx-av-sel.on .mx-av-check { transform: scale(1); }
 .mx-chat-row.sel { background: color-mix(in srgb, var(--mx-accent) 13%, var(--mx-bg)) !important; }
+
+/* ===== NFT: анимации карточек ===== */
+.mx-nft-float, .mx-nft-glow, .mx-nft-twinkle, .mx-nft-rise, .mx-nft-sweep, .mx-nft-ring, .mx-nft-border, .mx-nft-rainbow, .mx-nft-holo { transform-box: fill-box; transform-origin: center; }
+@keyframes mx-nft-float { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-6px) rotate(1.5deg); } }
+.mx-nft-float { animation: mx-nft-float 3.6s ease-in-out infinite; }
+@keyframes mx-nft-glow { 0%, 100% { opacity: 0.6; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.08); } }
+.mx-nft-glow { animation: mx-nft-glow 3s ease-in-out infinite; }
+@keyframes mx-nft-twinkle { 0%, 100% { opacity: 0.08; } 50% { opacity: 0.34; } }
+.mx-nft-twinkle { animation: mx-nft-twinkle 2.8s ease-in-out infinite; }
+@keyframes mx-nft-sweep { 0%, 62% { transform: translateX(0); } 100% { transform: translateX(420px); } }
+.mx-nft-sweep { animation: mx-nft-sweep 4.8s ease-in-out infinite; }
+@keyframes mx-nft-rise { 0% { opacity: 0; transform: translateY(8px) scale(0.6); } 25% { opacity: 0.95; } 100% { opacity: 0; transform: translateY(-34px) scale(1.15) rotate(25deg); } }
+.mx-nft-rise { animation: mx-nft-rise 4s ease-out infinite; opacity: 0; }
+@keyframes mx-nft-ring { to { transform: rotate(360deg); } }
+.mx-nft-ring { animation: mx-nft-ring 22s linear infinite; }
+@keyframes mx-nft-border { 0%, 100% { stroke-opacity: 0.35; } 50% { stroke-opacity: 1; } }
+.mx-nft-border { animation: mx-nft-border 2.4s ease-in-out infinite; }
+@keyframes mx-nft-rainbow { from { filter: hue-rotate(0deg) saturate(var(--nft-sat, 1.5)) drop-shadow(0 6px 10px rgba(0,0,0,.5)); } to { filter: hue-rotate(360deg) saturate(var(--nft-sat, 1.5)) drop-shadow(0 6px 10px rgba(0,0,0,.5)); } }
+.mx-nft-rainbow { animation: mx-nft-rainbow 5s linear infinite; }
+.mx-nft-holo { animation: mx-nft-rainbow 9s linear infinite; }
+@keyframes mx-nft-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.mx-nft-bob { display: inline-block; animation: mx-nft-bob 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .mx-nft-float, .mx-nft-glow, .mx-nft-twinkle, .mx-nft-rise, .mx-nft-sweep, .mx-nft-ring, .mx-nft-border, .mx-nft-rainbow, .mx-nft-holo, .mx-nft-bob { animation: none !important; } .mx-nft-rise { opacity: 0 !important; } }
