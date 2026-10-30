@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { EyeOff, Eye, Gift, Pin, PinOff, Repeat, Tag } from "lucide-react";
+import { EyeOff, Eye, Gift, Repeat } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
-import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
+import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
 import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
@@ -175,10 +175,16 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
         </div>
       ) : picked ? (
         <div className="px-5 pb-6 flex flex-col items-center">
-          {picked.nft ? <NftArt gift={picked} nft={sample} size={150} sample /> : <GiftArt gift={picked} size={150} />}
-          <p className="text-[19px] font-semibold mt-3">{picked.title}{picked.nft ? " · NFT" : ""}</p>
-          <p className="mx-muted text-[14px]">{money(picked.price)}{picked.limited ? ` · тираж ${picked.limited}` : ""}</p>
-          {picked.nft && <p className="mx-muted text-[13px] text-center mt-1">Номер, модель, фон и узор выпадут случайно — у каждого экземпляра они свои.</p>}
+          <div className="mx-shop-hero" style={{ background: `radial-gradient(circle at 50% 30%, ${picked.colors[0]}, ${picked.colors[1]})` }}>
+            {picked.nft ? <NftArt gift={picked} nft={sample} size={170} sample /> : <GiftArt gift={picked} size={150} />}
+            <p className="text-[21px] font-semibold mt-3">{picked.title}</p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="mx-price-pill">{money(picked.price)}</span>
+              {picked.nft && <span className="mx-shop-ribbon nft static">NFT</span>}
+              {picked.limited ? <span className="mx-shop-ribbon static">Тираж {picked.limited}</span> : null}
+            </div>
+          </div>
+          {picked.nft && <p className="mx-muted text-[13px] text-center mt-3">Номер, модель, фон и узор выпадут случайно — у каждого экземпляра они свои. Пример выше — только образец.</p>}
           <textarea className="mx-input mt-4 w-full" rows={2} maxLength={GIFT_MESSAGE_MAX} placeholder="Добавить подпись (необязательно)" value={message} onChange={(e) => setMessage(e.target.value)} />
           <div className="mx-card w-full mt-3 px-4 py-3 flex items-center justify-between">
             <span>Скрыть моё имя</span>
@@ -195,15 +201,20 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
               <button key={c.id} onClick={() => setCat(c.id)} className="shrink-0 px-3.5 py-1.5 rounded-full text-[14px]" style={{ background: cat === c.id ? "var(--mx-accent)" : "var(--mx-surface2)", color: cat === c.id ? "var(--mx-accent-text)" : "var(--mx-text)" }}>{c.label}</button>
             ))}
           </div>
+          <div className="flex items-center justify-between px-4 pb-3">
+            <span className="mx-muted text-[13.5px]">{list.length} {list.length === 1 ? "подарок" : "подарков"}</span>
+            <span className="mx-balance-chip">Баланс: {wallet === null ? "…" : money(wallet)}</span>
+          </div>
           <div className="grid grid-cols-3 gap-2.5 px-4">
             {list.map((g) => {
               const left = g.limited ? g.limited - (stock[g.id] ?? 0) : null;
               return (
-                <button key={g.id} onClick={() => setPicked(g)} className="flex flex-col items-center rounded-2xl p-2 active:scale-95 transition-transform" style={{ background: "var(--mx-surface2)" }}>
-                  <GiftArt gift={g} size={84} badge={g.nft ? <span className="absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,.45)", color: "#fff" }}>NFT</span> : undefined} />
-                  <span className="text-[13px] mt-1.5 truncate max-w-full">{g.title}</span>
-                  <span className="text-[13px] font-semibold" style={{ color: "var(--mx-accent)" }}>{money(g.price)}</span>
-                  {left !== null && <span className="mx-muted text-[11px]">осталось {left}</span>}
+                <button key={g.id} onClick={() => setPicked(g)} className="mx-shop-card">
+                  {g.nft ? <span className="mx-shop-ribbon nft">NFT</span> : left !== null ? <span className="mx-shop-ribbon">Лимит</span> : null}
+                  <GiftArt gift={g} size={78} />
+                  <span className="mx-shop-title">{g.title}</span>
+                  {left !== null ? <span className="mx-shop-left">осталось {left} из {g.limited}</span> : <span className="mx-shop-left">&nbsp;</span>}
+                  <span className="mx-price-pill">{money(g.price)}</span>
                 </button>
               );
             })}
@@ -223,8 +234,6 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const [cat, setCat] = useState<"all" | GiftCategory>("all");
   const [open, setOpen] = useState<GiftView | null>(null);
   const [shop, setShop] = useState(false);
-  const [sellOpen, setSellOpen] = useState(false);
-  const [sellPrice, setSellPrice] = useState("");
 
   const load = useCallback(() => {
     mApi<{ gifts: GiftView[] }>(`gifts?uid=${mine ? "me" : encodeURIComponent(uid)}`).then((d) => setGifts(d.gifts)).catch(() => setGifts([]));
@@ -239,17 +248,6 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
 
   const toggle = async (g: GiftView) => {
     try { await mApi("gifts", { action: "toggle", id: g.id, hidden: !g.hidden }); setOpen(null); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
-  };
-  const pin = async (g: GiftView) => {
-    try { await mApi("gifts", { action: "pin", id: g.id, pinned: !g.pinned }); toast("success", g.pinned ? "Подарок откреплён" : "Подарок закреплён в профиле"); setOpen(null); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
-  };
-  const listForSale = async (g: GiftView, price: number | null) => {
-    try { await mApi("gifts", { action: "list", id: g.id, price }); toast("success", price ? `Выставлен на продажу за ${price} ⭐` : "Снят с продажи"); setSellOpen(false); setOpen(null); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
-  };
-  const buy = async (g: GiftView) => {
-    const d = giftById(g.giftId);
-    if (!d || !g.salePrice || !confirm(`Купить «${d.title}»${g.nft ? ` #${g.nft.number}` : ""} за ${g.salePrice} ⭐?`)) return;
-    try { await mApi("gifts", { action: "buy", id: g.id }); toast("success", "Подарок куплен — он теперь в твоём профиле"); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
   const convert = async (g: GiftView) => {
     const def = giftById(g.giftId);
@@ -292,8 +290,6 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
                 )}
                 {g.from && <span className="absolute top-1.5 left-1.5"><Avatar src={g.from.photoURL} name={g.from.displayName} seed={g.from.uid} size={22} /></span>}
                 {g.hidden && <EyeOff size={14} className="absolute bottom-1.5 right-1.5 text-white/80" />}
-                {g.pinned && <Pin size={14} className="absolute top-1.5 right-1.5 text-white/90" fill="currentColor" />}
-                {g.salePrice ? <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-black/55 text-white">{g.salePrice} ⭐</span> : null}
               </button>
             );
           })}
@@ -321,32 +317,12 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
             {open.anonymous && open.from && <p className="mx-muted text-[12.5px] mt-1">Отправлен анонимно — другие не видят имя</p>}
             {open.nft && <NftTraits nft={open.nft} />}
             {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
-            {open.salePrice ? <p className="mx-card px-4 py-2.5 mt-4 w-full text-[14.5px] text-center">Продаётся за <b>{open.salePrice} ⭐</b></p> : null}
             {mine && (
               <div className="w-full mt-5 flex flex-col gap-2">
-                {!open.hidden && <button className="mx-btn" onClick={() => pin(open)}>{open.pinned ? <><PinOff size={16} className="inline mr-1.5 -mt-0.5" />Открепить от профиля</> : <><Pin size={16} className="inline mr-1.5 -mt-0.5" />Закрепить в профиле</>}</button>}
-                {open.pinned && <p className="mx-muted text-[12.5px] text-center -mt-1">Закреплённые подарки показываются первыми (до {GIFT_PIN_MAX})</p>}
                 <button className="mx-btn" onClick={() => toggle(open)}>{open.hidden ? <><Eye size={16} className="inline mr-1.5 -mt-0.5" />Показать в профиле</> : <><EyeOff size={16} className="inline mr-1.5 -mt-0.5" />Скрыть из профиля</>}</button>
-                {open.salePrice ? (
-                  <button className="mx-btn-ghost py-2" onClick={() => listForSale(open, null)}><Tag size={15} className="inline mr-1.5 -mt-0.5" />Снять с продажи</button>
-                ) : (
-                  <button className="mx-btn-ghost py-2" onClick={() => { setSellPrice(String(open.price)); setSellOpen(true); }}><Tag size={15} className="inline mr-1.5 -mt-0.5" />Продать другим за ⭐</button>
-                )}
                 {!open.nft && <button className="mx-btn-ghost py-2" onClick={() => convert(open)}><Repeat size={15} className="inline mr-1.5 -mt-0.5" />Обменять на {Math.floor(open.price * GIFT_CONVERT_RATE)} ⭐</button>}
               </div>
             )}
-            {!mine && open.salePrice ? <button className="mx-btn w-full mt-4" onClick={() => buy(open)}>Купить за {open.salePrice} ⭐</button> : null}
-          </div>
-        )}
-      </Sheet>
-
-      <Sheet open={sellOpen && !!open} onClose={() => setSellOpen(false)} zIndex={70}>
-        {open && (
-          <div className="px-5 pb-8 flex flex-col gap-3">
-            <p className="text-[18px] font-semibold text-center">Цена в ⭐</p>
-            <input className="mx-input text-center text-[20px]" inputMode="numeric" value={sellPrice} onChange={(e) => setSellPrice(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Например, 100" />
-            {Number(sellPrice) > 0 && <p className="mx-muted text-[13px] text-center">Ты получишь {Math.floor(Number(sellPrice) * (1 - GIFT_SALE_FEE))} ⭐ (комиссия {Math.round(GIFT_SALE_FEE * 100)}%)</p>}
-            <button className="mx-btn" disabled={!(Number(sellPrice) > 0)} onClick={() => listForSale(open, Number(sellPrice))}>Выставить на продажу</button>
           </div>
         )}
       </Sheet>

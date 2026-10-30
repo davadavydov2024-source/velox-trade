@@ -8,6 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
+import { WallpaperLayer } from "./Wallpaper";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
@@ -557,7 +558,8 @@ export function ChatView({
   ];
 
   return (
-    <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
+    <div className="flex flex-col h-full relative mx-wp-host" style={{ background: "var(--mx-bg)" }}>
+      <WallpaperLayer />
       {/* ---- шапка ---- */}
       <div className="mx-glass mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
         {selecting ? (
@@ -614,7 +616,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative">
+      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && (
           <div className="px-3 pt-4 space-y-2.5">
