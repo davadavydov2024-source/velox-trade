@@ -6,7 +6,7 @@ import { dmChatId, fail, isDmBlocked, postMessage, requireMessenger, SERVICE_UID
 import { randomInt } from "crypto";
 import { rollNft } from "@/lib/messenger/nft";
 import type { GiftNft } from "@/lib/messenger/gifts";
-import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
+import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, GIFT_SALE_MAX, GIFT_SALE_MIN, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   if (!target || target.includes("/")) return fail("uid некорректен");
   const owner = target === me.uid;
   const snap = await db.collection("messengerGifts").where("to", "==", target).limit(300).get();
-  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessengerGift).filter((g) => owner || !g.hidden).sort((a, b) => b.at - a.at);
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessengerGift).filter((g) => owner || !g.hidden).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (a.pinned && b.pinned ? (a.pinnedAt ?? 0) - (b.pinnedAt ?? 0) : b.at - a.at));
 
   const senderIds = Array.from(new Set(rows.filter((g) => !g.anonymous || owner).map((g) => g.from)));
   const accs = senderIds.length ? await db.getAll(...senderIds.map((u) => db.collection("messengerAccounts").doc(u))) : [];
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     const showSender = !g.anonymous || owner || g.from === me.uid;
     const s = showSender ? byUid[g.from] ?? (g.from === me.uid ? me.account : undefined) : undefined;
     return {
-      id: g.id, giftId: g.giftId, price: g.price, message: g.message, at: g.at, hidden: !!g.hidden, anonymous: !!g.anonymous,
+      id: g.id, giftId: g.giftId, price: g.price, message: g.message, at: g.at, hidden: !!g.hidden, pinned: !!g.pinned, ...(g.salePrice ? { salePrice: g.salePrice } : {}), anonymous: !!g.anonymous,
       from: s ? { uid: g.from, displayName: s.displayName, photoURL: s.photoURL ?? null } : null,
       ...(g.nft ? { nft: g.nft } : {}),
     };
@@ -57,6 +57,9 @@ export async function GET(req: NextRequest) {
  * POST { action: "send", toUid, giftId, message?, anonymous? } — купить подарок за ⭐ кошелька и отправить.
  * POST { action: "toggle", id, hidden } — показать/скрыть свой подарок в профиле.
  * POST { action: "convert", id }        — обменять полученный подарок на ⭐ (GIFT_CONVERT_RATE от цены).
+ * POST { action: "pin", id, pinned }     — закрепить/открепить подарок вверху профиля (до GIFT_PIN_MAX).
+ * POST { action: "list", id, price }     — выставить свой подарок на продажу за price ⭐ (price: null — снять с продажи).
+ * POST { action: "buy", id }             — купить выставленный подарок у другого пользователя (продавец получает цену минус GIFT_SALE_FEE).
  */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest) {
     const ref = db.collection("messengerGifts").doc(id);
     const g = (await ref.get()).data() as MessengerGift | undefined;
     if (!g || g.to !== me.uid) return fail("Подарок не найден", 404);
-    await ref.update({ hidden: b.hidden === true });
+    await ref.update(b.hidden === true ? { hidden: true, pinned: false, pinnedAt: FieldValue.delete() } : { hidden: false });
     return NextResponse.json({ ok: true });
   }
 
@@ -102,7 +105,97 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (b.action !== "send") return fail("action: send | toggle | convert");
+  if (b.action === "pin") {
+    const id = typeof b.id === "string" && !b.id.includes("/") ? b.id : "";
+    if (!id) return fail("id обязателен");
+    const ref = db.collection("messengerGifts").doc(id);
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const g = snap.data() as MessengerGift | undefined;
+        if (!g || g.to !== me.uid) throw new Error("not-found");
+        if (b.pinned === true) {
+          if (g.hidden) throw new Error("hidden");
+          if (!g.pinned) {
+            const pinned = await tx.get(db.collection("messengerGifts").where("to", "==", me.uid).where("pinned", "==", true));
+            if (pinned.size >= GIFT_PIN_MAX) throw new Error("limit");
+          }
+          tx.update(ref, { pinned: true, pinnedAt: Date.now() });
+        } else {
+          tx.update(ref, { pinned: false, pinnedAt: FieldValue.delete() });
+        }
+      });
+      return NextResponse.json({ ok: true });
+    } catch (e: any) {
+      if (e?.message === "not-found") return fail("Подарок не найден", 404);
+      if (e?.message === "hidden") return fail("Сначала покажи подарок в профиле");
+      if (e?.message === "limit") return fail(`Можно закрепить не больше ${GIFT_PIN_MAX} подарков`);
+      console.error("gift pin error:", e);
+      return fail("Не удалось закрепить подарок", 500);
+    }
+  }
+
+  if (b.action === "list") {
+    const id = typeof b.id === "string" && !b.id.includes("/") ? b.id : "";
+    if (!id) return fail("id обязателен");
+    const ref = db.collection("messengerGifts").doc(id);
+    const g = (await ref.get()).data() as MessengerGift | undefined;
+    if (!g || g.to !== me.uid) return fail("Подарок не найден", 404);
+    if (b.price === null || b.price === undefined) {
+      await ref.update({ salePrice: FieldValue.delete() });
+      return NextResponse.json({ ok: true });
+    }
+    if (g.byAdmin) return fail("Подарок от администрации нельзя продать");
+    const price = Math.floor(Number(b.price));
+    if (!Number.isFinite(price) || price < GIFT_SALE_MIN || price > GIFT_SALE_MAX) return fail(`Цена от ${GIFT_SALE_MIN} до ${GIFT_SALE_MAX} ⭐`);
+    await ref.update({ salePrice: price });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (b.action === "buy") {
+    if (!(await rateLimit(`msgr_gift_buy_${me.uid}`, 10, 60_000))) return fail("Слишком часто", 429);
+    const id = typeof b.id === "string" && !b.id.includes("/") ? b.id : "";
+    if (!id) return fail("id обязателен");
+    const ref = db.collection("messengerGifts").doc(id);
+    let sellerUid = "";
+    try {
+      const paid = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const g = snap.data() as MessengerGift | undefined;
+        if (!g || !g.salePrice) throw new Error("not-for-sale");
+        if (g.to === me.uid) throw new Error("own");
+        sellerUid = g.to;
+        const buyerRef = db.collection("users").doc(me.uid);
+        const buyer = await tx.get(buyerRef);
+        const have = (buyer.data()?.starsWallet as number | undefined) ?? 0;
+        if (have < g.salePrice) throw new Error("not-enough");
+        const payout = Math.floor(g.salePrice * (1 - GIFT_SALE_FEE));
+        const now = Date.now();
+        tx.set(buyerRef, { starsWallet: FieldValue.increment(-g.salePrice) }, { merge: true });
+        tx.set(db.collection("users").doc(g.to), { starsWallet: FieldValue.increment(payout) }, { merge: true });
+        tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now });
+        tx.set(db.collection("starsWalletLog").doc(), { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now });
+        // новый владелец: подарок снова виден, не закреплён и не продаётся; byAdmin снимается (теперь он «купленный»)
+        tx.update(ref, { to: me.uid, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), byAdmin: FieldValue.delete(), soldAt: now });
+        return g.salePrice;
+      });
+      // если подарок стоял статусом у продавца — снимаем (best-effort)
+      try {
+        const sAcc = db.collection("messengerAccounts").doc(sellerUid);
+        const st = (await sAcc.get()).data()?.status;
+        if (st?.kind === "nft" && st.giftDocId === id) await sAcc.update({ status: null });
+      } catch {}
+      return NextResponse.json({ ok: true, paid });
+    } catch (e: any) {
+      if (e?.message === "not-for-sale") return fail("Подарок уже не продаётся", 409);
+      if (e?.message === "own") return fail("Это твой подарок");
+      if (e?.message === "not-enough") return NextResponse.json({ error: "Не хватает ⭐ на балансе", needTopup: true }, { status: 402 });
+      console.error("gift buy error:", e);
+      return fail("Не удалось купить подарок", 500);
+    }
+  }
+
+  if (b.action !== "send") return fail("action: send | toggle | convert | pin | list | buy");
 
   if (!(await rateLimit(`msgr_gift_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
   const gift = giftById(String(b.giftId ?? ""));

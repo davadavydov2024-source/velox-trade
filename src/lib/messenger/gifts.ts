@@ -22,6 +22,10 @@ export const GIFT_MIN_PRICE = 5;
 export const GIFT_MAX_PRICE = 50;
 export const GIFT_CONVERT_RATE = 0.8; // сколько ⭐ вернётся, если получатель обменяет подарок на звёзды
 export const GIFT_MESSAGE_MAX = 120;
+export const GIFT_PIN_MAX = 6; // сколько подарков можно закрепить в профиле (как в Telegram)
+export const GIFT_SALE_FEE = 0.1; // комиссия с продажи другому пользователю
+export const GIFT_SALE_MIN = 1;
+export const GIFT_SALE_MAX = 100_000;
 
 export const GIFT_CATEGORIES: { id: "all" | GiftCategory; label: string }[] = [
   { id: "all", label: "Все подарки" },
@@ -98,6 +102,9 @@ export interface MessengerGift {
   message?: string;
   anonymous?: boolean; // скрыть отправителя от всех, кроме получателя
   hidden?: boolean; // получатель скрыл подарок из профиля
+  pinned?: boolean; // закреплён вверху профиля
+  pinnedAt?: number;
+  salePrice?: number; // выставлен на продажу за ⭐ (null/нет — не продаётся)
   at: number;
   nft?: GiftNft; // зарезервировано под NFT-подарки
   byAdmin?: boolean; // выдан администрацией бесплатно (на ⭐ не обменивается)
@@ -121,6 +128,8 @@ export interface GiftView {
   message?: string;
   at: number;
   hidden: boolean;
+  pinned: boolean;
+  salePrice?: number;
   anonymous: boolean;
   from: { uid: string; displayName: string; photoURL: string | null } | null; // null — анонимно
   nft?: GiftNft;
