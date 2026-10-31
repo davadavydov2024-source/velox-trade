@@ -4,6 +4,7 @@ import { useMxPrefs } from "./prefs";
 
 export const WALLPAPERS: { id: string; label: string }[] = [
   { id: "none", label: "Классика" },
+  { id: "noir", label: "Чёрный" },
   { id: "aurora", label: "Аврора" },
   { id: "sunset", label: "Закат" },
   { id: "ocean", label: "Океан" },

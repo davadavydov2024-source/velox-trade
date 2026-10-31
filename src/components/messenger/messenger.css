@@ -374,3 +374,63 @@
 /* подсветка сообщения при переходе к ответу */
 .mx[data-design="tg"] .mx-hl { animation: mx-tg-hl 1.4s ease-out; }
 @keyframes mx-tg-hl { 0% { filter: brightness(1.35); } 100% { filter: none; } }
+
+/* ---------- Обои чата ---------- */
+.mx-wp-layer { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.mx .mx-wp { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.mx .mx-wp-aurora { background: radial-gradient(circle at 20% 15%, #3ee6a8 0, transparent 45%), radial-gradient(circle at 85% 30%, #5b6cff 0, transparent 50%), radial-gradient(circle at 40% 95%, #b04fff 0, transparent 55%), #0b1d4a !important; }
+.mx .mx-wp-sunset { background: linear-gradient(170deg, #ffb347 0%, #ff6a4d 38%, #c2307a 70%, #3a1c6e 100%) !important; }
+.mx .mx-wp-ocean { background: linear-gradient(175deg, #7be0ff 0%, #1fa3c9 40%, #0c4a7a 78%, #05213d 100%) !important; }
+.mx .mx-wp-forest { background: radial-gradient(circle at 80% 10%, #6fd08a 0, transparent 45%), linear-gradient(180deg, #1d6b45 0%, #0d3b27 60%, #061c13 100%) !important; }
+.mx .mx-wp-midnight { background: radial-gradient(circle at 70% 20%, #3a2f8f 0, transparent 50%), linear-gradient(180deg, #151a3d 0%, #070a1f 100%) !important; }
+.mx .mx-wp-candy { background: radial-gradient(circle at 15% 20%, #ffd1ec 0, transparent 45%), radial-gradient(circle at 85% 80%, #b9c8ff 0, transparent 50%), linear-gradient(160deg, #ff9ed2, #9d8cff) !important; }
+.mx .mx-wp-dots { background-color: #17212b !important; background-image: radial-gradient(rgba(255,255,255,.12) 1.6px, transparent 1.7px) !important; background-size: 22px 22px !important; }
+.mx[data-theme="light"] .mx-wp-dots { background-color: #e9eef5 !important; background-image: radial-gradient(rgba(60,90,130,.22) 1.6px, transparent 1.7px) !important; }
+.mx .mx-wp-halloween { background-color: #1a0a00 !important; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><g font-size='26' opacity='0.22'><text x='14' y='34'>🎃</text><text x='88' y='64' transform='rotate(14 88 64)'>🦇</text><text x='30' y='108' transform='rotate(-10 30 108)'>👻</text><text x='98' y='128'>🕷</text></g></svg>"), radial-gradient(circle at 50% 0%, #ff7a18 0, transparent 60%), linear-gradient(180deg, #3a1500, #0d0400) !important; background-size: 140px 140px, cover, cover !important; background-repeat: repeat, no-repeat, no-repeat !important; }
+/* стеклянные плашки поверх цветных обоев читаются лучше */
+.mx .mx-wp.mx-chat-wall .mx-bubble.in { box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+
+/* ---------- Форма сообщений ---------- */
+.mx[data-bubble="classic"] .mx-bubble, .mx-bubble[data-bubble="classic"] { border-radius: 10px; }
+.mx[data-bubble="compact"] .mx-bubble, .mx-bubble[data-bubble="compact"] { border-radius: 4px; }
+.mx[data-bubble="classic"] .mx-bubble.in.tail, .mx-bubble[data-bubble="classic"].in.tail { border-bottom-left-radius: 3px; }
+.mx[data-bubble="classic"] .mx-bubble.out.tail, .mx-bubble[data-bubble="classic"].out.tail { border-bottom-right-radius: 3px; }
+
+/* ---------- Нижняя панель в стиле iOS «жидкое стекло» ---------- */
+.mx[data-design="tg"] .mx-nav.mx-liquid {
+  left: 16px !important; right: 16px !important; bottom: calc(env(safe-area-inset-bottom) + 10px) !important;
+  border-radius: 34px !important; border: 1px solid rgba(255,255,255,.22) !important; padding: 5px !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,.04) 45%, rgba(255,255,255,.10) 100%), rgba(34, 36, 44, .34) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) brightness(1.08); backdrop-filter: blur(28px) saturate(190%) brightness(1.08);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.08), inset 0 0 18px rgba(255,255,255,.05), 0 12px 32px rgba(0,0,0,.38), 0 2px 8px rgba(0,0,0,.22);
+  isolation: isolate;
+}
+.mx[data-design="tg"][data-theme="light"] .mx-nav.mx-liquid {
+  border-color: rgba(255,255,255,.7) !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.75) 0%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.5) 100%), rgba(245, 247, 252, .36) !important;
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.95), inset 0 -1px 0 rgba(0,0,0,.04), 0 12px 30px rgba(30,50,90,.18), 0 2px 6px rgba(30,50,90,.1);
+}
+.mx-liquid-pill {
+  position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 10px) / 3); z-index: 0; pointer-events: none;
+  border-radius: 29px;
+  background: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,.12)), rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 4px 14px rgba(0,0,0,.22);
+  transform: translateX(calc(var(--i, 0) * 100%));
+  transition: transform .5s cubic-bezier(.34, 1.45, .5, 1);
+}
+.mx[data-theme="light"] .mx-liquid-pill { background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.55)); border-color: rgba(255,255,255,.9); box-shadow: inset 0 1px 0 #fff, 0 4px 14px rgba(30,50,90,.16); }
+.mx[data-design="tg"] .mx-nav.mx-liquid button { position: relative; z-index: 1; border-radius: 29px !important; transition: transform .2s, color .25s; }
+.mx[data-design="tg"] .mx-nav.mx-liquid button:active { transform: scale(.93); }
+@media (prefers-reduced-motion: reduce) { .mx-liquid-pill { transition: none; } }
+
+/* ---------- Тема «Контур»: чёрный фон, сообщения только в рамке ---------- */
+.mx .mx-wp-noir { background: #000 !important; }
+.mx[data-bubble="outline"] .mx-bubble.in, .mx[data-bubble="outline"] .mx-bubble.out, .mx-bubble[data-bubble="outline"].in, .mx-bubble[data-bubble="outline"].out {
+  background: transparent !important; color: var(--mx-text); border: 1.5px solid rgba(255,255,255,.88); border-radius: 20px; box-shadow: none !important;
+}
+.mx[data-bubble="outline"][data-theme="light"] .mx-bubble.in, .mx[data-bubble="outline"][data-theme="light"] .mx-bubble.out { border-color: rgba(0,0,0,.75); }
+.mx[data-bubble="outline"] .mx-bubble.out { color: var(--mx-text) !important; }
+.mx[data-bubble="outline"] .mx-bubble.in.tail { border-bottom-left-radius: 6px; }
+.mx[data-bubble="outline"] .mx-bubble.out.tail { border-bottom-right-radius: 6px; }
+.mx[data-bubble="outline"] .mx-bubble.tail::before, .mx[data-bubble="outline"] .mx-bubble.tail::after, .mx-bubble[data-bubble="outline"]::before, .mx-bubble[data-bubble="outline"]::after { display: none !important; }

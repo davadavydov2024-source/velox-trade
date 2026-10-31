@@ -98,6 +98,14 @@ export const GIFTS: GiftDef[] = [
   { id: "hw-cat", emoji: "🐈‍⬛", title: "Чёрный кот", price: 40, category: "halloween", nft: true, colors: ["#24243a", "#0c0c16"], limited: 666 },
   { id: "hw-spider", emoji: "🕷️", title: "Паук-ткач", price: 35, category: "halloween", nft: true, colors: ["#2a2250", "#0e0b20"], limited: 1300 },
   { id: "hw-ghost", emoji: "👻", title: "Призрак-джентльмен", price: 35, category: "halloween", nft: true, colors: ["#33384a", "#14172a"], limited: 1500 },
+  { id: "hw-house", emoji: "🏚️", title: "Дом с привидениями", price: 50, category: "halloween", nft: true, colors: ["#2a1a3a", "#0d0714"], limited: 400 },
+  { id: "hw-coffin", emoji: "⚰️", title: "Гроб Дракулы", price: 45, category: "halloween", nft: true, colors: ["#2a1a4a", "#0d0718"], limited: 500 },
+  { id: "hw-tomb", emoji: "🪦", title: "Надгробие", price: 35, category: "halloween", nft: true, colors: ["#262a35", "#0e1016"], limited: 900 },
+  { id: "hw-candles", emoji: "🕯️", title: "Свечи ритуала", price: 35, category: "halloween", nft: true, colors: ["#3a2410", "#150c04"], limited: 900 },
+  { id: "hw-eye", emoji: "👁️", title: "Всевидящий глаз", price: 40, category: "halloween", nft: true, colors: ["#3a1a2a", "#14080f"], limited: 666 },
+  { id: "hw-hourglass", emoji: "⏳", title: "Песочные часы", price: 40, category: "halloween", nft: true, colors: ["#3a2a10", "#150f04"], limited: 800 },
+  { id: "hw-tree", emoji: "🌳", title: "Мёртвое дерево", price: 30, category: "halloween", nft: true, colors: ["#4a2a0c", "#1c0d02"], limited: 1200 },
+  { id: "hw-rose", emoji: "🌹", title: "Алая роза", price: 30, category: "halloween", nft: true, colors: ["#3a0f1a", "#14060a"], limited: 1200 },
   { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
