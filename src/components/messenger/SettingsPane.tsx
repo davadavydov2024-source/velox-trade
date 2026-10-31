@@ -658,7 +658,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         >
           ID аккаунта: {me}{isAdminUid(me) ? " · админ" : ""}
         </button>
-        <p className="text-center text-[12.5px] mx-muted pb-4">Velox Chat · сообщения не шифруются сквозным образом</p>
+        <div className="pb-4" />
       </div>
       <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} />
       <Sheet open={myGifts} onClose={() => setMyGifts(false)} title="Мои подарки" full>

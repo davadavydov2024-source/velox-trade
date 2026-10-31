@@ -15,16 +15,17 @@ const REPORTS_TO_HIDE = 3;
 
 type Gender = "m" | "f";
 type Seek = "m" | "f" | "any";
-interface Profile { uid: string; name: string; age: number; gender: Gender; seek: Seek; city: string; about: string; active: boolean; createdAt: number; reports?: number }
+type Goal = "love" | "friends" | "talk";
+const GOALS: Record<Goal, string> = { love: "💞 Отношения", friends: "👫 Дружба", talk: "💬 Общение" };
+interface Profile { uid: string; name: string; age: number; gender: Gender; seek: Seek; goal: Goal; photo?: string | null; city: string; about: string; active: boolean; createdAt: number; reports?: number }
 interface State { step: string; draft?: Partial<Profile>; viewing?: string | null }
 interface Reply { text: string; kb?: string[]; image?: string }
 
 const B = {
   start: "💘 Создать анкету", browse: "🔍 Смотреть анкеты", mine: "👤 Моя анкета", edit: "✏️ Заполнить заново", hide: "⏸ Скрыть анкету", show: "▶️ Показать анкету",
   likes: "❤️ Кто меня лайкнул", like: "❤️ Нравится", skip: "👎 Дальше", report: "🚩 Пожаловаться", menu: "🏠 Меню", reset: "🔄 Показать заново",
-  m: "Парень", f: "Девушка", seekM: "Парней", seekF: "Девушек", seekAny: "Всех", del: "🗑 Удалить анкету", yes: "Да, удалить", no: "Отмена",
+  m: "Парень", f: "Девушка", seekM: "Парней", seekF: "Девушек", seekAny: "Всех", goalSwitch: "🎯 Что ищу", photoProfile: "📷 Фото из профиля", noPhoto: "Без фото", editPhoto: "🖼 Сменить фото", editText: "📝 Изменить текст", del: "🗑 Удалить анкету", yes: "Да, удалить", no: "Отмена",
 };
-const MENU = [B.browse, B.mine, B.likes, B.hide, B.edit];
 
 export async function ensureDatingBot(): Promise<MessengerAuth> {
   const db = adminDb();
@@ -60,14 +61,42 @@ async function say(uid: string, r: Reply, silent = false) {
 
 const col = (n: string) => adminDb().collection(n);
 const sexWord = (g: Gender) => (g === "m" ? "парень" : "девушка");
-const cardText = (p: Profile) => `${p.name}, ${p.age} · ${p.city}\n${sexWord(p.gender)}${p.about ? `\n\n${p.about}` : ""}`;
+const cardText = (p: Profile) => `${p.name}, ${p.age} · ${p.city}\n${sexWord(p.gender)} · ${GOALS[p.goal] ?? ""}${p.about ? `\n\n${p.about}` : ""}`;
 
 const INTRO = `💘 Velox Знакомства\n\nЗдесь можно найти людей по интересам и симпатии. Бот только для тех, кому есть 18 лет.\n\nПравила: будьте вежливы, не отправляйте чужие фото, не переводите деньги незнакомцам и на первой встрече выбирайте людное место. На анкету можно пожаловаться — после нескольких жалоб она скрывается.`;
+
+/** Фото анкеты: загруженное в боте, иначе фото профиля. */
+async function photoOf(p: Profile): Promise<string | undefined> {
+  if (p.photo) return p.photo;
+  const acc = (await col("messengerAccounts").doc(p.uid).get()).data() as MessengerAccount | undefined;
+  return acc?.photoURL && /^https?:\/\//.test(acc.photoURL) ? acc.photoURL : undefined;
+}
+
+async function finishProfile(uid: string, draft: Partial<Profile>, photo: string | null): Promise<void> {
+  const acc = (await col("messengerAccounts").doc(uid).get()).data() as MessengerAccount | undefined;
+  const old = (await col("datingProfiles").doc(uid).get()).data() as Profile | undefined;
+  const p: Profile = { uid, name: (acc?.displayName ?? "Без имени").slice(0, 30), age: draft.age!, gender: draft.gender!, seek: draft.seek!, goal: draft.goal ?? "love", photo, city: draft.city!, about: draft.about!, active: true, createdAt: old?.createdAt ?? Date.now(), reports: old?.reports ?? 0 };
+  await col("datingProfiles").doc(uid).set(p);
+  await col("datingState").doc(uid).set({ step: "idle", draft: {}, viewing: null });
+  await say(uid, { text: `Анкета готова ✅\n\n${cardText(p)}`, image: await photoOf(p), kb: await menuFor(uid) });
+}
+
+/** Фото, присланное боту: сохраняем, если сейчас шаг загрузки фото. */
+export async function datingPhoto(uid: string, url: string): Promise<void> {
+  const st = ((await col("datingState").doc(uid).get()).data() as State | undefined) ?? { step: "idle" };
+  if (st.step === "photo") return finishProfile(uid, st.draft ?? {}, url);
+  if (st.step === "photo-only") {
+    await col("datingProfiles").doc(uid).update({ photo: url });
+    await col("datingState").doc(uid).set({ step: "idle" }, { merge: true });
+    return say(uid, { text: "Фото обновлено ✅", image: url, kb: await menuFor(uid) });
+  }
+  return say(uid, { text: "Фото принимаю при создании анкеты или после «🖼 Сменить фото».", kb: await menuFor(uid) });
+}
 
 async function menuFor(uid: string): Promise<string[]> {
   const p = (await col("datingProfiles").doc(uid).get()).data() as Profile | undefined;
   if (!p) return [B.start];
-  return [B.browse, B.mine, B.likes, p.active ? B.hide : B.show, B.edit];
+  return [B.browse, B.mine, B.likes, B.goalSwitch, p.active ? B.hide : B.show, B.edit];
 }
 
 /** Вход: приветствие (при /start и первом обращении). */
@@ -82,7 +111,7 @@ async function nextCandidate(me: Profile): Promise<Profile | null> {
   let q = col("datingProfiles").where("active", "==", true) as Query;
   if (me.seek !== "any") q = q.where("gender", "==", me.seek);
   const snap = await q.limit(200).get();
-  const pool = snap.docs.map((d) => d.data() as Profile).filter((p) => p.uid !== me.uid && !seen.has(p.uid) && (p.seek === "any" || p.seek === me.gender));
+  const pool = snap.docs.map((d) => d.data() as Profile).filter((p) => p.uid !== me.uid && !seen.has(p.uid) && (p.seek === "any" || p.seek === me.gender) && p.goal === me.goal);
   if (!pool.length) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -95,9 +124,8 @@ async function markSeen(uid: string, other: string) {
 async function showNext(me: Profile, uid: string): Promise<Reply> {
   const c = await nextCandidate(me);
   await col("datingState").doc(uid).set({ step: "browse", viewing: c?.uid ?? null }, { merge: true });
-  if (!c) return { text: "Подходящие анкеты закончились. Загляните позже — появятся новые.", kb: [B.reset, B.menu] };
-  const acc = (await col("messengerAccounts").doc(c.uid).get()).data() as MessengerAccount | undefined;
-  return { text: cardText(c), image: acc?.photoURL && /^https?:\/\//.test(acc.photoURL) ? acc.photoURL : undefined, kb: [B.like, B.skip, B.report, B.menu] };
+  if (!c) return { text: "Подходящие анкеты закончились. Попробуйте сменить цель («🎯 Что ищу») или загляните позже.", kb: [B.reset, B.menu] };
+  return { text: cardText(c), image: await photoOf(c), kb: [B.like, B.skip, B.report, B.menu] };
 }
 
 async function likeBack(uid: string, target: string): Promise<boolean> {
@@ -145,8 +173,20 @@ export async function datingHandle(uid: string, rawText: string): Promise<void> 
   if (st.step === "seek") {
     const s: Seek | null = text === B.seekM ? "m" : text === B.seekF ? "f" : text === B.seekAny ? "any" : null;
     if (!s) return say(uid, { text: "Выберите кнопкой.", kb: [B.seekM, B.seekF, B.seekAny] });
-    await stRef.set({ step: "city", draft: { ...st.draft, seek: s } });
+    await stRef.set({ step: "goal", draft: { ...st.draft, seek: s } });
+    return say(uid, { text: "Что ищете?", kb: Object.values(GOALS) });
+  }
+  if (st.step === "goal") {
+    const g = (Object.keys(GOALS) as Goal[]).find((k) => GOALS[k] === text);
+    if (!g) return say(uid, { text: "Выберите кнопкой.", kb: Object.values(GOALS) });
+    await stRef.set({ step: "city", draft: { ...st.draft, goal: g } });
     return say(uid, { text: "Из какого вы города?" });
+  }
+  if (st.step === "goal-only") {
+    const g = (Object.keys(GOALS) as Goal[]).find((k) => GOALS[k] === text);
+    if (!g) return say(uid, { text: "Выберите кнопкой.", kb: Object.values(GOALS) });
+    await Promise.all([profRef.update({ goal: g }), col("datingSeen").doc(uid).delete(), stRef.set({ step: "idle" }, { merge: true })]);
+    return say(uid, { text: `Теперь ищете: ${GOALS[g]}. Показываю анкеты с такой же целью.`, kb: await menuFor(uid) });
   }
   if (st.step === "city") {
     if (text.length < 2 || text.length > 40) return say(uid, { text: "Название города — от 2 до 40 символов." });
@@ -156,21 +196,33 @@ export async function datingHandle(uid: string, rawText: string): Promise<void> 
   if (st.step === "about") {
     if (text.length < 5 || text.length > 300) return say(uid, { text: "Напишите от 5 до 300 символов." });
     if (/(https?:\/\/|t\.me|@\w{4,}|\+?\d[\d\s\-()]{8,})/i.test(text)) return say(uid, { text: "Уберите ссылки, @ники и номера телефонов — обменяться контактами можно после взаимной симпатии." });
-    const acc = (await col("messengerAccounts").doc(uid).get()).data() as MessengerAccount | undefined;
-    const d = st.draft ?? {};
-    const p: Profile = { uid, name: (acc?.displayName ?? "Без имени").slice(0, 30), age: d.age!, gender: d.gender!, seek: d.seek!, city: d.city!, about: text, active: true, createdAt: Date.now(), reports: 0 };
-    await profRef.set(p);
-    await stRef.set({ step: "idle", draft: {}, viewing: null });
-    return say(uid, { text: `Анкета готова ✅\n\n${cardText(p)}\n\nИмя и фото берутся из вашего профиля в мессенджере.`, kb: await menuFor(uid) });
+    await stRef.set({ step: "photo", draft: { ...st.draft, about: text } });
+    return say(uid, { text: "Пришлите своё фото (как обычное фото в этом чате) или выберите кнопку.", kb: [B.photoProfile, B.noPhoto] });
+  }
+  if (st.step === "photo") {
+    if (text === B.photoProfile) {
+      const acc = (await col("messengerAccounts").doc(uid).get()).data() as MessengerAccount | undefined;
+      return finishProfile(uid, st.draft ?? {}, acc?.photoURL && /^https?:\/\//.test(acc.photoURL) ? acc.photoURL : null);
+    }
+    if (text === B.noPhoto) return finishProfile(uid, st.draft ?? {}, null);
+    return say(uid, { text: "Пришлите фото или нажмите кнопку.", kb: [B.photoProfile, B.noPhoto] });
+  }
+  if (st.step === "about-only") {
+    if (text.length < 5 || text.length > 300) return say(uid, { text: "Напишите от 5 до 300 символов." });
+    if (/(https?:\/\/|t\.me|@\w{4,}|\+?\d[\d\s\-()]{8,})/i.test(text)) return say(uid, { text: "Уберите ссылки, @ники и номера телефонов." });
+    await Promise.all([profRef.update({ about: text }), stRef.set({ step: "idle" }, { merge: true })]);
+    return say(uid, { text: "Текст анкеты обновлён ✅", kb: await menuFor(uid) });
   }
 
   if (!prof) return say(uid, { text: "Сначала создайте анкету.", kb: [B.start] });
 
   // ---- меню ----
   if (text === B.mine) {
-    const acc = (await col("messengerAccounts").doc(uid).get()).data() as MessengerAccount | undefined;
-    return say(uid, { text: `${cardText(prof)}\n\nСтатус: ${prof.active ? "показывается" : "скрыта"}`, image: acc?.photoURL && /^https?:\/\//.test(acc.photoURL) ? acc.photoURL : undefined, kb: [...(await menuFor(uid)), B.del] });
+    return say(uid, { text: `${cardText(prof)}\n\nСтатус: ${prof.active ? "показывается" : "скрыта"}`, image: await photoOf(prof), kb: [B.editPhoto, B.editText, B.goalSwitch, ...(await menuFor(uid)).filter((k) => k !== B.mine && k !== B.goalSwitch), B.del] });
   }
+  if (text === B.editPhoto) { await stRef.set({ step: "photo-only" }, { merge: true }); return say(uid, { text: "Пришлите новое фото." }); }
+  if (text === B.editText) { await stRef.set({ step: "about-only" }, { merge: true }); return say(uid, { text: "Напишите новый текст анкеты (5–300 символов)." }); }
+  if (text === B.goalSwitch) { await stRef.set({ step: "goal-only" }, { merge: true }); return say(uid, { text: "Что ищете?", kb: Object.values(GOALS) }); }
   if (text === B.hide || text === B.show) {
     await profRef.update({ active: text === B.show });
     return say(uid, { text: text === B.show ? "Анкета снова показывается ▶️" : "Анкета скрыта ⏸ — вас никто не увидит, пока не включите её обратно.", kb: await menuFor(uid) });
