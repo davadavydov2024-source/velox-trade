@@ -15,6 +15,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AuthScreens, JoinScreen } from "./AuthScreens";
 import { ContactsPane } from "./ContactsPane";
+import { MiniPlayer, MusicProvider } from "./MusicPlayer";
 import { NewChatSheet } from "./NewChatSheet";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
 import { useAccounts, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
@@ -146,6 +147,7 @@ export function MessengerApp() {
   ];
 
   return (
+    <MusicProvider>
     <div className="h-full flex">
       {/* ---- левая панель ---- */}
       <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--mx-line)" }}>
@@ -204,6 +206,7 @@ export function MessengerApp() {
             );
           })}
         </nav>
+        <MiniPlayer bottom="calc(env(safe-area-inset-bottom) + 82px)" />
       </aside>
 
       {/* ---- правая панель: чат ---- */}
@@ -228,5 +231,6 @@ export function MessengerApp() {
         <StoryViewer groups={groups} startUid={storyUid} me={me} onClose={() => setStoryUid(null)} onChanged={reloadStories} onOpenChat={openChat} />
       )}
     </div>
+    </MusicProvider>
   );
 }

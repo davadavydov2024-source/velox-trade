@@ -4,6 +4,12 @@ import { adminAuth, adminDb } from "./firebaseAdmin";
 // Запасной список — те же аккаунты, что вписаны в isAdmin() в firestore.rules. Работает ТОЛЬКО если NEXT_PUBLIC_ADMIN_UIDS пуста.
 const DEFAULT_ADMIN_UIDS = ["s4Cbs8BFRwd9CrPYNkQBQzbVlQG3", "DAdWBqr7i8UWc1nT0NVVMuJ1DJQ2"];
 
+/** Все uid админов (для служебных уведомлений, например заявок на песни). */
+export function adminUids(): string[] {
+  const fromEnv = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return fromEnv.length ? fromEnv : DEFAULT_ADMIN_UIDS;
+}
+
 export function isAdminUid(uid: string): boolean {
   const fromEnv = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const list = fromEnv.length ? fromEnv : DEFAULT_ADMIN_UIDS;

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText } from "lucide-react";
+import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -12,6 +12,7 @@ import { GiftsProfileTab } from "./Gifts";
 import { PerksList, StatusPicker } from "./PremiumExtras";
 import { StickersSettings } from "./StickersUI";
 import { AdminPanel } from "./AdminPanel";
+import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
@@ -19,7 +20,7 @@ import { WalletPage } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -464,6 +465,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     );
   }
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
+  if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
   if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
@@ -659,6 +661,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Languages size={17} />} color="#af52de" label="Язык" value="Русский" onClick={() => setPage("language")} />
           <div className="max-[899px]:hidden"><Row icon={<Keyboard size={17} />} color="#ff9500" label="Горячие клавиши" onClick={() => setPage("hotkeys")} /></div>
           <Row icon={<Download size={17} />} color="#00b8d9" label="Добавить на экран «Домой»" onClick={() => setInstallHelp(true)} />
+          <Row icon={<Music2 size={17} />} color="#1db954" label="Музыка" onClick={() => setPage("music")} />
         </Section>
 
         <Section>

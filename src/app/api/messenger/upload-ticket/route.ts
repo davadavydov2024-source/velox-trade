@@ -3,6 +3,7 @@ import { createHmac } from "crypto";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger, signingSecret } from "@/lib/messenger/server";
 import { UPLOAD_KINDS, UploadKind } from "@/lib/messenger/uploads";
+import { isAdminUid } from "@/lib/adminGuard";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
   if (!(await rateLimit(`msgr_upload_${me.uid}`, 60, 60 * 60_000))) return fail("Слишком много загрузок, попробуй позже", 429);
   const { kind } = await req.json().catch(() => ({}));
   if (typeof kind !== "string" || !(kind in UPLOAD_KINDS)) return fail("Неизвестный тип загрузки");
+  if ((kind === "music" || kind === "music-cover") && !isAdminUid(me.uid)) return fail("Загружать музыку может только администратор", 403);
   const exp = Date.now() + 5 * 60_000;
   const body = `${me.uid}.${kind}.${exp}`;
   const sig = createHmac("sha256", secret).update(body).digest("hex");
