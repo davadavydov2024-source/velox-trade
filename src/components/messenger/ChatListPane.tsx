@@ -73,6 +73,16 @@ export function ChatListPane({
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
 
+  const hasDating = chats.some((c) => c.type === "dm" && c.members.includes("velox_dating"));
+  const openDating = async () => {
+    try {
+      const res = await mApi<{ chatId: string }>("dating-open", {});
+      if (res.chatId) onOpenChat(res.chatId);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось открыть бота знакомств");
+    }
+  };
+
   const [folderId, setFolderId] = useState<string>("all");
   const [showArchive, setShowArchive] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -242,6 +252,14 @@ export function ChatListPane({
             {q && <button onClick={() => setQ("")} className="mx-muted" aria-label="Очистить"><X size={17} /></button>}
           </div>
         </div>
+
+        {!searching && !hasDating && !editMode && (
+          <button onClick={openDating} className="mx-4 mb-2 flex items-center gap-3 text-left rounded-2xl px-4 py-3 active:scale-[.98] transition-transform" style={{ margin: "0 16px 8px", width: "calc(100% - 32px)", background: "linear-gradient(135deg, rgba(255,45,85,.22), rgba(175,82,222,.22))", border: "1px solid var(--mx-line)" }}>
+            <span className="text-[26px]">💘</span>
+            <span className="flex-1 min-w-0"><span className="block font-semibold text-[15px]">Velox Знакомства</span><span className="block mx-muted text-[13px]">Найди друзей и отношения · 18+</span></span>
+            <ChevronRight size={18} className="mx-muted" />
+          </button>
+        )}
 
         {searching ? (
           <div>
