@@ -81,10 +81,10 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [reason, setReason] = useState("");
   const [reading, setReading] = useState(false);
   const [read, setRead] = useState<ReadResult | null>(null);
-  const [readLog, setReadLog] = useState<{ adminUid: string; chatId?: string; reason?: string; at: number }[]>([]);
+  const [audit, setAudit] = useState<{ adminUid: string; chatId?: string; reason?: string; at: number }[]>([]);
   const openChat = async (qs: string) => {
     setReading(true);
-    try { setRead(await call<ReadResult>(`/api/admin/messenger/chats?${qs}`)); setTab("chats"); call<{ audit: any[] }>("/api/admin/messenger/chats?audit=1").then((d) => setReadLog(d.audit)).catch(() => {}); } catch (e: any) { toast("error", e.message); } finally { setReading(false); }
+    try { setRead(await call<ReadResult>(`/api/admin/messenger/chats?${qs}`)); setTab("chats"); call<{ audit: any[] }>("/api/admin/messenger/chats?audit=1").then((d) => setAudit(d.audit)).catch(() => {}); } catch (e: any) { toast("error", e.message); } finally { setReading(false); }
   };
 
   const load = useCallback(async (query = "") => {
@@ -374,10 +374,10 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                 })}
               </div>
             )}
-            {readLog.length > 0 && (
+            {audit.length > 0 && (
               <div className="mx-card">
                 <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Журнал чтений</p>
-                {readLog.map((a, i) => <p key={i} className="px-4 py-1.5 text-[12.5px] mx-muted truncate">{new Date(a.at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })} · {a.adminUid.slice(0, 6)}… · {a.reason ?? ""}</p>)}
+                {audit.map((a, i) => <p key={i} className="px-4 py-1.5 text-[12.5px] mx-muted truncate">{new Date(a.at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })} · {a.adminUid.slice(0, 6)}… · {a.reason ?? ""}</p>)}
               </div>
             )}
           </>

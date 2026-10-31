@@ -2,7 +2,7 @@ import type { MessengerSticker, StickerKind } from "./types";
 
 /** Тип стикера по ссылке: .json — Lottie (бывший .tgs из Telegram), .webm/.mp4 — видео-стикер, остальное — картинка (в т.ч. анимированные GIF/WEBP). */
 export function stickerKindOf(url: string): StickerKind {
-  if (/\.(json|tgs)(\?|#|$)/i.test(url)) return "lottie";
+  if (/\.json(\?|#|$)/i.test(url)) return "lottie";
   if (/\.(webm|mp4)(\?|#|$)/i.test(url)) return "video";
   return "image";
 }
