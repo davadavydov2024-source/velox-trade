@@ -182,8 +182,7 @@ export function MessengerApp() {
         </div>
 
         {/* нижняя плавающая стеклянная панель */}
-        <nav className="mx-nav mx-liquid absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)", ["--i" as string]: Math.max(0, tabs.findIndex((t) => t.id === tab)) }}>
-          <span className="mx-liquid-pill" aria-hidden />
+        <nav className="mx-nav absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
           {tabs.map((t) => {
             const on = tab === t.id;
             return (
@@ -191,7 +190,7 @@ export function MessengerApp() {
                 key={t.id}
                 onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
                 className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
-                style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: "transparent" }}
+                style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: on ? "var(--mx-surface2)" : "transparent" }}
               >
                 {t.id === "settings" ? (
                   <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>

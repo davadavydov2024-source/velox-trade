@@ -1,7 +1,5 @@
 "use client";
 
-import { wallpaperClass } from "./Wallpaper";
-import { useMxPrefs } from "./prefs";
 import { StickerPackSheet } from "./StickersUI";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -65,7 +63,6 @@ export function ChatView({
   onOpenChat: (id: string) => void;
 }) {
   const { toast } = useToast();
-  const wallpaper = useMxPrefs((s) => s.wallpaper);
   const now = useNow(15_000);
   const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
@@ -633,7 +630,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className={`mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative ${wallpaperClass(wallpaper)}`}>
+      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && (
           <div className="px-3 pt-4 space-y-2.5">
