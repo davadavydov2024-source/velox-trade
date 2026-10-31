@@ -1,13 +1,13 @@
 "use client";
 
 import { ReactNode, useRef } from "react";
-import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
-import { formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
+import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
 import { StickerMedia } from "./StickerMedia";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
@@ -85,6 +85,8 @@ export function MessageRow({
   selected,
   highlight,
   onOpenMedia,
+  onOpenStickerPack,
+  onSwipeReply,
   onJumpTo,
   onReact,
   onMenu,
@@ -103,6 +105,9 @@ export function MessageRow({
   selected: boolean;
   highlight: boolean;
   onOpenMedia: (url: string) => void;
+  onOpenStickerPack?: (slug: string) => void;
+  /** свайп сообщения влево — ответить (как в Telegram) */
+  onSwipeReply?: () => void;
   onJumpTo: (msgId: string) => void;
   onReact: (emoji: string) => void;
   onMenu: () => void;
@@ -131,12 +136,17 @@ export function MessageRow({
     );
   }
 
+  const emojiCount = msg.kind === "text" && !msg.deletedForAll ? emojiOnlyCount(msg.text) : 0;
   const isNote = msg.kind === "videoNote";
   const isSticker = msg.kind === "sticker" && !!msg.mediaUrl;
   const isMedia = msg.kind === "image";
   const urls = msg.mediaUrls?.length ? msg.mediaUrls : msg.mediaUrl ? [msg.mediaUrl] : [];
 
-  const touchStart = () => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
+  const touchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    sw.current = { x: t.clientX, y: t.clientY, dx: 0, axis: "", fired: false };
     moved.current = false;
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -149,6 +159,39 @@ export function MessageRow({
   const cancelHold = () => {
     moved.current = true;
     clearTimeout(timer.current);
+  };
+  const touchMove = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    const s = sw.current;
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (!s.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // дрожание пальца не отменяет долгое нажатие
+      s.axis = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      cancelHold();
+    }
+    if (s.axis !== "h" || !onSwipeReply || selecting) return;
+    const x = Math.max(-76, Math.min(0, dx * 0.8));
+    s.dx = x;
+    const el = rowRef.current;
+    if (el) {
+      el.style.transition = "none";
+      el.style.transform = `translateX(${x}px)`;
+      el.style.setProperty("--swp", String(Math.min(1, Math.abs(x) / 56)));
+    }
+    if (x <= -56 && !s.fired) { s.fired = true; navigator.vibrate?.(10); }
+  };
+  const touchEnd = () => {
+    clearTimeout(timer.current);
+    const s = sw.current;
+    const el = rowRef.current;
+    if (el && s.dx !== 0) {
+      el.style.transition = "transform 0.2s cubic-bezier(0.2,0.8,0.2,1)";
+      el.style.transform = "translateX(0)";
+      el.style.setProperty("--swp", "0");
+    }
+    if (s.axis === "h" && s.dx <= -56 && onSwipeReply && !selecting) onSwipeReply();
+    s.dx = 0;
   };
 
   const handleClick = () => {
@@ -213,8 +256,8 @@ export function MessageRow({
   } else if (msg.kind === "sticker") {
     content = msg.mediaUrl ? (
       <div className="relative">
-        <StickerMedia url={msg.mediaUrl ?? ""} size={190} />
-        <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}</span>
+        <StickerMedia url={msg.mediaUrl ?? ""} size={176} loop={false} onClick={() => { if (!selecting && msg.sticker?.pack) onOpenStickerPack?.(msg.sticker.pack); }} />
+        <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}{mine && (read ? <CheckCheck size={12} /> : <Check size={12} />)}</span>
       </div>
     ) : (
       <>
@@ -277,6 +320,13 @@ export function MessageRow({
         )}
       </>
     );
+  } else if (emojiCount > 0 && msg.kind === "text" && !msg.replyTo && !msg.forwardedFrom) {
+    content = (
+      <div className="relative px-1" style={{ minWidth: 52 }}>
+        <span className="block leading-[1.15] select-none" style={{ fontSize: emojiCount === 1 ? 64 : emojiCount === 2 ? 52 : 44 }}>{(msg.text ?? "").trim()}</span>
+        <span className="absolute bottom-0 right-0 text-[11px] px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: "rgba(0,0,0,0.4)" }}>{formatTime(msg.createdAt)}{mine && (read ? <CheckCheck size={12} /> : <Check size={12} />)}</span>
+      </div>
+    );
   } else {
     content = (
       <>
@@ -289,22 +339,28 @@ export function MessageRow({
     );
   }
 
-  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""} ${pending?.status === "sending" ? "sending" : ""} ${pending?.status === "failed" ? "failed" : ""}`;
+  const bubbleClass = `mx-bubble ${mine ? "out" : "in"} ${isLastInGroup ? "tail" : ""} ${isMedia && !msg.text ? "media" : ""} ${isMedia && msg.text ? "media" : ""} ${isNote || isSticker || emojiCount > 0 && !msg.replyTo && !msg.forwardedFrom ? "round" : ""} ${selected ? "selected" : ""} ${highlight ? "mx-hl" : ""} ${pending?.status === "sending" ? "sending" : ""} ${pending?.status === "failed" ? "failed" : ""}`;
 
   return (
     <div
       data-mid={msg.id}
-      className={`flex items-end gap-2 px-3 ${mine ? "justify-end" : "justify-start"} ${showAuthor || isLastInGroup ? "" : ""}`}
+      ref={rowRef}
+      className={`relative flex items-end gap-2 px-3 ${mine ? "justify-end" : "justify-start"} ${showAuthor || isLastInGroup ? "" : ""}`}
       style={{ marginTop: 2, marginBottom: isLastInGroup ? 6 : 0 }}
       onContextMenu={(e) => {
         e.preventDefault();
         onMenu();
       }}
       onTouchStart={touchStart}
-      onTouchMove={cancelHold}
-      onTouchEnd={() => clearTimeout(timer.current)}
-      onTouchCancel={() => clearTimeout(timer.current)}
+      onTouchMove={touchMove}
+      onTouchEnd={touchEnd}
+      onTouchCancel={touchEnd}
     >
+      {onSwipeReply && (
+        <span className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full pointer-events-none" style={{ right: -44, opacity: "var(--swp, 0)" as any, background: "var(--mx-glass)", color: "var(--mx-accent)" }}>
+          <CornerUpLeft size={17} />
+        </span>
+      )}
       {selecting && (
         <button onClick={onToggleSelect} className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 order-first" style={{ borderColor: selected ? "var(--mx-accent)" : "var(--mx-muted)", background: selected ? "var(--mx-accent)" : "transparent" }} aria-label="Выбрать">
           {selected && <Check size={14} color="var(--mx-accent-text)" />}
@@ -336,8 +392,16 @@ export function MessageRow({
                 onJumpTo(msg.replyTo!.msgId);
               }}
             >
-              <p className="font-semibold">{accounts[msg.replyTo.from]?.displayName ?? (msg.replyTo.from === me ? "Вы" : "Сообщение")}</p>
-              <p className="truncate max-w-[220px]">{msg.replyTo.preview}</p>
+              <div className="flex items-center gap-2">
+                {msg.replyTo.thumb && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={safeImageSrc(msg.replyTo.thumb)} alt="" className="w-9 h-9 rounded-md object-cover shrink-0" draggable={false} loading="lazy" />
+                )}
+                <div className="min-w-0">
+                  <p className="font-semibold truncate max-w-[200px]">{accounts[msg.replyTo.from]?.displayName ?? (msg.replyTo.from === me ? "Вы" : "Сообщение")}</p>
+                  <p className="truncate max-w-[200px] opacity-90">{msg.replyTo.preview}</p>
+                </div>
+              </div>
             </div>
           )}
           {content}

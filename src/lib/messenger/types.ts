@@ -60,14 +60,14 @@ export interface MessengerMessage {
   waveform?: number[];
   width?: number;
   height?: number;
-  replyTo?: { msgId: string; from: string; preview: string };
+  replyTo?: { msgId: string; from: string; preview: string; thumb?: string };
   forwardedFrom?: { name: string; uid?: string };
   reactions: Record<string, string[]>; // эмодзи -> uid поставивших
   createdAt: number;
   editedAt?: number;
   deletedForAll?: boolean;
   views?: number; // просмотры поста в канале
-  sticker?: { pack: string; index: number };
+  sticker?: { pack: string; index: number; emoji?: string; preview?: string };
   gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
   poll?: MessengerPoll;
   mentions?: string[]; // uid упомянутых через @handle
@@ -136,6 +136,7 @@ export interface MessengerStickerPack {
   published: boolean;
   stickers: MessengerSticker[];
   createdBy?: string; // кто привёз набор
+  unlisted?: boolean; // набор привёз обычный пользователь: доступен по ссылке, но не показывается в общем каталоге
   tgName?: string; // имя набора в Telegram (t.me/addstickers/<tgName>), если импортирован
   createdAt: number;
   updatedAt: number;

@@ -13,7 +13,7 @@ const authError = (code?: string) =>
 function Backdrop() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-3xl opacity-40" style={{ background: "radial-gradient(circle, #ff9800, transparent 65%)" }} />
+      <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-3xl opacity-40" style={{ background: "radial-gradient(circle, var(--mx-accent), transparent 65%)" }} />
       <div className="absolute -bottom-40 -right-28 w-[480px] h-[480px] rounded-full blur-3xl opacity-35" style={{ background: "radial-gradient(circle, #ff4081, transparent 65%)" }} />
     </div>
   );

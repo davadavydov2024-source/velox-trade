@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { EmojiPanel } from "./EmojiPanel";
+import { StickerSuggest } from "./StickersUI";
+import { safeImageSrc } from "@/lib/safeImage";
 import { MenuList, Sheet } from "./ui";
 import { RecordedAudio, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } from "./Recorders";
 import { useMxPrefs } from "./prefs";
@@ -17,6 +19,7 @@ export interface ComposerReply {
   from: string;
   name: string;
   preview: string;
+  thumb?: string;
 }
 
 export function Composer({
@@ -25,6 +28,7 @@ export function Composer({
   reply,
   editing,
   onCancelReply,
+  onJumpReply,
   onCancelEdit,
   onSendText,
   mentionables = [],
@@ -41,6 +45,8 @@ export function Composer({
   reply: ComposerReply | null;
   editing: { msgId: string; text: string } | null;
   onCancelReply: () => void;
+  /** тап по панели ответа — перейти к исходному сообщению */
+  onJumpReply?: () => void;
   onCancelEdit: () => void;
   onSendText: (text: string, opts?: { silent?: boolean }) => void;
   /** участники группы для подсказок @упоминаний (в личных чатах и каналах — пусто) */
@@ -273,10 +279,15 @@ export function Composer({
 
   return (
     <div className="shrink-0 mx-safe-bottom relative" style={{ background: "var(--mx-bg)" }}>
+      {!editing && onSendSticker && <StickerSuggest text={text} onPick={(slug, i) => { onSendSticker(slug, i); setText(""); }} />}
       {(reply || editing) && (
         <div className="flex items-center gap-3 px-4 py-2 mx-fade" style={{ borderTop: "1px solid var(--mx-line)", background: "var(--mx-surface)" }}>
           <div className="w-[3px] self-stretch rounded-full" style={{ background: "var(--mx-accent)" }} />
-          <div className="min-w-0 flex-1 text-[13.5px]">
+          {!editing && reply?.thumb && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={safeImageSrc(reply.thumb)} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" draggable={false} />
+          )}
+          <div className="min-w-0 flex-1 text-[13.5px]" onClick={() => { if (!editing) onJumpReply?.(); }} style={{ cursor: !editing && onJumpReply ? "pointer" : undefined }}>
             <p className="font-semibold" style={{ color: "var(--mx-accent)" }}>
               {editing ? "Редактирование" : `Ответ: ${reply!.name}`}
             </p>
@@ -322,7 +333,7 @@ export function Composer({
             <button onClick={() => setAttachOpen(true)} className="w-11 h-11 rounded-full flex items-center justify-center mx-muted shrink-0" aria-label="Прикрепить">
               <Paperclip size={23} />
             </button>
-            <div className="flex-1 flex items-end rounded-[22px] pl-4 pr-1" style={{ background: "var(--mx-surface)", border: "1px solid var(--mx-line)" }}>
+            <div className="mx-composer-field flex-1 flex items-end rounded-[22px] pl-4 pr-1" style={{ background: "var(--mx-surface)", border: "1px solid var(--mx-line)" }}>
               <textarea
                 ref={taRef}
                 value={text}

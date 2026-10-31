@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { EyeOff, Eye, Gift, Pin, PinOff, Repeat, Tag } from "lucide-react";
+import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
 import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
@@ -9,6 +9,9 @@ import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
 import { MAccount } from "./mtypes";
+import { useAccounts, useMyAccount, useMyChats } from "./hooks";
+import { isSavedMessages, peerUid } from "./util";
+import { isPremium } from "@/lib/messenger/premium";
 
 const PATTERN: [number, number, number][] = [[28, 30, -12], [100, 20, 8], [172, 32, 14], [18, 96, 10], [182, 100, -10], [30, 160, 12], [100, 176, -8], [172, 158, -14]];
 // искорки, плавающие вверх у редких экземпляров: x, y, задержка, длительность
@@ -121,7 +124,7 @@ const money = (n: number) => `${n} ⭐`;
 
 /* ───────────── Магазин: выбрать подарок и отправить ───────────── */
 
-export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: boolean; onClose: () => void; toUid?: string; toName?: string; onSent?: () => void }) {
+export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { open: boolean; onClose: () => void; toUid?: string; toName?: string; onSent?: () => void; me?: string }) {
   const { toast } = useToast();
   const [cat, setCat] = useState<"all" | GiftCategory>("all");
   const [wallet, setWallet] = useState<number | null>(null);
@@ -168,10 +171,11 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
       {!target ? (
         <div className="p-4">
           <p className="mx-muted text-[13.5px] mb-2">Кому отправим подарок?</p>
-          <input className="mx-input" placeholder="Имя или @username" value={q} onChange={(e) => setQ(e.target.value)} autoFocus autoCapitalize="none" />
-          <div className="mt-2">
-            {results.map((a: MAccount) => <PersonRow key={a.uid} acc={a} onPress={() => setTarget({ uid: a.uid, name: a.displayName })} />)}
-          </div>
+        </div>
+      ) : null}
+      {!target ? (
+        <div>
+          <RecipientList me={me} onPick={setTarget} />
         </div>
       ) : picked ? (
         <div className="px-5 pb-6 flex flex-col items-center">
@@ -215,6 +219,70 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent }: { open: 
   );
 }
 
+/* ───────────── Выбор получателя: недавние, чаты, поиск людей ───────────── */
+
+export function RecipientList({ me, onPick, exclude = [] }: { me?: string; onPick: (a: { uid: string; name: string }) => void; exclude?: string[] }) {
+  const [q, setQ] = useState("");
+  const { chats } = useMyChats(me ?? null);
+  const dms = useMemo(() => chats.filter((c) => c.type === "dm" && !isSavedMessages(c, me ?? "")), [chats, me]);
+  const accounts = useAccounts(dms.map((c) => peerUid(c, me ?? "")));
+  const { results } = usePeopleSearch(q, true);
+  const term = q.trim().toLowerCase().replace(/^@/, "");
+  const rows = useMemo(
+    () => dms.map((c) => ({ uid: peerUid(c, me ?? ""), acc: accounts[peerUid(c, me ?? "")] })).filter((r): r is { uid: string; acc: MAccount } => !!r.acc && r.uid !== "miligram" && !exclude.includes(r.uid)),
+    [dms, accounts, me, exclude] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const filtered = term ? rows.filter((r) => r.acc.displayName.toLowerCase().includes(term) || (r.acc.handle ?? "").toLowerCase().includes(term)) : rows;
+  const known = new Set(rows.map((r) => r.uid));
+  const others = results.filter((a: MAccount) => !known.has(a.uid) && a.uid !== me && a.uid !== "miligram" && !exclude.includes(a.uid));
+  const recent = term ? [] : rows.slice(0, 8);
+  const pick = (a: MAccount) => onPick({ uid: a.uid, name: a.displayName });
+  return (
+    <div className="pb-6">
+      <div className="px-4 pb-2">
+        <div className="mx-search"><Search size={17} className="mx-muted shrink-0" /><input className="bg-transparent outline-none flex-1 text-[16px] min-w-0" placeholder="Поиск по чатам, имени или @username" value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" autoCorrect="off" /></div>
+      </div>
+      {recent.length > 0 && (
+        <>
+          <p className="px-4 pt-2 pb-1 text-[13px] uppercase tracking-wide mx-muted">Недавние</p>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-2 mx-noscrollbar">
+            {recent.map((r) => (
+              <button key={r.uid} onClick={() => pick(r.acc)} className="flex flex-col items-center shrink-0 w-[64px] active:scale-95 transition-transform">
+                <Avatar src={r.acc.photoURL} name={r.acc.displayName} seed={r.uid} size={56} />
+                <span className="text-[12.5px] mt-1 truncate w-full text-center">{r.acc.displayName.split(" ")[0]}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {filtered.length > 0 && (
+        <>
+          <p className="px-4 pt-2 pb-1 text-[13px] uppercase tracking-wide mx-muted">{term ? "Мои чаты" : "Чаты"}</p>
+          {filtered.map((r) => <PersonRow key={r.uid} acc={r.acc} onPress={() => pick(r.acc)} />)}
+        </>
+      )}
+      {others.length > 0 && (
+        <>
+          <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Люди в Velox</p>
+          {others.map((a: MAccount) => <PersonRow key={a.uid} acc={a} onPress={() => pick(a)} />)}
+        </>
+      )}
+      {filtered.length === 0 && others.length === 0 && <p className="mx-muted text-center text-[14px] py-8 px-6">{term.length >= 2 ? "Никого не нашли" : rows.length === 0 ? "Чатов пока нет — найди человека по имени или @username" : ""}</p>}
+    </div>
+  );
+}
+
+function ActionRow({ icon, label, hint, onClick, danger, locked }: { icon: React.ReactNode; label: string; hint?: string; onClick: () => void; danger?: boolean; locked?: boolean }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3.5 px-4 py-3 text-left active:bg-white/5" style={{ color: danger ? "var(--mx-danger)" : undefined }}>
+      <span className="shrink-0 w-6 flex justify-center" style={{ color: danger ? "var(--mx-danger)" : "var(--mx-accent)" }}>{icon}</span>
+      <span className="flex-1 text-[16px]">{label}</span>
+      {hint && <span className="mx-muted text-[13px]">{hint}</span>}
+      {locked ? <Lock size={15} className="mx-muted" /> : <ChevronRight size={16} className="mx-muted" />}
+    </button>
+  );
+}
+
 /* ───────────── Вкладка «Подарки» в профиле ───────────── */
 
 export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; mine: boolean; name?: string; onChanged?: () => void }) {
@@ -225,6 +293,14 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const [shop, setShop] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
   const [sellPrice, setSellPrice] = useState("");
+  const [giveOpen, setGiveOpen] = useState(false);
+  const [giveTo, setGiveTo] = useState<{ uid: string; name: string } | null>(null);
+  const [giveMsg, setGiveMsg] = useState("");
+  const [giveBusy, setGiveBusy] = useState(false);
+  const { account: myAcc } = useMyAccount(mine ? uid : null);
+  const premium = isPremium(myAcc);
+  const [statusGiftId, setStatusGiftId] = useState<string | null | undefined>(undefined);
+  const curStatusId = statusGiftId !== undefined ? statusGiftId : myAcc?.status?.kind === "nft" ? myAcc.status.giftDocId : null;
 
   const load = useCallback(() => {
     mApi<{ gifts: GiftView[] }>(`gifts?uid=${mine ? "me" : encodeURIComponent(uid)}`).then((d) => setGifts(d.gifts)).catch(() => setGifts([]));
@@ -250,6 +326,25 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
     const d = giftById(g.giftId);
     if (!d || !g.salePrice || !confirm(`Купить «${d.title}»${g.nft ? ` #${g.nft.number}` : ""} за ${g.salePrice} ⭐?`)) return;
     try { await mApi("gifts", { action: "buy", id: g.id }); toast("success", "Подарок куплен — он теперь в твоём профиле"); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
+  };
+  const give = async (g: GiftView) => {
+    if (!giveTo || giveBusy) return;
+    setGiveBusy(true);
+    try {
+      await mApi("gifts", { action: "transfer", id: g.id, toUid: giveTo.uid, message: giveMsg });
+      toast("success", `Подарок отправлен: ${giveTo.name} 🎁`);
+      setGiveOpen(false); setGiveTo(null); setGiveMsg(""); setOpen(null); load(); onChanged?.();
+    } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось подарить"); } finally { setGiveBusy(false); }
+  };
+  const wear = async (g: GiftView) => {
+    const on = curStatusId === g.id;
+    if (!on && !premium) { toast("error", "Статус рядом с ником — только с Mili Premium"); return; }
+    try {
+      await mApi("profile", { status: on ? null : { kind: "nft", giftDocId: g.id } });
+      setStatusGiftId(on ? null : g.id);
+      toast("success", on ? "Убрано из статуса" : "Теперь он стоит рядом с твоим ником ✨");
+      setOpen(null);
+    } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
   const convert = async (g: GiftView) => {
     const def = giftById(g.giftId);
@@ -323,21 +418,35 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
             {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
             {open.salePrice ? <p className="mx-card px-4 py-2.5 mt-4 w-full text-[14.5px] text-center">Продаётся за <b>{open.salePrice} ⭐</b></p> : null}
             {mine && (
-              <div className="w-full mt-5 flex flex-col gap-2">
-                {!open.hidden && <button className="mx-btn" onClick={() => pin(open)}>{open.pinned ? <><PinOff size={16} className="inline mr-1.5 -mt-0.5" />Открепить от профиля</> : <><Pin size={16} className="inline mr-1.5 -mt-0.5" />Закрепить в профиле</>}</button>}
-                {open.pinned && <p className="mx-muted text-[12.5px] text-center -mt-1">Закреплённые подарки показываются первыми (до {GIFT_PIN_MAX})</p>}
-                <button className="mx-btn" onClick={() => toggle(open)}>{open.hidden ? <><Eye size={16} className="inline mr-1.5 -mt-0.5" />Показать в профиле</> : <><EyeOff size={16} className="inline mr-1.5 -mt-0.5" />Скрыть из профиля</>}</button>
-                {open.salePrice ? (
-                  <button className="mx-btn-ghost py-2" onClick={() => listForSale(open, null)}><Tag size={15} className="inline mr-1.5 -mt-0.5" />Снять с продажи</button>
-                ) : (
-                  <button className="mx-btn-ghost py-2" onClick={() => { setSellPrice(String(open.price)); setSellOpen(true); }}><Tag size={15} className="inline mr-1.5 -mt-0.5" />Продать другим за ⭐</button>
-                )}
-                {!open.nft && <button className="mx-btn-ghost py-2" onClick={() => convert(open)}><Repeat size={15} className="inline mr-1.5 -mt-0.5" />Обменять на {Math.floor(open.price * GIFT_CONVERT_RATE)} ⭐</button>}
+              <div className="mx-card w-full mt-5 overflow-hidden">
+                <ActionRow icon={<Send size={20} />} label="Подарить" hint="другому человеку" onClick={() => { setGiveTo(null); setGiveMsg(""); setGiveOpen(true); }} />
+                {!open.hidden && <ActionRow icon={open.pinned ? <PinOff size={20} /> : <Pin size={20} />} label={open.pinned ? "Открепить" : "Закрепить в профиле"} hint={open.pinned ? undefined : `до ${GIFT_PIN_MAX}`} onClick={() => pin(open)} />}
+                {open.nft && <ActionRow icon={<Sparkles size={20} />} label={curStatusId === open.id ? "Убрать из статуса" : "Показать возле ника"} hint={premium ? undefined : "Premium"} locked={!premium && curStatusId !== open.id} onClick={() => wear(open)} />}
+                {open.salePrice
+                  ? <ActionRow icon={<Tag size={20} />} label="Снять с продажи" hint={`${open.salePrice} ⭐`} onClick={() => listForSale(open, null)} />
+                  : <ActionRow icon={<Tag size={20} />} label="Продать" onClick={() => { setSellPrice(String(open.price)); setSellOpen(true); }} />}
+                <ActionRow icon={open.hidden ? <Eye size={20} /> : <EyeOff size={20} />} label={open.hidden ? "Показать в профиле" : "Скрыть из профиля"} onClick={() => toggle(open)} />
+                {!open.nft && <ActionRow icon={<Repeat size={20} />} label={`Обменять на ${Math.floor(open.price * GIFT_CONVERT_RATE)} ⭐`} onClick={() => convert(open)} />}
               </div>
             )}
             {!mine && open.salePrice ? <button className="mx-btn w-full mt-4" onClick={() => buy(open)}>Купить за {open.salePrice} ⭐</button> : null}
           </div>
         )}
+      </Sheet>
+
+      <Sheet open={giveOpen && !!open} onClose={() => { setGiveOpen(false); setGiveTo(null); }} title={giveTo ? "Подтверждение" : "Кому подарить?"} full zIndex={75}>
+        {open && (giveTo ? (
+          <div className="px-5 pb-8 flex flex-col items-center">
+            {(() => { const d = giftById(open.giftId); return d ? (open.nft ? <NftArt gift={d} nft={open.nft} size={130} /> : <GiftArt gift={d} size={130} />) : null; })()}
+            <p className="text-[18px] font-semibold mt-3 text-center">Подарить {giftById(open.giftId)?.title}{open.nft ? ` №${open.nft.number}` : ""} пользователю {giveTo.name}?</p>
+            <p className="mx-muted text-[13px] text-center mt-1">Подарок перейдёт к нему насовсем. Вернуть можно только если он сам подарит или продаст его.</p>
+            <textarea className="mx-input mt-4 w-full" rows={2} maxLength={GIFT_MESSAGE_MAX} placeholder="Добавить подпись (необязательно)" value={giveMsg} onChange={(e) => setGiveMsg(e.target.value)} />
+            <button className="mx-btn w-full mt-4" onClick={() => give(open)} disabled={giveBusy}>{giveBusy ? <Spinner size={18} /> : "Подарить"}</button>
+            <button className="mx-btn-ghost w-full mt-1 py-2" onClick={() => setGiveTo(null)}>Выбрать другого</button>
+          </div>
+        ) : (
+          <RecipientList me={uid} exclude={[uid]} onPick={setGiveTo} />
+        ))}
       </Sheet>
 
       <Sheet open={sellOpen && !!open} onClose={() => setSellOpen(false)} zIndex={70}>

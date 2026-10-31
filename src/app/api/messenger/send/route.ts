@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { Action, canDo, cleanMediaMeta, fail, isDmBlocked, isOwnMediaUrl, isChatAdmin, loadChat, ownsMedia, postMessage, previewOf, requireMessenger } from "@/lib/messenger/server";
 import { MAX_MESSAGE_TEXT, MessageKind, MessengerStickerPack } from "@/lib/messenger/types";
+import { stickerStill } from "@/lib/messenger/stickers";
 import { isPremium } from "@/lib/messenger/premium";
 
 export const runtime = "nodejs";
@@ -67,7 +68,9 @@ export async function POST(req: NextRequest) {
     if (!((mineSnap.data()?.slugs as string[] | undefined) ?? []).includes(slug)) return fail("Сначала добавь этот набор стикеров");
     if (pack.premium && !isPremium(me.account)) return NextResponse.json({ error: "Эти стикеры доступны только с Mili Premium", needPremium: true }, { status: 403 });
     mediaUrl = pack.stickers[idx].url;
-    extra = { sticker: { pack: slug, index: idx } };
+    const stk = pack.stickers[idx];
+    const still = stickerStill(stk);
+    extra = { sticker: { pack: slug, index: idx, ...(stk.emoji ? { emoji: stk.emoji } : {}), ...(still ? { preview: still } : {}) } };
   } else {
     if (!isOwnMediaUrl(b.mediaUrl)) return fail("Некорректная ссылка на файл");
     if (kind !== "image" && !ownsMedia(b.mediaUrl, me.uid)) return fail("Файл нужно загрузить через мессенджер");
@@ -83,10 +86,18 @@ export async function POST(req: NextRequest) {
     await ref.set({ at: Date.now() });
   }
 
-  let replyTo: { msgId: string; from: string; preview: string } | undefined;
-  if (typeof b.replyTo === "string" && b.replyTo && !b.replyTo.includes("/")) {
-    const m = await db.collection("messengerChats").doc(chat.id).collection("messages").doc(b.replyTo).get();
-    if (m.exists && !m.data()!.deletedForAll) replyTo = { msgId: m.id, from: m.data()!.from, preview: previewOf(m.data()!.kind, m.data()!.text) };
+  // ответ на сообщение: клиент шлёт id строкой ИЛИ объектом { msgId } — принимаем оба (раньше объект молча игнорировался, и ответы не сохранялись)
+  let replyTo: { msgId: string; from: string; preview: string; thumb?: string } | undefined;
+  const replyId = typeof b.replyTo === "string" ? b.replyTo : typeof b.replyTo?.msgId === "string" ? b.replyTo.msgId : "";
+  if (replyId && replyId.length < 128 && !replyId.includes("/")) {
+    const m = await db.collection("messengerChats").doc(chat.id).collection("messages").doc(replyId).get();
+    const d = m.data();
+    if (m.exists && d && !d.deletedForAll) {
+      const isVid = (u?: string) => !!u && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+      const photo = d.kind === "image" ? (Array.isArray(d.mediaUrls) && d.mediaUrls[0] ? d.mediaUrls[0] : d.mediaUrl) : undefined;
+      const thumb: string | undefined = d.kind === "sticker" ? d.sticker?.preview : photo && !isVid(photo) ? photo : undefined;
+      replyTo = { msgId: m.id, from: d.from, preview: d.kind === "sticker" ? `${d.sticker?.emoji ?? "🖼"} Стикер` : previewOf(d.kind, d.text), ...(thumb ? { thumb } : {}) };
+    }
   }
 
   const id = await postMessage({ chat, sender: me, kind, text: postText, mediaUrl, replyTo, extra, silent: b.silent === true });

@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       const snap = await db.collection("messengerStickerPacks").where("published", "==", true).limit(100).get();
       const packs = snap.docs
         .map((d) => d.data() as MessengerStickerPack)
+        .filter((p) => !p.unlisted)
         .sort((x, y) => (y.createdAt ?? 0) - (x.createdAt ?? 0))
         .map((p) => ({ ...p, added: mine.includes(p.slug), locked: p.premium && !premium }));
       return NextResponse.json({ packs });
@@ -62,9 +63,10 @@ export async function POST(req: NextRequest) {
   if ("error" in me) return me.error;
   const b = await req.json().catch(() => ({}));
   if (b.action === "import") {
-    // Импорт из Telegram — только админ (в админ-панели мессенджера: Настройки → Админ-панель → Стикеры).
-    if (!isAdminUid(me.uid)) return fail("Импорт стикеров из Telegram доступен только администраторам", 403);
-    return importFromTelegram(me, String(b.url ?? ""), b.premium === true, b.force === true);
+    // Импорт из Telegram. Админ — публикует набор в общий каталог (можно Premium и «скачать заново»).
+    // Обычный пользователь — как в Telegram добавляет набор себе по ссылке: набор «скрытый» (по ссылке, не в каталоге), до 60 стикеров, 5 раз в час.
+    const admin = isAdminUid(me.uid);
+    return importFromTelegram(me, String(b.url ?? ""), admin && b.premium === true, admin && b.force === true, admin);
   }
   if (!slugOk(b.slug)) return fail("Набор не найден", 404);
   const db = adminDb();
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
 
 const TG = "https://api.telegram.org";
 const MAX_STICKERS = 120;
+const MAX_STICKERS_USER = 60;
 
 /** «https://t.me/addstickers/Name», «tg://addstickers?set=Name» или просто имя набора → Name. */
 function parseSetName(input: string): string | null {
@@ -101,12 +104,12 @@ async function tg<T>(token: string, method: string, params: Record<string, strin
 }
 
 /** POST { action: "import", url, premium? } (только админ) — скачать набор из Telegram в MiliGram и опубликовать: пользователи добавляют его из каталога. Анимированные (.tgs → Lottie) и видео (.webm) стикеры сохраняются анимированными. */
-async function importFromTelegram(me: { uid: string; account: any }, input: string, premiumPack: boolean, force = false) {
+async function importFromTelegram(me: { uid: string; account: any }, input: string, premiumPack: boolean, force = false, admin = true) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return fail("Импорт из Telegram не настроен: на сервере нет TELEGRAM_BOT_TOKEN", 500);
   const name = parseSetName(input);
   if (!name) return fail("Вставь ссылку вида t.me/addstickers/название");
-  if (!(await rateLimit(`msgr_stk_import_${me.uid}`, 30, 60 * 60_000))) return fail("Слишком много импортов за час", 429);
+  if (!(await rateLimit(`msgr_stk_import_${me.uid}`, admin ? 30 : 5, 60 * 60_000))) return fail("Слишком много импортов за час", 429);
 
   const db = adminDb();
   const base = name.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32).padEnd(3, "_");
@@ -116,7 +119,7 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   const existing = await db.collection("messengerStickerPacks").where("tgName", "==", name).limit(1).get();
   if (!existing.empty && !force) { // force — скачать заново (например, набор привозили раньше без анимации)
     const pack = existing.docs[0].data() as MessengerStickerPack;
-    if (pack.premium !== premiumPack) await existing.docs[0].ref.update({ premium: premiumPack, updatedAt: Date.now() });
+    if (admin && pack.premium !== premiumPack) await existing.docs[0].ref.update({ premium: premiumPack, updatedAt: Date.now() });
     await userRef.set({ slugs: FieldValue.arrayUnion(pack.slug) }, { merge: true });
     return NextResponse.json({ ok: true, slug: pack.slug, title: pack.title, count: pack.stickers.length, reused: true });
   }
@@ -124,7 +127,7 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
 
   const set = await tg<{ title: string; stickers: { file_id: string; emoji?: string; is_animated?: boolean; is_video?: boolean; thumbnail?: { file_id: string } }[] }>(token, "getStickerSet", { name });
   if (!set || !set.stickers?.length) return fail("Набор не найден в Telegram (проверь ссылку)", 404);
-  const items = set.stickers.slice(0, MAX_STICKERS);
+  const items = set.stickers.slice(0, admin ? MAX_STICKERS : MAX_STICKERS_USER);
 
   let slug = existing.empty ? base : existing.docs[0].id;
   if (existing.empty) for (let i = 0; i < 5 && (await db.collection("messengerStickerPacks").doc(slug).get()).exists; i++) slug = `${base.slice(0, 27)}_${randomBytes(2).toString("hex")}`;
@@ -196,7 +199,7 @@ async function importFromTelegram(me: { uid: string; account: any }, input: stri
   const stickers = results.filter((r): r is MessengerSticker => !!r);
   if (stickers.length === 0) return fail("Не удалось скачать стикеры из этого набора", 502);
   const now = Date.now();
-  const pack: MessengerStickerPack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, stickers, createdBy: me.uid, tgName: name, createdAt: existing.empty ? now : (existing.docs[0].data() as MessengerStickerPack).createdAt ?? now, updatedAt: now };
+  const pack: MessengerStickerPack = { slug, title: String(set.title ?? name).slice(0, 60), premium: premiumPack, published: true, ...(admin ? {} : { unlisted: true }), stickers, createdBy: me.uid, tgName: name, createdAt: existing.empty ? now : (existing.docs[0].data() as MessengerStickerPack).createdAt ?? now, updatedAt: now };
   await db.collection("messengerStickerPacks").doc(slug).set(pack);
   await userRef.set({ slugs: FieldValue.arrayUnion(slug) }, { merge: true });
   return NextResponse.json({ ok: true, slug, title: pack.title, count: stickers.length, skipped: items.length - stickers.length });

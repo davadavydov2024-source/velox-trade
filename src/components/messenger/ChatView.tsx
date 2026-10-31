@@ -1,5 +1,6 @@
 "use client";
 
+import { StickerPackSheet } from "./StickersUI";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark,
@@ -8,7 +9,6 @@ import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { WallpaperLayer } from "./Wallpaper";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
@@ -83,6 +83,7 @@ export function ChatView({
   const [deleteMsgs, setDeleteMsgs] = useState<MMessage[] | null>(null);
   const [selection, setSelection] = useState<Set<string> | null>(null);
   const [forwardIds, setForwardIds] = useState<string[] | null>(null);
+  const [stickerPack, setStickerPack] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
   const [muteMenu, setMuteMenu] = useState(false);
@@ -248,7 +249,7 @@ export function ChatView({
   };
 
   // ---- отправка ----
-  const replyPayload = () => (reply ? { msgId: reply.msgId } : undefined);
+  const replyPayload = () => (reply ? reply.msgId : undefined);
 
   const send = useCallback(
     async (tempId: string, payload: Record<string, unknown>) => {
@@ -419,22 +420,36 @@ export function ChatView({
 
   const startReply = (m: MMessage) => {
     setEditing(null);
-    setReply({ msgId: m.id, from: m.from, name: m.from === me ? "Вы" : accountsAll[m.from]?.displayName ?? "Сообщение", preview: previewText(m.kind, m.text) || "Сообщение" });
+    const photo = m.kind === "image" ? (m.mediaUrls?.[0] ?? m.mediaUrl) : undefined;
+    const thumb = m.kind === "sticker" ? m.sticker?.preview : photo && !isVideoUrl(photo) ? photo : undefined;
+    setReply({
+      msgId: m.id, from: m.from, name: m.from === me ? "Вы" : accountsAll[m.from]?.displayName ?? "Сообщение",
+      preview: m.kind === "sticker" ? `${m.sticker?.emoji ?? "🖼"} Стикер` : previewText(m.kind, m.text) || "Сообщение", thumb,
+    });
   };
 
+  // переход к сообщению из цитаты: если оно выше загруженной истории — подгружаем страницы, пока не найдём (до 15 раз)
+  const hasMoreRef = useRef(hasMore);
+  hasMoreRef.current = hasMore;
   const jumpTo = useCallback(
-    (msgId: string) => {
-      const el = scrollRef.current?.querySelector(`[data-mid="${CSS.escape(msgId)}"]`);
+    async (msgId: string) => {
+      const find = () => scrollRef.current?.querySelector(`[data-mid="${CSS.escape(msgId)}"]`) ?? null;
+      let el = find();
+      let tries = 0;
+      if (!el && hasMoreRef.current) toast("info", "Ищу сообщение…");
+      while (!el && hasMoreRef.current && tries < 15) {
+        await loadMore();
+        await new Promise((r) => setTimeout(r, 160));
+        el = find();
+        tries++;
+      }
       if (el) {
         el.scrollIntoView({ block: "center", behavior: "smooth" });
         setHighlightId(msgId);
         setTimeout(() => setHighlightId(null), 1400);
-      } else if (hasMore) {
-        loadMore();
-        toast("info", "Загружаю историю…");
-      } else toast("info", "Сообщение не найдено");
+      } else toast("info", "Сообщение не найдено — возможно, оно удалено");
     },
-    [hasMore, loadMore, toast]
+    [loadMore, toast]
   );
 
   const chatSetting = async (patch: Record<string, unknown>) => {
@@ -558,8 +573,7 @@ export function ChatView({
   ];
 
   return (
-    <div className="flex flex-col h-full relative mx-wp-host" style={{ background: "var(--mx-bg)" }}>
-      <WallpaperLayer />
+    <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
       <div className="mx-glass mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
         {selecting ? (
@@ -616,7 +630,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll flex-1 min-h-0 py-2 relative">
+      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && (
           <div className="px-3 pt-4 space-y-2.5">
@@ -667,6 +681,8 @@ export function ChatView({
                 selected={!!selection?.has(msg.id)}
                 highlight={highlightId === msg.id}
                 onOpenMedia={openMedia}
+                onOpenStickerPack={setStickerPack}
+                onSwipeReply={canPost && !pend && !msg.deletedForAll && msg.kind !== "system" ? () => startReply(msg) : undefined}
                 onJumpTo={jumpTo}
                 onReact={(e) => react(msg, e)}
                 onMenu={() => !pend && setMenuMsg(msg)}
@@ -696,6 +712,7 @@ export function ChatView({
         reply={reply}
         editing={editing}
         onCancelReply={() => setReply(null)}
+        onJumpReply={() => reply && jumpTo(reply.msgId)}
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
         onSendSticker={sendSticker}
@@ -781,6 +798,8 @@ export function ChatView({
           ))}
         </div>
       </Sheet>
+
+      <StickerPackSheet slug={stickerPack} onClose={() => setStickerPack(null)} />
 
       <ForwardSheet
         open={!!forwardIds}

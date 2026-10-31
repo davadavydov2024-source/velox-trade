@@ -156,7 +156,7 @@ interface PostOpts {
   kind: MessageKind;
   text?: string;
   mediaUrl?: string;
-  replyTo?: { msgId: string; from: string; preview: string };
+  replyTo?: { msgId: string; from: string; preview: string; thumb?: string };
   forwardedFrom?: { name: string; uid?: string };
   extra?: Record<string, unknown>; // duration, waveform, width, height, sticker, poll
   silent?: boolean; // отправить без уведомления

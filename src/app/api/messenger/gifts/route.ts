@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
  * POST { action: "convert", id }        — обменять полученный подарок на ⭐ (GIFT_CONVERT_RATE от цены).
  * POST { action: "pin", id, pinned }     — закрепить/открепить подарок вверху профиля (до GIFT_PIN_MAX).
  * POST { action: "list", id, price }     — выставить свой подарок на продажу за price ⭐ (price: null — снять с продажи).
+ * POST { action: "transfer", id, toUid, message? } — подарить свой подарок другому пользователю.
  * POST { action: "buy", id }             — купить выставленный подарок у другого пользователя (продавец получает цену минус GIFT_SALE_FEE).
  */
 export async function POST(req: NextRequest) {
@@ -195,7 +196,62 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (b.action !== "send") return fail("action: send | toggle | convert | pin | list | buy");
+  if (b.action === "transfer") {
+    // Подарить свой подарок другому человеку (бесплатно, как в Telegram): владелец меняется, подпись можно задать новую.
+    if (!(await rateLimit(`msgr_gift_tr_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
+    const id = typeof b.id === "string" && b.id && !b.id.includes("/") ? b.id : "";
+    const toUid = typeof b.toUid === "string" && b.toUid && !b.toUid.includes("/") ? b.toUid : "";
+    if (!id) return fail("id обязателен");
+    if (!toUid || toUid === SERVICE_UID) return fail("Выбери получателя");
+    if (toUid === me.uid) return fail("Нельзя подарить подарок самому себе");
+    const message = typeof b.message === "string" ? b.message.trim().slice(0, GIFT_MESSAGE_MAX) : "";
+    const target = (await db.collection("messengerAccounts").doc(toUid).get()).data() as MessengerAccount | undefined;
+    if (!target || target.banned) return fail("Пользователь недоступен", 404);
+    const chatId = dmChatId(me.uid, toUid);
+    const chatRef = db.collection("messengerChats").doc(chatId);
+    const chatSnap = await chatRef.get();
+    let chat = chatSnap.exists ? ({ id: chatSnap.id, ...chatSnap.data() } as MessengerChat) : null;
+    if (chat && (await isDmBlocked(chat, me.uid))) return fail("Нельзя отправить подарок этому пользователю", 403);
+    if (!chat) {
+      const other = await db.collection("messengerBlocks").doc(toUid).collection("blocked").doc(me.uid).get();
+      if (other.exists) return fail("Нельзя отправить подарок этому пользователю", 403);
+    }
+    const ref = db.collection("messengerGifts").doc(id);
+    let g0: MessengerGift | undefined;
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const g = snap.data() as MessengerGift | undefined;
+        if (!g || g.to !== me.uid) throw new Error("not-found");
+        g0 = g;
+        tx.update(ref, { to: toUid, from: me.uid, anonymous: false, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), message: message || FieldValue.delete(), transferredAt: Date.now() });
+      });
+    } catch (e: any) {
+      if (e?.message === "not-found") return fail("Подарок не найден", 404);
+      console.error("gift transfer error:", e);
+      return fail("Не удалось подарить", 500);
+    }
+    // если подарок стоял моим статусом — снимаем (best-effort)
+    try {
+      const myAcc = db.collection("messengerAccounts").doc(me.uid);
+      const st = (await myAcc.get()).data()?.status;
+      if (st?.kind === "nft" && st.giftDocId === id) await myAcc.update({ status: null });
+    } catch {}
+    // карточка в личном чате; сбой не отменяет передачу
+    try {
+      const now = Date.now();
+      if (!chat && target.privacy?.whoCanMessage !== "nobody") {
+        await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
+        chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
+      }
+      if (chat && g0) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: g0.giftId, giftDocId: id, price: g0.price, to: toUid, ...(g0.nft ? { nft: g0.nft } : {}) } } });
+    } catch (err) {
+      console.error("gift transfer chat message error:", err);
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (b.action !== "send") return fail("action: send | toggle | convert | pin | list | buy | transfer");
 
   if (!(await rateLimit(`msgr_gift_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
   const gift = giftById(String(b.giftId ?? ""));

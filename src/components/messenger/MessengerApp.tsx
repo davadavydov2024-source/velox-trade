@@ -182,7 +182,7 @@ export function MessengerApp() {
         </div>
 
         {/* нижняя плавающая стеклянная панель */}
-        <nav className="absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
+        <nav className="mx-nav absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
           {tabs.map((t) => {
             const on = tab === t.id;
             return (

@@ -87,7 +87,7 @@ export function Sheet({
   return createPortal(
     <div className="absolute inset-0 flex flex-col justify-end mx-fade" style={{ zIndex, background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
       <div
-        className="mx-sheet mx-safe-bottom flex flex-col"
+        className="mx-sheet mx-sheet-panel mx-safe-bottom flex flex-col"
         style={{ background: "var(--mx-surface)", borderRadius: "22px 22px 0 0", maxHeight: full ? "94%" : "86%", height: full ? "94%" : undefined }}
         onClick={(e) => e.stopPropagation()}
       >
