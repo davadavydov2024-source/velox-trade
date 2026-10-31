@@ -15,8 +15,8 @@ const REPORTS_TO_HIDE = 3;
 
 type Gender = "m" | "f";
 type Seek = "m" | "f" | "any";
-type Goal = "love" | "friends" | "talk";
-const GOALS: Record<Goal, string> = { love: "💞 Отношения", friends: "👫 Дружба", talk: "💬 Общение" };
+type Goal = "love" | "friends" | "talk" | "any";
+const GOALS: Record<Goal, string> = { love: "💞 Отношения", friends: "👫 Дружба", talk: "💬 Общение", any: "✨ Друзья и отношения" };
 interface Profile { uid: string; name: string; age: number; gender: Gender; seek: Seek; goal: Goal; photo?: string | null; city: string; about: string; active: boolean; createdAt: number; reports?: number }
 interface State { step: string; draft?: Partial<Profile>; viewing?: string | null }
 interface Reply { text: string; kb?: string[]; image?: string }
@@ -111,7 +111,7 @@ async function nextCandidate(me: Profile): Promise<Profile | null> {
   let q = col("datingProfiles").where("active", "==", true) as Query;
   if (me.seek !== "any") q = q.where("gender", "==", me.seek);
   const snap = await q.limit(200).get();
-  const pool = snap.docs.map((d) => d.data() as Profile).filter((p) => p.uid !== me.uid && !seen.has(p.uid) && (p.seek === "any" || p.seek === me.gender) && p.goal === me.goal);
+  const pool = snap.docs.map((d) => d.data() as Profile).filter((p) => p.uid !== me.uid && !seen.has(p.uid) && (p.seek === "any" || p.seek === me.gender) && (me.goal === "any" || p.goal === "any" || p.goal === me.goal));
   if (!pool.length) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -174,7 +174,7 @@ export async function datingHandle(uid: string, rawText: string): Promise<void> 
     const s: Seek | null = text === B.seekM ? "m" : text === B.seekF ? "f" : text === B.seekAny ? "any" : null;
     if (!s) return say(uid, { text: "Выберите кнопкой.", kb: [B.seekM, B.seekF, B.seekAny] });
     await stRef.set({ step: "goal", draft: { ...st.draft, seek: s } });
-    return say(uid, { text: "Что ищете?", kb: Object.values(GOALS) });
+    return say(uid, { text: "Что ищете? Можно выбрать сразу и друзей, и отношения — «✨ Друзья и отношения».", kb: Object.values(GOALS) });
   }
   if (st.step === "goal") {
     const g = (Object.keys(GOALS) as Goal[]).find((k) => GOALS[k] === text);

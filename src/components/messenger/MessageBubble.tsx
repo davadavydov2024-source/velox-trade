@@ -215,11 +215,11 @@ export function MessageRow({
       <span>{formatTime(msg.createdAt)}</span>
       {mine &&
         (pending ? (
-          pending.status === "failed" ? <AlertCircle size={13} color="var(--mx-danger)" /> : <Clock size={12} />
+          pending.status === "failed" ? <AlertCircle size={13} color="var(--mx-danger)" /> : <Clock size={12} className="mx-clock" />
         ) : read ? (
-          <CheckCheck size={15} />
+          <CheckCheck key="read" size={15} className="mx-tick" />
         ) : (
-          <Check size={15} />
+          <Check key="sent" size={15} className="mx-tick" />
         ))}
     </span>
   );
