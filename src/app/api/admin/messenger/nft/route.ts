@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
   const db = adminDb();
 
   const snap = await db.collection("messengerGifts").orderBy("at", "desc").limit(500).get();
+  const stockSnap = await db.collection("messengerGiftStock").get();
+  const stock: Record<string, number> = {};
+  stockSnap.forEach((d) => { stock[d.id] = (d.data().sold as number | undefined) ?? 0; });
   const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessengerGift);
   const nfts = rows.filter((g) => g.nft);
 
@@ -39,6 +42,7 @@ export async function GET(req: NextRequest) {
     total: nfts.length,
     byGift: Object.entries(byGift).map(([giftId, count]) => ({ giftId, count })).sort((a, b) => b.count - a.count),
     tiers,
+    stock, // giftId → сколько продано из тиража (реальные счётчики, а не только последние 500)
     rare: rare.map((g) => ({
       id: g.id,
       giftId: g.giftId,

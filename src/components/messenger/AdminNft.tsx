@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { authedFetch } from "@/lib/authedFetch";
-import { giftById } from "@/lib/messenger/gifts";
+import { GIFTS, giftById } from "@/lib/messenger/gifts";
+import { GiftArt } from "./Gifts";
 import { NFT_TIERS, type NftTierId } from "@/lib/messenger/nft";
 import { Spinner } from "./ui";
 
@@ -11,6 +12,7 @@ type Data = {
   total: number;
   byGift: { giftId: string; count: number }[];
   tiers: Record<string, number>;
+  stock?: Record<string, number>;
   rare: { id: string; giftId: string; number: number; supply: number; tier: NftTierId; chance: number; owner: { uid: string; displayName: string; handle: string } }[];
 };
 
@@ -40,6 +42,30 @@ export function AdminNft() {
       </div>
 
       <div className="mx-card">
+        <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Тиражи (продано / лимит)</p>
+        {[...GIFTS.filter((g) => g.nft && g.limited)].sort((a, b) => Number(b.category === "halloween") - Number(a.category === "halloween")).map((g) => {
+          const sold = data.stock?.[g.id] ?? 0;
+          const left = Math.max(0, (g.limited ?? 0) - sold);
+          const pct = Math.min(100, Math.round((sold / (g.limited || 1)) * 100));
+          return (
+            <div key={g.id} className="px-4 py-2 flex items-center gap-3">
+              <GiftArt gift={g} size={38} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between text-[14px]">
+                  <span className="truncate">{g.title}{g.category === "halloween" ? " 🎃" : ""}</span>
+                  <span className="font-semibold shrink-0 ml-2">{sold}/{g.limited}</span>
+                </div>
+                <div className="h-1.5 rounded-full mt-1.5 overflow-hidden" style={{ background: "var(--mx-surface2)" }}>
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: left === 0 ? "var(--mx-danger)" : "var(--mx-accent)" }} />
+                </div>
+                <p className="mx-muted text-[11.5px] mt-0.5">{left === 0 ? "Распродано" : `Осталось ${left}`}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mx-card">
         <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">По редкости</p>
         {(Object.keys(NFT_TIERS) as NftTierId[]).map((t) => (
           <div key={t} className="px-4 py-1.5 flex items-center justify-between text-[14.5px]">
@@ -57,7 +83,7 @@ export function AdminNft() {
           const pct = r.chance * 100;
           return (
             <div key={r.id} className="px-4 py-2 flex items-center gap-3">
-              <span style={{ fontSize: 26 }}>{g?.emoji ?? "🎁"}</span>
+              {g ? <GiftArt gift={g} size={36} /> : <span style={{ fontSize: 26 }}>🎁</span>}
               <div className="min-w-0 flex-1">
                 <p className="text-[14.5px] font-semibold truncate">{g?.title ?? r.giftId} #{r.number}/{r.supply}</p>
                 <p className="mx-muted text-[12.5px] truncate">{r.owner.handle ? `@${r.owner.handle}` : r.owner.displayName || r.owner.uid.slice(0, 8)}</p>

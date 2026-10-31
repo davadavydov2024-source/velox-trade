@@ -528,10 +528,10 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                       const on = prefs.wallpaper === wp && prefs.bubbleStyle === bs;
                       return (
                         <button key={label} onClick={() => { prefs.setWallpaper(wp); prefs.setBubbleStyle(bs); }} className="text-center" aria-label={label}>
-                          <span className={`mx block h-[118px] rounded-2xl relative overflow-hidden mx-chat-wall ${wp !== "none" ? `mx-wp mx-wp-${wp}` : ""}`} data-bubble={bs} data-theme="dark" style={{ outline: on ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: on ? 2 : -1 }}>
+                          <span className={`block h-[118px] rounded-2xl relative overflow-hidden mx-chat-wall ${wp !== "none" ? `mx-wp mx-wp-${wp}` : ""}`} style={{ ["--mx-in" as string]: "#1f2126", ["--mx-text" as string]: "#f4f4f5", background: wp === "none" ? "#17212b" : undefined, outline: on ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: on ? 2 : -1 }}>
                             <span className="absolute left-2 right-2 top-3 flex flex-col gap-1.5">
-                              <span className="mx-bubble in self-start" style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Привет!</span>
-                              <span className="mx-bubble out self-end" style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Как дела?</span>
+                              <span className="mx-bubble in self-start" data-bubble={bs} style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Привет!</span>
+                              <span className="mx-bubble out self-end" data-bubble={bs} style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Как дела?</span>
                             </span>
                             {on && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)" }}><Check size={13} color="#fff" /></span>}
                           </span>
