@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   if ("error" in admin) return admin.error;
   const db = adminDb();
   const snap = await db.collection("adminAuditLog").orderBy("at", "desc").limit(60).get();
-  const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) }));
+  const rows: Record<string, any>[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) }));
 
   const uids: string[] = Array.from(new Set<string>(rows.flatMap((r) => [r.adminUid, r.targetUid]).filter((u: unknown): u is string => typeof u === "string" && !!u && !u.includes("/"))));
   const names = new Map<string, string>();

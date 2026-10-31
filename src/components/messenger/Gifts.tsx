@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
+import { NftFigure, hasNftFigure } from "./NftFigures";
 import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
@@ -64,7 +65,9 @@ export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef
         {showRing && <circle cx="100" cy="95" r="80" fill="none" stroke={tcfg.color} strokeOpacity="0.55" strokeWidth="1.6" strokeDasharray="3 11" strokeLinecap="round" className="mx-nft-ring" />}
         <g className={live ? "mx-nft-float" : undefined}>
           <g className={live && moveAnim ? `mx-nft-${m.anim}` : undefined}>
-            <text x="100" y="124" fontSize="88" textAnchor="middle" className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}>{gift.emoji}</text>
+            {hasNftFigure(gift.id)
+              ? <g className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><NftFigure id={gift.id} /></g>
+              : <text x="100" y="124" fontSize="88" textAnchor="middle" className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}>{gift.emoji}</text>}
           </g>
         </g>
         {SPARKS.slice(0, showSparks).map(([x, y, d, t], i) => (
@@ -92,7 +95,9 @@ export function GiftArt({ gift, size = 96, imageUrl, badge, nft }: { gift: GiftD
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt="" className="w-full h-full object-cover" draggable={false} />
       ) : (
-        <span className={gift.nft ? "mx-nft-bob" : undefined} style={{ fontSize: size * 0.52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{gift.emoji}</span>
+        hasNftFigure(gift.id)
+          ? <svg viewBox="0 0 200 200" width={size * 0.92} height={size * 0.92} className="mx-nft-bob" style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }} aria-hidden><NftFigure id={gift.id} /></svg>
+          : <span className={gift.nft ? "mx-nft-bob" : undefined} style={{ fontSize: size * 0.52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.45))" }}>{gift.emoji}</span>
       )}
       {badge}
     </div>
@@ -134,7 +139,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
   const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
-  const sample = useMemo(() => rollNft(1, 1), [picked?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sample = useMemo(() => rollNft(1, 1, Math.random, picked?.category === "halloween"), [picked?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [target, setTarget] = useState<{ uid: string; name: string } | null>(toUid ? { uid: toUid, name: toName ?? "" } : null);
   const { results } = usePeopleSearch(q, open && !target);
 

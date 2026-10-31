@@ -5,7 +5,7 @@
  * NFT-подарки (уникальные, с номером/моделью/фоном/узором) добавим позже: под них уже есть тип GiftNft и поле `nft` у выданного подарка.
  */
 
-export type GiftCategory = "bears" | "hearts" | "roses" | "gems" | "party" | "rare" | "nft";
+export type GiftCategory = "bears" | "hearts" | "roses" | "gems" | "party" | "rare" | "nft" | "halloween";
 
 export interface GiftDef {
   id: string;
@@ -35,6 +35,7 @@ export const GIFT_CATEGORIES: { id: "all" | GiftCategory; label: string }[] = [
   { id: "gems", label: "💎 Драгоценности" },
   { id: "party", label: "🎉 Праздник" },
   { id: "rare", label: "🏆 Редкие" },
+  { id: "halloween", label: "🎃 Хеллоуин" },
   { id: "nft", label: "✨ NFT" },
 ];
 
@@ -88,6 +89,16 @@ export const GIFTS: GiftDef[] = [
   { id: "nft-whale", emoji: "🐋", title: "Кит", price: 45, category: "nft", nft: true, colors: ["#123650", "#08171f"], limited: 700 },
   { id: "nft-music", emoji: "🎵", title: "Мелодия", price: 25, category: "nft", nft: true, colors: ["#3a2a52", "#18112a"], limited: 5000 },
   { id: "nft-skull", emoji: "💀", title: "Череп", price: 35, category: "nft", nft: true, colors: ["#2c2c33", "#131317"], limited: 1800 },
+  // — 🎃 Хеллоуин: лимитированная коллекция (маленькие тиражи, свои фоны, узоры и модели)
+  { id: "hw-jack", emoji: "🎃", title: "Тыква-фонарь", price: 50, category: "halloween", nft: true, colors: ["#4a2a0c", "#1c0d02"], limited: 1031 },
+  { id: "hw-vampire", emoji: "🧛", title: "Граф Вампир", price: 50, category: "halloween", nft: true, colors: ["#3a0f1a", "#14060a"], limited: 666 },
+  { id: "hw-bat", emoji: "🦇", title: "Летучая мышь", price: 40, category: "halloween", nft: true, colors: ["#2a1f4a", "#0d0a1c"], limited: 1000 },
+  { id: "hw-hat", emoji: "🧙", title: "Шляпа ведьмы", price: 45, category: "halloween", nft: true, colors: ["#2a1a52", "#0e0820"], limited: 777 },
+  { id: "hw-cauldron", emoji: "🧪", title: "Котёл с зельем", price: 45, category: "halloween", nft: true, colors: ["#143a22", "#08150d"], limited: 500 },
+  { id: "hw-cat", emoji: "🐈‍⬛", title: "Чёрный кот", price: 40, category: "halloween", nft: true, colors: ["#24243a", "#0c0c16"], limited: 666 },
+  { id: "hw-spider", emoji: "🕷️", title: "Паук-ткач", price: 35, category: "halloween", nft: true, colors: ["#2a2250", "#0e0b20"], limited: 1300 },
+  { id: "hw-ghost", emoji: "👻", title: "Призрак-джентльмен", price: 35, category: "halloween", nft: true, colors: ["#33384a", "#14172a"], limited: 1500 },
+  { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
 export const giftById = (id: string): GiftDef | undefined => GIFTS.find((g) => g.id === id);

@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         }
         refs.forEach((r, i) => {
           let nft: GiftNft | undefined;
-          if (gift.nft) nft = { ...rollNft(sold + i + 1, gift.limited ?? sold + i + 1, rnd), ...want };
+          if (gift.nft) nft = { ...rollNft(sold + i + 1, gift.limited ?? sold + i + 1, rnd, gift.category === "halloween"), ...want };
           minted.push(nft);
           tx.set(r, {
             giftId: gift.id, from: sender.uid, to: uid, price: gift.price, at: now, hidden: false, anonymous: false, byAdmin: true,

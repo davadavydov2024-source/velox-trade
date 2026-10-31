@@ -1,0 +1,410 @@
+import type { ReactNode } from "react";
+
+/**
+ * Векторные фигурки NFT-подарков (вместо эмодзи). Все нарисованы в квадрате 100×100 и подставляются в NftArt.
+ * Цвета намеренно «базовые»: оттенок модели (hue-rotate / saturate) красит их поверх, как и раньше.
+ */
+
+const eyes = (y: number, dx = 11, r = 4) => (
+  <>
+    <circle cx={50 - dx} cy={y} r={r} fill="#1b1b24" /><circle cx={50 + dx} cy={y} r={r} fill="#1b1b24" />
+    <circle cx={50 - dx + r * 0.35} cy={y - r * 0.35} r={r * 0.35} fill="#fff" /><circle cx={50 + dx + r * 0.35} cy={y - r * 0.35} r={r * 0.35} fill="#fff" />
+  </>
+);
+
+export const NFT_FIGURES: Record<string, ReactNode> = {
+  rocket: (
+    <>
+      <path d="M50 4C69 20 71 50 63 74H37C29 50 31 20 50 4Z" fill="#eef2f8" />
+      <path d="M50 4C61 13 66 23 67 33H33C34 23 39 13 50 4Z" fill="#e5484d" />
+      <path d="M50 4C69 20 71 50 63 74H56C62 50 60 22 50 4Z" fill="#000" opacity=".1" />
+      <circle cx="50" cy="48" r="10" fill="#2b6cb0" stroke="#9fb3c8" strokeWidth="3.5" /><circle cx="46.5" cy="44.5" r="3" fill="#fff" opacity=".6" />
+      <path d="M37 58 20 82l17-7zM63 58l17 24-17-7z" fill="#e5484d" />
+      <path d="M41 74h18L50 98z" fill="#ff9f1c" /><path d="M45 74h10L50 90z" fill="#fff3a0" />
+    </>
+  ),
+  crown: (
+    <>
+      <path d="M12 74 8 28l24 20 18-28 18 28 24-20-4 46z" fill="#f6c026" />
+      <path d="M12 74 8 28l24 20 4 26z" fill="#fff" opacity=".18" />
+      <rect x="12" y="74" width="76" height="13" rx="3" fill="#d9981a" />
+      <circle cx="8" cy="26" r="5" fill="#ffe27a" /><circle cx="50" cy="18" r="5.5" fill="#ffe27a" /><circle cx="92" cy="26" r="5" fill="#ffe27a" />
+      <circle cx="30" cy="80.5" r="3.5" fill="#e5484d" /><circle cx="50" cy="80.5" r="4" fill="#3b82f6" /><circle cx="70" cy="80.5" r="3.5" fill="#22c55e" />
+    </>
+  ),
+  dragon: (
+    <>
+      <path d="M26 36 10 6l30 16zM74 36 90 6 60 22z" fill="#f2e4b8" />
+      <path d="M40 22 50 6l10 16z" fill="#2b8a45" />
+      <ellipse cx="50" cy="54" rx="33" ry="31" fill="#3fae5a" />
+      <ellipse cx="50" cy="70" rx="21" ry="16" fill="#8be09a" />
+      <circle cx="43" cy="69" r="2.6" fill="#1d5a2c" /><circle cx="57" cy="69" r="2.6" fill="#1d5a2c" />
+      <path d="M26 46q9-11 19 1-9 6-19-1zM74 46q-9-11-19 1 9 6 19-1z" fill="#ffd23f" />
+      <rect x="34" y="40" width="4.5" height="10" rx="2" fill="#1b1b24" /><rect x="61.5" y="40" width="4.5" height="10" rx="2" fill="#1b1b24" />
+      <path d="M42 80l3 8 3-8zM52 80l3 8 3-8z" fill="#fff" />
+    </>
+  ),
+  "nft-bear": (
+    <>
+      <circle cx="22" cy="40" r="13" fill="#8a5a33" /><circle cx="78" cy="40" r="13" fill="#8a5a33" />
+      <circle cx="22" cy="40" r="6.5" fill="#d9a066" /><circle cx="78" cy="40" r="6.5" fill="#d9a066" />
+      <circle cx="50" cy="58" r="32" fill="#a86f3f" />
+      <ellipse cx="50" cy="70" rx="15" ry="11.5" fill="#e8c392" />
+      <ellipse cx="50" cy="65" rx="5.5" ry="4" fill="#3a2414" />
+      {eyes(55, 13, 3.8)}
+      <path d="M43 75q7 6 14 0" fill="none" stroke="#3a2414" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M30 32 26 14l12 8 12-14 12 14 12-8-4 18z" fill="#f6c026" /><circle cx="50" cy="10" r="3.4" fill="#e5484d" />
+    </>
+  ),
+  "nft-heart": (
+    <>
+      <path d="M50 92C8 60 4 30 27 19c13-6 21 1 23 10 2-9 10-16 23-10 23 11 19 41-23 73z" fill="#e8355a" />
+      <path d="M50 92C8 60 4 30 27 19c8-4 14-2 18 2-8 0-20 6-20 22 0 14 9 26 25 49z" fill="#fff" opacity=".13" />
+      <path d="M20 34q3-10 13-11" fill="none" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" opacity=".6" />
+      <path d="M36 52c5-8 12-1 14 0s9-8 14 0c4 7-7 12-14 0-7 12-18 7-14 0z" fill="none" stroke="#ffd1dc" strokeWidth="3" strokeLinejoin="round" />
+    </>
+  ),
+  "nft-diamond": (
+    <>
+      <path d="M50 4 86 36 50 96 14 36z" fill="#3bc9e8" />
+      <path d="M50 4 86 36H14z" fill="#9ae8f8" />
+      <path d="M14 36h72L50 96z" fill="#1fa3c9" />
+      <path d="M32 36 50 96 41 36zM68 36 50 96 59 36z" fill="#fff" opacity=".22" /><path d="M32 36 50 4 41 36z" fill="#fff" opacity=".4" />
+    </>
+  ),
+  "nft-clover": (
+    <>
+      <path d="M50 54C54 78 60 90 76 96" fill="none" stroke="#2d8a3f" strokeWidth="5" strokeLinecap="round" />
+      {[0, 90, 180, 270].map((r) => (
+        <g key={r} transform={`rotate(${r} 50 46)`}>
+          <path d="M50 46C34 38 32 18 40 12c6-4 10 0 10 6 0-6 4-10 10-6 8 6 6 26-10 34z" fill="#3fbf5a" />
+          <path d="M50 46 50 22" stroke="#1f7a33" strokeWidth="2" strokeLinecap="round" />
+        </g>
+      ))}
+      <circle cx="50" cy="46" r="4.5" fill="#2d8a3f" />
+    </>
+  ),
+  "nft-unicorn": (
+    <>
+      <path d="M50 2 43 30h14z" fill="#ffd23f" /><path d="M46 20h8M44.5 26h11" stroke="#d9981a" strokeWidth="2" />
+      <path d="M26 34 22 12l15 14zM74 34 78 12 63 26z" fill="#f4eefa" />
+      <path d="M20 40c-10 18-6 40 6 52-2-16 2-26 8-34zM80 40c10 18 6 40-6 52 2-16-2-26-8-34z" fill="#c77dff" />
+      <path d="M14 56c-4 14 0 26 8 34 0-12 3-20 7-26zM86 56c4 14 0 26-8 34 0-12-3-20-7-26z" fill="#ff6ec7" opacity=".85" />
+      <ellipse cx="50" cy="60" rx="25" ry="28" fill="#f8f4ff" />
+      <ellipse cx="50" cy="74" rx="15" ry="11" fill="#ffd9ec" />
+      <circle cx="45" cy="75" r="1.8" fill="#c06090" /><circle cx="55" cy="75" r="1.8" fill="#c06090" />
+      <path d="M33 54q5-5 10 0M57 54q5-5 10 0" fill="none" stroke="#3a2a5a" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="33" cy="66" r="4" fill="#ff9ec7" opacity=".6" /><circle cx="67" cy="66" r="4" fill="#ff9ec7" opacity=".6" />
+    </>
+  ),
+  "nft-phoenix": (
+    <>
+      <path d="M50 90C30 84 10 66 4 28c14 10 24 12 34 12zM50 90C70 84 90 66 96 28 82 38 72 40 62 40z" fill="#ff7a1a" />
+      <path d="M50 90C36 84 22 70 14 46c10 8 18 10 26 10zM50 90C64 84 78 70 86 46 76 54 68 56 60 56z" fill="#ffb02e" />
+      <path d="M50 98c-14-8-18-26-12-42 4 4 8 4 12-4 4 8 8 8 12 4 6 16 2 34-12 42z" fill="#ff4b1f" />
+      <path d="M50 94c-8-6-10-18-6-28 2 3 4 3 6-2 2 5 4 5 6 2 4 10 2 22-6 28z" fill="#ffd23f" />
+      <circle cx="50" cy="32" r="14" fill="#ff6a1a" />
+      <path d="M50 4 44 22h12zM38 12l4 12M62 12l-4 12" fill="#ffb02e" stroke="#ffb02e" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M44 34h12l-6 10z" fill="#ffd23f" />
+      <circle cx="44" cy="29" r="2.6" fill="#1b1b24" /><circle cx="56" cy="29" r="2.6" fill="#1b1b24" />
+    </>
+  ),
+  "nft-ufo": (
+    <>
+      <path d="M38 80 22 98h56L62 80z" fill="#9be8ff" opacity=".35" />
+      <path d="M30 46C30 24 70 24 70 46z" fill="#9be8ff" /><path d="M36 42c2-10 10-14 18-14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity=".7" />
+      <circle cx="50" cy="38" r="6" fill="#7bd36a" /><circle cx="48" cy="37" r="1.4" fill="#1b1b24" /><circle cx="53" cy="37" r="1.4" fill="#1b1b24" />
+      <ellipse cx="50" cy="56" rx="44" ry="15" fill="#aeb8c8" />
+      <ellipse cx="50" cy="52" rx="44" ry="10" fill="#d4dbe6" />
+      <circle cx="22" cy="58" r="3.6" fill="#ffd23f" /><circle cx="36" cy="63" r="3.6" fill="#ff6ec7" /><circle cx="50" cy="65" r="3.6" fill="#3bc9e8" /><circle cx="64" cy="63" r="3.6" fill="#ff6ec7" /><circle cx="78" cy="58" r="3.6" fill="#ffd23f" />
+    </>
+  ),
+  "nft-moon": (
+    <>
+      <path d="M68 8C36 8 14 30 14 56c0 28 22 42 50 38-24-8-34-30-26-52 4-12 14-22 30-34z" fill="#f4e7a8" transform="translate(6 0)" />
+      <path d="M64 8c-20 4-32 22-30 42 2-18 12-32 36-40z" fill="#fff" opacity=".35" transform="translate(6 0)" />
+      <circle cx="40" cy="62" r="4" fill="#d9c373" opacity=".7" /><circle cx="34" cy="46" r="2.6" fill="#d9c373" opacity=".7" /><circle cx="48" cy="80" r="3" fill="#d9c373" opacity=".7" />
+      <path d="M78 20l2 6 6 2-6 2-2 6-2-6-6-2 6-2zM88 56l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" fill="#fff6c8" />
+    </>
+  ),
+  "nft-galaxy": (
+    <>
+      <ellipse cx="50" cy="50" rx="44" ry="20" fill="#6d3fd1" opacity=".5" transform="rotate(-24 50 50)" />
+      <ellipse cx="50" cy="50" rx="34" ry="14" fill="#a06bff" opacity=".6" transform="rotate(-24 50 50)" />
+      <path d="M50 50c14-2 22-10 20-22M50 50c-14 2-22 10-20 22M50 50c2-14 10-22 22-20M50 50c-2 14-10 22-22 20" fill="none" stroke="#e5d0ff" strokeWidth="3.4" strokeLinecap="round" />
+      <circle cx="50" cy="50" r="9" fill="#fff6d8" /><circle cx="50" cy="50" r="14" fill="#ffe8a0" opacity=".35" />
+      {[[16, 20], [82, 16], [88, 70], [14, 78], [60, 90], [34, 8]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r={i % 2 ? 1.6 : 2.4} fill="#fff" />)}
+    </>
+  ),
+  "nft-snowman": (
+    <>
+      <circle cx="50" cy="76" r="22" fill="#f1f6fb" /><circle cx="50" cy="46" r="16" fill="#f8fbff" />
+      <path d="M32 70q18 12 36 0" fill="#000" opacity=".06" />
+      <path d="M34 36h32l-4-22H38z" fill="#2a2f45" /><rect x="30" y="34" width="40" height="6" rx="3" fill="#2a2f45" /><rect x="38" y="28" width="24" height="4" fill="#e5484d" />
+      <circle cx="44" cy="44" r="2.2" fill="#1b1b24" /><circle cx="56" cy="44" r="2.2" fill="#1b1b24" />
+      <path d="M50 49 66 52 50 55z" fill="#ff8a1f" />
+      <path d="M36 58q14 8 28 0l2 6q-16 8-32 0z" fill="#e5484d" /><path d="M60 62l6 14-8 2z" fill="#c43a3f" />
+      <circle cx="50" cy="72" r="2.4" fill="#2a2f45" /><circle cx="50" cy="82" r="2.4" fill="#2a2f45" />
+    </>
+  ),
+  "nft-cat": (
+    <>
+      <path d="M16 46 18 10l26 18zM84 46 82 10 56 28z" fill="#7b6fd0" /><path d="M22 36 23 20l12 9zM78 36 77 20 65 29z" fill="#f4a8c8" />
+      <ellipse cx="50" cy="60" rx="35" ry="31" fill="#8d82e0" />
+      <path d="M50 29 46 40h8z" fill="#ffd23f" />
+      <ellipse cx="36" cy="56" rx="7.5" ry="9" fill="#ffe9a8" /><ellipse cx="64" cy="56" rx="7.5" ry="9" fill="#ffe9a8" />
+      <ellipse cx="36" cy="57" rx="2.6" ry="7" fill="#1b1b24" /><ellipse cx="64" cy="57" rx="2.6" ry="7" fill="#1b1b24" />
+      <path d="M46 68h8l-4 5z" fill="#f4a8c8" /><path d="M50 73q-5 6-11 3M50 73q5 6 11 3" fill="none" stroke="#2a2250" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 62 28 66M8 72 28 70M92 62 72 66M92 72 72 70" stroke="#e8e4ff" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="78" cy="20" r="2" fill="#fff" /><circle cx="22" cy="86" r="1.6" fill="#fff" />
+    </>
+  ),
+  "nft-fox": (
+    <>
+      <path d="M10 46 14 6l30 22zM90 46 86 6 56 28z" fill="#f07a1a" /><path d="M18 34 19 16l13 10zM82 34 81 16 69 26z" fill="#2a1a10" />
+      <path d="M50 92 8 50c0-22 18-26 42-26s42 4 42 26z" fill="#f58a2a" />
+      <path d="M50 92 28 66c8-4 14-12 22-8 8-4 14 4 22 8z" fill="#fff6ea" />
+      <path d="M8 50c8 4 18 6 26 6M92 50c-8 4-18 6-26 6" fill="none" stroke="#fff6ea" strokeWidth="9" strokeLinecap="round" opacity=".9" />
+      <ellipse cx="37" cy="48" rx="3" ry="4.4" fill="#1b1b24" /><ellipse cx="63" cy="48" rx="3" ry="4.4" fill="#1b1b24" />
+      <circle cx="50" cy="84" r="4.4" fill="#1b1b24" />
+    </>
+  ),
+  "nft-wolf": (
+    <>
+      <path d="M14 50 12 8l30 20zM86 50 88 8 58 28z" fill="#5f6b7d" /><path d="M20 38 20 18l12 9zM80 38 80 18 68 27z" fill="#2c3340" />
+      <path d="M50 94C26 84 10 64 12 44c4-16 18-20 38-20s34 4 38 20c2 20-14 40-38 50z" fill="#8a96a8" />
+      <path d="M50 94C36 86 30 72 32 60c6 2 12 0 18-8 6 8 12 10 18 8 2 12-4 26-18 34z" fill="#e6ebf2" />
+      <path d="M32 42q7-6 13 2-7 5-13-2zM68 42q-7-6-13 2 7 5 13-2z" fill="#ffd23f" />
+      <ellipse cx="38.5" cy="43.5" rx="2" ry="3" fill="#1b1b24" /><ellipse cx="61.5" cy="43.5" rx="2" ry="3" fill="#1b1b24" />
+      <path d="M43 70h14l-7 9z" fill="#1b1b24" />
+    </>
+  ),
+  "nft-pumpkin": (
+    <>
+      <path d="M50 24c4-8 8-12 14-14" fill="none" stroke="#3d8a2f" strokeWidth="6" strokeLinecap="round" />
+      <ellipse cx="28" cy="62" rx="22" ry="28" fill="#e8721a" /><ellipse cx="72" cy="62" rx="22" ry="28" fill="#e8721a" />
+      <ellipse cx="50" cy="62" rx="20" ry="30" fill="#ff8a2a" />
+      <path d="M36 36c-6 16-6 38 0 52M64 36c6 16 6 38 0 52M50 32v60" fill="none" stroke="#b8500c" strokeWidth="2" opacity=".55" />
+      <path d="M30 34q-10 4-8 14" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" opacity=".35" />
+    </>
+  ),
+  "nft-tree": (
+    <>
+      <rect x="44" y="82" width="12" height="14" rx="2" fill="#7a4a24" />
+      <path d="M50 4 72 34H60l16 24H62l20 28H18l20-28H24l16-24H28z" fill="#2fa04a" />
+      <path d="M50 4 28 34h12L24 58h14L18 86h32z" fill="#000" opacity=".14" />
+      <path d="M50 4 53 12l8 1-6 5 2 8-7-4-7 4 2-8-6-5 8-1z" fill="#ffd23f" transform="translate(0 -2) scale(1 1)" />
+      <circle cx="42" cy="44" r="3.6" fill="#e5484d" /><circle cx="58" cy="60" r="3.6" fill="#3b82f6" /><circle cx="38" cy="70" r="3.6" fill="#ffd23f" /><circle cx="62" cy="78" r="3.6" fill="#e5484d" /><circle cx="52" cy="28" r="3" fill="#ff6ec7" />
+    </>
+  ),
+  "nft-bolt": (
+    <>
+      <path d="M58 2 16 56h26L34 98 86 40H58z" fill="#ffd23f" />
+      <path d="M58 2 16 56h26L34 98 52 52H36z" fill="#fff" opacity=".28" />
+      <path d="M58 2 86 40H58z" fill="#e6a800" opacity=".5" />
+    </>
+  ),
+  "nft-sword": (
+    <>
+      <g transform="rotate(45 50 50)">
+        <path d="M50 -4 58 12V62H42V12z" fill="#dfe6ef" /><path d="M50 -4 58 12V62H50z" fill="#9aa8bb" /><path d="M50 8V60" stroke="#fff" strokeWidth="1.6" opacity=".7" />
+        <rect x="28" y="62" width="44" height="8" rx="4" fill="#f6c026" /><circle cx="28" cy="66" r="4.6" fill="#f6c026" /><circle cx="72" cy="66" r="4.6" fill="#f6c026" />
+        <rect x="45" y="70" width="10" height="18" rx="3" fill="#7a3b1e" /><path d="M45 74h10M45 79h10M45 84h10" stroke="#4a2410" strokeWidth="1.6" />
+        <circle cx="50" cy="94" r="6" fill="#f6c026" /><circle cx="50" cy="66" r="3" fill="#e5484d" />
+      </g>
+    </>
+  ),
+  "nft-potion": (
+    <>
+      <rect x="40" y="4" width="20" height="12" rx="3" fill="#a8723a" />
+      <path d="M42 16h16v22l26 44c4 8-2 14-10 14H26c-8 0-14-6-10-14l26-44z" fill="#e6f4f1" opacity=".55" />
+      <path d="M32 62h36l16 20c4 8-2 14-10 14H26c-8 0-14-6-10-14z" fill="#53d86a" />
+      <path d="M32 62q9 6 18 0t18 0" fill="none" stroke="#b6f5c0" strokeWidth="3" opacity=".8" />
+      <circle cx="42" cy="74" r="4" fill="#d8ffe0" opacity=".8" /><circle cx="58" cy="82" r="3" fill="#d8ffe0" opacity=".8" /><circle cx="52" cy="48" r="3" fill="#53d86a" /><circle cx="47" cy="38" r="2" fill="#53d86a" />
+      <path d="M46 20v16" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity=".6" />
+    </>
+  ),
+  "nft-ghost": (
+    <>
+      <path d="M14 94V46C14 22 30 8 50 8s36 14 36 38v48l-12-10-12 10-12-10-12 10-12-10z" fill="#f4f6ff" />
+      <path d="M14 94V46C14 22 30 8 50 8c-14 6-22 20-22 40v40l-8-6z" fill="#fff" opacity=".6" />
+      <ellipse cx="38" cy="46" rx="5.5" ry="8" fill="#1b1b24" /><ellipse cx="62" cy="46" rx="5.5" ry="8" fill="#1b1b24" />
+      <ellipse cx="50" cy="66" rx="6" ry="8" fill="#1b1b24" />
+      <circle cx="28" cy="60" r="5" fill="#ff9ec7" opacity=".5" /><circle cx="72" cy="60" r="5" fill="#ff9ec7" opacity=".5" />
+    </>
+  ),
+  "nft-robot": (
+    <>
+      <path d="M50 4v14" stroke="#9aa8bb" strokeWidth="4" strokeLinecap="round" /><circle cx="50" cy="6" r="5" fill="#e5484d" />
+      <rect x="6" y="40" width="9" height="22" rx="4" fill="#7b8aa0" /><rect x="85" y="40" width="9" height="22" rx="4" fill="#7b8aa0" />
+      <rect x="14" y="18" width="72" height="68" rx="16" fill="#cdd6e3" /><rect x="14" y="18" width="72" height="68" rx="16" fill="none" stroke="#9aa8bb" strokeWidth="3" />
+      <rect x="22" y="32" width="56" height="30" rx="10" fill="#1d2433" />
+      <circle cx="38" cy="47" r="7" fill="#3bd6ff" /><circle cx="62" cy="47" r="7" fill="#3bd6ff" /><circle cx="40" cy="45" r="2.4" fill="#fff" /><circle cx="64" cy="45" r="2.4" fill="#fff" />
+      <rect x="30" y="68" width="40" height="10" rx="5" fill="#9aa8bb" /><path d="M38 68v10M46 68v10M54 68v10M62 68v10" stroke="#6b7a90" strokeWidth="2" />
+    </>
+  ),
+  "nft-eye": (
+    <>
+      <circle cx="50" cy="50" r="46" fill="#1e63c8" /><circle cx="50" cy="50" r="34" fill="#f4f8ff" /><circle cx="50" cy="50" r="22" fill="#38a8f0" /><circle cx="50" cy="50" r="11" fill="#0d1a33" />
+      <circle cx="45" cy="45" r="3.6" fill="#fff" opacity=".85" /><circle cx="50" cy="50" r="46" fill="none" stroke="#fff" strokeWidth="2" opacity=".25" />
+    </>
+  ),
+  "nft-ice": (
+    <>
+      <path d="M50 8 88 28v44L50 92 12 72V28z" fill="#8fdcf5" />
+      <path d="M50 8 88 28 50 48 12 28z" fill="#d8f6ff" /><path d="M50 48 88 28v44L50 92z" fill="#4db8e0" />
+      <path d="M20 34 40 44M70 60 80 54" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity=".7" />
+      <path d="M50 8 12 28 50 48z" fill="#fff" opacity=".25" />
+    </>
+  ),
+  "nft-butterfly": (
+    <>
+      <path d="M50 46C38 12 6 8 6 34c0 16 18 22 44 12z" fill="#4d8bff" /><path d="M50 54C36 56 12 62 18 82c6 14 28 6 32-28z" fill="#8a5cf6" />
+      <path d="M50 46C62 12 94 8 94 34c0 16-18 22-44 12z" fill="#4d8bff" /><path d="M50 54c14 2 38 8 32 28-6 14-28 6-32-28z" fill="#8a5cf6" />
+      <circle cx="26" cy="30" r="8" fill="#fff" opacity=".5" /><circle cx="74" cy="30" r="8" fill="#fff" opacity=".5" /><circle cx="28" cy="74" r="5" fill="#fff" opacity=".45" /><circle cx="72" cy="74" r="5" fill="#fff" opacity=".45" />
+      <rect x="46" y="30" width="8" height="46" rx="4" fill="#2a2250" />
+      <path d="M48 30C44 18 38 12 34 10M52 30c4-12 10-18 14-20" fill="none" stroke="#2a2250" strokeWidth="2.4" strokeLinecap="round" />
+    </>
+  ),
+  "nft-whale": (
+    <>
+      <path d="M44 22c-4-10 0-16 6-18M44 22c4-10 12-14 18-12" fill="none" stroke="#9be8ff" strokeWidth="4" strokeLinecap="round" />
+      <path d="M8 56C8 34 28 24 50 24s42 14 42 36c0 6-2 10-6 14l8-14c4 0 6 6 2 12-4 8-10 8-14 4-8 10-22 14-38 14C24 90 8 76 8 56z" fill="#3b82d6" />
+      <path d="M8 56c0 20 18 34 40 34 16 0 28-4 36-14-10 4-26 6-44-2-14-6-26-12-32-18z" fill="#cfe6fa" />
+      <circle cx="30" cy="50" r="3.6" fill="#1b1b24" /><circle cx="31" cy="49" r="1.2" fill="#fff" />
+      <path d="M18 66q8 4 14 0" fill="none" stroke="#1b4a8a" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M48 62 36 80c10 0 18-6 22-16z" fill="#2f6cb8" />
+    </>
+  ),
+  "nft-music": (
+    <>
+      <path d="M34 78V20l48-10v56" fill="none" stroke="#f4f0ff" strokeWidth="7" strokeLinejoin="round" />
+      <path d="M34 36 82 26" stroke="#f4f0ff" strokeWidth="7" />
+      <ellipse cx="26" cy="80" rx="15" ry="11" fill="#b36bff" transform="rotate(-18 26 80)" /><ellipse cx="74" cy="68" rx="15" ry="11" fill="#ff6ec7" transform="rotate(-18 74 68)" />
+      <path d="M18 76q4-5 10-5" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" opacity=".55" />
+    </>
+  ),
+  "nft-skull": (
+    <>
+      <path d="M50 4C26 4 10 20 10 42c0 12 6 20 14 26v14c0 4 3 8 8 8h36c5 0 8-4 8-8V68c8-6 14-14 14-26C90 20 74 4 50 4z" fill="#f2efe6" />
+      <path d="M50 4C26 4 10 20 10 42c0 12 6 20 14 26v14c0 2 1 4 3 6V66C18 56 16 44 20 34 26 18 38 8 50 4z" fill="#fff" opacity=".5" />
+      <ellipse cx="33" cy="44" rx="11" ry="12" fill="#1b1b24" /><ellipse cx="67" cy="44" rx="11" ry="12" fill="#1b1b24" />
+      <circle cx="33" cy="44" r="3.6" fill="#ff4b1f" /><circle cx="67" cy="44" r="3.6" fill="#ff4b1f" />
+      <path d="M50 56 44 68h12z" fill="#1b1b24" />
+      <path d="M36 76v10M45 76v11M55 76v11M64 76v10" stroke="#1b1b24" strokeWidth="2.6" strokeLinecap="round" />
+    </>
+  ),
+
+  /* ───────── Хеллоуин: лимитированная коллекция ───────── */
+  "hw-jack": (
+    <>
+      <path d="M50 26c2-10 6-16 14-18" fill="none" stroke="#3d8a2f" strokeWidth="6" strokeLinecap="round" />
+      <ellipse cx="26" cy="62" rx="22" ry="29" fill="#e8721a" /><ellipse cx="74" cy="62" rx="22" ry="29" fill="#e8721a" />
+      <ellipse cx="50" cy="62" rx="21" ry="31" fill="#ff8a2a" />
+      <path d="M34 34c-6 18-6 40 0 56M66 34c6 18 6 40 0 56" fill="none" stroke="#b8500c" strokeWidth="2" opacity=".5" />
+      <path d="M22 52 38 44 36 58zM78 52 62 44 64 58z" fill="#2a0e00" />
+      <path d="M50 60 44 70h12z" fill="#2a0e00" />
+      <path d="M22 74q6 14 28 14t28-14l-8 2-6 6-6-6-8 6-8-6-6 6-6-6z" fill="#2a0e00" />
+      <path d="M24 53 36 47 35 56zM76 53 64 47 65 56z" fill="#ffd23f" /><path d="M46 69h8l-4-6z" fill="#ffd23f" /><path d="M32 78l4 4 4-4zM60 78l4 4 4-4z" fill="#ffd23f" />
+    </>
+  ),
+  "hw-ghost": (
+    <>
+      <path d="M14 94V50C14 28 30 14 50 14s36 14 36 36v44l-12-10-12 10-12-10-12 10-12-10z" fill="#f4f6ff" />
+      <path d="M14 94V50C14 28 30 14 50 14c-14 6-22 18-22 38v36l-8-6z" fill="#fff" opacity=".6" />
+      <rect x="28" y="6" width="44" height="8" rx="3" fill="#2a2f45" /><rect x="36" y="-8" width="28" height="18" rx="3" fill="#2a2f45" /><rect x="36" y="2" width="28" height="4.5" fill="#b36bff" />
+      <circle cx="36" cy="46" r="8.5" fill="none" stroke="#f6c026" strokeWidth="2.4" /><path d="M28 54 24 66" stroke="#f6c026" strokeWidth="1.6" />
+      <ellipse cx="36" cy="46" rx="4.2" ry="6" fill="#1b1b24" /><ellipse cx="62" cy="46" rx="4.2" ry="6" fill="#1b1b24" />
+      <path d="M40 66q10 10 20 0" fill="none" stroke="#1b1b24" strokeWidth="3" strokeLinecap="round" />
+      <path d="M38 80 50 74 62 80 50 86z" fill="#b36bff" />
+    </>
+  ),
+  "hw-bat": (
+    <>
+      <path d="M50 38C42 22 24 14 4 22c8 4 10 10 8 18 6-2 10 0 12 8 6-4 12-2 14 4 4-4 8-4 12 0z" fill="#3a2a5a" />
+      <path d="M50 38C58 22 76 14 96 22c-8 4-10 10-8 18-6-2-10 0-12 8-6-4-12-2-14 4-4-4-8-4-12 0z" fill="#3a2a5a" />
+      <path d="M50 38C38 28 24 24 10 26M50 38C40 34 28 36 18 42M50 38C58 28 72 24 90 26M50 38C60 34 72 36 82 42" fill="none" stroke="#6b4aa0" strokeWidth="2" />
+      <ellipse cx="50" cy="56" rx="17" ry="22" fill="#4a3470" />
+      <path d="M36 40 34 22l12 10zM64 40 66 22 54 32z" fill="#4a3470" />
+      <circle cx="43" cy="50" r="4.4" fill="#ff4b1f" /><circle cx="57" cy="50" r="4.4" fill="#ff4b1f" /><circle cx="43" cy="50" r="1.6" fill="#1b1b24" /><circle cx="57" cy="50" r="1.6" fill="#1b1b24" />
+      <path d="M44 62h12l-2 8-4-4-4 4z" fill="#fff" />
+    </>
+  ),
+  "hw-hat": (
+    <>
+      <path d="M50 4C54 20 60 36 66 62H34c6-26 10-40 16-58z" fill="#5b2bd1" />
+      <path d="M50 4C52 20 56 34 60 62H34c6-26 10-40 16-58z" fill="#000" opacity=".12" />
+      <path d="M62 40c8-8 10-18 6-28 6 6 8 18 0 28z" fill="#5b2bd1" />
+      <ellipse cx="50" cy="68" rx="46" ry="12" fill="#3b1c96" /><ellipse cx="50" cy="64" rx="46" ry="11" fill="#5b2bd1" />
+      <path d="M36 62h28l2 8H34z" fill="#1b1b24" opacity=".0" />
+      <rect x="35" y="50" width="30" height="11" fill="#1b1b24" /><rect x="44" y="48" width="12" height="15" rx="2" fill="none" stroke="#f6c026" strokeWidth="3" />
+      <path d="M44 30l1.6 4 4 .6-3 3 .8 4-3.4-2-3.4 2 .8-4-3-3 4-.6z" fill="#ffd23f" transform="translate(-4 -4) scale(.9)" />
+      <circle cx="56" cy="26" r="2" fill="#ffd23f" /><circle cx="60" cy="40" r="1.6" fill="#ffd23f" />
+    </>
+  ),
+  "hw-spider": (
+    <>
+      <path d="M50 -10V34" stroke="#cfd6e3" strokeWidth="1.6" />
+      <g stroke="#1b1b24" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M42 52 24 38 12 52M40 58 18 58 8 76M42 64 24 78 18 92M44 68 36 84 36 96" />
+        <path d="M58 52 76 38 88 52M60 58 82 58 92 76M58 64 76 78 82 92M56 68 64 84 64 96" />
+      </g>
+      <ellipse cx="50" cy="66" rx="18" ry="22" fill="#2a2250" /><circle cx="50" cy="42" r="12" fill="#3a2f70" />
+      <path d="M44 58 50 50 56 58 50 74z" fill="#ff4b1f" />
+      <circle cx="45" cy="40" r="3.4" fill="#ffd23f" /><circle cx="55" cy="40" r="3.4" fill="#ffd23f" /><circle cx="45" cy="40" r="1.3" fill="#1b1b24" /><circle cx="55" cy="40" r="1.3" fill="#1b1b24" />
+    </>
+  ),
+  "hw-cauldron": (
+    <>
+      <path d="M30 94 22 84M70 94 78 84" stroke="#2a2a33" strokeWidth="5" strokeLinecap="round" />
+      <path d="M28 84c-8-6 0 8 4 10-6 2-6 4 0 4zM50 98c-6-8-4-12 0-16 4 4 6 8 0 16z" fill="#ff7a1a" />
+      <path d="M6 36h88l-4 10c6 14 2 34-14 42H24C8 80 4 60 10 46z" fill="#2a2a33" />
+      <path d="M6 36h88l-2 6H8z" fill="#46465a" />
+      <ellipse cx="50" cy="36" rx="44" ry="9" fill="#53d86a" /><ellipse cx="50" cy="36" rx="34" ry="6" fill="#8bf09a" />
+      <circle cx="36" cy="14" r="8" fill="#53d86a" opacity=".85" /><circle cx="56" cy="8" r="6" fill="#8bf09a" opacity=".85" /><circle cx="68" cy="22" r="5" fill="#53d86a" opacity=".85" /><circle cx="46" cy="26" r="3.6" fill="#b8ffc4" />
+      <path d="M18 54q-4 12 4 22" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" opacity=".2" />
+    </>
+  ),
+  "hw-candy": (
+    <>
+      <path d="M22 50 4 36v28zM78 50l18-14v28z" fill="#ff9f1c" /><path d="M22 50 4 36M22 50 4 64M78 50l18-14M78 50l18 14" stroke="#e66a00" strokeWidth="2" />
+      <ellipse cx="50" cy="50" rx="30" ry="24" fill="#ff6a1a" />
+      <path d="M32 30q18 8 36 0M26 44q24 12 48 0M26 58q24 12 48 0M32 72q18-8 36 0" fill="none" stroke="#2a0e00" strokeWidth="5" opacity=".85" />
+      <ellipse cx="38" cy="38" rx="8" ry="5" fill="#fff" opacity=".35" transform="rotate(-24 38 38)" />
+      <path d="M50 40c2-4 8-4 10 0 2 6-6 10-10 14-4-4-12-8-10-14 2-4 8-4 10 0z" fill="#ffd23f" transform="translate(0 4) scale(.8) translate(12 6)" />
+    </>
+  ),
+  "hw-cat": (
+    <>
+      <path d="M72 78c18-4 24-24 14-40" fill="none" stroke="#1b1b24" strokeWidth="9" strokeLinecap="round" />
+      <path d="M22 96c-6-24 0-48 14-58l28 0c14 10 20 34 14 58z" fill="#23232e" />
+      <circle cx="50" cy="32" r="22" fill="#2a2a38" />
+      <path d="M32 20 30 2l14 10zM68 20 70 2 56 12z" fill="#2a2a38" /><path d="M34 14 33 8l6 4zM66 14 67 8l-6 4z" fill="#f4a8c8" />
+      <ellipse cx="41" cy="30" rx="5" ry="6.4" fill="#ffb02e" /><ellipse cx="59" cy="30" rx="5" ry="6.4" fill="#ffb02e" />
+      <ellipse cx="41" cy="30" rx="1.8" ry="5.4" fill="#1b1b24" /><ellipse cx="59" cy="30" rx="1.8" ry="5.4" fill="#1b1b24" />
+      <path d="M47 39h6l-3 3z" fill="#f4a8c8" />
+      <path d="M26 38 14 36M26 43 14 45M74 38 86 36M74 43 86 45" stroke="#d8d8e8" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M30 96v-14M70 96V82" stroke="#3a3a4a" strokeWidth="6" strokeLinecap="round" />
+    </>
+  ),
+  "hw-vampire": (
+    <>
+      <path d="M2 98 14 62 50 78 86 62 98 98z" fill="#2a0e14" /><path d="M14 62 28 50 50 80z" fill="#c4182f" /><path d="M86 62 72 50 50 80z" fill="#c4182f" />
+      <path d="M24 54 22 20 38 6 50 14 62 6 78 20 76 54z" fill="#1b1b24" />
+      <ellipse cx="50" cy="48" rx="25" ry="30" fill="#ece4f2" />
+      <path d="M25 30c8-2 14-10 18-18 4 8 10 14 14 14 4 0 12-8 18-14 0 8 2 14 0 20-12-6-34-6-50-2z" fill="#1b1b24" />
+      <path d="M36 42 46 44M64 42 54 44" stroke="#1b1b24" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="40" cy="48" r="4" fill="#c4182f" /><circle cx="60" cy="48" r="4" fill="#c4182f" /><circle cx="40" cy="48" r="1.4" fill="#1b1b24" /><circle cx="60" cy="48" r="1.4" fill="#1b1b24" />
+      <path d="M36 64q14 8 28 0" fill="#6b0f20" stroke="#6b0f20" strokeWidth="2" /><path d="M40 65 42 74 45 66zM60 65 58 74 55 66z" fill="#fff" />
+    </>
+  ),
+};
+
+/** Размещение фигурки внутри 200×200 карточки NftArt. */
+export function NftFigure({ id }: { id: string }) {
+  const fig = NFT_FIGURES[id];
+  if (!fig) return null;
+  return <g transform="translate(40 34) scale(1.2)">{fig}</g>;
+}
+
+export const hasNftFigure = (id: string) => id in NFT_FIGURES;
