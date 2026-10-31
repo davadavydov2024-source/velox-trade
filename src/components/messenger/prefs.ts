@@ -10,10 +10,12 @@ interface MxPrefs {
   accent: string; // пусто = акцент сайта (оранжевый Velox)
   textSize: number; // px, 13–19
   enterToSend: boolean;
+  wallpaper: string; // id обоев чата ("none" / пусто — без обоев)
   setTheme: (t: MxTheme) => void;
   setAccent: (a: string) => void;
   setTextSize: (n: number) => void;
   setEnterToSend: (v: boolean) => void;
+  setWallpaper: (id: string) => void;
 }
 
 export const ACCENT_CHOICES = ["", "#3390ec", "#34c759", "#af52de", "#ff2d55", "#00b8d9", "#ffcc00"];
@@ -25,10 +27,12 @@ export const useMxPrefs = create<MxPrefs>()(
       accent: "",
       textSize: 15,
       enterToSend: true,
+      wallpaper: "none",
       setTheme: (theme) => set({ theme }),
       setAccent: (accent) => set({ accent }),
       setTextSize: (textSize) => set({ textSize }),
       setEnterToSend: (enterToSend) => set({ enterToSend }),
+      setWallpaper: (wallpaper) => set({ wallpaper }),
     }),
     { name: "mx-prefs" }
   )
