@@ -54,6 +54,13 @@ export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef
         <radialGradient id={`bg${uid}`} cx="50%" cy="38%" r="78%"><stop offset="0" stopColor={b.colors[0]} /><stop offset="1" stopColor={b.colors[1]} /></radialGradient>
         <radialGradient id={`gl${uid}`} cx="50%" cy="50%" r="50%"><stop offset="0" stopColor="#fff" stopOpacity="0.28" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
         <linearGradient id={`sw${uid}`} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="0.5" stopColor="#fff" stopOpacity="0.38" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+        <filter id={`lit${uid}`} x="-10%" y="-10%" width="120%" height="120%" colorInterpolationFilters="sRGB">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="bl" />
+          <feSpecularLighting in="bl" surfaceScale="5" specularConstant="0.9" specularExponent="26" lightingColor="#ffffff" result="sp"><fePointLight x="62" y="22" z="150" /></feSpecularLighting>
+          <feComposite in="sp" in2="SourceAlpha" operator="in" result="sp2" />
+          <feComposite in="SourceGraphic" in2="sp2" operator="arithmetic" k1="0" k2="1" k3="0.8" k4="0" result="lit" />
+          <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor={tcfg.color} floodOpacity="0.45" />
+        </filter>
         <clipPath id={`cp${uid}`}><rect width="200" height="200" rx="36" /></clipPath>
       </defs>
       <g clipPath={`url(#cp${uid})`}>
@@ -66,13 +73,14 @@ export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef
         <g className={live ? "mx-nft-float" : undefined}>
           <g className={live && moveAnim ? `mx-nft-${m.anim}` : undefined}>
             {hasNftFigure(gift.id)
-              ? <g className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><NftFigure id={gift.id} /></g>
+              ? <g className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><g filter={`url(#lit${uid})`}><NftFigure id={gift.id} /></g></g>
               : <text x="100" y="124" fontSize="88" textAnchor="middle" className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}>{gift.emoji}</text>}
           </g>
         </g>
         {SPARKS.slice(0, showSparks).map(([x, y, d, t], i) => (
           <text key={i} x={x} y={y} fontSize={i % 2 ? 11 : 15} fill={tcfg.color} textAnchor="middle" className="mx-nft-rise" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }}>✦</text>
         ))}
+        <path d="M178 12l9 9-9 9-9-9z" fill={tier === "legendary" || tier === "mythic" ? "#ffa31f" : tier === "epic" ? "#b36bff" : "#4da3ff"} opacity=".95" /><path d="M178 12l9 9H169z" fill="#fff" opacity=".35" />
         <rect x="62" y="166" width="76" height="22" rx="11" fill={special ? "#3a2a05" : "#000"} opacity={special ? 0.7 : 0.35} />
         <text x="100" y="182" fontSize="13" fontWeight="700" fill={special ? "#ffd56a" : "#fff"} textAnchor="middle">{sample ? "NFT" : `${special ? "✦ " : ""}#${nft.number}`}</text>
         {live && (
