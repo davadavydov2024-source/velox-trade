@@ -544,15 +544,17 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                 <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Тема чатов</p>
                 <div className="mx-card p-3">
                   <div className="grid grid-cols-3 gap-2.5">
-                    {([["Классика", "none", "round"], ["Контур", "noir", "outline"], ["Аврора", "aurora", "round"], ["Закат", "sunset", "round"], ["Океан", "ocean", "round"], ["Лес", "forest", "round"], ["Полночь", "midnight", "round"], ["Сладкая вата", "candy", "round"], ["Хеллоуин 🎃", "halloween", "classic"]] as const).map(([label, wp, bs]) => {
+                    {([["Классика", "none", "round", false], ["Контур", "noir", "outline", false], ["Аврора", "aurora", "round", false], ["Закат", "sunset", "round", false], ["Океан", "ocean", "round", false], ["Лес", "forest", "round", false], ["Полночь", "midnight", "round", false], ["Сладкая вата", "candy", "round", false], ["Хеллоуин 🎃", "halloween", "classic", false], ["💫 Живой поток", "flow", "glass", true], ["⚡ Неон", "neon", "glass", true], ["👑 Золото", "gold", "outline", true], ["🌌 Космос", "space", "glass", true]] as const).map(([label, wp, bs, pro]) => {
                       const on = prefs.wallpaper === wp && prefs.bubbleStyle === bs;
+                      const locked = pro && !isPremium(account);
                       return (
-                        <button key={label} onClick={() => { prefs.setWallpaper(wp); prefs.setBubbleStyle(bs); }} className="text-center" aria-label={label}>
+                        <button key={label} onClick={() => { if (locked) { toast("error", "Эта тема — только для Premium"); setPage("premium"); return; } prefs.setWallpaper(wp); prefs.setBubbleStyle(bs); }} className="text-center" aria-label={label}>
                           <span className={`block h-[118px] rounded-2xl relative overflow-hidden mx-chat-wall ${wp !== "none" ? `mx-wp mx-wp-${wp}` : ""}`} style={{ ["--mx-in" as string]: "#1f2126", ["--mx-text" as string]: "#f4f4f5", background: wp === "none" ? "#17212b" : undefined, outline: on ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: on ? 2 : -1 }}>
                             <span className="absolute left-2 right-2 top-3 flex flex-col gap-1.5">
                               <span className="mx-bubble in self-start" data-bubble={bs} style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Привет!</span>
                               <span className="mx-bubble out self-end" data-bubble={bs} style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Как дела?</span>
                             </span>
+                            {pro && <span className="absolute top-1.5 left-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,.55)", color: "#ffd56a" }}>{locked ? "🔒 PRO" : "PRO"}</span>}
                             {on && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)" }}><Check size={13} color="#fff" /></span>}
                           </span>
                           <span className="block text-[12.5px] mt-1.5">{label}</span>

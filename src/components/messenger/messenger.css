@@ -471,3 +471,22 @@
   .mx .mx-bubble img, .mx .mx-bubble video { max-width: 100%; height: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .mx .mx-bubble { animation: none; } }
+
+/* ---------- Премиум-темы: живые обои и стеклянные сообщения ---------- */
+@keyframes mx-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.mx .mx-wp-flow { background: linear-gradient(120deg, #3ee6a8, #5b6cff, #b04fff, #ff6ec7, #ffb347, #3ee6a8) !important; background-size: 400% 400% !important; animation: mx-flow 16s ease-in-out infinite; }
+.mx .mx-wp-neon { background-color: #05060f !important; background-image: linear-gradient(rgba(0,255,255,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,200,.10) 1px, transparent 1px), radial-gradient(circle at 50% 110%, rgba(255,0,200,.45), transparent 55%), radial-gradient(circle at 80% -10%, rgba(0,229,255,.35), transparent 50%) !important; background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100% !important; }
+.mx .mx-wp-gold { background-color: #0b0805 !important; background-image: linear-gradient(115deg, transparent 30%, rgba(255,213,106,.22) 48%, transparent 66%), radial-gradient(circle at 50% 0%, rgba(255,180,0,.30), transparent 60%) !important; background-size: 250% 100%, 100% 100% !important; animation: mx-gold 9s linear infinite; }
+@keyframes mx-gold { from { background-position: 150% 0, 0 0; } to { background-position: -50% 0, 0 0; } }
+.mx .mx-wp-space { background-color: #02030a !important; background-image: radial-gradient(1.4px 1.4px at 20% 30%, #fff, transparent), radial-gradient(1.2px 1.2px at 70% 20%, #cfe3ff, transparent), radial-gradient(1.6px 1.6px at 40% 75%, #fff, transparent), radial-gradient(1.2px 1.2px at 85% 65%, #ffe9c4, transparent), radial-gradient(circle at 30% 100%, rgba(91,43,209,.55), transparent 55%), radial-gradient(circle at 90% 0%, rgba(31,163,201,.40), transparent 50%) !important; background-size: 160px 160px, 200px 200px, 140px 140px, 220px 220px, 100% 100%, 100% 100% !important; }
+@media (prefers-reduced-motion: reduce) { .mx .mx-wp-flow, .mx .mx-wp-gold { animation: none; } }
+
+/* стеклянные сообщения (Premium) */
+.mx[data-bubble="glass"] .mx-bubble.in, .mx[data-bubble="glass"] .mx-bubble.out, .mx-bubble[data-bubble="glass"].in, .mx-bubble[data-bubble="glass"].out {
+  background: linear-gradient(135deg, rgba(255,255,255,.26), rgba(255,255,255,.08)) !important; color: #fff;
+  -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6);
+  border: 1px solid rgba(255,255,255,.32); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 6px 18px rgba(0,0,0,.25) !important; border-radius: 20px;
+}
+.mx[data-bubble="glass"] .mx-bubble.out, .mx-bubble[data-bubble="glass"].out { background: linear-gradient(135deg, color-mix(in srgb, var(--mx-accent) 55%, transparent), color-mix(in srgb, var(--mx-accent) 20%, transparent)) !important; }
+.mx[data-bubble="glass"] .mx-bubble.tail::before, .mx[data-bubble="glass"] .mx-bubble.tail::after, .mx-bubble[data-bubble="glass"]::before, .mx-bubble[data-bubble="glass"]::after { display: none !important; }
+.mx[data-bubble="glass"] .mx-bubble .mx-meta { color: rgba(255,255,255,.75) !important; }

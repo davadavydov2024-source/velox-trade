@@ -10,14 +10,14 @@ interface MxPrefs {
   accent: string; // пусто = акцент сайта (оранжевый Velox)
   textSize: number; // px, 13–19
   enterToSend: boolean;
-  bubbleStyle: "round" | "classic" | "compact" | "outline"; // форма пузырей сообщений
+  bubbleStyle: "round" | "classic" | "compact" | "outline" | "glass"; // форма пузырей сообщений
   wallpaper: string; // id обоев чата ("none" / пусто — без обоев)
   setTheme: (t: MxTheme) => void;
   setAccent: (a: string) => void;
   setTextSize: (n: number) => void;
   setEnterToSend: (v: boolean) => void;
   setWallpaper: (id: string) => void;
-  setBubbleStyle: (b: "round" | "classic" | "compact" | "outline") => void;
+  setBubbleStyle: (b: "round" | "classic" | "compact" | "outline" | "glass") => void;
 }
 
 export const ACCENT_CHOICES = ["", "#3390ec", "#34c759", "#af52de", "#ff2d55", "#00b8d9", "#ffcc00"];
