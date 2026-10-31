@@ -18,6 +18,8 @@ export interface MessengerAccount {
   bannerURL?: string | null; // баннер профиля (обложка)
   status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
   channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
+  plusUntil?: number; // «Премиум Плюс» активен, пока plusUntil > Date.now()
+  messagePrice?: number; // ⭐ за одно входящее сообщение (только Плюс; 0/нет — бесплатно)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
 }
@@ -46,6 +48,7 @@ export interface MessengerChat {
   adminTitles?: Record<string, string>; // подпись админа («Модератор»)
   restricted?: Record<string, MemberRestriction>;
   banned?: string[];
+  freeFor?: string[]; // кому можно писать бесплатно (владелец платных сообщений сам ответил им)
   service?: boolean; // служебный чат «MiliGram Push»: только читать, отвечать нельзя
 }
 

@@ -15,10 +15,11 @@ import { AdminPanel } from "./AdminPanel";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
+import { WalletPage } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -332,7 +333,7 @@ function DevicesPage({ onBack }: { onBack: () => void }) {
   );
 }
 
-type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number };
+type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number; plus?: boolean; plusUntil?: number | null; plusPriceStars?: number; plusDays?: number };
 
 function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccount }) {
   const { toast } = useToast();
@@ -351,6 +352,16 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
       toast("error", err?.message || "Не получилось");
     }
   };
+  const buyPlus = async () => {
+    if (!info || !confirm(`Подключить Премиум Плюс на ${info.plusDays ?? 30} дн. за ${info.plusPriceStars ?? 49} ⭐?`)) return;
+    try {
+      await mApi("premium", { action: "buy-plus" });
+      toast("success", "Премиум Плюс активен 💫");
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не получилось");
+    }
+  };
   return (
     <>
       <PageHeader title="Mili Premium" onBack={onBack} />
@@ -360,6 +371,14 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
           <p className="text-[19px] font-semibold mb-1">{info?.premium ? "Premium активен" : "Mili Premium"}</p>
           <p className="mx-muted text-[14px]">{info?.premium && info.premiumUntil ? `До ${new Date(info.premiumUntil).toLocaleDateString("ru-RU")}` : "Статус рядом с ником, премиум-стикеры, больше папок и закреплённых чатов."}</p>
         </div></div>
+        {info && (
+          <div className="mx-card p-4 space-y-2" style={{ outline: info.plus ? "2px solid #ffb400" : "none" }}>
+            <div className="flex items-center justify-between"><p className="text-[17px] font-semibold">💫 Премиум Плюс</p><span className="font-semibold" style={{ color: "#ffb400" }}>{info.plusPriceStars ?? 49} ⭐ / {info.plusDays ?? 30} дн.</span></div>
+            <p className="mx-muted text-[13.5px]">Всё из Premium + платные сообщения: назначьте цену в ⭐, и каждое сообщение от новых людей будет приносить вам звёзды на баланс. Операции — на странице «Кошелёк ⭐».</p>
+            {info.plus && info.plusUntil && <p className="text-[13px]" style={{ color: "#ffb400" }}>Активен до {new Date(info.plusUntil).toLocaleDateString("ru-RU")}</p>}
+            <button className="mx-btn" onClick={buyPlus}>{info.plus ? "Продлить Плюс" : "Подключить Плюс"}</button>
+          </div>
+        )}
         <PerksList />
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
@@ -445,6 +464,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     );
   }
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
+  if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
   if (page) {
@@ -626,6 +646,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
           {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
+          <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
           <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />

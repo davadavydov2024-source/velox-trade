@@ -5,8 +5,9 @@ import { useMxPrefs } from "./prefs";
 import { StickerPackSheet } from "./StickersUI";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark,
+  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark, Gift,
 } from "lucide-react";
+import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
@@ -89,6 +90,7 @@ export function ChatView({
   const [stickerPack, setStickerPack] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
+  const [giftOpen, setGiftOpen] = useState(false);
   const [muteMenu, setMuteMenu] = useState(false);
   const [info, setInfo] = useState(false);
   const [pinIndex, setPinIndex] = useState(0);
@@ -709,6 +711,11 @@ export function ChatView({
         </button>
       )}
 
+      {chat.type === "dm" && peer && (peer.plusUntil ?? 0) > Date.now() && (peer.messagePrice ?? 0) > 0 && !chat.freeFor?.includes(me) && (
+        <div className="shrink-0 text-center text-[13px] px-4 py-1.5" style={{ background: "var(--mx-bg)", color: "#ffb400", borderTop: "1px solid var(--mx-line)" }}>
+          💫 Сообщение этому человеку стоит {peer.messagePrice} ⭐ — они уйдут на его баланс
+        </div>
+      )}
       {(() => {
         const last = messages[messages.length - 1];
         const kb = last && last.from === "velox_dating" ? last.kb : undefined;
@@ -774,11 +781,13 @@ export function ChatView({
       </Sheet>
 
       {/* ---- меню чата ---- */}
+      {chat.type === "dm" && peer && <GiftShopSheet open={giftOpen} onClose={() => setGiftOpen(false)} toUid={peer.uid} toName={peer.displayName} me={me} />}
       <Sheet open={headerMenu} onClose={() => setHeaderMenu(false)}>
         <MenuList
           onDone={() => setHeaderMenu(false)}
           items={[
             { label: "Информация", icon: <Info size={20} />, onPress: () => setInfo(true) },
+            { label: "Подарить подарок", icon: <Gift size={20} />, hidden: chat.type !== "dm" || saved || peer?.uid === "velox_dating", onPress: () => setGiftOpen(true) },
             { label: "Поиск по сообщениям", icon: <Search size={20} />, onPress: () => { setSearchQ(""); setSearchOpen(true); } },
             { label: userChat?.pinned ? "Открепить чат" : "Закрепить чат", icon: userChat?.pinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => chatSetting({ pinned: !userChat?.pinned }) },
             muted

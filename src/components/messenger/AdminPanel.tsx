@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Ban, Gift, Megaphone, ShieldAlert, Sparkles, Star, Trash2 } from "lucide-react";
+import { BadgeCheck, Ban, Contact, Gift, Megaphone, ShieldAlert, Sparkles, Star, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { useToast } from "@/lib/toastContext";
 import { Avatar, PageHeader, Spinner } from "./ui";
@@ -25,6 +25,7 @@ function auditLabel(a: AuditItem): string {
     case "messenger_sticker_pack_save": return `Набор стикеров сохранён: ${i.slug} (${i.count} шт)`;
     case "messenger_sticker_pack_delete": return `Набор стикеров удалён: ${i.slug}`;
     case "read_chat": return "Открыта переписка (по жалобе)";
+    case "messenger_contacts": return `Просмотрены контакты (${i.count ?? 0}): ${i.reason ?? ""}`;
     default: return a.action;
   }
 }
@@ -104,7 +105,13 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const loadInfo = useCallback(async (uid: string) => {
     try { setInfo(await call<GrantInfo>(`/api/admin/messenger/grant?uid=${encodeURIComponent(uid)}`)); } catch (e: any) { toast("error", e.message); }
   }, [toast]);
-  const pickTarget = (a: MAccount) => { setGiveTo(a); setInfo(null); loadInfo(a.uid); };
+  const [contacts, setContacts] = useState<{ uid: string; displayName: string; handle: string; lastAt: number }[] | null>(null);
+  const loadContacts = async (uid: string) => {
+    const reason = window.prompt("Причина просмотра контактов (не короче 10 символов). Просмотр записывается в журнал.");
+    if (!reason) return;
+    try { setContacts((await call<{ contacts: { uid: string; displayName: string; handle: string; lastAt: number }[] }>(`/api/admin/messenger/contacts?uid=${encodeURIComponent(uid)}&reason=${encodeURIComponent(reason)}`)).contacts); } catch (e: any) { toast("error", e.message); }
+  };
+  const pickTarget = (a: MAccount) => { setGiveTo(a); setInfo(null); setContacts(null); loadInfo(a.uid); };
   const grant = async (key: string, body: Record<string, unknown>, ok: string) => {
     if (!giveTo) return;
     setBusyKey(key);
@@ -313,6 +320,21 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       </div>
                     );
                   })}
+                </div>
+
+                <div className="mx-card p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">Контакты</p>
+                    <button className="mx-chip" onClick={() => loadContacts(giveTo.uid)}><Contact size={14} /> {contacts ? "Обновить" : "Показать"}</button>
+                  </div>
+                  <p className="mx-muted text-[12px]">Только имена и @username собеседников (без текста переписок). Нужна причина, просмотр пишется в журнал.</p>
+                  {contacts && contacts.length === 0 && <p className="mx-muted text-[14px]">Личных чатов нет</p>}
+                  {contacts?.map((c) => (
+                    <div key={c.uid} className="flex items-center justify-between text-[14.5px] py-0.5">
+                      <span className="truncate">{c.displayName || "—"}</span>
+                      <span className="mx-muted shrink-0 ml-2">@{c.handle}</span>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mx-card p-4 space-y-2">

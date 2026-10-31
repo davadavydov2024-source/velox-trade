@@ -7,8 +7,13 @@ export const LIMITS = {
   premium: { folders: 20, pinnedChats: 10 },
 } as const;
 
-export const isPremium = (a: { premiumUntil?: number } | null | undefined): boolean => !!a?.premiumUntil && a.premiumUntil > Date.now();
-export const limitsFor = (a: { premiumUntil?: number } | null | undefined) => (isPremium(a) ? LIMITS.premium : LIMITS.free);
+export const PLUS_PRICE_STARS = 49; // ⭐ за период — «Премиум Плюс»
+export const PLUS_DAYS = 30;
+export const PAID_MESSAGE_MAX = 1000; // максимальная цена одного сообщения, ⭐
+export const isPlus = (a: { plusUntil?: number } | null | undefined): boolean => !!a?.plusUntil && a.plusUntil > Date.now();
+/** Премиум Плюс включает всё из Mili Premium. */
+export const isPremium = (a: { premiumUntil?: number; plusUntil?: number } | null | undefined): boolean => (!!a?.premiumUntil && a.premiumUntil > Date.now()) || isPlus(a);
+export const limitsFor = (a: { premiumUntil?: number; plusUntil?: number } | null | undefined) => (isPremium(a) ? LIMITS.premium : LIMITS.free);
 
 export const STICKER_IMPORT_LIMIT = { free: 3, premium: 30 } as const; // сколько наборов из Telegram можно привезти самому
 

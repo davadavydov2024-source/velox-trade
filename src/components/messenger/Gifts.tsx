@@ -203,7 +203,8 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
           </div>
           <p className="mx-muted text-[13px] mt-3">Баланс: {wallet === null ? "…" : money(wallet)}</p>
           <button className="mx-btn w-full mt-3" onClick={send} disabled={busy}>{busy ? <Spinner size={18} /> : `Отправить за ${money(picked.price)}`}</button>
-          <button className="mx-btn-ghost w-full mt-1 py-2" onClick={() => setPicked(null)}>Выбрать другой</button>
+          <button className="mx-btn-ghost w-full mt-1 py-2" onClick={() => setPicked(null)}>Выбрать другой подарок</button>
+          {!toUid && <button className="mx-btn-ghost w-full py-2" onClick={() => { setPicked(null); setTarget(null); }}>Сменить получателя</button>}
         </div>
       ) : (
         <div className="pb-6">
@@ -249,12 +250,34 @@ export function RecipientList({ me, onPick, exclude = [] }: { me?: string; onPic
   const known = new Set(rows.map((r) => r.uid));
   const others = results.filter((a: MAccount) => !known.has(a.uid) && a.uid !== me && a.uid !== "miligram" && !exclude.includes(a.uid));
   const recent = term ? [] : rows.slice(0, 8);
+  // скоро день рождения (ближайшие 14 дней) — повод подарить
+  const soon = term ? [] : rows.map((r) => {
+    const m = /^(?:\d{4}-)?(\d{2})-(\d{2})$/.exec(r.acc.birthday ?? "");
+    if (!m) return null;
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    let d = new Date(now.getFullYear(), Number(m[1]) - 1, Number(m[2]));
+    if (d < now) d = new Date(now.getFullYear() + 1, Number(m[1]) - 1, Number(m[2]));
+    const days = Math.round((d.getTime() - now.getTime()) / 86400000);
+    return days <= 14 ? { ...r, days } : null;
+  }).filter((x): x is { uid: string; acc: MAccount; days: number } => !!x).sort((a, b) => a.days - b.days);
   const pick = (a: MAccount) => onPick({ uid: a.uid, name: a.displayName });
   return (
     <div className="pb-6">
       <div className="px-4 pb-2">
         <div className="mx-search"><Search size={17} className="mx-muted shrink-0" /><input className="bg-transparent outline-none flex-1 text-[16px] min-w-0" placeholder="Поиск по чатам, имени или @username" value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" autoCorrect="off" /></div>
       </div>
+      {soon.length > 0 && (
+        <>
+          <p className="px-4 pt-2 pb-1 text-[13px] uppercase tracking-wide mx-muted">🎂 Скоро день рождения</p>
+          {soon.map((r) => (
+            <button key={r.uid} onClick={() => pick(r.acc)} className="w-full flex items-center gap-3 px-4 py-2 text-left active:bg-white/5">
+              <Avatar src={r.acc.photoURL} name={r.acc.displayName} seed={r.uid} size={44} />
+              <span className="flex-1 min-w-0 truncate">{r.acc.displayName}</span>
+              <span className="text-[13px]" style={{ color: "var(--mx-accent)" }}>{r.days === 0 ? "сегодня 🎉" : r.days === 1 ? "завтра" : `через ${r.days} дн.`}</span>
+            </button>
+          ))}
+        </>
+      )}
       {recent.length > 0 && (
         <>
           <p className="px-4 pt-2 pb-1 text-[13px] uppercase tracking-wide mx-muted">Недавние</p>
