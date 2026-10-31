@@ -15,7 +15,6 @@ import { AdminPanel } from "./AdminPanel";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { WALLPAPERS } from "./Wallpaper";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
@@ -522,54 +521,24 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                 </div>
               </div>
               <div>
-                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Обои и сообщения</p>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Тема чатов</p>
                 <div className="mx-card p-3">
-                  <div className="relative rounded-2xl overflow-hidden" style={{ height: 196, background: "var(--mx-bg)" }}>
-                    <div className={`absolute inset-0 mx-chat-wall ${prefs.wallpaper !== "none" ? `mx-wp mx-wp-${prefs.wallpaper}` : ""}`} />
-                    <div className="relative h-full flex flex-col justify-end gap-1.5 p-3" style={{ fontSize: prefs.textSize }}>
-                      <div className="mx-bubble in tail self-start">Привет! Как тебе новые обои? 👀</div>
-                      <div className="mx-bubble out tail self-end">Огонь, прямо как в айфоне ✨</div>
-                      <div className="mx-bubble in tail self-start">А ещё есть хеллоуинские 🎃</div>
-                    </div>
-                  </div>
-                  <p className="mx-muted text-[12.5px] mb-2">Темы чатов</p>
-                  <div className="flex gap-2.5 overflow-x-auto mx-noscrollbar pb-3">
-                    {([["classic", "Классика", "none", "round"], ["outline", "Контур", "noir", "outline"], ["night", "Аврора", "aurora", "round"], ["hw", "Хеллоуин 🎃", "halloween", "classic"]] as const).map(([id, label, wp, bs]) => {
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {([["Классика", "none", "round"], ["Контур", "noir", "outline"], ["Аврора", "aurora", "round"], ["Закат", "sunset", "round"], ["Океан", "ocean", "round"], ["Лес", "forest", "round"], ["Полночь", "midnight", "round"], ["Сладкая вата", "candy", "round"], ["Хеллоуин 🎃", "halloween", "classic"]] as const).map(([label, wp, bs]) => {
                       const on = prefs.wallpaper === wp && prefs.bubbleStyle === bs;
                       return (
-                        <button key={id} onClick={() => { prefs.setWallpaper(wp); prefs.setBubbleStyle(bs); }} className="shrink-0 w-[112px] text-center" aria-label={label}>
-                          <span className={`mx block h-[128px] rounded-2xl relative overflow-hidden mx-chat-wall ${wp !== "none" ? `mx-wp mx-wp-${wp}` : ""}`} data-bubble={bs} data-theme="dark" style={{ outline: on ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: on ? 2 : -1 }}>
-                            <span className="absolute left-2 top-3 right-6 flex flex-col gap-1.5">
+                        <button key={label} onClick={() => { prefs.setWallpaper(wp); prefs.setBubbleStyle(bs); }} className="text-center" aria-label={label}>
+                          <span className={`mx block h-[118px] rounded-2xl relative overflow-hidden mx-chat-wall ${wp !== "none" ? `mx-wp mx-wp-${wp}` : ""}`} data-bubble={bs} data-theme="dark" style={{ outline: on ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: on ? 2 : -1 }}>
+                            <span className="absolute left-2 right-2 top-3 flex flex-col gap-1.5">
                               <span className="mx-bubble in self-start" style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Привет!</span>
-                              <span className="mx-bubble out self-end" style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10, marginLeft: 18 }}>Как дела?</span>
-                              <span className="mx-bubble in self-start" style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Отлично 😎</span>
+                              <span className="mx-bubble out self-end" style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Как дела?</span>
                             </span>
                             {on && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)" }}><Check size={13} color="#fff" /></span>}
                           </span>
-                          <span className="block text-[12px] mt-1.5">{label}</span>
+                          <span className="block text-[12.5px] mt-1.5">{label}</span>
                         </button>
                       );
                     })}
-                  </div>
-                  <p className="mx-muted text-[12.5px] mt-1 mb-2">Обои чата</p>
-                  <div className="flex gap-2.5 overflow-x-auto mx-noscrollbar pb-1">
-                    {WALLPAPERS.map((w) => (
-                      <button key={w.id} onClick={() => prefs.setWallpaper(w.id)} className="shrink-0 w-[68px] text-center" aria-label={w.label}>
-                        <span className={`block w-[68px] h-[92px] rounded-xl relative overflow-hidden mx-chat-wall ${w.id !== "none" ? `mx-wp mx-wp-${w.id}` : ""}`} style={{ outline: prefs.wallpaper === w.id ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: prefs.wallpaper === w.id ? 2 : -1 }}>
-                          {prefs.wallpaper === w.id && <span className="absolute bottom-1 right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)" }}><Check size={13} color="#fff" /></span>}
-                        </span>
-                        <span className="block text-[11px] mt-1 mx-muted truncate">{w.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mx-muted text-[12.5px] mt-3 mb-2">Форма сообщений</p>
-                  <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2">
-                    {([["round", "Мягкие"], ["classic", "Классика"], ["compact", "Строгие"], ["outline", "Контур"]] as const).map(([id, label]) => (
-                      <button key={id} onClick={() => prefs.setBubbleStyle(id)} className="rounded-xl p-2 flex flex-col items-center gap-1.5" style={{ background: "var(--mx-surface2)", outline: prefs.bubbleStyle === id ? "2px solid var(--mx-accent)" : "none" }} data-bubble={id}>
-                        <span className="mx-bubble out" data-bubble={id} style={{ ["--mx-out" as string]: "var(--mx-accent)", maxWidth: "100%", fontSize: 12, padding: "5px 9px" }}>Привет</span>
-                        <span className="text-[12px]">{label}</span>
-                      </button>
-                    ))}
                   </div>
                 </div>
               </div>
