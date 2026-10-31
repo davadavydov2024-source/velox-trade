@@ -335,7 +335,7 @@ export function ChatListPane({
       </div>
 
       {editMode && (
-        <div className="absolute inset-x-0 bottom-0 mx-glass mx-safe-bottom flex" style={{ borderWidth: "1px 0 0", zIndex: 20 }}>
+        <div className="absolute inset-x-0 bottom-0 mx-glass mx-safe-bottom flex" style={{ borderWidth: "1px 0 0", zIndex: 60, background: "var(--mx-bg)" }}>
           {[
             { label: "Прочитано", icon: <ReadIcon size={20} />, run: () => { markRead(selectedIds); exitEdit(); } },
             { label: "Закрепить", icon: <Pin size={20} />, run: () => bulk({ pinned: true }) },
