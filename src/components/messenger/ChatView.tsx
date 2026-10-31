@@ -578,7 +578,7 @@ export function ChatView({
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="mx-glass mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
+      <div className="mx-glass mx-chat-head mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
         {selecting ? (
           <div className="h-14 flex items-center px-3 gap-2">
             <button onClick={() => setSelection(null)} className="p-2" aria-label="Отмена"><X size={22} /></button>
