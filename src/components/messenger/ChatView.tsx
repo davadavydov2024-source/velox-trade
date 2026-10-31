@@ -709,6 +709,19 @@ export function ChatView({
         </button>
       )}
 
+      {(() => {
+        const last = messages[messages.length - 1];
+        const kb = last && last.from === "velox_dating" ? last.kb : undefined;
+        if (!kb?.length) return null;
+        return (
+          <div className="shrink-0 flex flex-wrap gap-2 px-3 pt-2 pb-1 justify-center" style={{ background: "var(--mx-bg)" }}>
+            {kb.map((label) => (
+              <button key={label} onClick={() => sendText(label)} className="mx-chip" style={{ height: 40, padding: "0 16px", background: "var(--mx-surface)", border: "1px solid var(--mx-line)", borderRadius: 999, color: "var(--mx-text)", fontSize: 15 }}>{label}</button>
+            ))}
+          </div>
+        );
+      })()}
+
       <Composer
         chatId={chat.id}
         disabledReason={blockedReason}

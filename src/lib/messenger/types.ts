@@ -72,6 +72,7 @@ export interface MessengerMessage {
   poll?: MessengerPoll;
   mentions?: string[]; // uid упомянутых через @handle
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
+  kb?: string[]; // быстрые ответы бота (кнопки под последним сообщением)
   hiddenFor?: string[]; // «удалить у себя»: этим пользователям сообщение не показывать
 }
 

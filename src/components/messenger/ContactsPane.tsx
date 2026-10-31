@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Megaphone, Search, UserPlus, Users } from "lucide-react";
+import { Heart, Megaphone, Search, UserPlus, Users } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { IconBox, PageHeader, Spinner } from "./ui";
@@ -28,6 +28,15 @@ export function ContactsPane({ me, chats, onOpenChat, onNewChat }: { me: string;
     }
   };
 
+  const openDating = async () => {
+    try {
+      const res = await mApi<{ chatId: string }>("dating-open", {});
+      if (res.chatId) onOpenChat(res.chatId);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось открыть бота");
+    }
+  };
+
   const list = q.trim().length >= 2 ? results.filter((a) => a.uid !== me) : known;
   return (
     <div className="flex flex-col h-full">
@@ -42,6 +51,7 @@ export function ContactsPane({ me, chats, onOpenChat, onNewChat }: { me: string;
       <div className="mx-scroll flex-1 pb-28">
         {q.trim().length < 2 && (
           <>
+            <button onClick={openDating} className="w-full flex items-center gap-3.5 px-4 py-2.5 text-left"><IconBox color="#ff2d55"><Heart size={17} /></IconBox><span style={{ color: "var(--mx-accent)" }}>💘 Знакомства (бот 18+)</span></button>
             <button onClick={onNewChat} className="w-full flex items-center gap-3.5 px-4 py-2.5 text-left"><IconBox color="#34c759"><Users size={17} /></IconBox><span style={{ color: "var(--mx-accent)" }}>Создать группу</span></button>
             <button onClick={onNewChat} className="w-full flex items-center gap-3.5 px-4 py-2.5 text-left mb-1"><IconBox color="#ff9500"><Megaphone size={17} /></IconBox><span style={{ color: "var(--mx-accent)" }}>Создать канал</span></button>
             <p className="mx-muted text-[13px] uppercase tracking-wide px-5 py-1.5">Ваши собеседники</p>

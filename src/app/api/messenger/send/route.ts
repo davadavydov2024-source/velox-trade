@@ -5,6 +5,7 @@ import { Action, canDo, cleanMediaMeta, fail, isDmBlocked, isOwnMediaUrl, isChat
 import { MAX_MESSAGE_TEXT, MessageKind, MessengerStickerPack } from "@/lib/messenger/types";
 import { stickerStill } from "@/lib/messenger/stickers";
 import { isPremium } from "@/lib/messenger/premium";
+import { DATING_UID, datingHandle } from "@/lib/messenger/dating";
 
 export const runtime = "nodejs";
 
@@ -101,6 +102,10 @@ export async function POST(req: NextRequest) {
   }
 
   const id = await postMessage({ chat, sender: me, kind, text: postText, mediaUrl, replyTo, extra, silent: b.silent === true });
+  // бот знакомств: отвечает на текст пользователя (сбой бота не ломает отправку)
+  if (chat.type === "dm" && chat.members.includes(DATING_UID) && me.uid !== DATING_UID && kind === "text" && text) {
+    try { await datingHandle(me.uid, text); } catch (e) { console.error("dating bot error:", e); }
+  }
   if (quizSecret) await db.collection("messengerChats").doc(chat.id).collection("messages").doc(id).collection("secret").doc("quiz").set(quizSecret);
   return NextResponse.json({ id });
 }

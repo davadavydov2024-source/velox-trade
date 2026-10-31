@@ -312,7 +312,7 @@ export const isChatAdmin = (chat: MessengerChat, uid: string) => chat.createdBy 
 // ---- Служебный аккаунт «MiliGram Push» (как чат «Telegram» с уведомлениями о входе и рассылками) ----
 
 export const SERVICE_UID = "miligram";
-export const RESERVED_HANDLES = new Set(["miligram", "miligrampush", "admin", "support", "velox", "moderator", "telegram", "official"]);
+export const RESERVED_HANDLES = new Set(["miligram", "miligrampush", "admin", "support", "velox", "moderator", "telegram", "official", "velox_dating", "dating"]);
 export const DEVICE_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
 let svcCache: MessengerAuth | null = null;
