@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Music2, Pencil, Trash2, Upload, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadMedia } from "@/lib/messenger/client";
+import { compressAudio } from "@/lib/messenger/compressAudio";
 import { useToast } from "@/lib/toastContext";
 import type { MusicRequest, MusicTrack } from "@/lib/messenger/music";
 import { Spinner } from "./ui";
@@ -84,14 +85,32 @@ export function AdminMusic() {
     toast("info", "Выбери mp3-файл и нажми «Добавить»");
   };
 
+  const [compress, setCompress] = useState(true);
+  const [kbps, setKbps] = useState(128);
+
   const submit = async () => {
     if (!file || !title.trim() || busy) return;
-    const ext = (file.name.split(".").pop() || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "mp3";
-    const type = file.type && file.type.startsWith("audio/") ? file.type : AUDIO_TYPE[ext] ?? "audio/mpeg";
-    if (file.size > 30 * 1024 * 1024) { toast("error", "Файл больше 30 МБ"); return; }
+    let up: File = file;
+    // «Сжать»: перекодируем в mp3 с выбранным битрейтом прямо в браузере (при сбое грузим оригинал)
+    if (compress && file.size > 1.5 * 1024 * 1024) {
+      try {
+        setBusy("Сжимаю песню… 0%");
+        const r = await compressAudio(file, kbps, (p) => setBusy(`Сжимаю песню… ${Math.round(p * 100)}%`));
+        up = r.file;
+        if (r.compressed) toast("success", `Сжато: ${(r.before / 1048576).toFixed(1)} → ${(r.after / 1048576).toFixed(1)} МБ`);
+        else toast("info", "Файл уже лёгкий — загружаю как есть");
+      } catch (e) {
+        console.error("compress failed:", e);
+        toast("error", "Не удалось сжать — загружаю оригинал");
+        up = file;
+      }
+    }
+    const ext = (up.name.split(".").pop() || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "mp3";
+    const type = up.type && up.type.startsWith("audio/") ? up.type : AUDIO_TYPE[ext] ?? "audio/mpeg";
+    if (up.size > 30 * 1024 * 1024) { toast("error", "Файл больше 30 МБ даже после сжатия — включи сжатие или выбери битрейт пониже"); setBusy(""); return; }
     try {
       setBusy("Загружаю песню…");
-      const audioUrl = await uploadMedia(new File([file], file.name, { type }), "music", ext);
+      const audioUrl = await uploadMedia(new File([up], up.name, { type }), "music", ext);
       let coverUrl: string | undefined;
       if (cover) {
         setBusy("Загружаю обложку…");
@@ -151,9 +170,21 @@ export function AdminMusic() {
         <input className="mx-input" placeholder="Исполнитель" value={artist} onChange={(e) => setArtist(e.target.value)} maxLength={120} />
         <label className="mx-card px-4 py-3 flex items-center gap-3 cursor-pointer">
           <Upload size={20} style={{ color: "var(--mx-accent)" }} />
-          <span className="flex-1 min-w-0 text-[15px] truncate">{file ? `${file.name} · ${(file.size / 1048576).toFixed(1)} МБ` : "Выбрать mp3-файл (до 30 МБ)"}</span>
+          <span className="flex-1 min-w-0 text-[15px] truncate">{file ? `${file.name} · ${(file.size / 1048576).toFixed(1)} МБ` : "Выбрать mp3-файл (до 30 МБ после сжатия)"}</span>
           <input type="file" accept="audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/ogg,audio/wav,.mp3,.m4a,.aac,.ogg,.wav" className="hidden" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} />
         </label>
+        <div className="mx-card px-4 py-3 flex items-center gap-3">
+          <span className="flex-1 min-w-0">
+            <span className="block text-[15px]">Сжать песню (mp3)</span>
+            <span className="block mx-muted text-[12.5px]">Перекодирует в браузере — файл станет в 2–3 раза легче, грузится и играет быстрее</span>
+          </span>
+          {compress && (
+            <select className="mx-input" style={{ width: 96, padding: "6px 8px" }} value={kbps} onChange={(e) => setKbps(Number(e.target.value))} aria-label="Битрейт">
+              <option value={96}>96 kbps</option><option value={128}>128 kbps</option><option value={160}>160 kbps</option><option value={192}>192 kbps</option>
+            </select>
+          )}
+          <input type="checkbox" checked={compress} onChange={(e) => setCompress(e.target.checked)} style={{ width: 22, height: 22, accentColor: "var(--mx-accent)" }} aria-label="Сжимать" />
+        </div>
         {fileNote && <p className="text-[12.5px] -mt-1 px-1" style={{ color: fileNote.warn ? "#ff9f0a" : "var(--mx-muted)" }}>{fileNote.text}</p>}
         <label className="mx-card px-4 py-3 flex items-center gap-3 cursor-pointer">
           <Music2 size={20} className="mx-muted" />
