@@ -10,7 +10,8 @@ type Mp3EncoderCtor = new (channels: number, sampleRate: number, kbps: number) =
 let encoderPromise: Promise<Mp3EncoderCtor> | null = null;
 function loadEncoder(): Promise<Mp3EncoderCtor> {
   if (!encoderPromise) {
-    encoderPromise = import(/* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/@breezystack/lamejs@1/+esm").then((m: any) => (m.Mp3Encoder ?? m.default?.Mp3Encoder) as Mp3EncoderCtor);
+    const url: string = "https://cdn.jsdelivr.net/npm/@breezystack/lamejs@1/+esm"; // адрес в переменной, чтобы TypeScript и webpack не пытались его собрать
+    encoderPromise = (import(/* webpackIgnore: true */ url) as Promise<any>).then((m: any) => (m.Mp3Encoder ?? m.default?.Mp3Encoder) as Mp3EncoderCtor);
     encoderPromise.catch(() => { encoderPromise = null; });
   }
   return encoderPromise;
