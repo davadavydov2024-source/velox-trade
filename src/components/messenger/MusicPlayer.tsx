@@ -422,6 +422,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     });
   }, [toast]);
 
+  const status = loadPct !== null ? `Загрузка ${Math.round(loadPct * 100)}%` : buffering && slow ? "Слабый интернет — идёт загрузка…" : buffering && !playing ? "Загрузка…" : "";
   const value = useMemo<Ctl>(() => ({
     tracks, likes, requests, loaded, loading, ensureLoaded, reload, current, queue, index, playing, buffering, status, duration, shuffle, repeat, volume, expanded, pageOpen,
     setVolume, setExpanded, setPageOpen, playQueue, toggle, next, prev, seek, stop, toggleLike,
@@ -429,7 +430,6 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     cycleRepeat: () => setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off")),
   }), [tracks, likes, requests, loaded, loading, ensureLoaded, reload, current, queue, index, playing, buffering, status, duration, shuffle, repeat, volume, expanded, pageOpen, setVolume, playQueue, toggle, next, prev, seek, stop, toggleLike]);
   const timeVal = useMemo(() => ({ time, buffered }), [time, buffered]);
-  const status = loadPct !== null ? `Загрузка ${Math.round(loadPct * 100)}%` : buffering && slow ? "Слабый интернет — идёт загрузка…" : buffering && !playing ? "Загрузка…" : "";
 
   return (
     <Ctx.Provider value={value}>
