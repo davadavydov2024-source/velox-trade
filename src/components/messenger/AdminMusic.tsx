@@ -175,7 +175,8 @@ export function AdminMusic() {
     <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center p-3" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setLyricsFor(null)}>
       <div className="w-full max-w-[520px] rounded-2xl p-4 flex flex-col gap-3" style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }} onClick={(e) => e.stopPropagation()}>
         <p className="font-semibold truncate">Текст: {lyricsFor.artist} — {lyricsFor.title}</p>
-        <textarea className="mx-input" rows={12} maxLength={8000} value={lyricsText} onChange={(e) => setLyricsText(e.target.value)} placeholder="Вставь текст песни. Только если у тебя есть права на него или артист разрешил." />
+        <p className="mx-muted text-[12px]">С метками времени [мм:сс.xx] (формат LRC) строка подсвечивается точно. Без меток слежение приблизительное: строки равномерно по длине песни.</p>
+        <textarea className="mx-input" rows={12} maxLength={8000} value={lyricsText} onChange={(e) => setLyricsText(e.target.value)} placeholder="Вставь текст песни (только если у тебя есть права или артист разрешил). Для точного слежения можно с метками времени: [00:12.50] строка" />
         <div className="flex gap-2 justify-end">
           <button className="px-4 py-2 rounded-xl mx-muted" onClick={() => setLyricsFor(null)}>Отмена</button>
           <button className="px-4 py-2 rounded-xl font-medium" style={{ background: "var(--mx-accent)", color: "#fff" }} onClick={saveLyrics}>Сохранить</button>

@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AlignLeft, ChevronDown, Heart, ListMusic, Loader2, Music2, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, X } from "lucide-react";
+import { LyricsView } from "./LyricsView";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { gradientFor } from "./util";
@@ -590,7 +591,12 @@ function FullPlayer() {
       )}
       <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent 20%, var(--mx-bg) 78%)" }} />
 
-      <div className="relative flex flex-col flex-1 min-h-0">
+      {lyricsOn && (
+        <div className="hidden md:flex absolute z-[1] top-20 bottom-8 right-8 left-[50%] flex-col">
+          <LyricsView text={t.lyrics!} time={time} duration={m.duration} onSeek={m.seek} className="h-full" />
+        </div>
+      )}
+      <div className={`relative flex flex-col flex-1 min-h-0 ${lyricsOn ? "md:w-[46%]" : ""}`}>
         <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE} onTouchCancel={onTE}>
           <div className="mx-safe-top shrink-0">
             <div className="h-14 px-3 flex items-center justify-between">
@@ -603,11 +609,20 @@ function FullPlayer() {
             </div>
           </div>
           <div className="flex justify-center pt-2 pb-6">
-            {lyricsOn ? (
-              <div className="mx-scroll overflow-y-auto rounded-2xl px-5 py-4 whitespace-pre-wrap text-[18px] font-semibold leading-relaxed" style={{ width: Math.min(cover + 60, 420), height: cover, background: "color-mix(in srgb, var(--mx-bg) 55%, transparent)", WebkitOverflowScrolling: "touch" }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>{t.lyrics}</div>
-            ) : <div style={{ width: cover, height: cover, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", borderRadius: 20, transform: m.playing ? "scale(1)" : "scale(0.9)", transition: "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)" }}>
-              <TrackCover track={t} size={cover} radius={20} />
-            </div>}
+            {(() => {
+              const coverEl = (
+                <div style={{ width: cover, height: cover, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", borderRadius: 20, transform: m.playing ? "scale(1)" : "scale(0.9)", transition: "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)" }}>
+                  <TrackCover track={t} size={cover} radius={20} />
+                </div>
+              );
+              if (!lyricsOn) return coverEl;
+              return (
+                <>
+                  <div className="md:hidden" style={{ width: Math.min(cover + 60, 420), height: cover }}><LyricsView text={t.lyrics!} time={time} duration={m.duration} onSeek={m.seek} className="h-full" /></div>
+                  <div className="hidden md:block">{coverEl}</div>
+                </>
+              );
+            })()}
           </div>
         </div>
 
