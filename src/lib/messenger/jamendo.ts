@@ -4,7 +4,7 @@
  * Требование лицензии CC BY — указывать автора и лицензию: они сохраняются в треке и показываются в каталоге «Музыка».
  */
 export interface JamendoTrack {
-  id: string; title: string; artist: string; duration: number; image: string; audio: string; shareUrl: string; license: string; licenseUrl: string; score: number; source?: string;
+  id: string; title: string; artist: string; duration: number; image: string; audio: string; shareUrl: string; license: string; licenseUrl: string; score: number; source?: string; ext?: string;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[\[\](){}.,_\-–—!?"'«»]+/g, " ").replace(/\s+/g, " ").trim();
