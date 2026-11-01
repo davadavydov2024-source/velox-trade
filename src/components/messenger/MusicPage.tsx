@@ -7,6 +7,7 @@ import { MUSIC_REQUEST_MAX, type MusicRequest, type MusicTrack } from "@/lib/mes
 import { mApi, MApiError } from "./api";
 import { PageHeader, Sheet, Spinner } from "./ui";
 import { Equalizer, fmtTime, TrackCover, useMusic } from "./MusicPlayer";
+import { MusicDiagSheet } from "./MusicDiag";
 
 type Tab = "all" | "liked" | "requests";
 
@@ -53,6 +54,7 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
   const [reqOpen, setReqOpen] = useState(false);
   const [reqText, setReqText] = useState("");
   const [sending, setSending] = useState(false);
+  const [diagOpen, setDiagOpen] = useState(false);
 
   const { setPageOpen, ensureLoaded } = m;
   useEffect(() => {
@@ -183,7 +185,12 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
             })}
           </div>
         )}
+        {m.tracks.length > 0 && (
+          <button onClick={() => setDiagOpen(true)} className="block mx-auto mt-6 mb-2 text-[13.5px] mx-muted underline">Не играет? Диагностика</button>
+        )}
       </div>
+
+      <MusicDiagSheet open={diagOpen} onClose={() => setDiagOpen(false)} track={m.current ?? m.tracks[0] ?? null} />
 
       <Sheet open={reqOpen} onClose={() => setReqOpen(false)} title="Предложить песню">
         <div className="px-5 pb-8 flex flex-col gap-3">
