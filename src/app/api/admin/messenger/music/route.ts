@@ -66,6 +66,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, id: ref.id });
   }
 
+  if (b.action === "lyrics") {
+    if (!okId(b.id)) return err("id обязателен");
+    const lyrics = typeof b.lyrics === "string" ? b.lyrics.replace(/\r/g, "").trim().slice(0, 8000) : "";
+    const { FieldValue } = await import("firebase-admin/firestore");
+    await db.collection("messengerMusicTracks").doc(b.id).update({ lyrics: lyrics || FieldValue.delete() });
+    await logAdminAccess(admin.uid, "messenger_music_lyrics", { trackId: b.id, length: lyrics.length });
+    return NextResponse.json({ ok: true });
+  }
+
   if (b.action === "edit") {
     if (!okId(b.id)) return err("id обязателен");
     const title = clean(b.title, 120);
@@ -101,5 +110,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  return err("action: add | edit | delete | reject");
+  return err("action: add | edit | lyrics | delete | reject");
 }

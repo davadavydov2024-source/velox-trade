@@ -10,6 +10,7 @@ export type MusicTrack = {
   createdAt: number;
   addedBy?: string;
   license?: string; // «CC BY 3.0» — для треков с открытой лицензией (нужно указывать автора и лицензию)
+  lyrics?: string; // текст песни: вводит админ (только для песен с правами / свободной лицензией) или приходит из Jamendo
   source?: string;
   sourceUrl?: string;
 };

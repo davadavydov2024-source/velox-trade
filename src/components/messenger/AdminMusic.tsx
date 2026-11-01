@@ -154,6 +154,12 @@ export function AdminMusic() {
     if (note === null) return;
     try { await call({ action: "reject", requestId: r.id, note }); toast("success", "Заявка отклонена"); load(); } catch (e: any) { toast("error", e.message); }
   };
+  const [lyricsFor, setLyricsFor] = useState<MusicTrack | null>(null);
+  const [lyricsText, setLyricsText] = useState("");
+  const saveLyrics = async () => {
+    if (!lyricsFor) return;
+    try { await call({ action: "lyrics", id: lyricsFor.id, lyrics: lyricsText }); toast("success", "Текст сохранён"); setLyricsFor(null); load(); } catch (e: any) { toast("error", e.message); }
+  };
   const edit = async (t: MusicTrack) => {
     const nt = window.prompt("Название:", t.title);
     if (!nt) return;
@@ -165,9 +171,23 @@ export function AdminMusic() {
     try { await call({ action: "delete", id: t.id }); toast("success", "Удалено"); load(); } catch (e: any) { toast("error", e.message); }
   };
 
+  const lyricsModal = lyricsFor && (
+    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center p-3" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setLyricsFor(null)}>
+      <div className="w-full max-w-[520px] rounded-2xl p-4 flex flex-col gap-3" style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }} onClick={(e) => e.stopPropagation()}>
+        <p className="font-semibold truncate">Текст: {lyricsFor.artist} — {lyricsFor.title}</p>
+        <textarea className="mx-input" rows={12} maxLength={8000} value={lyricsText} onChange={(e) => setLyricsText(e.target.value)} placeholder="Вставь текст песни. Только если у тебя есть права на него или артист разрешил." />
+        <div className="flex gap-2 justify-end">
+          <button className="px-4 py-2 rounded-xl mx-muted" onClick={() => setLyricsFor(null)}>Отмена</button>
+          <button className="px-4 py-2 rounded-xl font-medium" style={{ background: "var(--mx-accent)", color: "#fff" }} onClick={saveLyrics}>Сохранить</button>
+        </div>
+      </div>
+    </div>
+  );
+
   const fresh = requests.filter((r) => r.status === "new");
   return (
     <div className="pb-10">
+      {lyricsModal}
       <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Заявки на песни{fresh.length ? ` · ${fresh.length}` : ""}</p>
       {requests.length === 0 ? <p className="mx-muted px-4 py-3 text-[14px]">Заявок пока нет</p> : requests.slice(0, 40).map((r) => (
         <div key={r.id} className="px-4 py-2.5 flex items-center gap-3" style={{ opacity: r.status === "new" ? 1 : 0.6 }}>
@@ -241,6 +261,7 @@ export function AdminMusic() {
             <p className="text-[15px] truncate">{t.title}</p>
             <p className="mx-muted text-[12.5px] truncate">{t.artist}{t.duration ? ` · ${fmtTime(t.duration)}` : ""} · ▶ {t.plays ?? 0}</p>
           </div>
+          <button className="w-9 h-9 flex items-center justify-center mx-muted text-[12px] font-semibold" style={t.lyrics ? { color: "var(--mx-accent)" } : undefined} onClick={() => { setLyricsFor(t); setLyricsText(t.lyrics ?? ""); }} aria-label="Текст песни">Aa</button>
           <button className="w-9 h-9 flex items-center justify-center mx-muted" onClick={() => edit(t)} aria-label="Изменить"><Pencil size={17} /></button>
           <button className="w-9 h-9 flex items-center justify-center" style={{ color: "var(--mx-danger)" }} onClick={() => del(t)} aria-label="Удалить"><Trash2 size={17} /></button>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Heart, ListMusic, Loader2, Music2, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, X } from "lucide-react";
+import { AlignLeft, ChevronDown, Heart, ListMusic, Loader2, Music2, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { gradientFor } from "./util";
@@ -557,6 +557,8 @@ function FullPlayer() {
   const cover = Math.min(340, Math.round((typeof window !== "undefined" ? Math.min(window.innerWidth, window.innerHeight * 0.5) : 400) * 0.82));
   const [dragR, setDragR] = useState<number | null>(null);
   const [showQueue, setShowQueue] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
+  const lyricsOn = showLyrics && !!t.lyrics;
   const shownTime = dragR !== null ? dragR * m.duration : time;
 
   // закрытие свайпом вниз по шапке и обложке
@@ -594,13 +596,18 @@ function FullPlayer() {
             <div className="h-14 px-3 flex items-center justify-between">
               <button onClick={() => m.setExpanded(false)} className="w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10" aria-label="Свернуть"><ChevronDown size={28} /></button>
               <span className="text-[12.5px] uppercase tracking-[0.14em] mx-muted">Сейчас играет</span>
-              <button onClick={() => setShowQueue(true)} className="w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10" aria-label="Очередь"><ListMusic size={22} /></button>
+              <div className="flex items-center">
+                {t.lyrics && <button onClick={() => setShowLyrics((v) => !v)} className="w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10" aria-label="Текст песни" style={{ color: lyricsOn ? "var(--mx-accent)" : undefined }}><AlignLeft size={22} /></button>}
+                <button onClick={() => setShowQueue(true)} className="w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10" aria-label="Очередь"><ListMusic size={22} /></button>
+              </div>
             </div>
           </div>
           <div className="flex justify-center pt-2 pb-6">
-            <div style={{ width: cover, height: cover, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", borderRadius: 20, transform: m.playing ? "scale(1)" : "scale(0.9)", transition: "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)" }}>
+            {lyricsOn ? (
+              <div className="mx-scroll overflow-y-auto rounded-2xl px-5 py-4 whitespace-pre-wrap text-[18px] font-semibold leading-relaxed" style={{ width: Math.min(cover + 60, 420), height: cover, background: "color-mix(in srgb, var(--mx-bg) 55%, transparent)", WebkitOverflowScrolling: "touch" }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>{t.lyrics}</div>
+            ) : <div style={{ width: cover, height: cover, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", borderRadius: 20, transform: m.playing ? "scale(1)" : "scale(0.9)", transition: "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)" }}>
               <TrackCover track={t} size={cover} radius={20} />
-            </div>
+            </div>}
           </div>
         </div>
 

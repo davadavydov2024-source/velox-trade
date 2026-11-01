@@ -29,7 +29,7 @@ async function addTrack(t: JamendoTrack, adminUid: string) {
   let coverUrl: string | undefined;
   if (t.image) { try { coverUrl = await copyToBlob(t.image, adminUid, "jpg", "image/jpeg", 5 * 1024 * 1024); } catch { /* обложка необязательна */ } }
   const ref = adminDb().collection("messengerMusicTracks").doc();
-  await ref.set({ title: t.title.slice(0, 120), artist: (t.artist || "Неизвестный исполнитель").slice(0, 120), audioUrl, ...(coverUrl ? { coverUrl } : {}), ...(t.duration ? { duration: Math.round(t.duration) } : {}), plays: 0, createdAt: Date.now(), addedBy: adminUid, license: t.license, source: t.source ?? "Jamendo", sourceUrl: t.shareUrl });
+  await ref.set({ title: t.title.slice(0, 120), artist: (t.artist || "Неизвестный исполнитель").slice(0, 120), audioUrl, ...(coverUrl ? { coverUrl } : {}), ...(t.duration ? { duration: Math.round(t.duration) } : {}), plays: 0, createdAt: Date.now(), addedBy: adminUid, ...(t.lyrics ? { lyrics: t.lyrics } : {}), license: t.license, source: t.source ?? "Jamendo", sourceUrl: t.shareUrl });
   await logAdminAccess(adminUid, "messenger_music_add", { trackId: ref.id, title: t.title, source: t.source ?? "Jamendo", license: t.license });
   return { id: ref.id, title: t.title, artist: t.artist, license: t.license };
 }
