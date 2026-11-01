@@ -100,7 +100,10 @@ const isTyping = (t: EventTarget | null) => {
 };
 
 export function MusicProvider({ children }: { children: ReactNode }) {
-  const { toast } = useToast();
+  const { toast: toastFn } = useToast();
+  const toastRef = useRef(toastFn);
+  toastRef.current = toastFn;
+  const toast = useCallback((k: "success" | "error" | "info", m: string) => toastRef.current(k, m), []);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [likes, setLikes] = useState<Set<string>>(new Set());
@@ -125,8 +128,14 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   st.current = { queue, index, shuffle, repeat };
   const flags = useRef({ pageOpen, expanded });
   flags.current = { pageOpen, expanded };
+  const live = useRef({ playing, buffering });
+  live.current = { playing, buffering };
   const counted = useRef<string | null>(null);
   const lastPos = useRef(0);
+  const wd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fb = useRef<{ id: string | null; obj: string | null }>({ id: null, obj: null });
+  const tryFb = useRef<(t: MusicTrack) => Promise<boolean>>(async () => false);
+  const goNextRef = useRef<(auto: boolean) => void>(() => {});
   const acts = useRef<{ toggle: () => void; next: () => void; prev: () => void; seek: (t: number) => void }>({ toggle: () => {}, next: () => {}, prev: () => {}, seek: () => {} });
 
   const reload = useCallback(async () => {
@@ -158,16 +167,59 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
 
+  // запасной путь: если потоковое воспроизведение не стартует, скачиваем файл целиком и играем из памяти
+  const tryFallback = useCallback(async (t: MusicTrack): Promise<boolean> => {
+    const a = audioRef.current;
+    if (!a || fb.current.id === t.id) return false;
+    fb.current.id = t.id;
+    setBuffering(true);
+    toast("info", "Загружаю трек целиком…");
+    try {
+      const res = await fetch(t.audioUrl);
+      if (!res.ok) throw new Error(`сервер ответил ${res.status}`);
+      const blob = await res.blob();
+      if (st.current.queue[st.current.index]?.id !== t.id) return true; // трек уже сменили
+      if (fb.current.obj) URL.revokeObjectURL(fb.current.obj);
+      const typed = blob.type && blob.type.startsWith("audio/") ? blob : new Blob([blob], { type: "audio/mpeg" });
+      fb.current.obj = URL.createObjectURL(typed);
+      a.src = fb.current.obj;
+      safePlay(a);
+      setTimeout(() => {
+        if (!live.current.playing && st.current.queue[st.current.index]?.id === t.id) {
+          setBuffering(false);
+          toast("error", "Файл скачан, но браузер не может его проиграть — проверь, что это настоящий mp3");
+        }
+      }, 8000);
+      return true;
+    } catch (e: any) {
+      setBuffering(false);
+      toast("error", `Не удалось загрузить файл (${e?.message ?? "сеть"})`);
+      return false;
+    }
+  }, [safePlay, toast]);
+  tryFb.current = tryFallback;
+
   // загрузить трек в плеер и сразу играть + данные для экрана блокировки
   const startTrack = useCallback((a: HTMLAudioElement, t: MusicTrack) => {
     counted.current = null;
     lastPos.current = 0;
+    fb.current.id = null;
     if (a.src !== t.audioUrl) a.src = t.audioUrl;
     setTime(0);
     setBuffered(0);
     setDuration(t.duration ?? 0);
     setBuffering(true);
     safePlay(a);
+    // сторож: если за 6 секунд звук не пошёл — включаем запасной путь
+    if (wd.current) clearTimeout(wd.current);
+    wd.current = setTimeout(() => {
+      const a2 = audioRef.current;
+      const cur = st.current.queue[st.current.index];
+      if (!a2 || !cur || cur.id !== t.id) return;
+      if (live.current.playing && !live.current.buffering) return;
+      if (a2.readyState >= 3 && !a2.paused) return;
+      tryFb.current(cur);
+    }, 6000);
     const ms = (navigator as Navigator & { mediaSession?: MediaSession }).mediaSession;
     if (ms && typeof MediaMetadata !== "undefined") {
       try { ms.metadata = new MediaMetadata({ title: t.title, artist: t.artist, artwork: t.coverUrl ? [{ src: t.coverUrl }] : [] }); } catch {}
@@ -190,6 +242,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     if (q[n]?.id === q[i]?.id) { a.currentTime = 0; safePlay(a); return; }
     setIndex(n);
   }, [safePlay]);
+  goNextRef.current = goNext;
 
   // один <audio> на всё приложение: музыка не прерывается при переходах между экранами
   useEffect(() => {
@@ -222,9 +275,11 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const onPause = () => setPlaying(false);
     const onWait = () => setBuffering(true);
     const onReady = () => setBuffering(false);
-    const onEnd = () => goNext(true);
+    const onEnd = () => goNextRef.current(true);
     const onErr = () => {
       if (!a.getAttribute("src")) return; // сброс плеера (stop) — не ошибка
+      const cur = st.current.queue[st.current.index];
+      if (cur && fb.current.id !== cur.id && !a.src.startsWith("blob:")) { tryFb.current(cur); return; } // сначала пробуем запасной путь
       setPlaying(false);
       setBuffering(false);
       const code = a.error?.code;
@@ -248,7 +303,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       a.pause();
       a.removeAttribute("src");
     };
-  }, [goNext, toast]);
+  }, [toast]);
 
   // горячие клавиши (компьютер): пробел — пауза, ←/→ — перемотка на 5 секунд; только когда открыт раздел «Музыка» или плеер
   useEffect(() => {
@@ -269,7 +324,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !current) return;
-    if (a.src === current.audioUrl) return; // этот трек уже загружен (запущен из клика)
+    if (a.src === current.audioUrl || (fb.current.id === current.id && a.src.startsWith("blob:"))) return; // этот трек уже загружен (запущен из клика)
     startTrack(a, current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId]);
@@ -307,7 +362,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, []);
   const stop = useCallback(() => {
     const a = audioRef.current;
+    if (wd.current) clearTimeout(wd.current);
     if (a) { a.pause(); a.removeAttribute("src"); }
+    if (fb.current.obj) { URL.revokeObjectURL(fb.current.obj); fb.current.obj = null; }
     setQueue([]); setIndex(-1); setPlaying(false); setBuffering(false); setTime(0); setDuration(0); setExpanded(false);
   }, []);
   const setVolume = useCallback((v: number) => {
