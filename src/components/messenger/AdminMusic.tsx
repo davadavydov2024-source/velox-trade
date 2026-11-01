@@ -88,7 +88,7 @@ export function AdminMusic() {
   const [autoQ, setAutoQ] = useState("");
   const [autoBusy, setAutoBusy] = useState(false);
   const [autoRu, setAutoRu] = useState(false);
-  const [cands, setCands] = useState<{ id: string; title: string; artist: string; duration: number; license: string; image: string }[]>([]);
+  const [cands, setCands] = useState<{ id: string; title: string; artist: string; duration: number; license: string; image: string; source?: string }[]>([]);
   const autoAdd = async (body: Record<string, unknown>) => {
     setAutoBusy(true);
     try {
@@ -192,10 +192,10 @@ export function AdminMusic() {
         </div>
         <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={autoRu} onChange={(e) => setAutoRu(e.target.checked)} /> Только русскоязычные</label>
         {autoRu && !autoQ.trim() && <button className="text-left text-[14px] underline" style={{ color: "var(--mx-accent)" }} disabled={autoBusy} onClick={() => autoAdd({ q: "", ru: true })}>Показать популярные русские песни</button>}
-        <p className="mx-muted text-[12px]">Ищет только в каталоге Jamendo с лицензиями CC BY / BY-SA / CC0 и сам добавляет точное совпадение. Популярных коммерческих песен там нет.</p>
+        <p className="mx-muted text-[12px]">Ищет в Jamendo и Internet Archive только среди треков с лицензиями CC BY / BY-SA / CC0 и сам добавляет точное совпадение. Популярных коммерческих песен там нет.</p>
         {cands.map((c) => (
           <button key={c.id} disabled={autoBusy} className="flex items-center gap-3 text-left py-1.5" onClick={() => autoAdd({ pickId: c.id })}>
-            <span className="min-w-0 flex-1"><span className="block text-[15px] truncate">{c.title}</span><span className="block mx-muted text-[12.5px] truncate">{c.artist} · {c.license}{c.duration ? ` · ${fmtTime(c.duration)}` : ""}</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-[15px] truncate">{c.title}</span><span className="block mx-muted text-[12.5px] truncate">{c.artist} · {c.license}{c.source ? ` · ${c.source}` : ""}{c.duration ? ` · ${fmtTime(c.duration)}` : ""}</span></span>
             <span className="text-[13px]" style={{ color: "var(--mx-accent)" }}>Добавить</span>
           </button>
         ))}

@@ -4,7 +4,7 @@
  * Требование лицензии CC BY — указывать автора и лицензию: они сохраняются в треке и показываются в каталоге «Музыка».
  */
 export interface JamendoTrack {
-  id: string; title: string; artist: string; duration: number; image: string; audio: string; shareUrl: string; license: string; licenseUrl: string; score: number;
+  id: string; title: string; artist: string; duration: number; image: string; audio: string; shareUrl: string; license: string; licenseUrl: string; score: number; source?: string;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[\[\](){}.,_\-–—!?"'«»]+/g, " ").replace(/\s+/g, " ").trim();
@@ -38,7 +38,7 @@ const map = (r: any, q: string): JamendoTrack | null => {
   const want = new Set(tokens(q));
   const have = new Set([...tokens(String(r.name ?? "")), ...tokens(String(r.artist_name ?? ""))]);
   const hit = Array.from(want).filter((t) => have.has(t)).length;
-  return { id: String(r.id), title: String(r.name ?? ""), artist: String(r.artist_name ?? ""), duration: Number(r.duration) || 0, image: String(r.image ?? ""), audio: String(r.audio), shareUrl: String(r.shareurl ?? ""), license, licenseUrl: String(r.license_ccurl), score: want.size ? hit / want.size : 0 };
+  return { id: String(r.id), title: String(r.name ?? ""), artist: String(r.artist_name ?? ""), duration: Number(r.duration) || 0, image: String(r.image ?? ""), audio: String(r.audio), shareUrl: String(r.shareurl ?? ""), source: "Jamendo", license, licenseUrl: String(r.license_ccurl), score: want.size ? hit / want.size : 0 };
 };
 
 /** lang — язык текста песни (например "ru"); при пустом q возвращает популярное на этом языке. */
