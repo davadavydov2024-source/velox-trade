@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
+import { Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
@@ -89,6 +89,7 @@ export function ChatListPane({
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuChat, setMenuChat] = useState<MChat | null>(null);
+  const [delChat, setDelChat] = useState<MChat | null>(null);
   const [folderPick, setFolderPick] = useState<MChat | null>(null);
   const [muteFor, setMuteFor] = useState<MChat[] | null>(null);
   const [q, setQ] = useState("");
@@ -99,6 +100,23 @@ export function ChatListPane({
     const bad = res.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
     if (bad) toast("error", bad.reason instanceof MApiError ? bad.reason.message : "Не удалось применить");
   };
+  const isGone = (c: MChat) => { const h = userChats[c.id]?.hiddenAt; return !!h && (c.lastMessage?.at ?? 0) <= h; };
+  /** Удаление чата: у меня (скрыть), у обоих (очистить историю у всех и скрыть), для группы — выйти / удалить целиком. */
+  const removeChat = async (c: MChat, mode: "me" | "both" | "leave" | "all") => {
+    try {
+      if (mode === "both") {
+        for (let i = 0; i < 10; i++) { const r = await mApi<{ done: boolean }>("clear-chat", { chatId: c.id, forAll: true }); if (r.done) break; }
+        await mApi("chat-settings", { chatId: c.id, hide: true });
+      } else if (mode === "leave") {
+        await mApi("members", { chatId: c.id, action: "leave" });
+      } else if (mode === "all") {
+        await mApi("members", { chatId: c.id, action: "deleteChat" });
+      } else {
+        await mApi("chat-settings", { chatId: c.id, hide: true });
+      }
+      toast("success", mode === "me" || mode === "both" ? "Чат удалён" : mode === "leave" ? "Вы вышли из чата" : "Чат удалён для всех");
+    } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось удалить"); }
+  };
   const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id }).catch(() => {}));
 
   const activeFolder = folders.find((f) => f.id === folderId);
@@ -108,7 +126,7 @@ export function ChatListPane({
   const visible = useMemo(() => {
     const list = chats.filter((c) => {
       const uc = userChats[c.id];
-      if (uc?.archived) return false;
+      if (uc?.archived || isGone(c)) return false;
       if (activeFolder && !chatInFolder(c, uc, activeFolder)) return false;
       return true;
     });
@@ -119,10 +137,11 @@ export function ChatListPane({
       if (ua?.pinned && ub?.pinned) return (ub.pinnedAt ?? 0) - (ua.pinnedAt ?? 0);
       return (b.lastMessage?.at ?? b.updatedAt ?? 0) - (a.lastMessage?.at ?? a.updatedAt ?? 0);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chats, userChats, activeFolder]);
 
-  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived ? 1 : 0), 0);
-  const archived = chats.filter((c) => userChats[c.id]?.archived);
+  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived && !isGone(c) ? 1 : 0), 0);
+  const archived = chats.filter((c) => userChats[c.id]?.archived && !isGone(c));
   const archivedUnread = archived.reduce((s, c) => s + (userChats[c.id]?.unread ?? 0), 0);
 
   const searching = q.trim().length > 0;
@@ -384,9 +403,26 @@ export function ChatListPane({
                 { label: "Прочитано", icon: <ReadIcon size={20} />, hidden: !(uc?.unread), onPress: () => markRead([menuChat.id]) },
                 { label: "В папку", icon: <Folder size={20} />, hidden: folders.length === 0, onPress: () => setFolderPick(menuChat) },
                 { label: uc?.archived ? "Вернуть из архива" : "В архив", icon: <Archive size={20} />, onPress: () => act([menuChat.id], { archived: !uc?.archived }) },
+                { label: "Удалить чат", icon: <Trash2 size={20} />, danger: true, onPress: () => setDelChat(menuChat) },
               ]}
             />
           );
+        })()}
+      </Sheet>
+
+      {/* удаление чата */}
+      <Sheet open={!!delChat} onClose={() => setDelChat(null)} title={delChat ? `Удалить: ${chatTitle(delChat, me, accounts)}` : undefined}>
+        {delChat && (() => {
+          const c = delChat;
+          const items = c.type === "dm"
+            ? [
+                { label: "Удалить у меня", icon: <Trash2 size={20} />, danger: true, onPress: () => removeChat(c, "me") },
+                ...(c.service ? [] : [{ label: "Удалить у меня и собеседника", icon: <Trash2 size={20} />, danger: true, onPress: () => { if (window.confirm("Вся переписка будет стёрта у обоих без возможности восстановления. Продолжить?")) removeChat(c, "both"); } }]),
+              ]
+            : c.createdBy === me
+              ? [{ label: "Удалить для всех участников", icon: <Trash2 size={20} />, danger: true, onPress: () => { if (window.confirm("Чат будет удалён у всех участников без возможности восстановления. Продолжить?")) removeChat(c, "all"); } }]
+              : [{ label: "Покинуть и удалить", icon: <Trash2 size={20} />, danger: true, onPress: () => removeChat(c, "leave") }];
+          return <MenuList onDone={() => setDelChat(null)} items={items} />;
         })()}
       </Sheet>
 
