@@ -11,8 +11,9 @@ type WalletInfo = { wallet: number; plus: boolean; plusUntil: number | null; mes
 const LABEL: Record<string, string> = {
   purchase: "Покупка", gift_convert: "Подарок обменян на ⭐", gift_buy: "Покупка подарка", gift_sale: "Продажа подарка", admin_grant: "Начисление от администрации",
   paid_message_in: "Платное сообщение (получено)", paid_message_out: "Платное сообщение (отправлено)", paid_message_refund: "Возврат за сообщение", topup: "Пополнение",
+  username_buy: "Покупка юзернейма", username_sale: "Продажа юзернейма", username_rent_out: "Аренда юзернейма", username_rent_in: "Доход от аренды юзернейма",
 };
-const ICON: Record<string, string> = { purchase: "🛍", gift_convert: "🔁", gift_buy: "🎁", gift_sale: "💸", admin_grant: "✨", paid_message_in: "💬", paid_message_out: "💬", paid_message_refund: "↩️", topup: "➕" };
+const ICON: Record<string, string> = { purchase: "🛍", gift_convert: "🔁", gift_buy: "🎁", gift_sale: "💸", admin_grant: "✨", paid_message_in: "💬", paid_message_out: "💬", paid_message_refund: "↩️", topup: "➕", username_buy: "🏷", username_sale: "🏷", username_rent_out: "🏷", username_rent_in: "🏷" };
 
 /** Страница «Кошелёк ⭐»: баланс, пополнение, цена за входящие сообщения (Премиум Плюс) и история операций. */
 export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOpenPremium: () => void }) {
