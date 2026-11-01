@@ -29,7 +29,7 @@ const href = (db: Firestore, n: string) => db.collection("messengerHandles").doc
 const aref = (db: Firestore, u: string) => db.collection("messengerAccounts").doc(u);
 const wref = (db: Firestore, u: string) => db.collection("users").doc(u);
 const log = (db: Firestore, tx: Transaction, uid: string, delta: number, type: string, name: string) =>
-  tx.set(db.collection("starsWalletLog").doc(), { uid, delta, type, ref: name, name: `@${name}`, at: Date.now() });
+  tx.set(db.collection("miliWalletLog").doc(), { uid, delta, type, ref: name, name: `@${name}`, at: Date.now() });
 
 export const validName = (n: unknown): n is string => typeof n === "string" && PREMIUM_RE.test(n) && !RESERVED_HANDLES.has(n);
 const rentedNow = (d: UsernameDoc) => !!d.renterUid && (d.rentUntil ?? 0) > Date.now();
@@ -42,7 +42,7 @@ function writeDeactivate(db: Firestore, tx: Transaction, name: string, acc: Acc)
 }
 
 async function getWallet(tx: Transaction, db: Firestore, uid: string) {
-  return (((await tx.get(wref(db, uid))).data()?.starsWallet as number | undefined) ?? 0);
+  return (((await tx.get(wref(db, uid))).data()?.miliWallet as number | undefined) ?? 0);
 }
 
 async function load(tx: Transaction, db: Firestore, name: string) {
@@ -74,7 +74,7 @@ export async function buyShop(name: string, uid: string) {
     const d = await load(tx, db, name);
     if (d.ownerUid || !d.shopPrice) throw new UErr("Этот юзернейм уже продан", 409);
     if ((await getWallet(tx, db, uid)) < d.shopPrice) throw new UErr(`Не хватает звёзд: нужно ${d.shopPrice} ⭐`, 402);
-    tx.set(wref(db, uid), { starsWallet: FieldValue.increment(-d.shopPrice) }, { merge: true });
+    tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-d.shopPrice) }, { merge: true });
     log(db, tx, uid, -d.shopPrice, "username_buy", name);
     tx.update(uref(db, name), { ownerUid: uid, shopPrice: null, boughtAt: Date.now() });
   });
@@ -93,8 +93,8 @@ export async function buyResale(name: string, uid: string) {
     if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает звёзд: нужно ${price} ⭐`, 402);
     if (ownerAcc && ownerAcc.premiumHandle === name) writeDeactivate(db, tx, name, ownerAcc);
     const get = price - fee(price);
-    tx.set(wref(db, uid), { starsWallet: FieldValue.increment(-price) }, { merge: true });
-    tx.set(wref(db, owner), { starsWallet: FieldValue.increment(get) }, { merge: true });
+    tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
+    tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
     log(db, tx, uid, -price, "username_buy", name);
     log(db, tx, owner, get, "username_sale", name);
     tx.update(uref(db, name), { ownerUid: uid, salePrice: null, rentPerDay: null, usedBy: null });
@@ -113,8 +113,8 @@ export async function rentName(name: string, uid: string, days: number) {
     const owner = d.ownerUid, price = d.rentPerDay * days;
     if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает звёзд: нужно ${price} ⭐`, 402);
     const get = price - fee(price);
-    tx.set(wref(db, uid), { starsWallet: FieldValue.increment(-price) }, { merge: true });
-    tx.set(wref(db, owner), { starsWallet: FieldValue.increment(get) }, { merge: true });
+    tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
+    tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
     log(db, tx, uid, -price, "username_rent_out", name);
     log(db, tx, owner, get, "username_rent_in", name);
     tx.update(uref(db, name), { renterUid: uid, rentUntil: (extending ? (d.rentUntil as number) : Date.now()) + days * DAY });

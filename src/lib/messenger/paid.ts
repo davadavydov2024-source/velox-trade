@@ -7,7 +7,7 @@ import type { MessengerAuth } from "./server";
 
 /**
  * Платные сообщения («Премиум Плюс»): владелец ставит цену в ⭐ за входящее сообщение.
- * Звёзды переходят с кошелька отправителя на кошелёк получателя (users.starsWallet), обе операции пишутся в starsWalletLog.
+ * Звёзды переходят с кошелька отправителя на кошелёк получателя (users.miliWallet), обе операции пишутся в miliWalletLog.
  * Бесплатно: если получатель сам уже писал отправителю в этом чате (chat.freeFor), и если цена не задана.
  */
 export interface PaidCharge { price: number; peer: string }
@@ -32,12 +32,12 @@ export async function chargePaidMessage(chat: MessengerChat, me: MessengerAuth):
   const now = Date.now();
   try {
     await db.runTransaction(async (tx) => {
-      const have = ((await tx.get(from)).data()?.starsWallet as number | undefined) ?? 0;
+      const have = ((await tx.get(from)).data()?.miliWallet as number | undefined) ?? 0;
       if (have < c.price) throw new Error("not-enough");
-      tx.set(from, { starsWallet: FieldValue.increment(-c.price) }, { merge: true });
-      tx.set(to, { starsWallet: FieldValue.increment(c.price) }, { merge: true });
-      tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -c.price, type: "paid_message_out", ref: c.peer, name: peerName, at: now });
-      tx.set(db.collection("starsWalletLog").doc(), { uid: c.peer, delta: c.price, type: "paid_message_in", ref: me.uid, name: me.account.displayName, at: now });
+      tx.set(from, { miliWallet: FieldValue.increment(-c.price) }, { merge: true });
+      tx.set(to, { miliWallet: FieldValue.increment(c.price) }, { merge: true });
+      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -c.price, type: "paid_message_out", ref: c.peer, name: peerName, at: now });
+      tx.set(db.collection("miliWalletLog").doc(), { uid: c.peer, delta: c.price, type: "paid_message_in", ref: me.uid, name: me.account.displayName, at: now });
     });
   } catch (e) {
     if ((e as Error)?.message === "not-enough") {
@@ -53,10 +53,10 @@ export async function refundPaidMessage(meUid: string, c: PaidCharge): Promise<v
   const db = adminDb();
   const now = Date.now();
   await db.runTransaction(async (tx) => {
-    tx.set(db.collection("users").doc(meUid), { starsWallet: FieldValue.increment(c.price) }, { merge: true });
-    tx.set(db.collection("users").doc(c.peer), { starsWallet: FieldValue.increment(-c.price) }, { merge: true });
-    tx.set(db.collection("starsWalletLog").doc(), { uid: meUid, delta: c.price, type: "paid_message_refund", ref: c.peer, at: now });
-    tx.set(db.collection("starsWalletLog").doc(), { uid: c.peer, delta: -c.price, type: "paid_message_refund", ref: meUid, at: now });
+    tx.set(db.collection("users").doc(meUid), { miliWallet: FieldValue.increment(c.price) }, { merge: true });
+    tx.set(db.collection("users").doc(c.peer), { miliWallet: FieldValue.increment(-c.price) }, { merge: true });
+    tx.set(db.collection("miliWalletLog").doc(), { uid: meUid, delta: c.price, type: "paid_message_refund", ref: c.peer, at: now });
+    tx.set(db.collection("miliWalletLog").doc(), { uid: c.peer, delta: -c.price, type: "paid_message_refund", ref: meUid, at: now });
   });
 }
 

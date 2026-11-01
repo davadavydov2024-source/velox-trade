@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   await settleExpired().catch(() => {});
   const view = req.nextUrl.searchParams.get("view") ?? "shop";
   const now = Date.now();
-  const wallet = ((await adminDb().collection("users").doc(me.uid).get()).data()?.starsWallet as number | undefined) ?? 0;
+  const wallet = ((await adminDb().collection("users").doc(me.uid).get()).data()?.miliWallet as number | undefined) ?? 0;
   const base = { wallet, handle: me.account.handle, fee: FEE_PCT, rentDaysMax: RENT_DAYS_MAX };
   if (view === "shop") {
     const d = rows((await col().where("shopPrice", ">", 0).limit(200).get()).docs).filter((x) => !x.ownerUid);

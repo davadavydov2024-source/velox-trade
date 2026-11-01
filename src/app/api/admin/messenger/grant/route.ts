@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     .map((g) => ({ id: g.id, giftId: g.giftId, at: g.at, nft: g.nft ?? null, byAdmin: !!(g as any).byAdmin }));
   return NextResponse.json({
     account: { uid, handle: a.handle, displayName: a.displayName, premiumUntil: a.premiumUntil ?? 0, verified: !!a.verified, banned: !!a.banned },
-    wallet: (user.data()?.starsWallet as number | undefined) ?? 0,
+    wallet: (user.data()?.miliWallet as number | undefined) ?? 0,
     gifts: rows,
   });
 }
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
  * POST { uid, action, ... } — выдать человеку что-нибудь от имени администрации:
  *  premium        { days }                         — добавить Mili Premium (1–3650 дн.)
  *  premiumRevoke                                   — снять Mili Premium
- *  stars          { amount }                       — начислить ⭐ в кошелёк Velox
+ *  stars          { amount }                       — начислить ⭐ в кошелёк MiliGram
  *  gift           { giftId, count?, message?, from?: "service"|"me", nft?: { model?, backdrop?, symbol? } }
  *                                                  — подарить любой подарок из каталога (в т.ч. NFT, можно выбрать признаки); бесплатно для админа
  *  revokeGift     { giftDocId }                    — забрать подарок
@@ -94,11 +94,11 @@ export async function POST(req: NextRequest) {
       const amount = Math.round(Number(b.amount));
       if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма ⭐: от 1 до 1 000 000");
       await db.runTransaction(async (tx) => {
-        tx.set(db.collection("users").doc(uid), { starsWallet: FieldValue.increment(amount) }, { merge: true });
-        tx.set(db.collection("starsWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
+        tx.set(db.collection("users").doc(uid), { miliWallet: FieldValue.increment(amount) }, { merge: true });
+        tx.set(db.collection("miliWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
       });
       await logAdminAccess(admin.uid, "messenger_grant_stars", { targetUid: uid, amount });
-      sendServiceMessage(uid, `⭐ Администрация начислила вам ${amount} ⭐ — они уже в кошельке Velox.`).catch(() => {});
+      sendServiceMessage(uid, `⭐ Администрация начислила вам ${amount} ⭐ — они уже в кошельке MiliGram.`).catch(() => {});
       return NextResponse.json({ ok: true });
     }
 

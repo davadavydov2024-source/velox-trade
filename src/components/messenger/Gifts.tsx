@@ -1,5 +1,6 @@
 "use client";
 
+import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -172,7 +173,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
     } catch (err) {
       if (err instanceof MApiError && err.data?.needTopup) {
         toast("error", err.message);
-        window.open("/profile/stars", "_blank");
+        startTopup(Math.max(10, (picked?.price ?? 10) - (wallet ?? 0))).catch(() => {});
       } else toast("error", err instanceof MApiError ? err.message : "Не удалось отправить подарок");
     } finally {
       setBusy(false);

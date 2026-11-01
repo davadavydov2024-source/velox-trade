@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     premium: isPremium(me.account), premiumUntil: me.account.premiumUntil ?? null,
     plus: isPlus(me.account), plusUntil: me.account.plusUntil ?? null, plusPriceStars: PLUS_PRICE_STARS, plusDays: PLUS_DAYS,
-    priceStars: PREMIUM_PRICE_STARS, days: PREMIUM_DAYS, wallet: (user?.starsWallet as number | undefined) ?? 0,
+    priceStars: PREMIUM_PRICE_STARS, days: PREMIUM_DAYS, wallet: (user?.miliWallet as number | undefined) ?? 0,
   });
 }
 
@@ -33,11 +33,11 @@ export async function POST(req: NextRequest) {
     try {
       const until = await db2.runTransaction(async (tx) => {
         const [acc, user] = await Promise.all([tx.get(accRef2), tx.get(userRef2)]);
-        if (((user.data()?.starsWallet as number | undefined) ?? 0) < PLUS_PRICE_STARS) throw new Error("not-enough");
+        if (((user.data()?.miliWallet as number | undefined) ?? 0) < PLUS_PRICE_STARS) throw new Error("not-enough");
         const next = Math.max(Date.now(), (acc.data()?.plusUntil as number | undefined) ?? 0) + PLUS_DAYS * DAY;
         tx.update(accRef2, { plusUntil: next });
-        tx.set(userRef2, { starsWallet: FieldValue.increment(-PLUS_PRICE_STARS) }, { merge: true });
-        tx.set(db2.collection("starsWalletLog").doc(), { uid: me.uid, delta: -PLUS_PRICE_STARS, type: "purchase", ref: "mili_premium_plus", at: Date.now() });
+        tx.set(userRef2, { miliWallet: FieldValue.increment(-PLUS_PRICE_STARS) }, { merge: true });
+        tx.set(db2.collection("miliWalletLog").doc(), { uid: me.uid, delta: -PLUS_PRICE_STARS, type: "purchase", ref: "mili_premium_plus", at: Date.now() });
         return next;
       });
       return NextResponse.json({ ok: true, plusUntil: until });
@@ -55,12 +55,12 @@ export async function POST(req: NextRequest) {
   try {
     const until = await db.runTransaction(async (tx) => {
       const [acc, user] = await Promise.all([tx.get(accRef), tx.get(userRef)]);
-      const wallet = (user.data()?.starsWallet as number | undefined) ?? 0;
+      const wallet = (user.data()?.miliWallet as number | undefined) ?? 0;
       if (wallet < PREMIUM_PRICE_STARS) throw new Error("not-enough");
       const next = Math.max(Date.now(), (acc.data()?.premiumUntil as number | undefined) ?? 0) + PREMIUM_DAYS * DAY;
       tx.update(accRef, { premiumUntil: next });
-      tx.set(userRef, { starsWallet: FieldValue.increment(-PREMIUM_PRICE_STARS) }, { merge: true });
-      tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -PREMIUM_PRICE_STARS, type: "purchase", ref: "mili_premium", at: Date.now() });
+      tx.set(userRef, { miliWallet: FieldValue.increment(-PREMIUM_PRICE_STARS) }, { merge: true });
+      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -PREMIUM_PRICE_STARS, type: "purchase", ref: "mili_premium", at: Date.now() });
       return next;
     });
     return NextResponse.json({ ok: true, premiumUntil: until });

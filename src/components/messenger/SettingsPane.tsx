@@ -17,7 +17,7 @@ import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { UsernamesPage } from "./Usernames";
-import { WalletPage } from "./Wallet";
+import { WalletPage, startTopup } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
@@ -385,7 +385,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
-            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
             <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
           </>
         ) : (

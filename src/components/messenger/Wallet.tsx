@@ -15,12 +15,19 @@ const LABEL: Record<string, string> = {
 };
 const ICON: Record<string, string> = { purchase: "🛍", gift_convert: "🔁", gift_buy: "🎁", gift_sale: "💸", admin_grant: "✨", paid_message_in: "💬", paid_message_out: "💬", paid_message_refund: "↩️", topup: "➕", username_buy: "🏷", username_sale: "🏷", username_rent_out: "🏷", username_rent_in: "🏷" };
 
+/** Открывает счёт на пополнение кошелька MiliGram в Telegram-боте. */
+export async function startTopup(amount: number): Promise<void> {
+  const r = await mApi<{ url: string }>("topup", { amount });
+  window.open(r.url, "_blank");
+}
+
 /** Страница «Кошелёк ⭐»: баланс, пополнение, цена за входящие сообщения (Премиум Плюс) и история операций. */
 export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOpenPremium: () => void }) {
   const { toast } = useToast();
   const [info, setInfo] = useState<WalletInfo | null>(null);
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [topAmt, setTopAmt] = useState("100");
 
   const load = () => mApi<WalletInfo>("wallet").then((d) => { setInfo(d); setPrice(String(d.messagePrice || "")); }).catch(() => {});
   useEffect(() => { load(); }, []);
@@ -49,7 +56,15 @@ export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOp
               <p className="mx-muted text-[13px] uppercase tracking-wide">Баланс</p>
               <p className="text-[40px] font-bold leading-none mt-1">{info.wallet} ⭐</p>
               {info.earned > 0 && <p className="mx-muted text-[13.5px] mt-2">Заработано на сообщениях: {info.earned} ⭐</p>}
-              <a href="/profile/stars" target="_blank" rel="noreferrer" className="mx-btn mt-4 inline-block w-full text-center">Пополнить ⭐</a>
+              <p className="mx-muted text-[12.5px] mt-2">Это отдельный кошелёк MiliGram. Баланс магазина Velox Trade — другой, они не смешиваются.</p>
+              <div className="flex gap-1.5 justify-center mt-3 flex-wrap">
+                {[50, 100, 250, 500].map((n) => <button key={n} onClick={() => setTopAmt(String(n))} className="px-3 py-1.5 rounded-full text-[13.5px] font-semibold" style={{ background: topAmt === String(n) ? "var(--mx-accent)" : "var(--mx-surface)", color: topAmt === String(n) ? "#fff" : "var(--mx-text)" }}>{n} ⭐</button>)}
+              </div>
+              <div className="flex gap-2 mt-3">
+                <input className="mx-input flex-1 text-center" inputMode="numeric" value={topAmt} onChange={(e) => setTopAmt(e.target.value.replace(/\D/g, ""))} placeholder="Сумма ⭐" />
+                <button className="mx-btn" disabled={busy} onClick={async () => { try { await startTopup(Number(topAmt)); toast("info", "Оплати счёт в Telegram и вернись сюда: кошелёк пополнится сам"); } catch (err) { toast("error", err instanceof MApiError ? err.message : "Не удалось создать счёт"); } }}>Пополнить</button>
+              </div>
+              <button className="mx-muted text-[13px] underline mt-2" onClick={load}>Обновить баланс</button>
             </div>
 
             <div className="mx-card p-4 space-y-3">

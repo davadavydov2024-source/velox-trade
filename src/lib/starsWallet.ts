@@ -24,10 +24,11 @@ interface TopupDoc {
   createdAt: number;
   telegramChargeId?: string;
   payerTgId?: number;
+  target?: "mili"; // «mili» — пополнение отдельного кошелька MiliGram (users.miliWallet); иначе — кошелёк Velox Trade (users.starsWallet)
 }
 
 /** Создаёт заявку на пополнение; её id уходит в ссылку на бота (t.me/bot?start=sttop_<id>). */
-export async function createStarsTopup(uid: string, amount: number): Promise<string> {
+export async function createStarsTopup(uid: string, amount: number, target?: "mili"): Promise<string> {
   const db = adminDb();
   // Не даём засыпать базу заявками: не больше 10 неоплаченных за последний час.
   const recent = await db.collection("starsTopups").where("uid", "==", uid).get();
@@ -37,7 +38,7 @@ export async function createStarsTopup(uid: string, amount: number): Promise<str
   }).length;
   if (pendingRecent >= 10) throw new Error("too-many");
   const ref = db.collection("starsTopups").doc();
-  await ref.set({ uid, amount, status: "pending", createdAt: Date.now() });
+  await ref.set({ uid, amount, status: "pending", createdAt: Date.now(), ...(target ? { target } : {}) });
   return ref.id;
 }
 
@@ -51,8 +52,8 @@ export async function startStarsTopupInBot(topupId: string, chatId: number): Pro
 
   const sent = await sendInvoice(
     chatId,
-    "Пополнение баланса ⭐",
-    `Зачисление ${t.amount} ⭐ на баланс аккаунта Velox Trade. Звёзды можно тратить на товары за Stars.`,
+    t.target === "mili" ? "Пополнение кошелька MiliGram ⭐" : "Пополнение баланса ⭐",
+    t.target === "mili" ? `Зачисление ${t.amount} ⭐ в кошелёк MiliGram: подарки, Премиум, юзернеймы и платные сообщения.` : `Зачисление ${t.amount} ⭐ на баланс аккаунта Velox Trade. Звёзды можно тратить на товары за Stars.`,
     `${TOPUP_PAYLOAD_PREFIX}${topupId}`,
     t.amount
   );
@@ -83,14 +84,16 @@ export async function fulfillStarsTopup(
     const snap = await tx.get(topupRef);
     if (!snap.exists) throw new Error("topup-not-found");
     const t = snap.data() as TopupDoc;
-    if (t.status === "paid") return { already: true as const, uid: t.uid, amount: t.amount };
+    if (t.status === "paid") return { already: true as const, uid: t.uid, amount: t.amount, mili: t.target === "mili" };
     tx.update(topupRef, { status: "paid", paidAt: Date.now(), paidStars: paidAmount, telegramChargeId: payment.chargeId ?? null, payerTgId: payment.payerTgId ?? null });
-    tx.set(db.collection("users").doc(t.uid), { starsWallet: FieldValue.increment(paidAmount) }, { merge: true });
-    tx.set(db.collection("starsWalletLog").doc(), { uid: t.uid, delta: paidAmount, type: "topup", ref: topupId, at: Date.now() });
-    return { already: false as const, uid: t.uid, amount: paidAmount };
+    const mili = t.target === "mili";
+    tx.set(db.collection("users").doc(t.uid), { [mili ? "miliWallet" : "starsWallet"]: FieldValue.increment(paidAmount) }, { merge: true });
+    tx.set(db.collection(mili ? "miliWalletLog" : "starsWalletLog").doc(), { uid: t.uid, delta: paidAmount, type: "topup", ref: topupId, at: Date.now() });
+    return { already: false as const, uid: t.uid, amount: paidAmount, mili };
   });
 
-  if (out.already) return `Это пополнение уже зачислено — ${out.amount} ⭐ на балансе сайта.`;
+  if (out.already) return `Это пополнение уже зачислено — ${out.amount} ⭐ ${out.mili ? "в кошельке MiliGram" : "на балансе сайта"}.`;
+  if (out.mili) return `Готово! В кошелёк MiliGram зачислено ${out.amount} ⭐. Они уже доступны в мессенджере.`;
   sendWebPush(out.uid, { title: "Баланс ⭐ пополнен", body: `+${out.amount} ⭐ — можно оплачивать товары за Stars`, url: "/profile/stars" }, "purchases");
   return `Готово! На баланс сайта зачислено ${out.amount} ⭐. Теперь на странице товара можно нажать «Оплатить с баланса ⭐».`;
 }

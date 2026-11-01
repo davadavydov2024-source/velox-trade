@@ -12,11 +12,11 @@ export async function GET(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
   const db = adminDb();
-  const [user, logSnap] = await Promise.all([db.collection("users").doc(me.uid).get(), db.collection("starsWalletLog").where("uid", "==", me.uid).limit(300).get()]);
+  const [user, logSnap] = await Promise.all([db.collection("users").doc(me.uid).get(), db.collection("miliWalletLog").where("uid", "==", me.uid).limit(300).get()]);
   const all = logSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as { id: string; delta: number; type: string; ref?: string; name?: string; at: number }).sort((a, b) => b.at - a.at);
   const earned = all.filter((r) => r.type === "paid_message_in").reduce((n, r) => n + r.delta, 0);
   return NextResponse.json({
-    wallet: (user.data()?.starsWallet as number | undefined) ?? 0,
+    wallet: (user.data()?.miliWallet as number | undefined) ?? 0,
     plus: isPlus(me.account), plusUntil: me.account.plusUntil ?? null,
     messagePrice: me.account.messagePrice ?? 0, maxPrice: PAID_MESSAGE_MAX,
     earned, log: all.slice(0, 80).map((r) => ({ id: r.id, delta: r.delta, type: r.type, name: r.name ?? "", at: r.at })),
