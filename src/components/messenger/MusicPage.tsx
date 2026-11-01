@@ -28,7 +28,7 @@ function TrackRow({ t, list, i }: { t: MusicTrack; list: MusicTrack[]; i: number
         </div>
         <span className="min-w-0 flex-1">
           <span className="block text-[15.5px] font-medium truncate" style={{ color: on ? "var(--mx-accent)" : undefined }}>{t.title}</span>
-          <span className="block text-[13px] mx-muted truncate">{t.artist}</span>
+          <span className="block text-[13px] mx-muted truncate">{t.artist}{t.license ? ` · ${t.license}` : ""}</span>
         </span>
       </button>
       <span className="text-[12.5px] mx-muted tabular-nums shrink-0">{t.duration ? fmtTime(t.duration) : ""}</span>

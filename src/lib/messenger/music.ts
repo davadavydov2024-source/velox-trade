@@ -9,6 +9,9 @@ export type MusicTrack = {
   plays: number;
   createdAt: number;
   addedBy?: string;
+  license?: string; // «CC BY 3.0» — для треков с открытой лицензией (нужно указывать автора и лицензию)
+  source?: string;
+  sourceUrl?: string;
 };
 
 export type MusicRequestStatus = "new" | "added" | "rejected";

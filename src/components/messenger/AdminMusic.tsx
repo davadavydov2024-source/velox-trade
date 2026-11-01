@@ -85,6 +85,20 @@ export function AdminMusic() {
     toast("info", "Выбери mp3-файл и нажми «Добавить»");
   };
 
+  const [autoQ, setAutoQ] = useState("");
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [cands, setCands] = useState<{ id: string; title: string; artist: string; duration: number; license: string; image: string }[]>([]);
+  const autoAdd = async (body: Record<string, unknown>) => {
+    setAutoBusy(true);
+    try {
+      const res = await authedFetch("/api/admin/messenger/music-auto", { method: "POST", body: JSON.stringify(body) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Ошибка");
+      if (d.added) { toast("success", `Добавлено: ${d.added.artist} — ${d.added.title} (${d.added.license})`); setCands([]); setAutoQ(""); load(); }
+      else if (d.candidates) { setCands(d.candidates); toast("info", "Выбери подходящий вариант"); }
+    } catch (e: any) { setCands([]); toast("error", e.message); }
+    setAutoBusy(false);
+  };
   const [compress, setCompress] = useState(true);
   const [kbps, setKbps] = useState(128);
 
@@ -101,6 +115,12 @@ export function AdminMusic() {
         else toast("info", "Файл уже лёгкий — загружаю как есть");
       } catch (e) {
         console.error("compress failed:", e);
+        const broken = (e as { name?: string })?.name === "EncodingError" || /decode/i.test(String((e as Error)?.message));
+        if (broken) { // браузер не смог расшифровать файл — значит, он повреждён: такой трек всё равно не заиграет, не загружаем
+          toast("error", "Файл повреждён или это не настоящий mp3 — браузер не смог его прочитать. Скачай песню заново и попробуй ещё раз.");
+          setBusy("");
+          return;
+        }
         toast("error", "Не удалось сжать — загружаю оригинал");
         up = file;
       }
@@ -162,6 +182,21 @@ export function AdminMusic() {
           )}
         </div>
       ))}
+
+      <p className="px-4 pt-5 pb-2 text-[13px] uppercase tracking-wide mx-muted">Автодобавление (свободная музыка)</p>
+      <div className="px-4 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <input className="mx-input flex-1" placeholder="Артист — название" value={autoQ} onChange={(e) => setAutoQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && autoQ.trim().length > 1 && !autoBusy) autoAdd({ q: autoQ }); }} />
+          <button className="px-4 rounded-xl text-[14px] font-medium" disabled={autoBusy || autoQ.trim().length < 2} style={{ background: "var(--mx-accent)", color: "#fff", opacity: autoBusy || autoQ.trim().length < 2 ? 0.5 : 1 }} onClick={() => autoAdd({ q: autoQ })}>{autoBusy ? <Spinner /> : "Найти"}</button>
+        </div>
+        <p className="mx-muted text-[12px]">Ищет только в каталоге Jamendo с лицензиями CC BY / BY-SA / CC0 и сам добавляет точное совпадение. Популярных коммерческих песен там нет.</p>
+        {cands.map((c) => (
+          <button key={c.id} disabled={autoBusy} className="flex items-center gap-3 text-left py-1.5" onClick={() => autoAdd({ pickId: c.id })}>
+            <span className="min-w-0 flex-1"><span className="block text-[15px] truncate">{c.title}</span><span className="block mx-muted text-[12.5px] truncate">{c.artist} · {c.license}{c.duration ? ` · ${fmtTime(c.duration)}` : ""}</span></span>
+            <span className="text-[13px]" style={{ color: "var(--mx-accent)" }}>Добавить</span>
+          </button>
+        ))}
+      </div>
 
       <p className="px-4 pt-5 pb-2 text-[13px] uppercase tracking-wide mx-muted">Добавить песню</p>
       <div className="px-4 flex flex-col gap-2.5">
