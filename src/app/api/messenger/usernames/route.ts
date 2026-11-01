@@ -17,6 +17,16 @@ export async function GET(req: NextRequest) {
   if ("error" in me) return me.error;
   await settleExpired().catch(() => {});
   const view = req.nextUrl.searchParams.get("view") ?? "shop";
+  if (view === "of") {
+    // публичные коллекционные юзернеймы человека (для его профиля): имя, основное ли, цена продажи
+    const uid = req.nextUrl.searchParams.get("uid") ?? "";
+    if (!uid || uid.includes("/")) return NextResponse.json({ items: [] });
+    const [snap, acc] = await Promise.all([col().where("ownerUid", "==", uid).get(), adminDb().collection("messengerAccounts").doc(uid).get()]);
+    const main = acc.data()?.handle as string | undefined;
+    return NextResponse.json({
+      items: rows(snap.docs).filter((x) => x.name !== main).sort((a, b) => a.name.length - b.name.length).map((x) => ({ name: x.name, price: x.salePrice, rentPerDay: x.rentPerDay, mine: uid === me.uid })),
+    });
+  }
   const now = Date.now();
   const wallet = ((await adminDb().collection("users").doc(me.uid).get()).data()?.miliWallet as number | undefined) ?? 0;
   const base = { wallet, handle: me.account.handle, fee: FEE_PCT, rentDaysMax: RENT_DAYS_MAX };

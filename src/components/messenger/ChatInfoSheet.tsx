@@ -1,5 +1,6 @@
 "use client";
 
+import { ExtraUsernames } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, ChevronRight, Copy, FileText, Gift, LogOut, MessageCircle, Search, Settings, Shield, Users, Pencil } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -142,6 +143,7 @@ export function ChatInfoSheet({
               <span><span className="mx-muted text-[12.5px] block">имя пользователя</span><span style={{ color: "var(--mx-accent)" }}>@{peer.handle}</span></span><Copy size={16} className="mx-muted" />
             </button>
           )}
+          {isDm && peerId && <ExtraUsernames uid={peerId} />}
           {bday && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">день рождения</p><p>{bday}</p></div>}
           {peer?.bio && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">о себе</p><p className="whitespace-pre-wrap">{peer.bio}</p></div>}
           {chat.description && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">описание</p><p className="whitespace-pre-wrap">{chat.description}</p></div>}

@@ -35,9 +35,9 @@ export const validName = (n: unknown): n is string => typeof n === "string" && P
 const rentedNow = (d: UsernameDoc) => !!d.renterUid && (d.rentUntil ?? 0) > Date.now();
 
 /** Записи (без чтений!) — вернуть аккаунту обычное имя и освободить премиум-имя. */
-function writeDeactivate(db: Firestore, tx: Transaction, name: string, acc: Acc) {
+function writeDeactivate(db: Firestore, tx: Transaction, name: string, acc: Acc, ownerUid: string | null) {
   tx.update(aref(db, acc.uid), { handle: acc.baseHandle ?? acc.handle, baseHandle: FieldValue.delete(), premiumHandle: FieldValue.delete() });
-  tx.set(href(db, name), { premium: true, uid: null });
+  tx.set(href(db, name), { premium: true, uid: ownerUid });
   tx.update(uref(db, name), { usedBy: null });
 }
 
@@ -58,7 +58,7 @@ export async function settleOne(name: string): Promise<void> {
     const d = await load(tx, db, name);
     if (!d.renterUid || (d.rentUntil ?? 0) > Date.now()) return;
     const acc = d.usedBy === d.renterUid ? ((await tx.get(aref(db, d.renterUid))).data() as Acc | undefined) : undefined;
-    if (acc && acc.premiumHandle === name) writeDeactivate(db, tx, name, acc);
+    if (acc && acc.premiumHandle === name) writeDeactivate(db, tx, name, acc, d.ownerUid);
     tx.update(uref(db, name), { renterUid: null, rentUntil: null, ...(acc ? {} : { usedBy: d.usedBy === d.renterUid ? null : d.usedBy }) });
   });
 }
@@ -77,6 +77,7 @@ export async function buyShop(name: string, uid: string) {
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-d.shopPrice) }, { merge: true });
     log(db, tx, uid, -d.shopPrice, "username_buy", name);
     tx.update(uref(db, name), { ownerUid: uid, shopPrice: null, boughtAt: Date.now() });
+    tx.set(href(db, name), { premium: true, uid }); // @имя ведёт на владельца, даже если он не сделал его основным
   });
 }
 
@@ -91,13 +92,14 @@ export async function buyResale(name: string, uid: string) {
     const owner = d.ownerUid, price = d.salePrice;
     const ownerAcc = d.usedBy === owner ? ((await tx.get(aref(db, owner))).data() as Acc | undefined) : undefined;
     if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает звёзд: нужно ${price} ⭐`, 402);
-    if (ownerAcc && ownerAcc.premiumHandle === name) writeDeactivate(db, tx, name, ownerAcc);
+    if (ownerAcc && ownerAcc.premiumHandle === name) writeDeactivate(db, tx, name, ownerAcc, uid);
     const get = price - fee(price);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
     tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
     log(db, tx, uid, -price, "username_buy", name);
     log(db, tx, owner, get, "username_sale", name);
     tx.update(uref(db, name), { ownerUid: uid, salePrice: null, rentPerDay: null, usedBy: null });
+    tx.set(href(db, name), { premium: true, uid });
   });
 }
 
@@ -136,7 +138,7 @@ export async function activate(name: string, uid: string) {
     const acc = (await tx.get(aref(db, uid))).data() as Acc | undefined;
     if (!acc) throw new UErr("Аккаунт не найден", 404);
     const prev = acc.premiumHandle && acc.premiumHandle !== name ? acc.premiumHandle : null;
-    if (prev) { tx.set(href(db, prev), { premium: true, uid: null }); tx.update(uref(db, prev), { usedBy: null }); }
+    if (prev) { tx.set(href(db, prev), { premium: true, uid: d.ownerUid }); tx.update(uref(db, prev), { usedBy: null }); }
     tx.update(aref(db, uid), { handle: name, baseHandle: acc.baseHandle ?? acc.handle, premiumHandle: name });
     tx.set(href(db, name), { premium: true, uid });
     tx.update(uref(db, name), { usedBy: uid });
@@ -151,7 +153,7 @@ export async function deactivate(name: string, uid: string) {
     if (d.usedBy !== uid) throw new UErr("Вы сейчас не используете этот юзернейм");
     const acc = (await tx.get(aref(db, uid))).data() as Acc | undefined;
     if (!acc) throw new UErr("Аккаунт не найден", 404);
-    writeDeactivate(db, tx, name, acc);
+    writeDeactivate(db, tx, name, acc, d.ownerUid);
   });
 }
 
@@ -165,7 +167,7 @@ export async function setListing(name: string, uid: string, patch: { salePrice?:
     if (sale && rentedNow(d)) throw new UErr("Сейчас сдан в аренду — продать нельзя", 409);
     let acc: Acc | undefined;
     if (rent && d.usedBy === uid) acc = (await tx.get(aref(db, uid))).data() as Acc | undefined;
-    if (acc && acc.premiumHandle === name) writeDeactivate(db, tx, name, acc);
+    if (acc && acc.premiumHandle === name) writeDeactivate(db, tx, name, acc, uid);
     tx.update(uref(db, name), { ...(sale !== undefined ? { salePrice: sale } : {}), ...(rent !== undefined ? { rentPerDay: rent } : {}) });
   });
 }

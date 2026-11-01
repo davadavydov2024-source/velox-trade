@@ -109,3 +109,29 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
     </>
   );
 }
+
+/** Коллекционные @юзернеймы человека в его профиле (как «также» в Telegram): видно цену, если продаётся, и можно купить. */
+export function ExtraUsernames({ uid }: { uid: string }) {
+  const { toast } = useToast();
+  const [items, setItems] = useState<{ name: string; price: number | null; rentPerDay: number | null; mine: boolean }[]>([]);
+  const [busy, setBusy] = useState("");
+  const load = useCallback(() => { mApi<{ items: typeof items }>(`usernames?view=of&uid=${encodeURIComponent(uid)}`).then((d) => setItems(d.items ?? [])).catch(() => setItems([])); }, [uid]);
+  useEffect(() => { load(); }, [load]);
+  if (items.length === 0) return null;
+  return (
+    <div className="px-4 py-3">
+      <p className="mx-muted text-[12.5px] mb-1">Коллекционные юзернеймы</p>
+      {items.map((x) => (
+        <div key={x.name} className="flex items-center gap-2 py-1">
+          <span className="min-w-0 flex-1"><span style={{ color: "var(--mx-accent)" }}>@{x.name}</span> <span className="mx-muted text-[12.5px]">{x.price ? `· продаётся за ${x.price} ⭐` : x.rentPerDay ? `· аренда ${x.rentPerDay} ⭐/день` : "· не продаётся"}</span></span>
+          {!x.mine && x.price ? <button disabled={!!busy} className="px-3 py-1 rounded-full text-[13px] font-semibold" style={{ background: "var(--mx-accent)", color: "#fff" }} onClick={async () => {
+            if (!window.confirm(`Купить @${x.name} за ${x.price} ⭐?`)) return;
+            setBusy(x.name);
+            try { await mApi("usernames", { action: "buy-resale", name: x.name }); toast("success", `@${x.name} теперь твой`); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось купить"); }
+            setBusy("");
+          }}>Купить</button> : null}
+        </div>
+      ))}
+    </div>
+  );
+}

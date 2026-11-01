@@ -16,7 +16,7 @@ import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { UsernamesPage } from "./Usernames";
+import { ExtraUsernames, UsernamesPage } from "./Usernames";
 import { WalletPage, startTopup } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
@@ -627,6 +627,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
               {account.displayName} {account.verified && <VerifiedBadge size={18} />}<StatusBadge acc={account} size={20} />
             </p>
             <p className="mx-muted text-[14.5px] mt-0.5">@{account.handle}</p>
+            <ExtraUsernames uid={account.uid} />
             <div className="flex items-center gap-2 mt-2.5 flex-wrap justify-center">
               <span className="mx-status-chip"><span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--mx-accent)" }} />{status}</span>
               {isPremium(account) && <span className="mx-status-chip" style={{ background: "rgba(255,180,0,0.16)", color: "#ffb400" }}><Star size={12} /> Premium</span>}
