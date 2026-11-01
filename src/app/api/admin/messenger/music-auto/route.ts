@@ -49,10 +49,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ added: await addTrack(t, admin.uid) });
     }
     const q = typeof b.q === "string" ? b.q.trim().slice(0, 120) : "";
-    if (q.length < 2) return err("Напиши исполнителя и название");
-    const found = await searchJamendo(q, 6);
-    if (!found.length) return err("Ничего не нашлось среди песен со свободной лицензией. Современные хиты обычно не распространяются свободно — добавь их вручную, если у тебя есть права.", 404);
-    if (found[0].score >= AUTO_SCORE) return NextResponse.json({ added: await addTrack(found[0], admin.uid) });
+    const lang = b.ru === true ? "ru" : undefined;
+    if (q.length < 2 && !lang) return err("Напиши исполнителя и название");
+    const found = await searchJamendo(q, lang && !q ? 12 : 6, lang);
+    if (!found.length) return err(lang ? "Русскоязычных песен с такой лицензией не нашлось. Попробуй другой запрос или сними галочку «Русские»." : "Ничего не нашлось среди песен со свободной лицензией. Современные хиты обычно не распространяются свободно — добавь их вручную, если у тебя есть права.", 404);
+    if (q && found[0].score >= AUTO_SCORE) return NextResponse.json({ added: await addTrack(found[0], admin.uid) });
     return NextResponse.json({ candidates: found.map(({ id, title, artist, duration, license, image }) => ({ id, title, artist, duration, license, image })) });
   } catch (e) {
     console.error("music-auto error:", e);

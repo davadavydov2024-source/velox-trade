@@ -41,8 +41,12 @@ const map = (r: any, q: string): JamendoTrack | null => {
   return { id: String(r.id), title: String(r.name ?? ""), artist: String(r.artist_name ?? ""), duration: Number(r.duration) || 0, image: String(r.image ?? ""), audio: String(r.audio), shareUrl: String(r.shareurl ?? ""), license, licenseUrl: String(r.license_ccurl), score: want.size ? hit / want.size : 0 };
 };
 
-export async function searchJamendo(q: string, limit = 8): Promise<JamendoTrack[]> {
-  const rows = await api("tracks", { namesearch: norm(q), limit: "30", include: "licenses", order: "relevance" });
+/** lang — язык текста песни (например "ru"); при пустом q возвращает популярное на этом языке. */
+export async function searchJamendo(q: string, limit = 8, lang?: string): Promise<JamendoTrack[]> {
+  const p: Record<string, string> = { limit: "40", include: "licenses", order: q.trim() ? "relevance" : "popularity_month" };
+  if (q.trim()) p.namesearch = norm(q);
+  if (lang) p.lang = lang;
+  const rows = await api("tracks", p);
   return rows.map((r) => map(r, q)).filter((t): t is JamendoTrack => !!t).sort((a, b) => b.score - a.score).slice(0, limit);
 }
 

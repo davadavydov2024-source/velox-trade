@@ -87,6 +87,7 @@ export function AdminMusic() {
 
   const [autoQ, setAutoQ] = useState("");
   const [autoBusy, setAutoBusy] = useState(false);
+  const [autoRu, setAutoRu] = useState(false);
   const [cands, setCands] = useState<{ id: string; title: string; artist: string; duration: number; license: string; image: string }[]>([]);
   const autoAdd = async (body: Record<string, unknown>) => {
     setAutoBusy(true);
@@ -186,9 +187,11 @@ export function AdminMusic() {
       <p className="px-4 pt-5 pb-2 text-[13px] uppercase tracking-wide mx-muted">Автодобавление (свободная музыка)</p>
       <div className="px-4 flex flex-col gap-2">
         <div className="flex gap-2">
-          <input className="mx-input flex-1" placeholder="Артист — название" value={autoQ} onChange={(e) => setAutoQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && autoQ.trim().length > 1 && !autoBusy) autoAdd({ q: autoQ }); }} />
-          <button className="px-4 rounded-xl text-[14px] font-medium" disabled={autoBusy || autoQ.trim().length < 2} style={{ background: "var(--mx-accent)", color: "#fff", opacity: autoBusy || autoQ.trim().length < 2 ? 0.5 : 1 }} onClick={() => autoAdd({ q: autoQ })}>{autoBusy ? <Spinner /> : "Найти"}</button>
+          <input className="mx-input flex-1" placeholder="Артист — название" value={autoQ} onChange={(e) => setAutoQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && autoQ.trim().length > 1 && !autoBusy) autoAdd({ q: autoQ, ru: autoRu }); }} />
+          <button className="px-4 rounded-xl text-[14px] font-medium" disabled={autoBusy || (autoQ.trim().length < 2 && !autoRu)} style={{ background: "var(--mx-accent)", color: "#fff", opacity: autoBusy || (autoQ.trim().length < 2 && !autoRu) ? 0.5 : 1 }} onClick={() => autoAdd({ q: autoQ, ru: autoRu })}>{autoBusy ? <Spinner /> : "Найти"}</button>
         </div>
+        <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={autoRu} onChange={(e) => setAutoRu(e.target.checked)} /> Только русскоязычные</label>
+        {autoRu && !autoQ.trim() && <button className="text-left text-[14px] underline" style={{ color: "var(--mx-accent)" }} disabled={autoBusy} onClick={() => autoAdd({ q: "", ru: true })}>Показать популярные русские песни</button>}
         <p className="mx-muted text-[12px]">Ищет только в каталоге Jamendo с лицензиями CC BY / BY-SA / CC0 и сам добавляет точное совпадение. Популярных коммерческих песен там нет.</p>
         {cands.map((c) => (
           <button key={c.id} disabled={autoBusy} className="flex items-center gap-3 text-left py-1.5" onClick={() => autoAdd({ pickId: c.id })}>
