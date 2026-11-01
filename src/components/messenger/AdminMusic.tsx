@@ -45,6 +45,7 @@ export function AdminMusic() {
   const [cover, setCover] = useState<File | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
+  const [fileNote, setFileNote] = useState<{ text: string; warn: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +58,16 @@ export function AdminMusic() {
 
   const pickFile = (f: File | null) => {
     setFile(f);
+    setFileNote(null);
+    if (f) {
+      // оцениваем «вес» песни: тяжёлые mp3 долго грузятся на мобильном интернете
+      readDuration(f).then((d) => {
+        const mb = f.size / 1048576;
+        const kbps = d > 0 ? Math.round((f.size * 8) / d / 1000) : 0;
+        const heavy = mb > 8 || kbps > 200;
+        setFileNote({ text: `${mb.toFixed(1)} МБ${d > 0 ? ` · ${fmtTime(d)} · ~${kbps} кбит/с` : ""}${heavy ? ". Тяжеловат: на слабом интернете будет грузиться долго. Лучше перекодировать в 128 кбит/с (≈3–4 МБ на песню)." : ". Размер нормальный."}`, warn: heavy });
+      });
+    }
     if (f && !title.trim()) {
       // «Исполнитель - Название.mp3» → подставляем в поля
       const base = f.name.replace(/\.[a-z0-9]{2,4}$/i, "").replace(/_/g, " ");
@@ -143,6 +154,7 @@ export function AdminMusic() {
           <span className="flex-1 min-w-0 text-[15px] truncate">{file ? `${file.name} · ${(file.size / 1048576).toFixed(1)} МБ` : "Выбрать mp3-файл (до 30 МБ)"}</span>
           <input type="file" accept="audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/ogg,audio/wav,.mp3,.m4a,.aac,.ogg,.wav" className="hidden" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} />
         </label>
+        {fileNote && <p className="text-[12.5px] -mt-1 px-1" style={{ color: fileNote.warn ? "#ff9f0a" : "var(--mx-muted)" }}>{fileNote.text}</p>}
         <label className="mx-card px-4 py-3 flex items-center gap-3 cursor-pointer">
           <Music2 size={20} className="mx-muted" />
           <span className="flex-1 min-w-0 text-[15px] truncate">{cover ? cover.name : "Обложка (необязательно)"}</span>
