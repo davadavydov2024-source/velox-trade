@@ -7,6 +7,7 @@ import { Spinner } from "./ui";
 
 type Sug = { name: string; price: number };
 type Row = Sug & { on: boolean; base: number };
+const guess = (n: string) => { const l = n.length; const p = l <= 2 ? 3000 : l === 3 ? 1000 : l === 4 ? 400 : l === 5 ? 150 : l === 6 ? 80 : 40; return Math.max(10, Math.round(p / 5) * 5); };
 const r5 = (n: number) => Math.max(1, Math.round(n / 5) * 5);
 
 async function call<T = any>(body?: unknown): Promise<T> {
@@ -45,8 +46,9 @@ export function AdminUsernames() {
     if (!items.length) return;
     setBusy("add");
     try {
-      const r = await call<{ added: string[]; skipped: string[] }>({ action: "add", items });
-      toast(r.added.length ? "success" : "error", `Добавлено: ${r.added.length}${r.skipped.length ? ` · пропущено (занято/неверно): ${r.skipped.length}` : ""}`);
+      const r = await call<{ added: string[]; skipped: string[]; reasons?: string[] }>({ action: "add", items });
+      if (r.added.length) toast("success", `Добавлено в магазин: ${r.added.map((n) => "@" + n).join(", ")}`);
+      if (r.skipped.length) toast("error", (r.reasons ?? []).slice(0, 3).join(" · ") || `Не добавлено: ${r.skipped.length}`);
       setSugs((s) => s.filter((x) => !r.added.includes(x.name)));
       load();
     } catch (e: any) { toast("error", e.message); }
@@ -94,8 +96,8 @@ export function AdminUsernames() {
       <p className="px-4 pt-5 pb-2 text-[13px] uppercase tracking-wide mx-muted">Добавить своё имя</p>
       <div className="px-4 flex gap-2">
         <input className="mx-input flex-1" placeholder="например, king" value={manual} maxLength={24} onChange={(e) => setManual(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} />
-        <input className="mx-input" style={{ width: 90 }} inputMode="numeric" placeholder="⭐" value={manualPrice} onChange={(e) => setManualPrice(e.target.value.replace(/\D/g, ""))} />
-        <button className="px-4 rounded-xl font-medium" style={{ background: "var(--mx-accent)", color: "#fff" }} disabled={busy === "add" || manual.length < 2 || !manualPrice} onClick={() => { addItems([{ name: manual, price: Number(manualPrice) }]); setManual(""); }}>Добавить</button>
+        <input className="mx-input" style={{ width: 90 }} inputMode="numeric" placeholder={manual.length >= 2 ? String(guess(manual)) : "⭐"} value={manualPrice} onChange={(e) => setManualPrice(e.target.value.replace(/\D/g, ""))} />
+        <button className="px-4 rounded-xl font-medium" style={{ background: "var(--mx-accent)", color: "#fff" }} disabled={busy === "add" || manual.length < 2} onClick={async () => { await addItems([{ name: manual, price: Number(manualPrice) || guess(manual) }]); setManual(""); setManualPrice(""); }}>{busy === "add" ? "…" : "Добавить"}</button>
       </div>
 
       <p className="px-4 pt-5 pb-1 text-[13px] uppercase tracking-wide mx-muted">В магазине</p>

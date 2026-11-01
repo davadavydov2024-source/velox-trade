@@ -212,21 +212,26 @@ export async function generateNames(count: number): Promise<{ name: string; pric
   return names.filter((n) => !taken.has(n)).sort(() => Math.random() - 0.5).slice(0, count).map((name) => ({ name, price: suggestPrice(name) }));
 }
 
-export async function addToShop(items: { name: string; price: number }[]): Promise<{ added: string[]; skipped: string[] }> {
+export async function addToShop(items: { name: string; price: number }[]): Promise<{ added: string[]; skipped: string[]; reasons: string[] }> {
   const db = adminDb();
-  const added: string[] = [], skipped: string[] = [];
+  const added: string[] = [], skipped: string[] = [], reasons: string[] = [];
   for (const it of items.slice(0, 60)) {
     const name = String(it.name ?? "").toLowerCase().replace(/^@/, "");
     const price = Math.floor(Number(it.price));
-    if (!validName(name) || !(price >= 1 && price <= PRICE_MAX)) { skipped.push(name); continue; }
+    if (!validName(name)) { skipped.push(name); reasons.push(`@${name || "?"}: имя должно быть 2–24 символа (a-z, 0-9, _), начинаться с буквы`); continue; }
+    if (!(price >= 1 && price <= PRICE_MAX)) { skipped.push(name); reasons.push(`@${name}: укажи цену от 1 до ${PRICE_MAX} ⭐`); continue; }
     try {
       await db.runTransaction(async (tx) => {
-        if ((await tx.get(href(db, name))).exists) throw new UErr("taken");
+        if ((await tx.get(href(db, name))).exists) throw new UErr(`@${name}: имя уже занято (его использует кто-то или оно уже в магазине)`, 409);
         tx.set(href(db, name), { premium: true, uid: null });
         tx.set(uref(db, name), { name, ownerUid: null, shopPrice: price, salePrice: null, rentPerDay: null, renterUid: null, rentUntil: null, usedBy: null, createdAt: Date.now() } satisfies UsernameDoc);
       });
       added.push(name);
-    } catch { skipped.push(name); }
+    } catch (e) {
+      skipped.push(name);
+      if (!(e instanceof UErr)) console.error("addToShop error:", e);
+      reasons.push(e instanceof UErr ? e.message : `@${name}: ошибка базы данных (${(e as Error)?.message?.slice(0, 120) ?? "?"})`);
+    }
   }
-  return { added, skipped };
+  return { added, skipped, reasons };
 }
