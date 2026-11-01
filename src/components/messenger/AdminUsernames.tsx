@@ -6,6 +6,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import { Spinner } from "./ui";
 
 type Sug = { name: string; price: number };
+type Row = Sug & { on: boolean; base: number };
+const r5 = (n: number) => Math.max(1, Math.round(n / 5) * 5);
 
 async function call<T = any>(body?: unknown): Promise<T> {
   const res = await authedFetch("/api/admin/messenger/usernames", body === undefined ? undefined : { method: "POST", body: JSON.stringify(body) });
@@ -19,7 +21,8 @@ export function AdminUsernames() {
   const { toast } = useToast();
   const [shop, setShop] = useState<{ name: string; price: number }[] | null>(null);
   const [stats, setStats] = useState({ owned: 0, listed: 0 });
-  const [sugs, setSugs] = useState<(Sug & { on: boolean })[]>([]);
+  const [sugs, setSugs] = useState<Row[]>([]);
+  const [mul, setMul] = useState(100);
   const [count, setCount] = useState(20);
   const [busy, setBusy] = useState("");
   const [manual, setManual] = useState("");
@@ -33,10 +36,11 @@ export function AdminUsernames() {
 
   const generate = async () => {
     setBusy("gen");
-    try { const d = await call<{ names: Sug[] }>({ action: "generate", count }); setSugs(d.names.map((n) => ({ ...n, on: true }))); if (!d.names.length) toast("info", "Свободных вариантов не нашлось, попробуй ещё раз"); }
+    try { const d = await call<{ names: Sug[] }>({ action: "generate", count }); setSugs(d.names.map((n) => ({ ...n, base: n.price, price: r5((n.price * mul) / 100), on: true }))); if (!d.names.length) toast("info", "Свободных вариантов не нашлось, попробуй ещё раз"); }
     catch (e: any) { toast("error", e.message); }
     setBusy("");
   };
+  const changeMul = (v: number) => { setMul(v); setSugs((a) => a.map((x) => ({ ...x, price: r5((x.base * v) / 100) }))); };
   const addItems = async (items: Sug[]) => {
     if (!items.length) return;
     setBusy("add");
@@ -68,6 +72,9 @@ export function AdminUsernames() {
           <select className="mx-input" style={{ maxWidth: 110 }} value={count} onChange={(e) => setCount(Number(e.target.value))}>{[10, 20, 30, 40].map((n) => <option key={n} value={n}>{n} имён</option>)}</select>
           <button className="px-4 py-2 rounded-xl text-[14px] font-medium" disabled={busy === "gen"} style={{ background: "var(--mx-accent)", color: "#fff" }} onClick={generate}>{busy === "gen" ? <Spinner /> : "Придумать"}</button>
         </div>
+        <label className="flex items-center gap-3 text-[13.5px]"><span className="mx-muted w-28">Цены: {mul}%</span>
+          <input type="range" min={20} max={500} step={10} value={mul} onChange={(e) => changeMul(Number(e.target.value))} className="flex-1" /></label>
+        <p className="mx-muted text-[12px]">Ползунок меняет все цены в списке сразу (100% — базовая цена по длине имени). Отдельную цену можно поправить вручную.</p>
         <p className="mx-muted text-[12px]">Генератор подбирает свободные имена по шаблонам: короткие произносимые, слова, слово+число. Цена предложена по длине, её можно поменять.</p>
         {sugs.length > 0 && (
           <>

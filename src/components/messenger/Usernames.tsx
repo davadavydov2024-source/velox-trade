@@ -17,6 +17,10 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
   const [view, setView] = useState<View>("shop");
   const [data, setData] = useState<Data | null>(null);
   const [busy, setBusy] = useState("");
+  const [minP, setMinP] = useState("");
+  const [maxP, setMaxP] = useState("");
+  const [len, setLen] = useState(0); // 0 — любая, 5 — «5 и больше»
+  const [sort, setSort] = useState<"len" | "asc" | "desc">("len");
 
   const load = useCallback(() => {
     setData(null);
@@ -37,6 +41,17 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
     <button disabled={!!busy} onClick={onClick} className="px-3 py-1.5 rounded-full text-[13.5px] font-semibold shrink-0" style={ghost ? { background: "var(--mx-surface)", color: "var(--mx-text)", opacity: busy ? 0.6 : 1 } : { background: "var(--mx-accent)", color: "#fff", opacity: busy ? 0.6 : 1 }}>{busy === id ? "…" : children}</button>
   );
 
+  const items = (data?.items ?? [])
+    .filter((x) => {
+      if (view === "mine") return true;
+      const p = x.price ?? x.perDay ?? 0;
+      if (minP && p < Number(minP)) return false;
+      if (maxP && p > Number(maxP)) return false;
+      if (len === 5 ? x.name.length < 5 : len > 0 && x.name.length !== len) return false;
+      return true;
+    })
+    .sort((a, b) => (view === "mine" || sort === "len" ? 0 : ((a.price ?? a.perDay ?? 0) - (b.price ?? b.perDay ?? 0)) * (sort === "asc" ? 1 : -1)));
+
   return (
     <>
       <PageHeader title="Юзернеймы" onBack={onBack} />
@@ -51,9 +66,22 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
           {VIEWS.map(([id, l]) => <button key={id} onClick={() => setView(id)} className="px-3.5 py-1.5 rounded-full text-[14px] font-semibold whitespace-nowrap" style={{ background: view === id ? "var(--mx-surface)" : "transparent", color: view === id ? "var(--mx-text)" : "var(--mx-muted)" }}>{l}</button>)}
         </div>
 
-        {!data ? <div className="flex justify-center py-10"><Spinner /></div> : data.items.length === 0 ? (
+        {view !== "mine" && (
+          <div className="px-4 pb-2 flex flex-wrap gap-2 items-center text-[13.5px]">
+            <input className="mx-input" style={{ width: 78 }} inputMode="numeric" placeholder="от ⭐" value={minP} onChange={(e) => setMinP(e.target.value.replace(/\D/g, ""))} />
+            <input className="mx-input" style={{ width: 78 }} inputMode="numeric" placeholder="до ⭐" value={maxP} onChange={(e) => setMaxP(e.target.value.replace(/\D/g, ""))} />
+            <select className="mx-input" style={{ width: 112 }} value={len} onChange={(e) => setLen(Number(e.target.value))}>
+              <option value={0}>Любая длина</option><option value={2}>2 буквы</option><option value={3}>3 буквы</option><option value={4}>4 буквы</option><option value={5}>5 и больше</option>
+            </select>
+            <select className="mx-input" style={{ width: 128 }} value={sort} onChange={(e) => setSort(e.target.value as "len" | "asc" | "desc")}>
+              <option value="len">Сначала короткие</option><option value="asc">Дешевле</option><option value="desc">Дороже</option>
+            </select>
+            {(minP || maxP || len > 0) && <button className="mx-muted underline" onClick={() => { setMinP(""); setMaxP(""); setLen(0); }}>Сбросить</button>}
+          </div>
+        )}
+        {!data ? <div className="flex justify-center py-10"><Spinner /></div> : items.length === 0 ? (
           <p className="mx-muted text-center text-[14px] px-6 py-10">{view === "shop" ? "Сейчас в магазине пусто — загляни позже" : view === "mine" ? "У тебя пока нет юзернеймов. Купи первый в магазине." : "Пока ничего нет"}</p>
-        ) : data.items.map((x) => (
+        ) : items.map((x) => (
           <div key={x.name} className="px-4 py-2.5 flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-semibold truncate">@{x.name}</p>
