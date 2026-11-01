@@ -151,7 +151,11 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnd = () => goNext(true);
-    const onErr = () => { setPlaying(false); toast("error", "Не удалось воспроизвести трек"); };
+    const onErr = () => {
+      setPlaying(false);
+      const code = a.error?.code;
+      toast("error", code === 4 ? "Файл не открывается: проверь, что это mp3 и ссылка рабочая" : code === 2 ? "Проблема с сетью — не удалось загрузить трек" : "Не удалось воспроизвести трек");
+    };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("loadedmetadata", onMeta);
     a.addEventListener("durationchange", onMeta);
@@ -182,36 +186,58 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
   }, [goNext, toast]);
 
-  // смена трека → грузим и играем + данные для экрана блокировки
+  // play() с понятной реакцией на отказ браузера (Safari/iOS требуют запуск из нажатия)
+  const safePlay = useCallback((a: HTMLAudioElement) => {
+    const p = a.play();
+    if (p && typeof p.catch === "function") {
+      p.catch((err: any) => {
+        if (err?.name === "AbortError") return; // трек сменили во время загрузки — это нормально
+        setPlaying(false);
+        toast("error", err?.name === "NotAllowedError" ? "Браузер не дал включить звук — нажми ▶ ещё раз" : "Не удалось включить трек");
+      });
+    }
+  }, [toast]);
+
+  // загрузить трек в плеер и сразу играть + данные для экрана блокировки
+  const startTrack = useCallback((a: HTMLAudioElement, t: MusicTrack) => {
+    counted.current = null;
+    if (a.src !== t.audioUrl) a.src = t.audioUrl;
+    setTime(0);
+    setDuration(t.duration ?? 0);
+    safePlay(a);
+    const ms = (navigator as Navigator & { mediaSession?: MediaSession }).mediaSession;
+    if (ms && typeof MediaMetadata !== "undefined") {
+      try { ms.metadata = new MediaMetadata({ title: t.title, artist: t.artist, artwork: t.coverUrl ? [{ src: t.coverUrl }] : [] }); } catch {}
+    }
+  }, [safePlay]);
+
+  // смена трека кнопками «дальше/назад» и автопереход: плеер уже «разбужен» нажатием, поэтому можно из эффекта
   const curId = current?.id;
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !current) return;
-    counted.current = null;
-    a.src = current.audioUrl;
-    setTime(0);
-    setDuration(current.duration ?? 0);
-    a.play().catch(() => setPlaying(false));
-    const ms = (navigator as Navigator & { mediaSession?: MediaSession }).mediaSession;
-    if (ms && typeof MediaMetadata !== "undefined") {
-      try { ms.metadata = new MediaMetadata({ title: current.title, artist: current.artist, artwork: current.coverUrl ? [{ src: current.coverUrl }] : [] }); } catch {}
-    }
+    if (a.src === current.audioUrl && !a.paused) return; // уже играет (запущен из клика)
+    if (a.src === current.audioUrl && a.currentTime > 0) return;
+    startTrack(a, current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId]);
 
+  // тап по треку: src и play() выставляются прямо в обработчике клика — так iOS/Safari разрешают звук
   const playQueue = useCallback((list: MusicTrack[], i: number) => {
     const t = list[i];
-    if (!t) return;
+    const a = audioRef.current;
+    if (!t || !a) return;
     const cur = st.current.queue[st.current.index];
     setQueue(list);
     setIndex(i);
-    if (cur?.id === t.id) audioRef.current?.play().catch(() => {});
-  }, []);
+    if (cur?.id === t.id) safePlay(a);
+    else startTrack(a, t);
+  }, [safePlay, startTrack]);
   const toggle = useCallback(() => {
     const a = audioRef.current;
     if (!a || !st.current.queue.length) return;
-    if (a.paused) a.play().catch(() => {}); else a.pause();
-  }, []);
+    if (a.paused) safePlay(a); else a.pause();
+  }, [safePlay]);
   const next = useCallback(() => goNext(false), [goNext]);
   const prev = useCallback(() => {
     const a = audioRef.current;
