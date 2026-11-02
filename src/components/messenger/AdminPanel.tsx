@@ -11,6 +11,7 @@ import { StickerPacksAdmin } from "./StickerPacksAdmin";
 import { AdminNft } from "./AdminNft";
 import { AdminMusic } from "./AdminMusic";
 import { AdminUsernames } from "./AdminUsernames";
+import { AdminNumbers } from "./AdminNumbers";
 import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, type NftTrait } from "@/lib/messenger/nft";
 
 type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number; newToday: number; nft: number; stories: number };
@@ -37,7 +38,7 @@ type ReadResult = { chat: { id: string; type: string; title: string | null }; me
 type GrantInfo = { account: { uid: string; handle: string; displayName: string; premiumUntil: number; verified: boolean; banned: boolean }; wallet: number; gifts: { id: string; giftId: string; at: number; nft: { number: number; supply: number; model: string; backdrop: string; symbol: string } | null; byAdmin: boolean }[] };
 type Past = { id: string; text: string; target: string; sent: number; createdAt: number; done: boolean };
 const TARGETS: [string, string][] = [["all", "Всем"], ["premium", "Только Mili Premium"], ["verified", "Только с галочкой"]];
-const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["usernames", "Юзернеймы"], ["audit", "Журнал"]] as const;
+const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["usernames", "Юзернеймы"], ["numbers", "Номера"], ["audit", "Журнал"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 async function call<T = any>(url: string, body?: unknown): Promise<T> {
@@ -428,6 +429,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
         {tab === "stickers" && <StickerPacksAdmin />}
         {tab === "music" && <AdminMusic />}
         {tab === "usernames" && <AdminUsernames />}
+        {tab === "numbers" && <AdminNumbers />}
 
         {tab === "audit" && (
           <div className="mx-card">

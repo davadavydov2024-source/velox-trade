@@ -16,14 +16,15 @@ import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
+import { ExtraUsernames, UsernamesPage } from "./Usernames";
 import { ProfileHeader } from "./ProfileHeader";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
-import { WalletPage } from "./Wallet";
+import { WalletPage, startTopup } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -387,7 +388,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
-            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
             <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
           </>
         ) : (
@@ -470,6 +471,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   }
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
   if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
+  if (page === "usernames") return <div className="flex flex-col h-full"><UsernamesPage onBack={back} /></div>;
   if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
@@ -623,6 +625,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           topRight={<button onClick={() => setEditProfile(true)} className="mx-prof-edit">Изм.</button>}
         />
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
+        <ExtraUsernames uid={account.uid} />
         <div style={{ height: 12 }} />
 
         <Section>
@@ -642,6 +645,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Hash size={17} />} color="#5856d6" label="Мои номера" value={account.number ? formatNumber(account.number) : undefined} onClick={() => setMyNumbers(true)} />
           {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
           <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
+          <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
           <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
