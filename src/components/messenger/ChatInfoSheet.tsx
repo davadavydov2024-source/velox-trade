@@ -1,19 +1,21 @@
 "use client";
 
-import { ExtraUsernames } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, ChevronRight, Copy, FileText, Gift, LogOut, MessageCircle, Search, Settings, Shield, Users, Pencil } from "lucide-react";
+import { Bell, BellOff, Bookmark, ChevronRight, Copy, FileText, Gift, LogOut, MessageCircle, Search, Settings, Shield, Users } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
+import { InfoRow, ProfileHeader, ProfileTabs, ProfileTile } from "./ProfileHeader";
+import { NumberTierChip } from "./Numbers";
+import { formatNumber } from "@/lib/messenger/numbers";
 import { GiftShopSheet, GiftsProfileTab } from "./Gifts";
 import { ChannelSettingsSheet, ContactEditSheet, PeopleListSheet } from "./ChannelAdmin";
 import { MAccount, MChat, MMessage } from "./mtypes";
 import { birthdayText, chatPhoto, chatTitle, formatTime, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural } from "./util";
 
 type Tab = "stories" | "gifts" | "media" | "files" | "links" | "polls";
-const TAB_LABEL: Record<Tab, string> = { stories: "Публикации", gifts: "Подарки 🎁", media: "Медиа", files: "Файлы", links: "Ссылки", polls: "Опросы" };
+const TAB_LABEL: Record<Tab, string> = { stories: "Публикации", gifts: "Подарки", media: "Медиа", files: "Файлы", links: "Ссылки", polls: "Опросы" };
 const URL_RE = /https?:\/\/[^\s<]+[^\s<.,;:!?)"']/g;
 
 function Tile({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
@@ -105,49 +107,36 @@ export function ChatInfoSheet({
 
   return (
     <Sheet open={open} onClose={() => { onClose(); }} full>
-      <div className="relative">
-        {isDm && peer?.bannerURL && (
-          <div className="mx-4 mt-2 h-28 rounded-2xl overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={peer.bannerURL} alt="" className="w-full h-full object-cover" />
-          </div>
-        )}
-        {((isDm && !saved) || (!isDm && isAdmin)) && (
-          <button onClick={() => (isDm ? setEdit(true) : setSettings(true))} className="absolute right-4 top-1 h-9 px-4 rounded-full text-[15px] font-semibold flex items-center gap-1.5" style={{ background: "var(--mx-surface2)", color: "var(--mx-accent)" }}>
-            <Pencil size={14} /> Изм.
-          </button>
-        )}
-      </div>
-      <div className={`flex flex-col items-center ${isDm && peer?.bannerURL ? "-mt-10" : "pt-3"} pb-4 px-6`}>
-        <Avatar src={photo} name={title} seed={isDm ? peerId : chat.id} size={100}>{saved ? "🔖" : undefined}</Avatar>
-        <p className="text-[22px] font-semibold mt-3 flex items-center gap-1.5">{title} {isDm && peer?.verified && <VerifiedBadge size={18} />}{isDm && <StatusBadge acc={peer} size={20} />}</p>
-        {isDm && !saved && <p className="mx-muted text-[14px]">{lastSeenText(peer)}</p>}
-        {!isDm && <p className="mx-muted text-[14px]">{chat.members.length} {chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}</p>}
-      </div>
+      <ProfileHeader
+        seed={isDm ? peerId : chat.id}
+        name={title}
+        photo={photo}
+        account={isDm ? peer : null}
+        avatarFallback={saved ? <Bookmark size={44} /> : undefined}
+        badges={<>{isDm && peer?.verified && <VerifiedBadge size={18} />}{isDm && <StatusBadge acc={peer} size={20} />}</>}
+        subtitle={isDm ? (saved ? undefined : lastSeenText(peer)) : `${chat.members.length} ${chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}`}
+        topRight={((isDm && !saved) || (!isDm && isAdmin)) ? <button onClick={() => (isDm ? setEdit(true) : setSettings(true))} className="mx-prof-edit">Изм.</button> : undefined}
+      />
 
-      <div className="flex gap-2 px-4 mb-4">
-        {isDm && !saved && <Tile icon={<MessageCircle size={22} />} label="чат" onClick={onClose} />}
-        {isDm && !saved && <Tile icon={<Gift size={22} />} label="подарок" onClick={() => setShop(true)} />}
-        <Tile icon={muted ? <BellOff size={22} /> : <Bell size={22} />} label={muted ? "вкл. звук" : "звук"} onClick={() => { onToggleMute?.(); onClose(); }} />
-        <Tile icon={<Search size={22} />} label="поиск" onClick={() => { onClose(); onSearch?.(); }} />
-        {!isDm && <Tile icon={<LogOut size={22} />} label={chat.type === "channel" ? "отписаться" : "выйти"} onClick={() => { onClose(); onLeave(); }} />}
+      <div className="flex gap-2 px-4 py-3">
+        {isDm && !saved && <ProfileTile icon={<MessageCircle size={22} />} label="Чат" onClick={onClose} />}
+        {isDm && !saved && <ProfileTile icon={<Gift size={22} />} label="Подарок" onClick={() => setShop(true)} />}
+        <ProfileTile icon={muted ? <BellOff size={22} /> : <Bell size={22} />} label={muted ? "Включить" : "Звук"} onClick={() => { onToggleMute?.(); onClose(); }} />
+        <ProfileTile icon={<Search size={22} />} label="Поиск" onClick={() => { onClose(); onSearch?.(); }} />
+        {!isDm && <ProfileTile icon={<LogOut size={22} />} label={chat.type === "channel" ? "Отписаться" : "Выйти"} onClick={() => { onClose(); onLeave(); }} />}
       </div>
 
       {isDm && peer?.channelHandle && <ProfileChannelCard handle={peer.channelHandle} />}
 
-      {(peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
-        <div className="mx-card" style={{ margin: "0 16px 16px" }}>
-          {link && <button className="w-full px-4 py-3 text-left" onClick={() => copy(link, "Ссылка скопирована")}><p className="mx-muted text-[12.5px]">ссылка</p><p className="truncate" style={{ color: "var(--mx-accent)" }}>{link}</p></button>}
-          {peer?.handle && (
-            <button className="w-full px-4 py-3 text-left flex items-center justify-between" onClick={() => copy(`@${peer.handle}`, "Скопировано")}>
-              <span><span className="mx-muted text-[12.5px] block">имя пользователя</span><span style={{ color: "var(--mx-accent)" }}>@{peer.handle}</span></span><Copy size={16} className="mx-muted" />
-            </button>
-          )}
-          {isDm && peerId && <ExtraUsernames uid={peerId} />}
-          {bday && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">день рождения</p><p>{bday}</p></div>}
-          {peer?.bio && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">о себе</p><p className="whitespace-pre-wrap">{peer.bio}</p></div>}
-          {chat.description && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">описание</p><p className="whitespace-pre-wrap">{chat.description}</p></div>}
-          {contact?.note && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">заметка (видите только вы)</p><p className="whitespace-pre-wrap">{contact.note}</p></div>}
+      {(peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
+        <div className="mx-card" style={{ margin: "0 16px 12px" }}>
+          {peer?.number && <InfoRow value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
+          {peer?.handle && <InfoRow value={`@${peer.handle}`} label="Имя пользователя" accent onClick={() => copy(`@${peer.handle}`, "Скопировано")} right={<Copy size={16} className="mx-muted" />} />}
+          {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} right={<Copy size={16} className="mx-muted" />} />}
+          {peer?.bio && <InfoRow value={peer.bio} label="О себе" />}
+          {bday && <InfoRow value={bday} label="День рождения" />}
+          {chat.description && <InfoRow value={chat.description} label="Описание" />}
+          {contact?.note && <InfoRow value={contact.note} label="Заметка (видите только вы)" />}
         </div>
       )}
 
@@ -160,13 +149,7 @@ export function ChatInfoSheet({
         </div>
       )}
 
-      <div className="px-4 mb-3">
-        <div className="flex gap-1 p-1 rounded-full overflow-x-auto mx-noscrollbar" style={{ background: "var(--mx-surface2)" }}>
-          {tabs.map((t) => (
-            <button key={t} onClick={() => setTab(t)} className="flex-1 shrink-0 px-4 py-2 rounded-full text-[14.5px] font-semibold whitespace-nowrap" style={{ background: tab === t ? "var(--mx-surface)" : "transparent", color: tab === t ? "var(--mx-text)" : "var(--mx-muted)" }}>{TAB_LABEL[t]}</button>
-          ))}
-        </div>
-      </div>
+      <ProfileTabs tabs={tabs} value={tab} onChange={setTab} labels={TAB_LABEL} />
 
       <div className="pb-24">
         {tab === "gifts" && isDm && !saved && <GiftsProfileTab uid={peerId} mine={false} name={title} />}
@@ -202,7 +185,7 @@ export function ChatInfoSheet({
         ))}
         {tab === "polls" && (polls.length === 0 ? empty("Опросов пока нет") : (
           <div className="mx-card" style={{ margin: "0 16px" }}>
-            {polls.map((m) => <div key={m.id} className="px-4 py-3"><p>📊 {m.poll?.question ?? m.text}</p><p className="mx-muted text-[12.5px]">{m.poll?.total ?? 0} {plural(m.poll?.total ?? 0, "голос", "голоса", "голосов")} · {formatTime(m.createdAt)}</p></div>)}
+            {polls.map((m) => <div key={m.id} className="px-4 py-3"><p>{m.poll?.question ?? m.text}</p><p className="mx-muted text-[12.5px]">{m.poll?.total ?? 0} {plural(m.poll?.total ?? 0, "голос", "голоса", "голосов")} · {formatTime(m.createdAt)}</p></div>)}
           </div>
         ))}
       </div>

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2 } from "lucide-react";
+import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -16,12 +16,14 @@ import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { ExtraUsernames, UsernamesPage } from "./Usernames";
-import { WalletPage, startTopup } from "./Wallet";
+import { ProfileHeader } from "./ProfileHeader";
+import { NumbersSheet, NumberTierChip } from "./Numbers";
+import { formatNumber } from "@/lib/messenger/numbers";
+import { WalletPage } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -385,7 +387,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
-            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
             <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
           </>
         ) : (
@@ -403,6 +405,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const [page, setPage] = useState<Page>(initialPage ?? null);
   const [editProfile, setEditProfile] = useState(false);
   const [myGifts, setMyGifts] = useState(false);
+  const [myNumbers, setMyNumbers] = useState(false);
   const [installHelp, setInstallHelp] = useState(false);
   const [sessionCount, setSessionCount] = useState<number | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -467,7 +470,6 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   }
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
   if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
-  if (page === "usernames") return <div className="flex flex-col h-full"><UsernamesPage onBack={back} /></div>;
   if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
@@ -608,38 +610,23 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     <div className="flex flex-col h-full">
       <PageHeader title="Настройки" />
       <div className="mx-scroll flex-1 pb-28">
-        <div className="mx-hero">
-          <div className="mx-hero-banner">
-            {account.bannerURL && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={account.bannerURL} alt="" />
-            )}
-          </div>
-          <div className="mx-hero-body">
-            <button onClick={() => fileRef.current?.click()} className="relative rounded-full" disabled={avatarBusy} aria-label="Сменить фото" style={{ border: "4px solid var(--mx-surface)" }}>
-              <Avatar src={account.photoURL} name={account.displayName} seed={me} size={96} />
-              <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "3px solid var(--mx-surface)" }}>
-                <Camera size={15} />
-              </span>
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
-            <p className="text-[23px] font-bold mt-3 flex items-center gap-1.5 justify-center">
-              {account.displayName} {account.verified && <VerifiedBadge size={18} />}<StatusBadge acc={account} size={20} />
-            </p>
-            <p className="mx-muted text-[14.5px] mt-0.5">@{account.handle}</p>
-            <ExtraUsernames uid={account.uid} />
-            <div className="flex items-center gap-2 mt-2.5 flex-wrap justify-center">
-              <span className="mx-status-chip"><span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--mx-accent)" }} />{status}</span>
-              {isPremium(account) && <span className="mx-status-chip" style={{ background: "rgba(255,180,0,0.16)", color: "#ffb400" }}><Star size={12} /> Premium</span>}
-            </div>
-            {account.bio && <p className="text-[14.5px] mt-3 leading-snug" style={{ color: "var(--mx-text)", opacity: 0.85 }}>{account.bio}</p>}
-            <button onClick={() => setEditProfile(true)} className="mt-4 w-full max-w-[260px] h-11 rounded-full text-[15px] font-semibold" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }}>
-              Изменить профиль
-            </button>
-          </div>
-        </div>
+        <ProfileHeader
+          seed={me}
+          name={account.displayName}
+          photo={account.photoURL}
+          account={account}
+          badges={<>{account.verified && <VerifiedBadge size={18} />}<StatusBadge acc={account} size={20} /></>}
+          subtitle={<>{status}{isPremium(account) ? " · Premium" : ""}</>}
+          onAvatarClick={() => fileRef.current?.click()}
+          avatarBusy={avatarBusy}
+          avatarOverlay={<span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "#fff", border: "3px solid rgba(0,0,0,0.25)" }}><Camera size={15} /></span>}
+          topRight={<button onClick={() => setEditProfile(true)} className="mx-prof-edit">Изм.</button>}
+        />
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
+        <div style={{ height: 12 }} />
 
         <Section>
+          {account.number && <button onClick={() => setMyNumbers(true)} className="w-full px-4 py-3 text-left flex items-center justify-between gap-3"><span><span className="block mx-muted text-[12.5px]">Номер</span><span className="block tabular-nums">{formatNumber(account.number)}</span></span><NumberTierChip digits={account.number} /></button>}
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">Имя пользователя</p><p style={{ color: "var(--mx-accent)" }}>@{account.handle}</p></button>
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">О себе</p><p>{account.bio || "Добавь пару слов о себе"}</p></button>
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">День рождения</p><p>{account.birthday ? new Date(account.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "Не указан"}</p></button>
@@ -652,9 +639,9 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
+          <Row icon={<Hash size={17} />} color="#5856d6" label="Мои номера" value={account.number ? formatNumber(account.number) : undefined} onClick={() => setMyNumbers(true)} />
           {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
           <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
-          <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
           <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
@@ -691,6 +678,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         <div className="pb-4" />
       </div>
       <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} />
+      <NumbersSheet open={myNumbers} onClose={() => setMyNumbers(false)} me={me} />
       <Sheet open={myGifts} onClose={() => setMyGifts(false)} title="Мои подарки" full>
         {myGifts && <GiftsProfileTab uid={me} mine />}
       </Sheet>

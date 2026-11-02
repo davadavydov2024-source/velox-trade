@@ -513,3 +513,62 @@
 .mx-eq span { width: 3px; height: 4px; border-radius: 2px; background: var(--mx-accent); display: block; }
 .mx-eq span.on { animation: mx-eq 0.9s ease-in-out infinite; }
 @keyframes mx-eq { 0%, 100% { height: 4px; } 50% { height: 15px; } }
+
+
+/* ===================================================================
+   TG flat v2: убираем «нейросетевой» блеск (стекло, градиенты, свечение, пружинки).
+   Всё плоское и тихое, как в Telegram. Темы и обои, которые человек выбрал сам, не трогаем.
+   =================================================================== */
+
+/* нижняя панель: плоская, на всю ширину, линия сверху; индикатор-«капля» не нужен — активная вкладка просто цветная */
+.mx[data-design="tg"] .mx-nav.mx-liquid,
+.mx[data-design="tg"][data-theme="light"] .mx-nav.mx-liquid {
+  left: 0 !important; right: 0 !important; bottom: 0 !important;
+  border-radius: 0 !important; border-width: 1px 0 0 !important; border-color: var(--mx-line) !important;
+  padding: 4px 6px calc(env(safe-area-inset-bottom) + 2px) !important;
+  background: var(--mx-bg) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+.mx-liquid-pill { display: none !important; }
+.mx[data-design="tg"] .mx-nav.mx-liquid button { border-radius: 10px !important; }
+
+/* шапка чата: сплошная, без размытия */
+.mx[data-design="tg"] .mx-chat-head {
+  background: var(--mx-surface) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border-bottom: 1px solid var(--mx-line);
+}
+
+/* пузыри: без объёма, градиента и тени */
+.mx[data-design="tg"] .mx-bubble { box-shadow: none !important; }
+.mx[data-design="tg"] .mx-bubble.out, .mx[data-design="tg"] .mx-bubble.in { background-image: none !important; }
+.mx[data-design="tg"] .mx-reaction { box-shadow: none; }
+
+/* поле ввода: плоское, без размытия и свечения */
+.mx[data-design="tg"] .mx-composer-field {
+  background: var(--mx-bg) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border: 1px solid var(--mx-line) !important; border-radius: 20px !important; box-shadow: none !important;
+}
+.mx[data-design="tg"] .mx-composer-field:focus-within { border-color: var(--mx-line) !important; box-shadow: none !important; }
+.mx[data-design="tg"] .mx-send-pop { box-shadow: none !important; }
+
+/* истории: плоское кольцо акцентного цвета вместо радужного градиента */
+.mx[data-design="tg"] .mx-story-ring { background: var(--mx-accent); }
+.mx[data-design="tg"] .mx-story-ring.seen { background: var(--mx-line); }
+.mx[data-design="tg"] .mx-story-ring:not(.seen) { box-shadow: none; }
+
+/* фильтры, листы, карточки: без теней */
+.mx[data-design="tg"] .mx-chip.on { box-shadow: none; }
+.mx[data-design="tg"] .mx-sheet { box-shadow: none; }
+.mx[data-design="tg"] .mx-card { box-shadow: none; }
+
+/* появление сообщений: короткое и спокойное, без «пружины» */
+@keyframes mx-tg-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.mx[data-design="tg"] .mx-msg-in,
+.mx[data-design="tg"] .mx-msg-in:has(.mx-bubble.out) { animation: mx-tg-in 0.18s ease-out both; }
+
+/* кнопка «Изм.» на цветной шапке профиля */
+.mx-prof-edit { height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.2); color: #fff; font-size: 14px; font-weight: 600; }
+.mx-prof-edit:active { opacity: 0.7; }

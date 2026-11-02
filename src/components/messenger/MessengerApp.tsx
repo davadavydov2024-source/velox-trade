@@ -206,7 +206,7 @@ export function MessengerApp() {
             );
           })}
         </nav>
-        <MiniPlayer bottom="calc(env(safe-area-inset-bottom) + 82px)" />
+        <MiniPlayer bottom="calc(env(safe-area-inset-bottom) + 64px)" />
       </aside>
 
       {/* ---- правая панель: чат ---- */}

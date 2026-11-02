@@ -1,11 +1,11 @@
 "use client";
 
-import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
 import { NftFigure, hasNftFigure } from "./NftFigures";
+import { NftDetails, NftHero } from "./NftHero";
 import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
@@ -173,7 +173,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
     } catch (err) {
       if (err instanceof MApiError && err.data?.needTopup) {
         toast("error", err.message);
-        startTopup(Math.max(10, (picked?.price ?? 10) - (wallet ?? 0))).catch(() => {});
+        window.open("/profile/stars", "_blank");
       } else toast("error", err instanceof MApiError ? err.message : "Не удалось отправить подарок");
     } finally {
       setBusy(false);
@@ -439,7 +439,9 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
 
       <Sheet open={!!open && !!def} onClose={() => setOpen(null)} zIndex={65}>
         {open && def && (
-          <div className="px-5 pb-8 flex flex-col items-center">
+          <div className={open.nft ? "pb-8" : "px-5 pb-8 flex flex-col items-center"}>
+            {open.nft ? <NftHero gift={def} nft={open.nft} /> : (
+              <>
             <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
             <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
             <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
@@ -451,7 +453,17 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
               )}
             </div>
             {open.anonymous && open.from && <p className="mx-muted text-[12.5px] mt-1">Отправлен анонимно — другие не видят имя</p>}
-            {open.nft && <NftTraits nft={open.nft} />}
+              </>
+            )}
+            <div className={open.nft ? "px-4 pt-3 flex flex-col items-center" : "contents"}>
+              {open.nft && (
+                <NftDetails nft={open.nft} rows={[
+                  ["Владелец", mine ? "Вы" : name || "—"],
+                  ["Отправитель", open.from ? open.from.displayName : "Анонимно"],
+                  ["Получен", new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })],
+                  ["Цена", money(open.price)],
+                ]} />
+              )}
             {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
             {open.salePrice ? <p className="mx-card px-4 py-2.5 mt-4 w-full text-[14.5px] text-center">Продаётся за <b>{open.salePrice} ⭐</b></p> : null}
             {mine && (
@@ -467,6 +479,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
               </div>
             )}
             {!mine && open.salePrice ? <button className="mx-btn w-full mt-4" onClick={() => buy(open)}>Купить за {open.salePrice} ⭐</button> : null}
+            </div>
           </div>
         )}
       </Sheet>
