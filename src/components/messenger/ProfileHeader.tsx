@@ -33,7 +33,7 @@ function Pattern({ ch }: { ch: string }) {
 
 /**
  * Шапка профиля как в Telegram: плоская цветная подложка, аватарка по центру, имя и статус белым.
- * Если в статусе стоит NFT-подарок (Premium), подложка берёт цвета его фона и узор из его символа; иначе — баннер или цвет по uid.
+ * Если в статусе стоит NFT-подарок (Premium), подложка берёт цвета его фона и узор из его символа; иначе — плоский цвет по uid (баннеров нет).
  */
 export function ProfileHeader({
   seed, name, photo, account, subtitle, badges, avatarSize = 96, avatarFallback, onAvatarClick, avatarBusy, avatarOverlay, topRight, topLeft,
@@ -43,17 +43,12 @@ export function ProfileHeader({
 }) {
   const st = account?.status;
   const nft = st && st.kind === "nft" && isPremium(account) ? st.nft : null;
-  const banner = !nft && account?.bannerURL ? account.bannerURL : null;
   const bd = nft ? backdropOf(nft.backdrop) : null;
-  const bg = bd ? `radial-gradient(circle at 50% 38%, ${bd.colors[0]} 0%, ${bd.colors[1]} 100%)` : banner ? "#000" : profileColor(seed);
+  const bg = bd ? `radial-gradient(circle at 50% 38%, ${bd.colors[0]} 0%, ${bd.colors[1]} 100%)` : profileColor(seed);
   const av = <Avatar src={photo ?? null} name={name} seed={seed} size={avatarSize}>{avatarFallback}</Avatar>;
   return (
     <div className="relative overflow-hidden text-white" style={{ background: bg }}>
       {nft && <Pattern ch={NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦"} />}
-      {banner && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
-      )}
       <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 45%, rgba(0,0,0,0.3))" }} />
       {topLeft && <div className="absolute left-3 top-3 z-10">{topLeft}</div>}
       {topRight && <div className="absolute right-3 top-3 z-10">{topRight}</div>}
