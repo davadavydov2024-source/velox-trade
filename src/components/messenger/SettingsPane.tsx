@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil } from "lucide-react";
+import { AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -73,7 +73,7 @@ async function squareAvatar(file: File): Promise<Blob> {
   }
 }
 
-function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () => void; account: MAccount }) {
+function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; onClose: () => void; account: MAccount; onLogout: () => void }) {
   const { toast } = useToast();
   const [name, setName] = useState(account.displayName);
   const [handle, setHandle] = useState(account.handle);
@@ -147,19 +147,66 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
     }
   };
 
-  const inputCls = "bg-transparent outline-none w-full px-4 py-3 text-[16px]";
+  const inputCls = "bg-transparent outline-none w-full px-4 py-3.5 text-[17px]";
   const canSave = !busy && name.trim().length >= 2 && handle.replace("@", "").length >= 4;
+  const cardCls = "overflow-hidden";
+  const cardSt = { margin: "0 16px", borderRadius: 22, background: "var(--mx-surface)" } as const;
+  const hint = "mx-muted text-[13.5px] px-8 mt-2";
+  const Ic = ({ c, children }: { c: string; children: ReactNode }) => <span className="w-[30px] h-[30px] rounded-[8px] flex items-center justify-center shrink-0 text-white" style={{ background: c }}>{children}</span>;
   return (
     <Sheet open={open} onClose={onClose} full>
       <div className="pb-10">
-        <div className="flex items-center justify-between px-4 h-12">
-          <button onClick={onClose} className="text-[16px]" style={{ color: "var(--mx-accent)" }}>Отмена</button>
-          <p className="font-semibold text-[16px]">Изменить профиль</p>
-          <button disabled={!canSave} onClick={() => save()} className="text-[16px] font-semibold" style={{ color: "var(--mx-accent)", opacity: canSave ? 1 : 0.4 }}>{busy ? "…" : "Готово"}</button>
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+          <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "var(--mx-surface2)" }}><X size={22} /></button>
+          <button disabled={!canSave} onClick={() => save()} aria-label="Готово" className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "var(--mx-surface2)", opacity: canSave ? 1 : 0.45 }}>{busy ? "…" : <Check size={24} />}</button>
         </div>
 
-        <div style={{ margin: "0 16px" }}>
-        <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 62%, #000))" }}>
+        <div className="flex flex-col items-center -mt-6 pb-5">
+          <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy} aria-label="Сменить фото">
+            <Avatar src={account.photoURL} name={account.displayName} seed={account.uid} size={112} />
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatar(e.target.files?.[0]); e.target.value = ""; }} />
+          <button onClick={() => fileRef.current?.click()} disabled={busy} className="mt-3 text-[19px] font-medium mx-muted">Изменить фотографию</button>
+        </div>
+
+        <div className={cardCls} style={cardSt}>
+          <input className={inputCls} placeholder="Имя" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <p className={hint}>Укажите имя и, если хотите, добавьте фотографию для вашего профиля.</p>
+
+        <div className="relative mt-6" style={cardSt}>
+          <textarea className={inputCls + " resize-none pr-12"} rows={3} placeholder="О себе" maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} />
+          <span className="absolute right-4 bottom-3 text-[14px] mx-muted">{140 - bio.length}</span>
+        </div>
+        <p className={hint}>Раздел «О себе» виден всем.</p>
+
+        <label className="flex items-center gap-3 px-4 py-3 mt-6 relative" style={cardSt}>
+          <Ic c="#3b9bff"><Cake size={18} /></Ic>
+          <span className="flex-1 text-[17px]">День рождения</span>
+          <input type="date" className="bg-transparent outline-none text-[16px] mx-muted text-right" value={birthday} onChange={(e) => setBirthday(e.target.value)} />
+        </label>
+        <p className={hint}>Ваш день рождения виден всем.</p>
+
+        <div className={cardCls + " mt-6"} style={cardSt}>
+          <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--mx-line)" }}>
+            <Ic c="#34c759"><Phone size={18} /></Ic>
+            <span className="flex-1 text-[17px]">Номер</span>
+            <span className="text-[16px] mx-muted tabular-nums">{account.number ? formatNumber(account.number) : "нет"}</span>
+          </div>
+          <label className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--mx-line)" }}>
+            <Ic c="#6c63ff"><AtSign size={18} /></Ic>
+            <span className="text-[17px] shrink-0">Имя пользователя</span>
+            <input className="bg-transparent outline-none flex-1 min-w-0 text-right text-[16px] mx-muted" placeholder="username" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+          </label>
+          <label className="flex items-center gap-3 px-4 py-3">
+            <Ic c="#ff9f0a"><Megaphone size={18} /></Ic>
+            <span className="text-[17px] shrink-0">Канал</span>
+            <input className="bg-transparent outline-none flex-1 min-w-0 text-right text-[16px] mx-muted" value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+          </label>
+        </div>
+        <p className={hint}>Ник: латиница, цифры и _, от 4 символов — по нему вас находят. Канал показывается в профиле.</p>
+
+        <div className="relative mt-6 overflow-hidden" style={{ ...cardSt, aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 62%, #000))" }}>
           {account.bannerURL && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={account.bannerURL} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -174,30 +221,9 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
           </div>
           <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { pickBanner(e.target.files?.[0]); e.target.value = ""; }} />
         </div>
-        </div>
-        <div className="flex flex-col items-center pt-3 pb-5">
-          <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy} aria-label="Сменить фото">
-            <Avatar src={account.photoURL} name={account.displayName} seed={account.uid} size={96} />
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatar(e.target.files?.[0]); e.target.value = ""; }} />
-          <button onClick={() => fileRef.current?.click()} disabled={busy} className="mt-2.5 text-[15.5px]" style={{ color: "var(--mx-accent)" }}>Установить новое фото</button>
-        </div>
+        <p className={hint}>Баннер показывается в шапке вашего профиля.</p>
 
-        <div className="mx-card" style={{ margin: "0 16px" }}>
-          <input className={inputCls} placeholder="Имя" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
-        </div>
-
-        <div className="mx-card mt-4" style={{ margin: "16px 16px 0" }}>
-          <textarea className={inputCls + " resize-none"} rows={3} placeholder="О себе" maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} />
-        </div>
-        <p className="mx-muted text-[13px] px-8 mt-1.5 flex justify-between"><span>Несколько слов о вас: видны в профиле.</span><span>{140 - bio.length}</span></p>
-
-        <div className="mx-card" style={{ margin: "16px 16px 0" }}>
-          <label className="flex items-center"><span className="pl-4 text-[16px] mx-muted w-[120px] shrink-0">Ник</span><input className={inputCls} style={{ paddingLeft: 0 }} placeholder="username" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
-          <label className="flex items-center"><span className="pl-4 text-[16px] mx-muted w-[120px] shrink-0">День рождения</span><input type="date" className={inputCls} style={{ paddingLeft: 0 }} value={birthday} onChange={(e) => setBirthday(e.target.value)} /></label>
-          <label className="flex items-center"><span className="pl-4 text-[16px] mx-muted w-[120px] shrink-0">Канал</span><input className={inputCls} style={{ paddingLeft: 0 }} value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
-        </div>
-        <p className="mx-muted text-[13px] px-8 mt-1.5">Ник: латинские буквы, цифры и _, не короче 4 символов. Через него вас находят. Канал — @адрес вашего канала, он показывается в профиле.</p>
+        <button onClick={onLogout} className="mt-8 w-full h-14 text-[18px] font-semibold" style={{ ...cardSt, width: "calc(100% - 32px)", color: "var(--mx-danger)" }}>Выйти</button>
       </div>
     </Sheet>
   );
@@ -723,7 +749,11 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         </button>
         <div className="pb-4" />
       </div>
-      <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} />
+      <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} onLogout={async () => {
+        if (!confirm("Выйти из аккаунта? Вы выйдете и с сайта Velox Trade.")) return;
+        await logout();
+        onLoggedOut();
+      }} />
       <NumbersSheet open={myNumbers} onClose={() => setMyNumbers(false)} me={me} />
       <ProfileTrackPicker open={trackPicker} onClose={() => setTrackPicker(false)} current={account.profileTrack} onPick={async (id) => {
         try { await mApi("profile", { profileTrack: id }); toast("success", id ? "Мелодия профиля выбрана" : "Мелодия убрана"); setTrackPicker(false); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
