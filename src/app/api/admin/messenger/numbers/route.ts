@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const accRef = db.collection("messengerAccounts").doc(uid);
     const acc = (await accRef.get()).data();
     if (!acc) return err("Пользователь не найден", 404);
-    let digits: string | null = null;
+    let digits = "";
     if (b.digits) {
       if (!isValidDigits(b.digits)) return err("Номер — ровно 8 цифр");
       digits = b.digits;
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       }
       if (!digits) return err("Не удалось подобрать свободный номер, попробуй ещё раз");
     }
-    const ref = db.collection("messengerNumbers").doc(String(digits));
+    const ref = db.collection("messengerNumbers").doc(digits);
     try {
       await db.runTransaction(async (tx) => {
         if ((await tx.get(ref)).exists) throw new Error("taken");
