@@ -95,6 +95,7 @@ export interface MessengerUserChat {
   mentions?: number; // непрочитанные упоминания (значок @)
   markedUnread?: boolean; // «отметить непрочитанным»
   clearedAt?: number; // «очистить историю у себя»: сообщения старше не показывать
+  hiddenAt?: number; // чат удалён у себя: скрыт, пока нет новых сообщений
 }
 
 export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"] as const;
