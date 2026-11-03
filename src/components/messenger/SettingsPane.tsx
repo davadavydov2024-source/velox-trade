@@ -149,6 +149,7 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
 
   const inputCls = "bg-transparent outline-none w-full px-4 py-3.5 text-[17px]";
   const canSave = !busy && name.trim().length >= 2 && handle.replace("@", "").length >= 4;
+  const dirty = name.trim() !== account.displayName || handle.replace("@", "") !== account.handle || bio.trim() !== (account.bio ?? "") || (birthday || "") !== (account.birthday ?? "") || channel.replace("@", "") !== (account.channelHandle ?? "");
   const cardCls = "overflow-hidden";
   const cardSt = { margin: "0 16px", borderRadius: 22, background: "var(--mx-surface)" } as const;
   const hint = "mx-muted text-[13.5px] px-8 mt-2";
@@ -158,7 +159,18 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
       <div className="pb-10">
         <div className="flex items-center justify-between px-4 pt-3 pb-1">
           <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "var(--mx-surface2)" }}><X size={22} /></button>
-          <button disabled={!canSave} onClick={() => save()} aria-label="Готово" className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "var(--mx-surface2)", opacity: canSave ? 1 : 0.45 }}>{busy ? "…" : <Check size={24} />}</button>
+          <button
+            disabled={busy}
+            onClick={() => {
+              if (name.trim().length < 2) { toast("error", "Имя — минимум 2 символа"); return; }
+              if (handle.replace("@", "").length < 4) { toast("error", "Ник — минимум 4 символа: латиница, цифры и _"); return; }
+              if (!dirty) { onClose(); return; }
+              save();
+            }}
+            aria-label="Готово"
+            className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70 transition-colors"
+            style={dirty && canSave ? { background: "var(--mx-accent)", color: "var(--mx-accent-text, #fff)" } : { background: "var(--mx-surface2)" }}
+          >{busy ? "…" : <Check size={24} />}</button>
         </div>
 
         <div className="flex flex-col items-center -mt-6 pb-5">
