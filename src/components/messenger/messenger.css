@@ -643,10 +643,18 @@
 .mx[data-bubble="glass"] .mx-bubble.in, .mx[data-bubble="glass"] .mx-bubble.out,
 .mx-bubble[data-bubble="glass"].in, .mx-bubble[data-bubble="glass"].out { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
 
-/* ===== СПИСОК ЧАТОВ И КАНАЛЫ как в Telegram ===== */
-.mx-chat-row { position: relative; }
-.mx-chat-row::after { content: ""; position: absolute; left: 82px; right: 0; bottom: 0; height: 1px; background: var(--mx-line); }
-.mx-search { border-radius: 10px; height: 36px; background: var(--mx-surface); }
-.mx[data-design="tg"] .mx-badge { background: var(--mx-accent); color: #fff; min-width: 20px; height: 20px; border-radius: 10px; font-size: 12.5px; font-weight: 600; }
-.mx[data-design="tg"] .mx-badge.muted { background: var(--mx-muted); opacity: .7; }
-.mx[data-design="tg"] .mx-chat-head { height: auto; }
+
+/* ===== ЗАКРУГЛЕНИЯ КАК В TELEGRAM ===== */
+.mx .mx-card { border-radius: 20px; }
+.mx[data-design="tg"] .mx-sheet-panel { border-radius: 24px 24px 0 0 !important; }
+.mx .mx-btn { border-radius: 14px; }
+.mx .mx-input { border-radius: 14px; }
+.mx .mx-search { border-radius: 12px; }
+.mx .mx-chip { border-radius: 999px; }
+.mx[data-design="tg"] .mx-bubble { border-radius: 18px; }
+.mx[data-design="tg"] .mx-bubble.in.tail { border-bottom-left-radius: 5px; }
+.mx[data-design="tg"] .mx-bubble.out.tail { border-bottom-right-radius: 5px; }
+.mx[data-design="tg"] .mx-pop { border-radius: 16px; }
+.mx[data-design="tg"] .mx-composer-field { border-radius: 22px !important; }
+.mx .mx-icon-btn { border-radius: 999px; }
+.mx[data-design="tg"] .mx-nav.mx-liquid button { border-radius: 14px !important; }
