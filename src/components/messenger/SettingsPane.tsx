@@ -670,30 +670,35 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">О себе</p><p>{account.bio || "Добавь пару слов о себе"}</p></button>
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">День рождения</p><p>{account.birthday ? new Date(account.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "Не указан"}</p></button>
         </Section>
-
         <Section>
-          <Row icon={<Bell size={17} />} color="#ff3b30" label="Уведомления и звуки" onClick={() => setPage("notifications")} />
-          <Row icon={<Database size={17} />} color="#34c759" label="Данные и память" onClick={() => setPage("data")} />
-          <Row icon={<LockKeyhole size={17} />} color="#8e8e93" label="Конфиденциальность" onClick={() => setPage("privacy")} />
-          <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
-          <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
-          <Row icon={<Music2 size={17} />} color="#1db954" label="Мелодия профиля" value={account.profileTrack ? "Выбрана" : "Не выбрана"} onClick={() => setTrackPicker(true)} />
           <Row icon={<Hash size={17} />} color="#5856d6" label="Мои номера" value={account.number ? formatNumber(account.number) : undefined} onClick={() => setMyNumbers(true)} />
-          {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
-          <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
           <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
-          <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
-          <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
-          <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
+          <Row icon={<Music2 size={17} />} color="#1db954" label="Мелодия профиля" value={account.profileTrack ? "Выбрана" : "Не выбрана"} onClick={() => setTrackPicker(true)} />
+          <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
+          <Row icon={<Smartphone size={17} />} color="#3390ec" label="Устройства" value={sessionCount ? String(sessionCount) : undefined} onClick={() => setPage("devices")} />
         </Section>
 
         <Section>
-          <Row icon={<Smartphone size={17} />} color="#3390ec" label="Устройства" value={sessionCount ? String(sessionCount) : undefined} onClick={() => setPage("devices")} />
+          <Row icon={<Bell size={17} />} color="#ff3b30" label="Уведомления и звуки" onClick={() => setPage("notifications")} />
+          <Row icon={<LockKeyhole size={17} />} color="#8e8e93" label="Конфиденциальность" onClick={() => setPage("privacy")} />
+          <Row icon={<Database size={17} />} color="#34c759" label="Данные и память" onClick={() => setPage("data")} />
+          <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
+          <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
+          <Row icon={<Music2 size={17} />} color="#1db954" label="Музыка" onClick={() => setPage("music")} />
           <Row icon={<Languages size={17} />} color="#af52de" label="Язык" value="Русский" onClick={() => setPage("language")} />
           <div className="max-[899px]:hidden"><Row icon={<Keyboard size={17} />} color="#ff9500" label="Горячие клавиши" onClick={() => setPage("hotkeys")} /></div>
           <Row icon={<Download size={17} />} color="#00b8d9" label="Добавить на экран «Домой»" onClick={() => setInstallHelp(true)} />
-          <Row icon={<Music2 size={17} />} color="#1db954" label="Музыка" onClick={() => setPage("music")} />
+        </Section>
+
+        <Section>
+          <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
+          <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
+        </Section>
+
+        <Section>
+          <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
+          {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
         </Section>
 
         <Section>
