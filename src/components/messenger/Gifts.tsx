@@ -445,8 +445,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
           <div className={open.nft ? "pb-8" : "px-5 pb-8 flex flex-col items-center"}>
             {open.nft ? <NftHero gift={def} nft={open.nft} /> : (
               <>
-            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
-            <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
+            <GiftArt gift={def} size={160} />
+            <p className="text-[20px] font-semibold mt-3">{def.title}</p>
             <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
             <div className="flex items-center gap-2 mt-3">
               {open.from ? (
