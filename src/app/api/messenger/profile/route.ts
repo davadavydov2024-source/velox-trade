@@ -54,6 +54,13 @@ export async function POST(req: NextRequest) {
       upd.channelHandle = v;
     }
   }
+  if ("profileTrack" in b) {
+    // мелодия профиля: трек из раздела «Музыка»
+    const v = b.profileTrack;
+    if (v === null || v === "") upd.profileTrack = null;
+    else if (typeof v === "string" && !v.includes("/") && (await adminDb().collection("messengerMusicTracks").doc(v).get()).exists) upd.profileTrack = v;
+    else return fail("Такого трека нет");
+  }
   if ("showLastSeen" in b) upd.showLastSeen = b.showLastSeen === true;
   if ("birthday" in b) {
     const v = b.birthday;

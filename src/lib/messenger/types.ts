@@ -19,6 +19,9 @@ export interface MessengerAccount {
   status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
   channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
   plusUntil?: number; // «Премиум Плюс» активен, пока plusUntil > Date.now()
+  numId?: number; // числовой ID аккаунта (с 100000)
+  views?: number; // сколько раз смотрели профиль
+  profileTrack?: string | null; // трек из «Музыки» как мелодия профиля
   number?: string | null; // красивый номер «+888 …» в профиле (8 цифр после +888); владельца проверяет сервер
   messagePrice?: number; // ⭐ за одно входящее сообщение (только Плюс; 0/нет — бесплатно)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
@@ -92,7 +95,6 @@ export interface MessengerUserChat {
   mentions?: number; // непрочитанные упоминания (значок @)
   markedUnread?: boolean; // «отметить непрочитанным»
   clearedAt?: number; // «очистить историю у себя»: сообщения старше не показывать
-  hiddenAt?: number; // «удалить чат у меня»: чат скрыт из списка, пока в нём не появится новое сообщение
 }
 
 export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"] as const;

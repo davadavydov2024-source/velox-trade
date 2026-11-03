@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { DEVICE_RE, describeDevice, fail, requireMessenger, sendServiceMessage } from "@/lib/messenger/server";
+import { ensureNumId } from "@/lib/messenger/numid";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 
 export const runtime = "nodejs";
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
   if ("error" in me) return me.error;
   const b = await req.json().catch(() => ({}));
   if (typeof b.deviceId !== "string" || !DEVICE_RE.test(b.deviceId)) return fail("Некорректный deviceId");
+  if (!me.account.numId) await ensureNumId(me.uid);
   const db = adminDb();
   const col = db.collection("messengerSessions").doc(me.uid).collection("list");
   const ref = col.doc(b.deviceId);

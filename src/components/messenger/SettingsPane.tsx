@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash } from "lucide-react";
+import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -16,15 +16,15 @@ import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { ExtraUsernames, UsernamesPage } from "./Usernames";
-import { ProfileHeader } from "./ProfileHeader";
+import { ProfileHeader, ProfileRoundBtn, useProfileGifts } from "./ProfileHeader";
+import { ProfileTrackPicker } from "./ProfileMusic";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
-import { WalletPage, startTopup } from "./Wallet";
+import { WalletPage } from "./Wallet";
 import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -36,6 +36,20 @@ function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; c
       {onClick && !right && <ChevronRight size={18} className="mx-muted" />}
     </button>
   );
+}
+
+/** Обрезка по центру под баннер 3:1 (1200×400). */
+async function bannerCrop(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const W = 1200, H = 400;
+  const scale = Math.max(W / bmp.width, H / bmp.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  const w = bmp.width * scale, h = bmp.height * scale;
+  ctx.drawImage(bmp, (W - w) / 2, (H - h) / 2, w, h);
+  return await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("Не удалось обработать картинку"))), "image/jpeg", 0.88));
 }
 
 /** Квадратная обрезка по центру до 512 px — аватарка без отдельного окна обрезки. */
@@ -67,6 +81,7 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
   const [channel, setChannel] = useState(account.channelHandle ?? "");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -106,40 +121,63 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
     }
   };
 
-  const inputCls = "bg-transparent outline-none w-full px-4 py-3 text-[16px]";
-  const canSave = !busy && name.trim().length >= 2 && handle.replace("@", "").length >= 4;
-  return (
-    <Sheet open={open} onClose={onClose} full>
-      <div className="pb-10">
-        <div className="flex items-center justify-between px-4 h-12">
-          <button onClick={onClose} className="text-[16px]" style={{ color: "var(--mx-accent)" }}>Отмена</button>
-          <p className="font-semibold text-[16px]">Изменить профиль</p>
-          <button disabled={!canSave} onClick={() => save()} className="text-[16px] font-semibold" style={{ color: "var(--mx-accent)", opacity: canSave ? 1 : 0.4 }}>{busy ? "…" : "Готово"}</button>
-        </div>
+  const pickBanner = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const up = await mUpload(await bannerCrop(f), "banner", { fileName: "banner.jpg" });
+      await mApi("profile", { bannerURL: up.url });
+      toast("success", "Баннер обновлён");
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить баннер");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeBanner = async () => {
+    setBusy(true);
+    try {
+      await mApi("profile", { bannerURL: null });
+      toast("success", "Баннер убран");
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось убрать баннер");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-        <div className="flex flex-col items-center pt-3 pb-5">
-          <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy} aria-label="Сменить фото">
+  return (
+    <Sheet open={open} onClose={onClose} title="Профиль" full>
+      <div className="p-4 space-y-3 pb-10">
+        <div className="relative rounded-2xl overflow-hidden" style={{ aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 62%, #000))" }}>
+          {account.bannerURL && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={account.bannerURL} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          )}
+          <div className="absolute inset-x-0 bottom-0 p-2 flex gap-2 justify-end" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.45))" }}>
+            <button onClick={() => bannerRef.current?.click()} disabled={busy} className="h-8 px-3 rounded-full text-[13px] font-semibold flex items-center gap-1.5 text-white" style={{ background: "rgba(0,0,0,0.5)" }}>
+              <Camera size={14} /> {account.bannerURL ? "Сменить баннер" : "Добавить баннер"}
+            </button>
+            {account.bannerURL && (
+              <button onClick={removeBanner} disabled={busy} className="h-8 w-8 rounded-full flex items-center justify-center text-white" style={{ background: "rgba(0,0,0,0.5)" }} aria-label="Убрать баннер"><Trash2 size={14} /></button>
+            )}
+          </div>
+          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { pickBanner(e.target.files?.[0]); e.target.value = ""; }} />
+        </div>
+        <div className="flex flex-col items-center gap-2 pb-2">
+          <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy}>
             <Avatar src={account.photoURL} name={account.displayName} seed={account.uid} size={96} />
+            <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "3px solid var(--mx-surface)" }}><Camera size={15} /></span>
           </button>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatar(e.target.files?.[0]); e.target.value = ""; }} />
-          <button onClick={() => fileRef.current?.click()} disabled={busy} className="mt-2.5 text-[15.5px]" style={{ color: "var(--mx-accent)" }}>Установить новое фото</button>
+          <p className="mx-muted text-[13px]">Нажми, чтобы сменить фото</p>
         </div>
-
-        <div className="mx-card" style={{ margin: "0 16px" }}>
-          <input className={inputCls} placeholder="Имя" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
-        </div>
-
-        <div className="mx-card mt-4" style={{ margin: "16px 16px 0" }}>
-          <textarea className={inputCls + " resize-none"} rows={3} placeholder="О себе" maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} />
-        </div>
-        <p className="mx-muted text-[13px] px-8 mt-1.5 flex justify-between"><span>Несколько слов о вас: видны в профиле.</span><span>{140 - bio.length}</span></p>
-
-        <div className="mx-card" style={{ margin: "16px 16px 0" }}>
-          <label className="flex items-center"><span className="pl-4 text-[16px] mx-muted w-[120px] shrink-0">Ник</span><input className={inputCls} style={{ paddingLeft: 0 }} placeholder="username" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
-          <label className="flex items-center"><span className="pl-4 text-[16px] mx-muted w-[120px] shrink-0">День рождения</span><input type="date" className={inputCls} style={{ paddingLeft: 0 }} value={birthday} onChange={(e) => setBirthday(e.target.value)} /></label>
-          <label className="flex items-center"><span className="pl-4 text-[16px] mx-muted w-[120px] shrink-0">Канал</span><input className={inputCls} style={{ paddingLeft: 0 }} value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
-        </div>
-        <p className="mx-muted text-[13px] px-8 mt-1.5">Ник: латинские буквы, цифры и _, не короче 4 символов. Через него вас находят. Канал — @адрес вашего канала, он показывается в профиле.</p>
+        <label className="block"><span className="mx-muted text-[13px] px-1">Имя</span><input className="mx-input mt-1" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="block"><span className="mx-muted text-[13px] px-1">Имя пользователя</span><input className="mx-input mt-1" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
+        <label className="block"><span className="mx-muted text-[13px] px-1">О себе</span><textarea className="mx-input mt-1" rows={3} maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} /></label>
+        <label className="block"><span className="mx-muted text-[13px] px-1">День рождения</span><input type="date" className="mx-input mt-1" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></label>
+        <label className="block"><span className="mx-muted text-[13px] px-1">Мой канал (@адрес, показывается в профиле)</span><input className="mx-input mt-1" value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
+        <button className="mx-btn" disabled={busy || name.trim().length < 2 || handle.replace("@", "").length < 4} onClick={() => save()}>{busy ? "Сохраняю…" : "Сохранить"}</button>
       </div>
     </Sheet>
   );
@@ -350,7 +388,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
-            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
             <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
           </>
         ) : (
@@ -369,6 +407,9 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const [editProfile, setEditProfile] = useState(false);
   const [myGifts, setMyGifts] = useState(false);
   const [myNumbers, setMyNumbers] = useState(false);
+  const [trackPicker, setTrackPicker] = useState(false);
+  const profileGifts = useProfileGifts(me);
+  const orbitGifts = profileGifts?.filter((g) => g.pinned && !g.hidden) ?? [];
   const [installHelp, setInstallHelp] = useState(false);
   const [sessionCount, setSessionCount] = useState<number | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -433,7 +474,6 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   }
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
   if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
-  if (page === "usernames") return <div className="flex flex-col h-full"><UsernamesPage onBack={back} /></div>;
   if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
@@ -580,17 +620,19 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           photo={account.photoURL}
           account={account}
           badges={<>{account.verified && <VerifiedBadge size={18} />}<StatusBadge acc={account} size={20} /></>}
-          subtitle={<>{account.number ? `${formatNumber(account.number)} · ` : ""}@{account.handle}{isPremium(account) ? " · Premium" : ""}</>}
+          orbit={orbitGifts}
+          statusPill={status}
+          subtitle={isPremium(account) ? "Premium" : undefined}
           onAvatarClick={() => fileRef.current?.click()}
           avatarBusy={avatarBusy}
           avatarOverlay={<span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "#fff", border: "3px solid rgba(0,0,0,0.25)" }}><Camera size={15} /></span>}
-          topRight={<button onClick={() => setEditProfile(true)} className="mx-prof-edit">Изм.</button>}
+          topRight={<ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => setEditProfile(true)} />}
         />
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
-        <ExtraUsernames uid={account.uid} />
         <div style={{ height: 12 }} />
 
         <Section>
+          {account.numId ? <div className="w-full px-4 py-3 text-left"><span className="block mx-muted text-[12.5px]">Идентификатор</span><span className="block tabular-nums">ID: {account.numId}</span></div> : null}
           {account.number && <button onClick={() => setMyNumbers(true)} className="w-full px-4 py-3 text-left flex items-center justify-between gap-3"><span><span className="block mx-muted text-[12.5px]">Номер</span><span className="block tabular-nums">{formatNumber(account.number)}</span></span><NumberTierChip digits={account.number} /></button>}
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">Имя пользователя</p><p style={{ color: "var(--mx-accent)" }}>@{account.handle}</p></button>
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">О себе</p><p>{account.bio || "Добавь пару слов о себе"}</p></button>
@@ -604,10 +646,10 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
+          <Row icon={<Music2 size={17} />} color="#1db954" label="Мелодия профиля" value={account.profileTrack ? "Выбрана" : "Не выбрана"} onClick={() => setTrackPicker(true)} />
           <Row icon={<Hash size={17} />} color="#5856d6" label="Мои номера" value={account.number ? formatNumber(account.number) : undefined} onClick={() => setMyNumbers(true)} />
           {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
           <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
-          <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
           <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
@@ -645,6 +687,9 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
       </div>
       <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} />
       <NumbersSheet open={myNumbers} onClose={() => setMyNumbers(false)} me={me} />
+      <ProfileTrackPicker open={trackPicker} onClose={() => setTrackPicker(false)} current={account.profileTrack} onPick={async (id) => {
+        try { await mApi("profile", { profileTrack: id }); toast("success", id ? "Мелодия профиля выбрана" : "Мелодия убрана"); setTrackPicker(false); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
+      }} />
       <Sheet open={myGifts} onClose={() => setMyGifts(false)} title="Мои подарки" full>
         {myGifts && <GiftsProfileTab uid={me} mine />}
       </Sheet>

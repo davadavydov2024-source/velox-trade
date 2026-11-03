@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     let digits: string | null = null;
     if (b.digits) {
       if (!isValidDigits(b.digits)) return err("Номер — ровно 8 цифр");
-      digits = String(b.digits);
+      digits = b.digits;
     } else {
       const tier: NumberTier = b.tier in NUMBER_TIERS ? b.tier : "rare";
       for (let i = 0; i < 25 && !digits; i++) {

@@ -1,15 +1,15 @@
 "use client";
 
-import { ExtraUsernames } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, Bookmark, ChevronRight, Copy, FileText, Gift, LogOut, MessageCircle, Search, Settings, Shield, Users } from "lucide-react";
+import { Bell, BellOff, BadgeCheck, Bookmark, ChevronRight, Copy, Crown, FileText, Gem, Gift, Hash, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { InfoRow, ProfileHeader, ProfileTabs, ProfileTile } from "./ProfileHeader";
+import { InfoRow, ProfileHeader, ProfileRoundBtn, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
+import { ProfileMusic } from "./ProfileMusic";
 import { NumberTierChip } from "./Numbers";
-import { formatNumber } from "@/lib/messenger/numbers";
+import { formatNumber, numberTier } from "@/lib/messenger/numbers";
 import { GiftShopSheet, GiftsProfileTab } from "./Gifts";
 import { ChannelSettingsSheet, ContactEditSheet, PeopleListSheet } from "./ChannelAdmin";
 import { MAccount, MChat, MMessage } from "./mtypes";
@@ -74,6 +74,13 @@ export function ChatInfoSheet({
   const baseTitle = chatTitle(chat, me, accounts);
   const photo = chatPhoto(chat, me, accounts);
   const peerId = isDm ? peerUid(chat, me) : "";
+  const profileGifts = useProfileGifts(isDm && !saved ? peerId : null);
+  const orbit = profileGifts?.filter((g) => g.pinned && !g.hidden) ?? [];
+  const nftCount = profileGifts?.filter((g) => g.nft).length ?? 0;
+  const badgeList = isDm && !saved ? profileBadges(peer, nftCount, !!peer?.number && numberTier(peer.number) !== "common") : [];
+  const BADGE_ICON = { check: <BadgeCheck size={17} />, star: <Star size={16} fill="currentColor" />, crown: <Crown size={16} />, spark: <Sparkles size={16} />, hash: <Hash size={16} />, gem: <Gem size={16} /> };
+  // «посмотрел профиль» — счётчик просмотров (свои и частые повторы сервер не считает)
+  useEffect(() => { if (open && isDm && !saved && peerId) mApi("profile-view", { uid: peerId }).catch(() => {}); }, [open, isDm, saved, peerId]);
 
   const tabs: Tab[] = isDm ? (saved ? ["media", "files", "links"] : ["stories", "gifts", "media", "files", "links"]) : ["media", "files", "links", "polls"];
   const [tab, setTab] = useState<Tab>(tabs[0]);
@@ -115,8 +122,10 @@ export function ChatInfoSheet({
         account={isDm ? peer : null}
         avatarFallback={saved ? <Bookmark size={44} /> : undefined}
         badges={<>{isDm && peer?.verified && <VerifiedBadge size={18} />}{isDm && <StatusBadge acc={peer} size={20} />}</>}
-        subtitle={isDm ? (saved ? undefined : lastSeenText(peer)) : `${chat.members.length} ${chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}`}
-        topRight={((isDm && !saved) || (!isDm && isAdmin)) ? <button onClick={() => (isDm ? setEdit(true) : setSettings(true))} className="mx-prof-edit">Изм.</button> : undefined}
+        orbit={orbit}
+        statusPill={isDm && !saved ? lastSeenText(peer) : undefined}
+        subtitle={isDm ? undefined : `${chat.members.length} ${chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}`}
+        topRight={((isDm && !saved) || (!isDm && isAdmin)) ? <ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => (isDm ? setEdit(true) : setSettings(true))} /> : undefined}
       />
 
       <div className="flex gap-2 px-4 py-3">
@@ -127,18 +136,29 @@ export function ChatInfoSheet({
         {!isDm && <ProfileTile icon={<LogOut size={22} />} label={chat.type === "channel" ? "Отписаться" : "Выйти"} onClick={() => { onClose(); onLeave(); }} />}
       </div>
 
+      {isDm && !saved && peer?.profileTrack && <ProfileMusic trackId={peer.profileTrack} />}
       {isDm && peer?.channelHandle && <ProfileChannelCard handle={peer.channelHandle} />}
 
-      {(peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
+      {((isDm && !saved && peer) || peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
         <div className="mx-card" style={{ margin: "0 16px 12px" }}>
           {peer?.number && <InfoRow value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
           {peer?.handle && <InfoRow value={`@${peer.handle}`} label="Имя пользователя" accent onClick={() => copy(`@${peer.handle}`, "Скопировано")} right={<Copy size={16} className="mx-muted" />} />}
-          {isDm && peerId && <ExtraUsernames uid={peerId} />}
           {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} right={<Copy size={16} className="mx-muted" />} />}
-          {peer?.bio && <InfoRow value={peer.bio} label="О себе" />}
+          {peer?.bio && <InfoRow value={peer.bio} label="Описание" />}
           {bday && <InfoRow value={bday} label="День рождения" />}
           {chat.description && <InfoRow value={chat.description} label="Описание" />}
           {contact?.note && <InfoRow value={contact.note} label="Заметка (видите только вы)" />}
+          {badgeList.length > 0 && (
+            <div className="px-4 py-2.5">
+              <div className="flex gap-2 flex-wrap">
+                {badgeList.map((bd) => <span key={bd.key} title={bd.label} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: bd.color, color: "#fff" }}>{BADGE_ICON[bd.icon]}</span>)}
+              </div>
+              <span className="block text-[13px] mx-muted mt-1.5">Значки</span>
+            </div>
+          )}
+          {isDm && !saved && peer?.createdAt ? <InfoRow value={`На MiliGram с ${new Date(peer.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}`} label="Дата регистрации" /> : null}
+          {isDm && !saved && peer?.numId ? <InfoRow value={`ID: ${peer.numId}`} label="Идентификатор" /> : null}
+          {isDm && !saved && typeof peer?.views === "number" && peer.views > 0 ? <InfoRow value={fmtCount(peer.views)} label="Просмотры профиля" /> : null}
         </div>
       )}
 

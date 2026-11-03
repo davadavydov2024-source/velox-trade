@@ -1,7 +1,10 @@
 "use client";
 
-import { ReactNode } from "react";
-import { NFT_SYMBOL_CHARS, backdropOf, symbolOf } from "@/lib/messenger/nft";
+import { ReactNode, useEffect, useState } from "react";
+import { NFT_SYMBOL_CHARS, backdropOf, modelOf, symbolOf } from "@/lib/messenger/nft";
+import { giftById, type GiftView } from "@/lib/messenger/gifts";
+import { mApi } from "./api";
+import { NftFigure, hasNftFigure } from "./NftFigures";
 import { isPremium } from "@/lib/messenger/premium";
 import type { MAccount } from "./mtypes";
 import { Avatar } from "./ui";
@@ -31,35 +34,95 @@ function Pattern({ ch }: { ch: string }) {
   return <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" aria-hidden>{items}</svg>;
 }
 
+/** Подарки человека (для подарков-спутников вокруг аватарки и значка «коллекционер»). null — ещё грузятся. */
+export function useProfileGifts(uid?: string | null): GiftView[] | null {
+  const [list, setList] = useState<GiftView[] | null>(null);
+  useEffect(() => {
+    if (!uid) { setList(null); return; }
+    let dead = false;
+    mApi<{ gifts: GiftView[] }>(`gifts?uid=${encodeURIComponent(uid)}`).then((d) => { if (!dead) setList(d.gifts); }).catch(() => { if (!dead) setList([]); });
+    return () => { dead = true; };
+  }, [uid]);
+  return list;
+}
+
+/** Один подарок-спутник у аватарки: фигурка NFT без фона или эмодзи обычного подарка. */
+function OrbitGift({ g, size }: { g: GiftView; size: number }) {
+  const d = giftById(g.giftId);
+  if (!d) return null;
+  if (g.nft && hasNftFigure(d.id)) {
+    const m = modelOf(g.nft.model);
+    return (
+      <svg viewBox="0 0 200 200" width={size} height={size} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.45))" }}>
+        <g style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) brightness(${m.bright ?? 1})`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}><NftFigure id={d.id} /></g>
+      </svg>
+    );
+  }
+  return <span style={{ fontSize: size * 0.82, lineHeight: 1, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.45))" }}>{d.emoji}</span>;
+}
+
+/** Круглая тёмная кнопка в углу шапки профиля (изменить, закрыть). */
+export function ProfileRoundBtn({ icon, onClick, label }: { icon: ReactNode; onClick: () => void; label: string }) {
+  return <button onClick={onClick} aria-label={label} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "rgba(255,255,255,0.12)", color: "var(--mx-text)" }}>{icon}</button>;
+}
+
 /**
- * Шапка профиля как в Telegram: плоская цветная подложка, аватарка по центру, имя и статус белым.
- * Если в статусе стоит NFT-подарок (Premium), подложка берёт цвета его фона и узор из его символа; иначе — плоский цвет по uid (баннеров нет).
+ * Шапка профиля: тёмный фон с мягким свечением цвета профиля (или цветов NFT-статуса), либо баннер; крупная круглая аватарка,
+ * вокруг неё парят закреплённые подарки; имя со значками и «пилюля» статуса.
  */
 export function ProfileHeader({
-  seed, name, photo, account, subtitle, badges, avatarSize = 96, avatarFallback, onAvatarClick, avatarBusy, avatarOverlay, topRight, topLeft,
+  seed, name, photo, account, subtitle, statusPill, badges, avatarSize = 108, avatarFallback, onAvatarClick, avatarBusy, avatarOverlay, topRight, topLeft, orbit,
 }: {
-  seed: string; name: string; photo?: string | null; account?: MAccount | null; subtitle?: ReactNode; badges?: ReactNode; avatarSize?: number;
-  avatarFallback?: ReactNode; onAvatarClick?: () => void; avatarBusy?: boolean; avatarOverlay?: ReactNode; topRight?: ReactNode; topLeft?: ReactNode;
+  seed: string; name: string; photo?: string | null; account?: MAccount | null; subtitle?: ReactNode; statusPill?: ReactNode; badges?: ReactNode; avatarSize?: number;
+  avatarFallback?: ReactNode; onAvatarClick?: () => void; avatarBusy?: boolean; avatarOverlay?: ReactNode; topRight?: ReactNode; topLeft?: ReactNode; orbit?: GiftView[];
 }) {
   const st = account?.status;
   const nft = st && st.kind === "nft" && isPremium(account) ? st.nft : null;
+  const banner = account?.bannerURL ?? null;
   const bd = nft ? backdropOf(nft.backdrop) : null;
-  const bg = bd ? `radial-gradient(circle at 50% 38%, ${bd.colors[0]} 0%, ${bd.colors[1]} 100%)` : profileColor(seed);
+  const glow = bd ? bd.colors[0] : profileColor(seed);
   const av = <Avatar src={photo ?? null} name={name} seed={seed} size={avatarSize}>{avatarFallback}</Avatar>;
+  const items = (orbit ?? []).slice(0, 6);
+  const box = avatarSize + 84; // размер «поля» вокруг аватарки под подарки-спутники
+  const R = avatarSize / 2 + 28;
   return (
-    <div className="relative overflow-hidden text-white" style={{ background: bg }}>
-      {nft && <Pattern ch={NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦"} />}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 45%, rgba(0,0,0,0.3))" }} />
+    <div className="relative overflow-hidden">
+      <style>{"@keyframes mx-orbit-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}.mx-orbit-float{animation:mx-orbit-float 3.4s ease-in-out infinite}"}</style>
+      {banner ? (
+        <div className="relative" style={{ height: 150 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.15), var(--mx-bg))" }} />
+        </div>
+      ) : (
+        <>
+          <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 280, background: `radial-gradient(ellipse at 50% 0%, ${glow}59 0%, transparent 72%)` }} />
+          {nft && <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 220, opacity: 0.55 }}><Pattern ch={NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦"} /></div>}
+        </>
+      )}
       {topLeft && <div className="absolute left-3 top-3 z-10">{topLeft}</div>}
-      {topRight && <div className="absolute right-3 top-3 z-10">{topRight}</div>}
-      <div className="relative z-[1] flex flex-col items-center px-6 pt-9 pb-5">
-        {onAvatarClick ? (
-          <button onClick={onAvatarClick} disabled={avatarBusy} className="relative rounded-full" aria-label="Сменить фото">{av}{avatarOverlay}</button>
-        ) : (
-          <div className="relative">{av}{avatarOverlay}</div>
-        )}
-        <p className="text-[22px] font-semibold mt-3 flex items-center justify-center gap-1.5 text-center leading-tight">{name}{badges}</p>
-        {subtitle && <p className="text-[14px] mt-1 text-center" style={{ color: "rgba(255,255,255,0.78)" }}>{subtitle}</p>}
+      {topRight && <div className="absolute right-3 top-3 z-10 flex gap-2">{topRight}</div>}
+      <div className="relative z-[1] flex flex-col items-center px-5 pb-4" style={{ marginTop: banner ? -(avatarSize / 2 + 42) : 14 }}>
+        <div className="relative flex items-center justify-center" style={{ width: box, height: box }}>
+          {items.map((g, i) => {
+            const ang = (-90 + (i * 360) / items.length + (items.length < 4 ? 20 : 0)) * (Math.PI / 180);
+            const x = Math.cos(ang) * R;
+            const y = Math.sin(ang) * R;
+            return (
+              <span key={g.id} className="absolute left-1/2 top-1/2" style={{ transform: `translate(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px)) rotate(${((i * 37) % 30) - 15}deg)` }}>
+                <span className="mx-orbit-float block" style={{ animationDelay: `${i * 0.45}s` }}><OrbitGift g={g} size={36} /></span>
+              </span>
+            );
+          })}
+          {onAvatarClick ? (
+            <button onClick={onAvatarClick} disabled={avatarBusy} className="relative rounded-full" aria-label="Сменить фото">{av}{avatarOverlay}</button>
+          ) : (
+            <div className="relative">{av}{avatarOverlay}</div>
+          )}
+        </div>
+        <p className="text-[24px] font-bold flex items-center justify-center gap-1.5 text-center leading-tight">{name}{badges}</p>
+        {statusPill && <span className="mt-2 px-3 py-1 rounded-full text-[13px]" style={{ background: "var(--mx-surface)", color: "var(--mx-muted)" }}>{statusPill}</span>}
+        {subtitle && <p className="text-[14px] mt-1.5 text-center mx-muted">{subtitle}</p>}
       </div>
     </div>
   );
@@ -105,4 +168,24 @@ export function ProfileTabs<T extends string>({ tabs, value, onChange, labels }:
       })}
     </div>
   );
+}
+
+/** Значки профиля — считаются по данным аккаунта: верификация, Premium, ранний пользователь, редкий номер, коллекционер NFT. */
+export function profileBadges(acc: MAccount | null | undefined, nftCount: number, numberRare: boolean): { key: string; label: string; color: string; icon: "check" | "star" | "crown" | "spark" | "hash" | "gem" }[] {
+  if (!acc) return [];
+  const out: { key: string; label: string; color: string; icon: "check" | "star" | "crown" | "spark" | "hash" | "gem" }[] = [];
+  if (acc.verified) out.push({ key: "verified", label: "Подтверждённый аккаунт", color: "#3b82f6", icon: "check" });
+  if (isPremium(acc)) out.push({ key: "premium", label: "Premium", color: "#f5a623", icon: "star" });
+  if (acc.plusUntil && acc.plusUntil > Date.now()) out.push({ key: "plus", label: "Premium Plus", color: "#9b6bff", icon: "crown" });
+  if (acc.numId && acc.numId <= 100_999) out.push({ key: "early", label: "Один из первых 1000 пользователей", color: "#34c759", icon: "spark" });
+  if (numberRare) out.push({ key: "number", label: "Редкий номер", color: "#ff5ca8", icon: "hash" });
+  if (nftCount >= 3) out.push({ key: "collector", label: "Коллекционер NFT", color: "#22b8cf", icon: "gem" });
+  return out;
+}
+
+/** Компактное число: 1100 → «1.1к». */
+export function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}м`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}к`;
+  return String(n);
 }
