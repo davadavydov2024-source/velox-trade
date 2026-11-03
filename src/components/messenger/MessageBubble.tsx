@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useRef } from "react";
-import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft } from "lucide-react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
@@ -325,6 +325,26 @@ export function MessageRow({
       <div className="relative px-1" style={{ minWidth: 52 }}>
         <span className="block leading-[1.15] select-none" style={{ fontSize: emojiCount === 1 ? 64 : emojiCount === 2 ? 52 : 44 }}>{(msg.text ?? "").trim()}</span>
         <span className="absolute bottom-0 right-0 text-[11px] px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: "rgba(0,0,0,0.4)" }}>{formatTime(msg.createdAt)}{mine && (read ? <CheckCheck size={12} /> : <Check size={12} />)}</span>
+      </div>
+    );
+  } else if (msg.kind === "text" && /^🔑 Код входа\n\d{6}/.test(msg.text ?? "")) {
+    const lines = (msg.text ?? "").split("\n");
+    const code = lines[1];
+    const rest = lines.slice(2).join("\n").trim();
+    content = (
+      <div style={{ minWidth: 230 }}>
+        <p className="flex items-center gap-2 text-[13px] font-semibold" style={{ color: "var(--mx-accent)" }}>🔑 Код входа</p>
+        <p className="my-2 text-[34px] font-bold tracking-[0.18em] tabular-nums select-all">{code}</p>
+        <button
+          onClick={() => { navigator.clipboard?.writeText(code).catch(() => {}); }}
+          className="w-full h-10 rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2 active:opacity-70"
+          style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text, #fff)" }}
+        >
+          <Copy size={16} /> Копировать код
+        </button>
+        <p className="whitespace-pre-wrap text-[12.5px] mx-muted mt-2.5">{rest}</p>
+        {meta}
+        <div className="clear-both" />
       </div>
     );
   } else {

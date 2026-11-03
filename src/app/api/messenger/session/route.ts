@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
-import { DEVICE_RE, describeDevice, fail, requireMessenger, sendServiceMessage } from "@/lib/messenger/server";
+import { DEVICE_RE, describeDevice, fail, issueLoginCode, requireMessenger, sendServiceMessage } from "@/lib/messenger/server";
 import { ensureNumId } from "@/lib/messenger/numid";
 import { notifyTelegramServer } from "@/lib/telegramNotifyServer";
 
@@ -17,7 +17,7 @@ const dec = (v: string | null) => { try { return v ? decodeURIComponent(v) : "";
  * -> { ok, isNew, notified } | 401 { revoked:true }, если сеанс уже завершён.
  */
 export async function POST(req: NextRequest) {
-  const me = await requireMessenger(req);
+  const me = await requireMessenger(req, { allowPending: true });
   if ("error" in me) return me.error;
   const b = await req.json().catch(() => ({}));
   if (typeof b.deviceId !== "string" || !DEVICE_RE.test(b.deviceId)) return fail("Некорректный deviceId");
@@ -30,6 +30,16 @@ export async function POST(req: NextRequest) {
 
   if (snap.exists) {
     if (snap.data()!.revoked) return NextResponse.json({ error: "Сеанс завершён. Войди заново.", revoked: true }, { status: 401 });
+    if (snap.data()!.pending) {
+      // устройство ждёт кода; «выслать заново» — не чаще 3 раз за 10 минут
+      let resent = false;
+      if (b.resend && (await rateLimit(`msgr_logincode_${me.uid}`, 3, 10 * 60_000))) {
+        const d = snap.data()!;
+        await issueLoginCode(me.uid, b.deviceId, { deviceName: d.deviceName, place: [d.city, d.country].filter(Boolean).join(", "), ip: d.ip ?? "" });
+        resent = true;
+      }
+      return NextResponse.json({ ok: true, needCode: true, resent });
+    }
     if (now - (snap.data()!.lastActiveAt ?? 0) > 5 * 60_000) await ref.update({ lastActiveAt: now });
     return NextResponse.json({ ok: true, isNew: false });
   }
@@ -39,7 +49,16 @@ export async function POST(req: NextRequest) {
   const city = dec(req.headers.get("x-vercel-ip-city"));
   const country = dec(req.headers.get("x-vercel-ip-country"));
   const deviceName = describeDevice(req.headers.get("user-agent") ?? "");
-  await ref.set({ id: b.deviceId, deviceName, ip, city, country, createdAt: now, lastActiveAt: now, revoked: false });
+  // «рабочая» сессия — есть другое незавершённое устройство, подтверждённое и активное за последние 60 дней
+  const live = others.empty ? null : (await col.where("revoked", "==", false).limit(20).get()).docs.find((d) => d.data().pending !== true && now - (d.data().lastActiveAt ?? 0) < 60 * 86_400_000);
+  const needCode = !!live;
+  await ref.set({ id: b.deviceId, deviceName, ip, city, country, createdAt: now, lastActiveAt: now, revoked: false, pending: needCode });
+  if (needCode) {
+    if (await rateLimit(`msgr_logincode_${me.uid}`, 3, 10 * 60_000)) {
+      await issueLoginCode(me.uid, b.deviceId, { deviceName, place: [city, country].filter(Boolean).join(", "), ip });
+    }
+    return NextResponse.json({ ok: true, isNew: true, needCode: true });
+  }
 
   let notified = false;
   if (!others.empty && (await rateLimit(`msgr_loginnotice_${me.uid}`, 3, 10 * 60_000))) {
