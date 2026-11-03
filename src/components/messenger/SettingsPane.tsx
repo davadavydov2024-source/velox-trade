@@ -40,6 +40,20 @@ function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; c
 }
 
 /** Квадратная обрезка по центру до 512 px — аватарка без отдельного окна обрезки. */
+/** Обрезка по центру под баннер 3:1 (1200×400). */
+async function bannerCrop(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const W = 1200, H = 400;
+  const scale = Math.max(W / bmp.width, H / bmp.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  const w = bmp.width * scale, h = bmp.height * scale;
+  ctx.drawImage(bmp, (W - w) / 2, (H - h) / 2, w, h);
+  return await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("Не удалось обработать картинку"))), "image/jpeg", 0.88));
+}
+
 async function squareAvatar(file: File): Promise<Blob> {
   const url = URL.createObjectURL(file);
   try {
@@ -68,6 +82,7 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
   const [channel, setChannel] = useState(account.channelHandle ?? "");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -107,6 +122,31 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
     }
   };
 
+  const pickBanner = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const up = await mUpload(await bannerCrop(f), "banner", { fileName: "banner.jpg" });
+      await mApi("profile", { bannerURL: up.url });
+      toast("success", "Баннер обновлён");
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить баннер");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeBanner = async () => {
+    setBusy(true);
+    try {
+      await mApi("profile", { bannerURL: null });
+      toast("success", "Баннер убран");
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось убрать баннер");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const inputCls = "bg-transparent outline-none w-full px-4 py-3 text-[16px]";
   const canSave = !busy && name.trim().length >= 2 && handle.replace("@", "").length >= 4;
   return (
@@ -118,6 +158,23 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
           <button disabled={!canSave} onClick={() => save()} className="text-[16px] font-semibold" style={{ color: "var(--mx-accent)", opacity: canSave ? 1 : 0.4 }}>{busy ? "…" : "Готово"}</button>
         </div>
 
+        <div style={{ margin: "0 16px" }}>
+        <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 62%, #000))" }}>
+          {account.bannerURL && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={account.bannerURL} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          )}
+          <div className="absolute inset-x-0 bottom-0 p-2 flex gap-2 justify-end" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.45))" }}>
+            <button onClick={() => bannerRef.current?.click()} disabled={busy} className="h-8 px-3 rounded-full text-[13px] font-semibold flex items-center gap-1.5 text-white" style={{ background: "rgba(0,0,0,0.5)" }}>
+              <Camera size={14} /> {account.bannerURL ? "Сменить баннер" : "Добавить баннер"}
+            </button>
+            {account.bannerURL && (
+              <button onClick={removeBanner} disabled={busy} className="h-8 w-8 rounded-full flex items-center justify-center text-white" style={{ background: "rgba(0,0,0,0.5)" }} aria-label="Убрать баннер"><Trash2 size={14} /></button>
+            )}
+          </div>
+          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { pickBanner(e.target.files?.[0]); e.target.value = ""; }} />
+        </div>
+        </div>
         <div className="flex flex-col items-center pt-3 pb-5">
           <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy} aria-label="Сменить фото">
             <Avatar src={account.photoURL} name={account.displayName} seed={account.uid} size={96} />
