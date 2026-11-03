@@ -1,10 +1,9 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { NFT_SYMBOL_CHARS, backdropOf, modelOf, symbolOf } from "@/lib/messenger/nft";
-import { giftById, type GiftView } from "@/lib/messenger/gifts";
+import { NFT_SYMBOL_CHARS, backdropOf, symbolOf } from "@/lib/messenger/nft";
+import type { GiftView } from "@/lib/messenger/gifts";
 import { mApi } from "./api";
-import { NftFigure, hasNftFigure } from "./NftFigures";
 import { isPremium } from "@/lib/messenger/premium";
 import type { MAccount } from "./mtypes";
 import { Avatar } from "./ui";
@@ -46,83 +45,40 @@ export function useProfileGifts(uid?: string | null): GiftView[] | null {
   return list;
 }
 
-/** Один подарок-спутник у аватарки: фигурка NFT без фона или эмодзи обычного подарка. */
-function OrbitGift({ g, size }: { g: GiftView; size: number }) {
-  const d = giftById(g.giftId);
-  if (!d) return null;
-  if (g.nft && hasNftFigure(d.id)) {
-    const m = modelOf(g.nft.model);
-    return (
-      <svg viewBox="0 0 200 200" width={size} height={size} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.45))" }}>
-        <g style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) brightness(${m.bright ?? 1})`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}><NftFigure id={d.id} /></g>
-      </svg>
-    );
-  }
-  return <span style={{ fontSize: size * 0.82, lineHeight: 1, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.45))" }}>{d.emoji}</span>;
-}
-
-/** Круглая тёмная кнопка в углу шапки профиля (изменить, закрыть). */
+/** Круглая кнопка в углу шапки профиля (изменить, закрыть). */
 export function ProfileRoundBtn({ icon, onClick, label }: { icon: ReactNode; onClick: () => void; label: string }) {
-  return <button onClick={onClick} aria-label={label} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "rgba(255,255,255,0.12)", color: "var(--mx-text)" }}>{icon}</button>;
+  return <button onClick={onClick} aria-label={label} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "rgba(0,0,0,0.22)", color: "#fff" }}>{icon}</button>;
 }
 
 /**
- * Шапка профиля: тёмный фон с мягким свечением цвета профиля (или цветов NFT-статуса), либо баннер; крупная круглая аватарка,
- * вокруг неё парят закреплённые подарки; имя со значками и «пилюля» статуса.
+ * Шапка профиля как в Telegram: плоский сплошной цвет профиля (или цвет NFT-статуса), по центру аватарка,
+ * ниже имя со значками, строка «в сети» и подзаголовок. Без баннеров, свечения и анимаций.
  */
 export function ProfileHeader({
-  seed, name, photo, account, subtitle, statusPill, badges, avatarSize = 108, avatarFallback, onAvatarClick, avatarBusy, avatarOverlay, topRight, topLeft, orbit,
+  seed, name, photo, account, subtitle, statusPill, badges, avatarSize = 96, avatarFallback, onAvatarClick, avatarBusy, avatarOverlay, topRight, topLeft,
 }: {
   seed: string; name: string; photo?: string | null; account?: MAccount | null; subtitle?: ReactNode; statusPill?: ReactNode; badges?: ReactNode; avatarSize?: number;
   avatarFallback?: ReactNode; onAvatarClick?: () => void; avatarBusy?: boolean; avatarOverlay?: ReactNode; topRight?: ReactNode; topLeft?: ReactNode; orbit?: GiftView[];
 }) {
   const st = account?.status;
   const nft = st && st.kind === "nft" && isPremium(account) ? st.nft : null;
-  const banner = account?.bannerURL ?? null;
   const bd = nft ? backdropOf(nft.backdrop) : null;
-  const glow = bd ? bd.colors[0] : profileColor(seed);
+  const base = bd ? bd.colors[0] : profileColor(seed);
   const av = <Avatar src={photo ?? null} name={name} seed={seed} size={avatarSize}>{avatarFallback}</Avatar>;
-  const items = (orbit ?? []).slice(0, 6);
-  const box = avatarSize + 84; // размер «поля» вокруг аватарки под подарки-спутники
-  const R = avatarSize / 2 + 28;
   return (
-    <div className="relative overflow-hidden">
-      <style>{"@keyframes mx-orbit-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}.mx-orbit-float{animation:mx-orbit-float 3.4s ease-in-out infinite}"}</style>
-      {banner ? (
-        <div className="relative" style={{ height: 150 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.15), var(--mx-bg))" }} />
-        </div>
-      ) : (
-        <>
-          <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 280, background: `radial-gradient(ellipse at 50% 0%, ${glow}59 0%, transparent 72%)` }} />
-          {nft && <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 220, opacity: 0.55 }}><Pattern ch={NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦"} /></div>}
-        </>
-      )}
+    <div className="relative overflow-hidden" style={{ background: base, color: "#fff" }}>
+      {nft && <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 220, opacity: 0.5 }}><Pattern ch={NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦"} /></div>}
       {topLeft && <div className="absolute left-3 top-3 z-10">{topLeft}</div>}
       {topRight && <div className="absolute right-3 top-3 z-10 flex gap-2">{topRight}</div>}
-      <div className="relative z-[1] flex flex-col items-center px-5 pb-4" style={{ marginTop: banner ? -(avatarSize / 2 + 42) : 14 }}>
-        <div className="relative flex items-center justify-center" style={{ width: box, height: box }}>
-          {items.map((g, i) => {
-            const ang = (-90 + (i * 360) / items.length + (items.length < 4 ? 20 : 0)) * (Math.PI / 180);
-            const x = Math.cos(ang) * R;
-            const y = Math.sin(ang) * R;
-            return (
-              <span key={g.id} className="absolute left-1/2 top-1/2" style={{ transform: `translate(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px)) rotate(${((i * 37) % 30) - 15}deg)` }}>
-                <span className="mx-orbit-float block" style={{ animationDelay: `${i * 0.45}s` }}><OrbitGift g={g} size={36} /></span>
-              </span>
-            );
-          })}
-          {onAvatarClick ? (
-            <button onClick={onAvatarClick} disabled={avatarBusy} className="relative rounded-full" aria-label="Сменить фото">{av}{avatarOverlay}</button>
-          ) : (
-            <div className="relative">{av}{avatarOverlay}</div>
-          )}
-        </div>
-        <p className="text-[24px] font-bold flex items-center justify-center gap-1.5 text-center leading-tight">{name}{badges}</p>
-        {statusPill && <span className="mt-2 px-3 py-1 rounded-full text-[13px]" style={{ background: "var(--mx-surface)", color: "var(--mx-muted)" }}>{statusPill}</span>}
-        {subtitle && <p className="text-[14px] mt-1.5 text-center mx-muted">{subtitle}</p>}
+      <div className="relative z-[1] flex flex-col items-center px-5 pt-12 pb-5">
+        {onAvatarClick ? (
+          <button onClick={onAvatarClick} disabled={avatarBusy} className="relative rounded-full" aria-label="Сменить фото">{av}{avatarOverlay}</button>
+        ) : (
+          <div className="relative">{av}{avatarOverlay}</div>
+        )}
+        <p className="mt-3 text-[21px] font-semibold flex items-center justify-center gap-1.5 text-center leading-tight">{name}{badges}</p>
+        {statusPill && <p className="text-[14px] mt-1 text-center" style={{ opacity: 0.8 }}>{statusPill}</p>}
+        {subtitle && <p className="text-[14px] mt-0.5 text-center" style={{ opacity: 0.8 }}>{subtitle}</p>}
       </div>
     </div>
   );

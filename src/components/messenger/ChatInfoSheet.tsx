@@ -1,5 +1,6 @@
 "use client";
 
+import { ExtraUsernames } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, BadgeCheck, Bookmark, ChevronRight, Copy, Crown, FileText, Gem, Gift, Hash, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -143,6 +144,7 @@ export function ChatInfoSheet({
         <div className="mx-card" style={{ margin: "0 16px 12px" }}>
           {peer?.number && <InfoRow value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
           {peer?.handle && <InfoRow value={`@${peer.handle}`} label="Имя пользователя" accent onClick={() => copy(`@${peer.handle}`, "Скопировано")} right={<Copy size={16} className="mx-muted" />} />}
+          {isDm && peerId && <ExtraUsernames uid={peerId} />}
           {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} right={<Copy size={16} className="mx-muted" />} />}
           {peer?.bio && <InfoRow value={peer.bio} label="Описание" />}
           {bday && <InfoRow value={bday} label="День рождения" />}
