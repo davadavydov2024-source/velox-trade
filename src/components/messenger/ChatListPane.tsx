@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
+import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
@@ -189,14 +189,14 @@ export function ChatListPane({
       >
         <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
           <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
-            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={54} online={!editMode && isOnline(peer, now)}>
-              {saved ? "🔖" : undefined}
-            </Avatar>
+            {saved ? <span className="rounded-full flex items-center justify-center text-white" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Bookmark size={28} fill="#fff" /></span> : <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={62} online={!editMode && isOnline(peer, now)}>
+              {undefined}
+            </Avatar>}
             <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: 600 }}>
+              <p className="truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
                 {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
@@ -206,7 +206,7 @@ export function ChatListPane({
               </span>
             </div>
             <div className="flex items-start gap-2 mt-0.5">
-              <p className="text-[14.5px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
+              <p className="text-[15px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
                 {typing ? (
                   <span style={{ color: "var(--mx-accent)" }}>печатает…</span>
                 ) : draft ? (
@@ -245,19 +245,19 @@ export function ChatListPane({
 
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
-      {/* ---- шапка как в Telegram: «Изменить» слева, название по центру, действия справа ---- */}
+      {/* ---- шапка: стеклянные «таблетки» — «Изм.» слева, «Чаты» по центру, действия справа ---- */}
       <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
-        <div className="h-12 px-3 flex items-center">
-          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="text-[16px] min-w-[84px] text-left" style={{ color: "var(--mx-accent)", fontWeight: editMode ? 600 : 400 }}>
-            {editMode ? "Готово" : "Изменить"}
+        <div className="px-4 pt-2 pb-2 flex items-center">
+          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-pill-btn h-11 px-4 text-[17px] font-semibold min-w-[68px]">
+            {editMode ? "Готово" : "Изм."}
           </button>
-          <div className="flex-1 text-center min-w-0">
-            <h1 className="text-[17px] font-semibold leading-tight truncate">Чаты</h1>
+          <div className="flex-1 text-center min-w-0 px-2">
+            <h1 className="text-[18px] font-bold leading-tight truncate">Чаты</h1>
             {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
           </div>
-          <div className="min-w-[84px] flex justify-end gap-1">
-            <button onClick={onCreateStory} className="p-2" style={{ color: "var(--mx-accent)" }} aria-label="Новая история"><Camera size={22} /></button>
-            <button onClick={onNewChat} className="p-2" style={{ color: "var(--mx-accent)" }} aria-label="Новое сообщение"><SquarePen size={22} /></button>
+          <div className="flex gap-2">
+            <button onClick={onCreateStory} className="mx-pill-btn w-11 h-11" aria-label="Новая история"><Camera size={21} /></button>
+            <button onClick={onNewChat} className="mx-pill-btn w-11 h-11" aria-label="Новое сообщение"><SquarePen size={21} /></button>
           </div>
         </div>
       </div>
@@ -269,7 +269,7 @@ export function ChatListPane({
         <div className="px-4 pb-2 pt-1">
           <div className="mx-search">
             <Search size={17} className="mx-muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск чатов и людей" className="bg-transparent outline-none flex-1 text-[16px]" autoCapitalize="none" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск" className="bg-transparent outline-none flex-1 text-[17px]" autoCapitalize="none" />
             {q && <button onClick={() => setQ("")} className="mx-muted" aria-label="Очистить"><X size={17} /></button>}
           </div>
         </div>
@@ -334,10 +334,9 @@ export function ChatListPane({
             {(
               <>
                 <button onClick={() => setArchiveOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
-                  <span className="rounded-full flex items-center justify-center text-white shrink-0" style={{ background: "#9aa4b1", width: 54, height: 54 }}><Archive size={24} /></span>
-                  <span className="flex-1 min-w-0"><span className="block font-semibold text-[16.5px]">Архив чатов</span><span className="block text-[14px] mx-muted truncate">{archived.length ? "Чатов: " + archived.length : "Пусто"}</span></span>
+                  <span className="rounded-full flex items-center justify-center text-white shrink-0" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Archive size={28} /></span>
+                  <span className="flex-1 min-w-0"><span className="block font-bold text-[17px]">Архив чатов</span><span className="block text-[15px] mx-muted truncate">{archived.length ? archived.map((c) => chatTitle(c, me, accounts)).join(", ") : "Пусто"}</span></span>
                   {archivedUnread > 0 && <span className="mx-badge muted">{archivedUnread}</span>}
-                  {archiveOpen ? <ChevronDown size={18} className="mx-muted" /> : <ChevronRight size={18} className="mx-muted" />}
                 </button>
                 {archiveOpen && archived.map(row)}
                 {archiveOpen && archived.length === 0 && <p className="mx-muted text-[13.5px] px-6 pb-3">Архив пуст. Смахни чат влево и нажми «Архив» — он спрячется сюда и не будет мешать.</p>}

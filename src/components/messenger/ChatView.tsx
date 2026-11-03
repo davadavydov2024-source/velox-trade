@@ -580,7 +580,7 @@ export function ChatView({
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="mx-glass mx-chat-head mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
+      <div className="mx-chat-head mx-chat-head-tg mx-safe-top shrink-0 z-10">
         {selecting ? (
           <div className="h-14 flex items-center px-3 gap-2">
             <button onClick={() => setSelection(null)} className="p-2" aria-label="Отмена"><X size={22} /></button>
@@ -591,24 +591,22 @@ export function ChatView({
             <button onClick={() => setDeleteMsgs(selectedMsgs)} className="p-2.5" style={{ color: "var(--mx-danger)" }} aria-label="Удалить"><Trash2 size={21} /></button>
           </div>
         ) : (
-          <div className="h-14 flex items-center gap-1 px-1">
-            <button onClick={onBack} className="min-[900px]:hidden flex items-center p-2" style={{ color: "var(--mx-accent)" }} aria-label="Назад">
-              <ChevronLeft size={28} />
-            </button>
-            <button onClick={() => setInfo(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left pl-1 min-[900px]:pl-3">
-              <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={40} online={online}>
-                {saved ? "🔖" : undefined}
-              </Avatar>
-              <div className="min-w-0">
-                <p className="font-semibold truncate flex items-center gap-1 text-[16px]">
+          <div className="flex items-center gap-2 px-3 pt-1 pb-2">
+            <button onClick={onBack} className="min-[900px]:hidden mx-pill-btn w-11 h-11 shrink-0" aria-label="Назад"><ChevronLeft size={26} /></button>
+            <button onClick={() => setInfo(true)} className="mx-pill-btn flex-1 min-w-0 h-12 px-4 mx-auto" style={{ maxWidth: 360, flex: "1 1 auto" }}>
+              <div className="min-w-0 text-center">
+                <p className="font-bold truncate flex items-center justify-center gap-1 text-[16.5px] leading-tight">
                   {title}
                   {chat.type === "dm" && peer?.verified && <VerifiedBadge />}{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
                 </p>
-                <p className="text-[13px] truncate" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
+                <p className="text-[12.5px] truncate leading-tight" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
               </div>
             </button>
-            <button onClick={() => setHeaderMenu(true)} className="p-2.5 mx-muted" aria-label="Меню"><MoreVertical size={22} /></button>
+            <button onClick={() => setInfo(true)} className="shrink-0 rounded-full overflow-hidden" aria-label="Профиль" style={{ border: "2px solid rgba(255,255,255,0.18)" }}>
+              <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={44} online={online}>{saved ? "🔖" : undefined}</Avatar>
+            </button>
+            <button onClick={() => setHeaderMenu(true)} className="mx-pill-btn w-11 h-11 shrink-0" aria-label="Меню"><MoreVertical size={21} /></button>
           </div>
         )}
         {pinnedMsg || currentPinId ? (

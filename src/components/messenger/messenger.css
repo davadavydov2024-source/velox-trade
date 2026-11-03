@@ -658,3 +658,29 @@
 .mx[data-design="tg"] .mx-composer-field { border-radius: 22px !important; }
 .mx .mx-icon-btn { border-radius: 999px; }
 .mx[data-design="tg"] .mx-nav.mx-liquid button { border-radius: 14px !important; }
+
+
+/* ===== ТОЧНО КАК В TELEGRAM (iOS «жидкое стекло»): таблетки, плавающая панель, поиск ===== */
+.mx-pill-btn {
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; color: var(--mx-text);
+  background: rgba(60,60,67,0.55); -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+.mx[data-theme="light"] .mx-pill-btn { background: rgba(235,235,240,0.8); border-color: rgba(0,0,0,0.06); box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+.mx-pill-btn:active { opacity: .7; }
+.mx[data-design="tg"] .mx-chat-head.mx-chat-head-tg { background: transparent; border-bottom: 0; box-shadow: none; }
+.mx[data-design="tg"] .mx-search { height: 44px; border-radius: 999px; background: var(--mx-surface); justify-content: center; padding: 0 16px; }
+.mx[data-design="tg"] .mx-search input { text-align: left; }
+.mx-chat-row::after { left: 90px; }
+
+/* нижняя панель — плавающая стеклянная таблетка с выделенной вкладкой */
+.mx[data-design="tg"] .mx-nav.mx-liquid {
+  left: 16px !important; right: 16px !important; bottom: calc(env(safe-area-inset-bottom) + 10px) !important; border-radius: 34px !important;
+  border: 1px solid rgba(255,255,255,0.1) !important; padding: 6px !important;
+  background: rgba(44,44,48,0.72) !important; -webkit-backdrop-filter: blur(26px) saturate(1.6) !important; backdrop-filter: blur(26px) saturate(1.6) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4) !important;
+}
+.mx[data-design="tg"][data-theme="light"] .mx-nav.mx-liquid { background: rgba(245,245,248,0.8) !important; border-color: rgba(0,0,0,0.06) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.12) !important; }
+.mx[data-design="tg"] .mx-liquid-pill { display: block !important; border-radius: 28px !important; background: rgba(255,255,255,0.1) !important; }
+.mx[data-design="tg"][data-theme="light"] .mx-liquid-pill { background: rgba(0,0,0,0.07) !important; }
+.mx[data-design="tg"] .mx-nav.mx-liquid button { border-radius: 26px !important; }
