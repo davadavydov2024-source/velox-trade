@@ -189,14 +189,14 @@ export function ChatListPane({
       >
         <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
           <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
-            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={!editMode && isOnline(peer, now)}>
+            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={54} online={!editMode && isOnline(peer, now)}>
               {saved ? "🔖" : undefined}
             </Avatar>
             <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>
+              <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: 600 }}>
                 {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
@@ -245,18 +245,20 @@ export function ChatListPane({
 
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
-      {/* ---- шапка ---- */}
-      <div className="mx-safe-top shrink-0">
-        <div className="px-4 pt-2 pb-2 flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <h1 className="mx-list-title text-[30px] font-bold leading-none tracking-tight">Чаты</h1>
-            {unreadTotal > 0 && <p className="text-[13px] mx-muted mt-1">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
-          </div>
-          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-chip" style={editMode ? { background: "var(--mx-accent)", color: "var(--mx-accent-text)" } : undefined}>
+      {/* ---- шапка как в Telegram: «Изменить» слева, название по центру, действия справа ---- */}
+      <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
+        <div className="h-12 px-3 flex items-center">
+          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="text-[16px] min-w-[84px] text-left" style={{ color: "var(--mx-accent)", fontWeight: editMode ? 600 : 400 }}>
             {editMode ? "Готово" : "Изменить"}
           </button>
-          <button onClick={onCreateStory} className="mx-icon-btn" aria-label="Новая история"><Camera size={18} /></button>
-          <button onClick={onNewChat} className="mx-icon-btn" aria-label="Новое сообщение"><SquarePen size={18} /></button>
+          <div className="flex-1 text-center min-w-0">
+            <h1 className="text-[17px] font-semibold leading-tight truncate">Чаты</h1>
+            {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
+          </div>
+          <div className="min-w-[84px] flex justify-end gap-1">
+            <button onClick={onCreateStory} className="p-2" style={{ color: "var(--mx-accent)" }} aria-label="Новая история"><Camera size={22} /></button>
+            <button onClick={onNewChat} className="p-2" style={{ color: "var(--mx-accent)" }} aria-label="Новое сообщение"><SquarePen size={22} /></button>
+          </div>
         </div>
       </div>
 
@@ -311,23 +313,20 @@ export function ChatListPane({
           </div>
         ) : (
           <>
-            {/* папки */}
+            {/* папки: вкладки сверху с акцентной линией, как в Telegram */}
             {folders.length > 0 && (
-              <div className="pb-2">
-                <div className="flex gap-2 overflow-x-auto mx-noscrollbar px-4 py-1">
-                  {[{ id: "all", name: "Все", emoji: "" } as MFolder, ...folders].map((f) => {
-                    const on = f.id === folderId;
-                    const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
-                    return (
-                      <button key={f.id} onClick={() => setFolderId(f.id)} className={`mx-chip ${on ? "on" : ""}`}>
-                        {f.emoji} {f.name}
-                        {count > 0 && (
-                          <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent-text)" : "var(--mx-accent)", color: on ? "var(--mx-accent)" : "var(--mx-accent-text)" }}>{count}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex overflow-x-auto mx-noscrollbar px-2" style={{ borderBottom: "1px solid var(--mx-line)" }}>
+                {[{ id: "all", name: "Все", emoji: "" } as MFolder, ...folders].map((f) => {
+                  const on = f.id === folderId;
+                  const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
+                  return (
+                    <button key={f.id} onClick={() => setFolderId(f.id)} className="relative shrink-0 px-3.5 h-10 text-[15px] font-medium whitespace-nowrap flex items-center gap-1.5" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)" }}>
+                      {f.emoji} {f.name}
+                      {count > 0 && <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent)" : "var(--mx-muted)", color: "#fff" }}>{count}</span>}
+                      {on && <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full" style={{ background: "var(--mx-accent)" }} />}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -335,8 +334,8 @@ export function ChatListPane({
             {(
               <>
                 <button onClick={() => setArchiveOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
-                  <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: "#8e8e93" }}><Archive size={24} /></span>
-                  <span className="flex-1 font-semibold text-[16.5px]">Архив чатов</span>
+                  <span className="rounded-full flex items-center justify-center text-white shrink-0" style={{ background: "#9aa4b1", width: 54, height: 54 }}><Archive size={24} /></span>
+                  <span className="flex-1 min-w-0"><span className="block font-semibold text-[16.5px]">Архив чатов</span><span className="block text-[14px] mx-muted truncate">{archived.length ? "Чатов: " + archived.length : "Пусто"}</span></span>
                   {archivedUnread > 0 && <span className="mx-badge muted">{archivedUnread}</span>}
                   {archiveOpen ? <ChevronDown size={18} className="mx-muted" /> : <ChevronRight size={18} className="mx-muted" />}
                 </button>

@@ -729,6 +729,13 @@ export function ChatView({
         );
       })()}
 
+      {chat.type === "channel" && !isAdmin && !chat.service && !chat.banned?.includes(me) ? (
+        <div className="mx-safe-bottom shrink-0" style={{ background: "var(--mx-bg)", borderTop: "1px solid var(--mx-line)" }}>
+          <button onClick={() => (muted ? chatSetting({ muted: false, mutedUntil: 0 }) : setMuteMenu(true))} className="w-full h-12 text-[16px] font-medium flex items-center justify-center gap-2" style={{ color: "var(--mx-accent)" }}>
+            {muted ? <Bell size={19} /> : <BellOff size={19} />}{muted ? "Включить звук" : "Отключить звук"}
+          </button>
+        </div>
+      ) : (
       <Composer
         chatId={chat.id}
         disabledReason={blockedReason}
@@ -747,6 +754,7 @@ export function ChatView({
         onSendVideoNote={sendVideoNote}
         onTyping={sendTyping}
       />
+      )}
 
       {/* ---- меню сообщения ---- */}
       <Sheet open={!!menuMsg} onClose={() => setMenuMsg(null)}>
