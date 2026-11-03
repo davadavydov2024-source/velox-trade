@@ -22,7 +22,7 @@ import { ProfileTrackPicker } from "./ProfileMusic";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
-import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
+import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MFolder, MFolderType } from "./mtypes";
 
 export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames";
@@ -593,6 +593,17 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                       );
                     })}
                   </div>
+                </div>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Шрифт</p>
+                <div className="mx-card">
+                  {FONT_CHOICES.map((f) => (
+                    <button key={f.id || "default"} onClick={() => prefs.setFont(f.id)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <span className="text-[16px]" style={f.css ? { fontFamily: f.css } : undefined}>{f.label}<span className="block text-[13px] mx-muted" style={f.css ? { fontFamily: f.css } : undefined}>Привет! Как дела? 123</span></span>
+                      {prefs.font === f.id && <Check size={18} style={{ color: "var(--mx-accent)" }} />}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div>

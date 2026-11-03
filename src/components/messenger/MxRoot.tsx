@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { useViewportHeight } from "./hooks";
-import { useMxPrefs } from "./prefs";
+import { FONT_CHOICES, useMxPrefs } from "./prefs";
 import "./messenger.css";
 
 /** Корень мессенджера: на весь экран поверх сайта (Header и нижняя панель сайта скрыты), тема, акцент, размер текста. */
@@ -12,6 +12,20 @@ export function MxRoot({ children }: { children: ReactNode }) {
   const accent = useMxPrefs((s) => s.accent);
   const textSize = useMxPrefs((s) => s.textSize);
   const bubbleStyle = useMxPrefs((s) => s.bubbleStyle);
+  const fontId = useMxPrefs((s) => s.font);
+  const fontDef = FONT_CHOICES.find((f) => f.id === fontId);
+
+  // веб-шрифт подгружаем только когда он выбран
+  useEffect(() => {
+    if (!fontDef?.google) return;
+    const id = `mx-font-${fontDef.id}`;
+    if (document.getElementById(id)) return;
+    const l = document.createElement("link");
+    l.id = id;
+    l.rel = "stylesheet";
+    l.href = `https://fonts.googleapis.com/css2?family=${fontDef.google}&subset=cyrillic&display=swap`;
+    document.head.appendChild(l);
+  }, [fontDef]);
   const [systemDark, setSystemDark] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -43,6 +57,7 @@ export function MxRoot({ children }: { children: ReactNode }) {
 
   const style: Record<string, string> = { "--mx-font": `${textSize}px` };
   if (accent) style["--mx-accent"] = accent;
+  if (fontDef?.css) style.fontFamily = fontDef.css;
 
   return (
     <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-design="tg" data-bubble={bubbleStyle} data-accent={accent ? "custom" : undefined} style={style as React.CSSProperties}>
