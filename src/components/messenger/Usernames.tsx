@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Copy } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
-import { PageHeader, Spinner } from "./ui";
+import { PageHeader, Sheet, Spinner } from "./ui";
 
 type Item = { name: string; price?: number; perDay?: number; mine?: boolean; rentedUntil?: number | null; byMe?: boolean; role?: "owner" | "renter"; using?: boolean; salePrice?: number | null; rentPerDay?: number | null; rentedOut?: boolean; rentUntil?: number | null };
 type Data = { items: Item[]; wallet: number; handle: string; fee: number; rentDaysMax: number };
@@ -133,5 +134,71 @@ export function ExtraUsernames({ uid }: { uid: string }) {
         </div>
       ))}
     </div>
+  );
+}
+
+
+type OwnedName = { name: string; price: number | null; rentPerDay: number | null; mine: boolean };
+
+/**
+ * Строка «имя пользователя» как в Telegram: подпись, основной @ник, ниже «а также @коллекционный, @ещё» ссылками.
+ * Нажатие на коллекционный юзернейм открывает карточку с ценой (купить / арендовать, если выставлен).
+ */
+export function UsernameRow({ uid, handle, onCopy }: { uid: string; handle: string; onCopy?: (text: string) => void }) {
+  const { toast } = useToast();
+  const [items, setItems] = useState<OwnedName[]>([]);
+  const [open, setOpen] = useState<OwnedName | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { mApi<{ items: OwnedName[] }>(`usernames?view=of&uid=${encodeURIComponent(uid)}`).then((d) => setItems(d.items ?? [])).catch(() => setItems([])); }, [uid]);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <>
+      <div className="px-4 py-3 flex items-start gap-3">
+        <button className="flex-1 min-w-0 text-left" onClick={() => onCopy?.(`@${handle}`)}>
+          <span className="block text-[16.5px]">имя пользователя</span>
+          <span className="block text-[21px] leading-tight mt-0.5" style={{ color: "var(--mx-muted)" }}>@{handle}</span>
+        </button>
+        {onCopy && <Copy size={18} className="mx-muted mt-2 shrink-0" />}
+      </div>
+      {items.length > 0 && (
+        <div className="px-4 pb-3 -mt-1 text-[16.5px]">
+          а также{" "}
+          {items.map((x, i) => (
+            <span key={x.name}>
+              <button onClick={() => setOpen(x)} style={{ color: "var(--mx-accent)" }}>@{x.name}</button>
+              {i < items.length - 1 ? ", " : ""}
+            </span>
+          ))}
+        </div>
+      )}
+      <Sheet open={!!open} onClose={() => setOpen(null)} title={open ? `@${open.name}` : undefined}>
+        {open && (
+          <div className="px-5 pb-6 text-center">
+            <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-[28px] text-white" style={{ background: "var(--mx-accent)" }}>@</div>
+            <p className="text-[22px] font-semibold">@{open.name}</p>
+            <p className="mx-muted text-[14px] mt-1">Коллекционный юзернейм</p>
+            <p className="text-[14.5px] mt-4 mx-muted">Владелец приобрёл этот юзернейм в магазине MiliGram. Он ведёт на тот же профиль, что и основной @{handle}.</p>
+            <p className="text-[16px] font-medium mt-4">
+              {open.price ? `Продаётся за ${open.price} ⭐` : open.rentPerDay ? `Сдаётся в аренду: ${open.rentPerDay} ⭐ в день` : "Сейчас не продаётся"}
+            </p>
+            {!open.mine && open.price ? (
+              <button
+                disabled={busy}
+                className="mx-btn mt-4"
+                onClick={async () => {
+                  if (!window.confirm(`Купить @${open.name} за ${open.price} ⭐?`)) return;
+                  setBusy(true);
+                  try { await mApi("usernames", { action: "buy-resale", name: open.name }); toast("success", `@${open.name} теперь твой`); setOpen(null); load(); }
+                  catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось купить"); }
+                  setBusy(false);
+                }}
+              >
+                Купить за {open.price} ⭐
+              </button>
+            ) : null}
+          </div>
+        )}
+      </Sheet>
+    </>
   );
 }

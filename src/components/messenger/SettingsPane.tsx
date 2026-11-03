@@ -16,7 +16,7 @@ import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
 import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { ExtraUsernames, UsernamesPage } from "./Usernames";
+import { UsernameRow, UsernamesPage } from "./Usernames";
 import { ProfileHeader, ProfileRoundBtn, useProfileGifts } from "./ProfileHeader";
 import { ProfileTrackPicker } from "./ProfileMusic";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
@@ -686,13 +686,12 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           topRight={<ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => setEditProfile(true)} />}
         />
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
-        <ExtraUsernames uid={account.uid} />
         <div style={{ height: 12 }} />
 
         <Section>
           {account.numId ? <div className="w-full px-4 py-3 text-left"><span className="block mx-muted text-[12.5px]">Идентификатор</span><span className="block tabular-nums">ID: {account.numId}</span></div> : null}
           {account.number && <button onClick={() => setMyNumbers(true)} className="w-full px-4 py-3 text-left flex items-center justify-between gap-3"><span><span className="block mx-muted text-[12.5px]">Номер</span><span className="block tabular-nums">{formatNumber(account.number)}</span></span><NumberTierChip digits={account.number} /></button>}
-          <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">Имя пользователя</p><p style={{ color: "var(--mx-accent)" }}>@{account.handle}</p></button>
+          <UsernameRow uid={account.uid} handle={account.handle} onCopy={(t) => { navigator.clipboard?.writeText(t).then(() => toast("success", "Скопировано")).catch(() => {}); }} />
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">О себе</p><p>{account.bio || "Добавь пару слов о себе"}</p></button>
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">День рождения</p><p>{account.birthday ? new Date(account.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "Не указан"}</p></button>
         </Section>
