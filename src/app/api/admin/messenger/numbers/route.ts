@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       }
       if (!digits) return err("Не удалось подобрать свободный номер, попробуй ещё раз");
     }
-    const ref = db.collection("messengerNumbers").doc(digits);
+    const ref = db.collection("messengerNumbers").doc(String(digits));
     try {
       await db.runTransaction(async (tx) => {
         if ((await tx.get(ref)).exists) throw new Error("taken");
