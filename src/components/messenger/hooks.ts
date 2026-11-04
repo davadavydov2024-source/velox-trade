@@ -170,8 +170,10 @@ export function useMessages(chatId: string | null, pageSize = 60) {
   const [count, setCount] = useState(pageSize);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const cache = useRef(new Map<string, { s: string; m: MMessage }>());
 
   useEffect(() => {
+    cache.current = new Map();
     setMessages([]);
     setCount(pageSize);
     setLoading(true);
@@ -183,7 +185,17 @@ export function useMessages(chatId: string | null, pageSize = 60) {
     return onSnapshot(
       q,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MMessage).reverse();
+        // не меняем ссылку на сообщение, если оно не изменилось, — тогда мемоизированные пузыри не перерисовываются
+        const next = new Map<string, { s: string; m: MMessage }>();
+        const list = snap.docs.map((d) => {
+          const fresh = { id: d.id, ...d.data() } as MMessage;
+          const s = JSON.stringify(fresh);
+          const prev = cache.current.get(d.id);
+          const m = prev && prev.s === s ? prev.m : fresh;
+          next.set(d.id, { s, m });
+          return m;
+        }).reverse();
+        cache.current = next;
         setMessages(list);
         setHasMore(snap.size >= count);
         setLoading(false);

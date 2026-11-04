@@ -577,6 +577,9 @@ export function ChatView({
     { label: "Навсегда", ms: 0 },
   ];
 
+  // актуальные обработчики для мемоизированных строк (см. MessageRow): строки зовут их через ref и не устаревают
+  const H = useRef<any>({});
+  H.current = { react, startReply, setMenuMsg, toggleSelect, jumpTo, openMedia, setStickerPack,  };
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
@@ -683,14 +686,14 @@ export function ChatView({
                 selecting={selecting}
                 selected={!!selection?.has(msg.id)}
                 highlight={highlightId === msg.id}
-                onOpenMedia={openMedia}
-                onOpenStickerPack={setStickerPack}
-                onSwipeReply={canPost && !pend && !msg.deletedForAll && msg.kind !== "system" ? () => startReply(msg) : undefined}
-                onJumpTo={jumpTo}
-                onReact={(e) => react(msg, e)}
-                onMenu={() => !pend && setMenuMsg(msg)}
-                onToggleSelect={() => toggleSelect(msg.id)}
-                onDoubleTap={() => !pend && !msg.deletedForAll && react(msg, DOUBLE_TAP_REACTION)}
+                onOpenMedia={(u) => H.current.openMedia(u)}
+                onOpenStickerPack={(s) => H.current.setStickerPack(s)}
+                onSwipeReply={canPost && !pend && !msg.deletedForAll && msg.kind !== "system" ? () => H.current.startReply(msg) : undefined}
+                onJumpTo={(id) => H.current.jumpTo(id)}
+                onReact={(e) => H.current.react(msg, e)}
+                onMenu={() => !pend && H.current.setMenuMsg(msg)}
+                onToggleSelect={() => H.current.toggleSelect(msg.id)}
+                onDoubleTap={() => !pend && !msg.deletedForAll && H.current.react(msg, DOUBLE_TAP_REACTION)}
               />
             </div>
           );

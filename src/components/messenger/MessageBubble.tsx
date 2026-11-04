@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useRef } from "react";
+import { ReactNode, memo, useRef } from "react";
 import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
@@ -72,7 +72,7 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
   );
 }
 
-export function MessageRow({
+function MessageRowImpl({
   msg,
   pending,
   me,
@@ -453,3 +453,15 @@ export function MessageRow({
     </div>
   );
 }
+
+
+/**
+ * Строка сообщения перерисовывается только когда изменились её данные (сообщение, статус, выделение, группировка).
+ * Обработчики из сравнения исключены — ChatView передаёт стабильные обёртки над актуальными функциями (см. H в ChatView).
+ * На телефоне это убирает лишние перерисовки сотен пузырей при печати, «в сети», таймере и новых сообщениях.
+ */
+export const MessageRow = memo(MessageRowImpl, (a, b) =>
+  a.msg === b.msg && a.pending === b.pending && a.me === b.me && a.chatType === b.chatType && a.accounts === b.accounts &&
+  a.showAuthor === b.showAuthor && a.isLastInGroup === b.isLastInGroup && a.read === b.read && a.selecting === b.selecting &&
+  a.selected === b.selected && a.highlight === b.highlight && !!a.onSwipeReply === !!b.onSwipeReply
+);

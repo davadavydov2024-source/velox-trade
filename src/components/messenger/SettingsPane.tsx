@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag } from "lucide-react";
+import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -21,11 +21,12 @@ import { ProfileHeader, ProfileRoundBtn, ProfileShell, useProfileGifts } from ".
 import { PostsTab } from "./Posts";
 import { ShopSheet } from "./Shop";
 import { ProfileTrackPicker } from "./ProfileMusic";
+import { ChatInfoSheet } from "./ChatInfoSheet";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
-import { MAccount, MFolder, MFolderType } from "./mtypes";
+import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
 export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames";
 
@@ -470,6 +471,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const [trackPicker, setTrackPicker] = useState(false);
   const [myPosts, setMyPosts] = useState(false);
   const [shop, setShop] = useState(false);
+  const [viewAs, setViewAs] = useState(false);
   const profileGifts = useProfileGifts(me);
   const orbitGifts = profileGifts?.filter((g) => g.pinned && !g.hidden) ?? [];
   const [installHelp, setInstallHelp] = useState(false);
@@ -701,7 +703,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           onAvatarClick={() => fileRef.current?.click()}
           avatarBusy={avatarBusy}
           avatarOverlay={<span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "#fff", border: "3px solid rgba(0,0,0,0.25)" }}><Camera size={15} /></span>}
-          topRight={<ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => setEditProfile(true)} />}
+          topRight={<><ProfileRoundBtn icon={<Eye size={17} />} label="Как видят другие" onClick={() => setViewAs(true)} /><ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => setEditProfile(true)} /></>}
         />
         </ProfileShell>
         </div>
@@ -775,6 +777,17 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         await logout();
         onLoggedOut();
       }} />
+      <ChatInfoSheet
+        open={viewAs}
+        onClose={() => setViewAs(false)}
+        preview
+        chat={{ id: "__preview", type: "dm", members: [me, "__viewer"], admins: [], createdBy: me, createdAt: 0, updatedAt: 0, readBy: {} } as unknown as MChat}
+        me="__viewer"
+        accounts={{ [me]: account }}
+        peer={account}
+        isAdmin={false}
+        onLeave={() => {}}
+      />
       <ShopSheet open={shop} onClose={() => setShop(false)} me={me} account={account} />
       <NumbersSheet open={myNumbers} onClose={() => setMyNumbers(false)} me={me} />
       <ProfileTrackPicker open={trackPicker} onClose={() => setTrackPicker(false)} current={account.profileTrack} onPick={async (id) => {

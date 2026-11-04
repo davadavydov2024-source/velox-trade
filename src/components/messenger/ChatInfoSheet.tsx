@@ -65,10 +65,12 @@ function ProfileChannelCard({ handle }: { handle: string }) {
 type StoryThumb = { id: string; kind: "image" | "video"; mediaUrl: string; createdAt: number };
 
 export function ChatInfoSheet({
-  open, onClose, chat, me, accounts, peer, isAdmin, onLeave, messages = [], muted = false, onToggleMute, onSearch,
+  open, onClose, chat, me, accounts, peer, isAdmin, onLeave, messages = [], muted = false, onToggleMute, onSearch, preview = false,
 }: {
   open: boolean; onClose: () => void; chat: MChat; me: string; accounts: Record<string, MAccount | null | undefined>; peer: MAccount | null; isAdmin: boolean; onLeave: () => void;
   messages?: MMessage[]; muted?: boolean; onToggleMute?: () => void; onSearch?: () => void;
+  /** «Как видят другие»: профиль без кнопок редактирования, без счётчика просмотров и личных заметок */
+  preview?: boolean;
 }) {
   const { toast } = useToast();
   const isDm = chat.type === "dm";
@@ -82,7 +84,7 @@ export function ChatInfoSheet({
   const badgeList = isDm && !saved ? profileBadges(peer, nftCount, !!peer?.number && numberTier(peer.number) !== "common") : [];
   const BADGE_ICON = { check: <BadgeCheck size={17} />, star: <Star size={16} fill="currentColor" />, crown: <Crown size={16} />, spark: <Sparkles size={16} />, hash: <Hash size={16} />, gem: <Gem size={16} /> };
   // «посмотрел профиль» — счётчик просмотров (свои и частые повторы сервер не считает)
-  useEffect(() => { if (open && isDm && !saved && peerId) mApi("profile-view", { uid: peerId }).catch(() => {}); }, [open, isDm, saved, peerId]);
+  useEffect(() => { if (open && isDm && !saved && peerId && !preview) mApi("profile-view", { uid: peerId }).catch(() => {}); }, [open, isDm, saved, peerId]);
 
   const tabs: Tab[] = isDm ? (saved ? ["media", "files", "links"] : ["gifts", "posts", "stories", "media", "files", "links"]) : ["media", "files", "links", "polls"];
   const [tab, setTab] = useState<Tab>(tabs[0]);
@@ -95,7 +97,7 @@ export function ChatInfoSheet({
 
   useEffect(() => { if (open) setTab(tabs[0]); }, [open, chat.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!open || !isDm || saved) return;
+    if (!open || !isDm || saved || preview) return;
     mApi<typeof contact>(`contact?uid=${encodeURIComponent(peerId)}`).then(setContact).catch(() => {});
     mApi<{ stories: StoryThumb[] }>(`stories?uid=${encodeURIComponent(peerId)}`).then((d) => setStories(d.stories ?? [])).catch(() => setStories([]));
   }, [open, isDm, saved, peerId]);
@@ -130,7 +132,7 @@ export function ChatInfoSheet({
         orbit={orbit}
         statusPill={isDm && !saved ? lastSeenText(peer) : undefined}
         subtitle={isDm ? undefined : `${chat.members.length} ${chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}`}
-        topRight={<>{((isDm && !saved) || (!isDm && isAdmin)) && <ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => (isDm ? setEdit(true) : setSettings(true))} />}<ProfileRoundBtn icon={<X size={19} />} label="Закрыть" onClick={onClose} /></>}
+        topRight={<>{!preview && ((isDm && !saved) || (!isDm && isAdmin)) && <ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => (isDm ? setEdit(true) : setSettings(true))} />}<ProfileRoundBtn icon={<X size={19} />} label="Закрыть" onClick={onClose} /></>}
       />
 
       <div className="flex gap-2 px-4 py-3">
