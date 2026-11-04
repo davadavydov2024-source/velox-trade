@@ -1,5 +1,6 @@
 "use client";
 
+import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -174,7 +175,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
     } catch (err) {
       if (err instanceof MApiError && err.data?.needTopup) {
         toast("error", err.message);
-        window.open("/profile/stars", "_blank");
+        startTopup(Math.max(10, (picked?.price ?? 10) - (wallet ?? 0))).catch(() => {});
       } else toast("error", err instanceof MApiError ? err.message : "Не удалось отправить подарок");
     } finally {
       setBusy(false);
@@ -430,8 +431,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
           <div className={open.nft ? "pb-8" : "px-5 pb-8 flex flex-col items-center"}>
             {open.nft ? <NftHero gift={def} nft={open.nft} /> : (
               <>
-            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
-            <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
+            <GiftArt gift={def} size={160} />
+            <p className="text-[20px] font-semibold mt-3">{def.title}</p>
             <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
             <div className="flex items-center gap-2 mt-3">
               {open.from ? (

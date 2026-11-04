@@ -1,5 +1,6 @@
 "use client";
 
+import { UsernameRow } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, BadgeCheck, Bookmark, Calendar, ChevronRight, Copy, Crown, Eye, FileText, Gem, Gift, Hash, Link2, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -146,7 +147,7 @@ export function ChatInfoSheet({
       {((isDm && !saved && peer) || peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
         <div className="pb-2">
           {peer?.number && <InfoRow value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
-          {peer?.handle && <InfoRow value={`@${peer.handle}`} label="Имя пользователя" onClick={() => copy(`@${peer.handle}`, "Скопировано")} />}
+          {peer?.handle && peerId && <UsernameRow uid={peerId} handle={peer.handle} onCopy={(t) => copy(t, "Скопировано")} />}
           {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} />}
           {peer?.bio && <InfoRow value={peer.bio} label="Описание" />}
           {bday && <InfoRow value={bday} label="День рождения" />}
