@@ -269,6 +269,12 @@ export function RecipientList({ me, onPick, exclude = [] }: { me?: string; onPic
       <div className="px-4 pb-2">
         <div className="mx-search"><Search size={17} className="mx-muted shrink-0" /><input className="bg-transparent outline-none flex-1 text-[16px] min-w-0" placeholder="Поиск по чатам, имени или @username" value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" autoCorrect="off" /></div>
       </div>
+      {me && !term && (
+        <button onClick={() => onPick({ uid: me, name: "себя" })} className="w-full flex items-center gap-3 px-4 py-2 text-left active:bg-white/5">
+          <span className="w-11 h-11 rounded-full flex items-center justify-center text-[22px]" style={{ background: "var(--mx-accent)" }}>🎁</span>
+          <span className="flex-1 min-w-0"><span className="block">Себе</span><span className="block text-[12.5px] mx-muted">Подарок появится в твоём профиле</span></span>
+        </button>
+      )}
       {soon.length > 0 && (
         <>
           <p className="px-4 pt-2 pb-1 text-[13px] uppercase tracking-wide mx-muted">🎂 Скоро день рождения</p>

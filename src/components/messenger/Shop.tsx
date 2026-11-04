@@ -16,7 +16,7 @@ import { ProfileShell } from "./ProfileHeader";
 type Tab = "gifts" | "frames" | "melodies";
 const TABS: [Tab, string][] = [["gifts", "Подарки"], ["frames", "Рамки"], ["melodies", "Мелодии"]];
 
-const tileStyle = { borderRadius: 26, background: "linear-gradient(160deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.1)" } as const;
+const tileStyle = { borderRadius: 26, background: "#0d0d0f", border: "1px solid rgba(255,255,255,0.09)" } as const;
 
 function PricePill({ children }: { children: React.ReactNode }) {
   return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[13px] font-extrabold" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>{children}</span>;
@@ -32,6 +32,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
   const [colors, setColors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState("");
   const [giftShop, setGiftShop] = useState(false);
+  const [giftSelf, setGiftSelf] = useState(false);
 
   const load = useCallback(() => {
     mApi<{ owned: string[]; equipped: EquippedFrame | null }>("frames").then((d) => { setOwned(d.owned); setEquipped(d.equipped); }).catch(() => setOwned([]));
@@ -47,7 +48,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
 
   return (
     <Sheet open={open} onClose={onClose} title="Магазин" full>
-      <ProfileShell>
+      <ProfileShell black>
         <div className="px-4 pt-3 pb-8">
           {/* вкладки-«таблетки» */}
           <div className="flex p-1 rounded-full mb-4" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -67,12 +68,12 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
                     const color = colorOf(f.id, f.defaultColor);
                     return (
                       <div key={f.id} className="flex flex-col items-center px-3 pt-4 pb-3" style={tileStyle}>
-                        <div className="flex items-center justify-center rounded-[20px] w-full" style={{ height: 112, background: "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), rgba(0,0,0,0.35))" }}>
+                        <div className="flex items-center justify-center rounded-[20px] w-full" style={{ height: 112, background: "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.1), #000 75%)" }}>
                           <AvatarFrame frame={{ id: f.id, color }} size={62}><Avatar src={account.photoURL} name={account.displayName} seed={me} size={62} /></AvatarFrame>
                         </div>
                         <p className="font-extrabold text-[15px] mt-2.5">{f.name}</p>
-                        <div className="flex items-center gap-1.5 my-2 px-2 py-1 rounded-full" style={{ background: "rgba(0,0,0,0.35)" }}>
-                          {FRAME_COLORS.slice(0, 6).map((c) => (
+                        <div className="flex items-center justify-center flex-wrap gap-1.5 my-2 px-2 py-1.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.05)" }}>
+                          {FRAME_COLORS.map((c) => (
                             <button key={c} onClick={() => setColors((m) => ({ ...m, [f.id]: c }))} aria-label={c} className="w-[18px] h-[18px] rounded-full" style={{ background: c, boxShadow: color === c ? "0 0 0 2px #fff" : "0 0 0 1px rgba(255,255,255,0.2)" }} />
                           ))}
                         </div>
@@ -108,6 +109,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
                   </button>
                 ))}
               </div>
+              <button className="w-full h-11 rounded-full mt-4 font-extrabold text-[15px] flex items-center justify-center gap-2" style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }} onClick={() => setGiftSelf(true)}>🎁 Купить подарок себе</button>
               <button className="w-full h-11 rounded-full mt-4 font-extrabold text-[15px]" style={{ background: "#fff", color: "#111" }} onClick={() => setGiftShop(true)}>Все подарки и отправка</button>
             </>
           )}
@@ -138,6 +140,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
         </div>
       </ProfileShell>
       <GiftShopSheet open={giftShop} onClose={() => setGiftShop(false)} me={me} />
+      <GiftShopSheet open={giftSelf} onClose={() => setGiftSelf(false)} me={me} toUid={me} toName="себя" />
     </Sheet>
   );
 }
