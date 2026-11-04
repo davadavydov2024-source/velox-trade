@@ -2,7 +2,8 @@
 
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BadgeCheck, ChevronLeft, X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
+import { markKind, verifyMeta, type VerifyKind } from "@/lib/messenger/marks";
 import { gradientFor, initials } from "./util";
 
 export function Avatar({
@@ -56,8 +57,45 @@ export function Avatar({
   );
 }
 
-export function VerifiedBadge({ size = 15 }: { size?: number }) {
-  return <BadgeCheck size={size} className="shrink-0" style={{ color: "var(--mx-accent)" }} />;
+/** Галочка в стиле Telegram: «рифлёная» печать с белой галочкой. kind: verified / official / major / trusted. */
+function sealPath(): string {
+  const n = 12, r1 = 11.2, r2 = 9.6;
+  let d = "";
+  for (let i = 0; i < n * 2; i++) {
+    const a = (i / (n * 2)) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 ? r2 : r1;
+    d += `${i ? "L" : "M"}${(12 + Math.cos(a) * r).toFixed(2)} ${(12 + Math.sin(a) * r).toFixed(2)}`;
+  }
+  return d + "Z";
+}
+const SEAL = sealPath();
+export function VerifiedBadge({ size = 15, kind = "verified" }: { size?: number; kind?: VerifyKind }) {
+  const meta = verifyMeta(kind);
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className="shrink-0" aria-label={meta.label} role="img">
+      <path d={SEAL} fill={meta.color} strokeLinejoin="round" stroke={meta.color} strokeWidth="1.4" />
+      <path d="M7.4 12.4l3.1 3.1 6.2-6.6" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Галочка человека или канала, если она есть (учитывает и старый флаг verified). */
+export function VerifyMark({ acc, size = 15 }: { acc?: { verified?: boolean; verifyKind?: string | null } | null; size?: number }) {
+  const k = markKind(acc);
+  return k ? <VerifiedBadge size={size} kind={k} /> : null;
+}
+
+/** Метка рядом с именем, которую выдал админ: CEO, DEV… */
+export function TagChip({ acc, light = false }: { acc?: { tag?: string | null } | null; light?: boolean }) {
+  if (!acc?.tag) return null;
+  return (
+    <span
+      className="shrink-0 px-1.5 rounded-md text-[10.5px] font-extrabold uppercase tracking-wide leading-[18px]"
+      style={light ? { background: "rgba(255,255,255,0.22)", color: "#fff" } : { background: "color-mix(in srgb, var(--mx-accent) 18%, transparent)", color: "var(--mx-accent)" }}
+    >
+      {acc.tag}
+    </span>
+  );
 }
 
 /** Точка монтирования для шторок и меню — внутри .mx-root, чтобы работали CSS-переменные темы. */

@@ -10,7 +10,7 @@ import {
 import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
-import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
+import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
@@ -600,7 +600,7 @@ export function ChatView({
               <div className="min-w-0 text-center">
                 <p className="font-bold truncate flex items-center justify-center gap-1 text-[16.5px] leading-tight">
                   {title}
-                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}{chat.type === "dm" && <StatusBadge acc={peer} />}
+                  <VerifyMark acc={chat.type === "dm" ? peer : chat} size={16} /><TagChip acc={chat.type === "dm" ? peer : chat} />{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
                 </p>
                 <p className="text-[12.5px] truncate leading-tight" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>

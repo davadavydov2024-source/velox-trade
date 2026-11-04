@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
-import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
+import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
@@ -197,7 +197,7 @@ export function ChatListPane({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
-                {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
+                {title} <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
               <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
