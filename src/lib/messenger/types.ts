@@ -15,6 +15,7 @@ export interface MessengerAccount {
   showLastSeen: boolean;
   banned: boolean;
   verified?: boolean;
+  aliases?: string[]; // дополнительные юзернеймы
   verifyKind?: "verified" | "official" | "major" | "trusted" | null; // вид галочки (выдаёт админ)
   verifyText?: string | null; // подпись под профилем: «подтверждён как …»
   tag?: string | null; // метка рядом с именем: CEO, DEV и т.п. (выдаёт админ)
