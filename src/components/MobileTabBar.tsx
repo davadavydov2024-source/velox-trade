@@ -23,7 +23,7 @@ export function MobileTabBar() {
   if (pathname.startsWith("/admin")) return null;
 
   const left = [
-    { href: "/", label: "Главная", icon: Home },
+    { href: "/veloxtrade", label: "Главная", icon: Home },
     { href: "/catalog", label: "Каталог", icon: LayoutGrid },
   ];
   const right = [
@@ -35,7 +35,7 @@ export function MobileTabBar() {
   const all = [...left, { href: SELL_HREF }, ...right];
   const activeHref = all
     .map((t) => t.href)
-    .filter((href) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/")))
+    .filter((href) => (href === "/veloxtrade" ? pathname === "/veloxtrade" : pathname === href || pathname.startsWith(href + "/")))
     .sort((a, b) => b.length - a.length)[0];
 
   // Обычная функция, а не вложенный компонент: иначе вкладки пересоздавались бы на каждый рендер и

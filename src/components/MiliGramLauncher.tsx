@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
  */
 export function MiliGramLauncher() {
   const pathname = usePathname();
-  if (pathname === "/m" || pathname.startsWith("/m/") || pathname.startsWith("/admin") || pathname.startsWith("/auth")) return null;
+  if (pathname === "/" || pathname === "/m" || pathname.startsWith("/m/") || pathname.startsWith("/admin") || pathname.startsWith("/auth")) return null;
   return (
     <Link
       href="/m/app"
