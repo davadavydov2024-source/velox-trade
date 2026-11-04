@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const accRef = db.collection("messengerAccounts").doc(uid);
     const acc = (await accRef.get()).data();
     if (!acc) return err("Пользователь не найден", 404);
-    let digits = "";
+    let digits: string | null = null;
     if (b.digits) {
       if (!isValidDigits(b.digits)) return err("Номер — ровно 8 цифр");
       digits = b.digits;
@@ -82,5 +82,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  return err("action: grant | revoke");
+  if (b.action === "aliases") {
+    // «а также @…»: дополнительные имена в профиле (до 8). Нельзя брать чужое основное имя.
+    const uid = typeof b.uid === "string" && b.uid && !b.uid.includes("/") ? b.uid : "";
+    if (!uid) return err("Выбери пользователя");
+    const raw: string[] = Array.isArray(b.aliases) ? b.aliases : [];
+    const list = Array.from(new Set(raw.map((x) => String(x).trim().replace(/^@/, "").toLowerCase()).filter(Boolean))).slice(0, 8);
+    for (const a of list) {
+      if (!/^[a-z0-9_]{3,25}$/.test(a)) return err(`Имя «${a}» не подходит: 3–25 символов, латиница, цифры, _`);
+      const clash = await db.collection("messengerAccounts").where("handle", "==", a).limit(1).get();
+      if (!clash.empty && clash.docs[0].id !== uid) return err(`@${a} уже занято другим человеком`);
+    }
+    await db.collection("messengerAccounts").doc(uid).update({ aliases: list });
+    await logAdminAccess(admin.uid, "messenger_aliases", { uid, aliases: list });
+    return NextResponse.json({ ok: true, aliases: list });
+  }
+
+  return err("action: grant | revoke | aliases");
 }

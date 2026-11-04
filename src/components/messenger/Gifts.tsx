@@ -1,6 +1,5 @@
 "use client";
 
-import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -175,7 +174,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
     } catch (err) {
       if (err instanceof MApiError && err.data?.needTopup) {
         toast("error", err.message);
-        startTopup(Math.max(10, (picked?.price ?? 10) - (wallet ?? 0))).catch(() => {});
+        window.open("/profile/stars", "_blank");
       } else toast("error", err instanceof MApiError ? err.message : "Не удалось отправить подарок");
     } finally {
       setBusy(false);
@@ -269,12 +268,6 @@ export function RecipientList({ me, onPick, exclude = [] }: { me?: string; onPic
       <div className="px-4 pb-2">
         <div className="mx-search"><Search size={17} className="mx-muted shrink-0" /><input className="bg-transparent outline-none flex-1 text-[16px] min-w-0" placeholder="Поиск по чатам, имени или @username" value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" autoCorrect="off" /></div>
       </div>
-      {me && !term && (
-        <button onClick={() => onPick({ uid: me, name: "себя" })} className="w-full flex items-center gap-3 px-4 py-2 text-left active:bg-white/5">
-          <span className="w-11 h-11 rounded-full flex items-center justify-center text-[22px]" style={{ background: "var(--mx-accent)" }}>🎁</span>
-          <span className="flex-1 min-w-0"><span className="block">Себе</span><span className="block text-[12.5px] mx-muted">Подарок появится в твоём профиле</span></span>
-        </button>
-      )}
       {soon.length > 0 && (
         <>
           <p className="px-4 pt-2 pb-1 text-[13px] uppercase tracking-wide mx-muted">🎂 Скоро день рождения</p>
@@ -330,7 +323,7 @@ function ActionRow({ icon, label, hint, onClick, danger, locked }: { icon: React
 
 /* ───────────── Вкладка «Подарки» в профиле ───────────── */
 
-export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; mine: boolean; name?: string; onChanged?: () => void }) {
+export function GiftsProfileTab({ uid, mine, name, onChanged, showFilters = true }: { uid: string; mine: boolean; name?: string; onChanged?: () => void; showFilters?: boolean }) {
   const { toast } = useToast();
   const [gifts, setGifts] = useState<GiftView[] | null>(null);
   const [cat, setCat] = useState<"all" | GiftCategory>("all");
@@ -403,7 +396,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const def = open ? giftById(open.giftId) : undefined;
   return (
     <div className="pb-24 relative">
-      {gifts.length > 0 && cats.length > 2 && (
+      {showFilters && gifts.length > 0 && cats.length > 2 && (
         <div className="flex gap-2 overflow-x-auto px-4 pb-3 mx-scroll">
           {cats.map((c) => (
             <button key={c.id} onClick={() => setCat(c.id)} className="shrink-0 px-3.5 py-1.5 rounded-full text-[14px]" style={{ background: cat === c.id ? "var(--mx-accent)" : "var(--mx-surface2)", color: cat === c.id ? "var(--mx-accent-text)" : "var(--mx-text)" }}>{c.label}</button>
@@ -437,8 +430,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
           <div className={open.nft ? "pb-8" : "px-5 pb-8 flex flex-col items-center"}>
             {open.nft ? <NftHero gift={def} nft={open.nft} /> : (
               <>
-            <GiftArt gift={def} size={160} />
-            <p className="text-[20px] font-semibold mt-3">{def.title}</p>
+            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
+            <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
             <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
             <div className="flex items-center gap-2 mt-3">
               {open.from ? (

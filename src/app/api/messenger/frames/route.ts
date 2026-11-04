@@ -35,10 +35,10 @@ export async function POST(req: NextRequest) {
       await db.runTransaction(async (tx) => {
         const [o, u] = await Promise.all([tx.get(ownedRef), tx.get(db.collection("users").doc(me.uid))]);
         if (((o.data()?.owned as string[] | undefined) ?? []).includes(f.id)) throw new Error("already");
-        const have = (u.data()?.miliWallet as number | undefined) ?? 0;
+        const have = (u.data()?.starsWallet as number | undefined) ?? 0;
         if (have < f.price) throw new Error("not-enough");
-        tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(-f.price) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, at: Date.now() });
+        tx.set(db.collection("users").doc(me.uid), { starsWallet: FieldValue.increment(-f.price) }, { merge: true });
+        tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, at: Date.now() });
         tx.set(ownedRef, { owned: FieldValue.arrayUnion(f.id) }, { merge: true });
       });
     } catch (e: any) {

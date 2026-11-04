@@ -70,13 +70,13 @@ export function ProfileRoundBtn({ icon, onClick, label }: { icon: ReactNode; onC
 const PROFILE_FONT = '"Manrope", ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif';
 
 /** Тёмная «стеклянная» карточка профиля (как в референсе): градиент от светлого серого сверху к почти чёрному, свой шрифт и свои цвета текста. */
-export function ProfileShell({ children, black = false }: { children: ReactNode; black?: boolean }) {
+export function ProfileShell({ children }: { children: ReactNode }) {
   return (
     <div
       className="relative"
       style={{
         minHeight: "100%", color: "#fff", fontFamily: PROFILE_FONT,
-        background: black ? "#000" : "linear-gradient(165deg, #3d3d44 0%, #27272d 32%, #17171b 68%, #101013 100%)",
+        background: "linear-gradient(165deg, #3d3d44 0%, #27272d 32%, #17171b 68%, #101013 100%)",
         ["--mx-text" as string]: "#ffffff", ["--mx-muted" as string]: "#9e9ea9", ["--mx-surface" as string]: "rgba(255,255,255,0.07)",
         ["--mx-surface2" as string]: "rgba(255,255,255,0.11)", ["--mx-line" as string]: "rgba(255,255,255,0.1)",
       } as React.CSSProperties}

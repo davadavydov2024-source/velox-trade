@@ -61,6 +61,20 @@ export async function POST(req: NextRequest) {
     else if (typeof v === "string" && !v.includes("/") && (await adminDb().collection("messengerMusicTracks").doc(v).get()).exists) upd.profileTrack = v;
     else return fail("Такого трека нет");
   }
+  if ("socials" in b) {
+    // ссылки на соцсети: до 3, тип из списка, значение — только безопасные символы
+    const KINDS = ["telegram", "tiktok", "soundcloud", "instagram", "youtube", "x", "vk"];
+    const list = Array.isArray(b.socials) ? b.socials.slice(0, 3) : [];
+    const out: { kind: string; value: string }[] = [];
+    for (const it of list) {
+      const kind = typeof it?.kind === "string" ? it.kind : "";
+      const value = typeof it?.value === "string" ? it.value.trim().replace(/^@/, "") : "";
+      if (!value) continue;
+      if (!KINDS.includes(kind) || value.length > 40 || !/^[A-Za-z0-9_.\-]+$/.test(value)) return fail("Проверь ссылки на соцсети: только буквы, цифры, _ . -");
+      out.push({ kind, value });
+    }
+    upd.socials = out;
+  }
   if ("showLastSeen" in b) upd.showLastSeen = b.showLastSeen === true;
   if ("birthday" in b) {
     const v = b.birthday;

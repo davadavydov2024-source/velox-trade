@@ -28,6 +28,7 @@ export function AdminNumbers() {
   const [tier, setTier] = useState<NumberTier>("rare");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [aliasText, setAliasText] = useState("");
 
   const load = useCallback(async () => {
     try { setRows((await call<{ numbers: Row[] }>("/api/admin/messenger/numbers")).numbers); } catch (e: any) { toast("error", e.message); setRows([]); }
@@ -65,13 +66,13 @@ export function AdminNumbers() {
           <div className="mx-card px-3 py-2.5 flex items-center gap-3">
             <Avatar src={target.photoURL} name={target.displayName} seed={target.uid} size={36} />
             <span className="flex-1 min-w-0"><span className="block truncate">{target.displayName}</span><span className="block text-[12.5px] mx-muted">@{target.handle}</span></span>
-            <button className="text-[14px]" style={{ color: "var(--mx-accent)" }} onClick={() => setTarget(null)}>Сменить</button>
+            <button className="text-[14px]" style={{ color: "var(--mx-accent)" }} onClick={() => { setTarget(null); setAliasText(""); }}>Сменить</button>
           </div>
         ) : (
           <>
             <div className="mx-search"><Search size={17} className="mx-muted shrink-0" /><input className="bg-transparent outline-none flex-1 text-[16px] min-w-0" placeholder="Кому: @username" value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" /></div>
             {found.map((a) => (
-              <button key={a.uid} onClick={() => { setTarget(a); setQ(""); setFound([]); }} className="mx-card px-3 py-2 flex items-center gap-3 text-left">
+              <button key={a.uid} onClick={() => { setTarget(a); setAliasText((a.aliases ?? []).map((x) => `@${x}`).join(", ")); setQ(""); setFound([]); }} className="mx-card px-3 py-2 flex items-center gap-3 text-left">
                 <Avatar src={a.photoURL} name={a.displayName} seed={a.uid} size={34} /><span className="min-w-0"><span className="block truncate">{a.displayName}</span><span className="block text-[12.5px] mx-muted">@{a.handle}</span></span>
               </button>
             ))}
@@ -91,6 +92,16 @@ export function AdminNumbers() {
           </div>
         )}
         <button className="mx-btn" onClick={grant} disabled={!target || busy}>{busy ? <Spinner size={18} /> : "Выдать номер"}</button>
+        {target && (
+          <>
+            <p className="pt-3 text-[13px] uppercase tracking-wide mx-muted">Дополнительные имена («а также @…»)</p>
+            <input className="mx-input" placeholder="@owner, @founder, @dev" value={aliasText} onChange={(e) => setAliasText(e.target.value)} autoCapitalize="none" />
+            <button className="mx-btn-ghost py-2.5" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try { await call("/api/admin/messenger/numbers", { action: "aliases", uid: target.uid, aliases: aliasText.split(/[,\s]+/).filter(Boolean) }); toast("success", "Имена сохранены"); } catch (e: any) { toast("error", e.message); } finally { setBusy(false); }
+            }}>Сохранить имена</button>
+          </>
+        )}
       </div>
 
       <p className="px-4 pt-6 pb-1 text-[13px] uppercase tracking-wide mx-muted">Выданные номера</p>

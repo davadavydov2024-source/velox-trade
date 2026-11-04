@@ -57,30 +57,6 @@ function FrameArt({ id, color }: { id: string; color: string }) {
       </g>
     );
   }
-  if (id === "obsidian") {
-    // чёрное «стеклянное» кольцо с тонкой светлой кромкой (цвет кромки выбирается)
-    return (
-      <g>
-        <circle r="44" fill="none" stroke="#050506" strokeWidth="8" />
-        <circle r="48" fill="none" stroke={color} strokeWidth="1.2" opacity="0.85" />
-        <circle r="40.2" fill="none" stroke={color} strokeWidth="0.9" opacity="0.7" />
-        {Array.from({ length: 8 }, (_, i) => { const ang = (i / 8) * TAU; return <path key={i} d={`M${pt(44, ang - 0.05)} L${pt(51, ang)} L${pt(44, ang + 0.05)} Z`} fill="#050506" stroke={color} strokeWidth="0.7" />; })}
-      </g>
-    );
-  }
-  if (id === "eclipse") {
-    // чёрный диск затмения и лучи короны
-    return (
-      <g>
-        <circle r="43" fill="none" stroke="#050506" strokeWidth="6" />
-        <g>
-          {Array.from({ length: 28 }, (_, i) => { const ang = (i / 28) * TAU; const r2 = 48 + (i % 2 ? 4 : 9); return <line key={i} x1={Math.cos(ang) * 46} y1={Math.sin(ang) * 46} x2={Math.cos(ang) * r2} y2={Math.sin(ang) * r2} stroke={color} strokeWidth={i % 2 ? 1.2 : 2} strokeLinecap="round" opacity={i % 2 ? 0.55 : 0.9} />; })}
-          <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="60s" repeatCount="indefinite" />
-        </g>
-        <circle r="40" fill="none" stroke={color} strokeWidth="1.4" opacity="0.8" />
-      </g>
-    );
-  }
   // rose: кольцо и «бутоны»-капли вокруг
   return (
     <g>

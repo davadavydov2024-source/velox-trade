@@ -476,6 +476,93 @@ export const NFT_FIGURES: Record<string, ReactNode> = {
 };
 
 /** Размещение фигурки внутри 200×200 карточки NftArt. */
+/* Дополнительные оригинальные фигурки (часы, кольцо, самоцвет, огненное сердце, лягушка, пёс, кот). Оттенок модели красит их поверх. */
+Object.assign(NFT_FIGURES, {
+  "nft-watch": (
+    <>
+      <path d="M37 4h26l3 24H34z" fill="#d99a2b" /><path d="M34 72h32l-3 24H37z" fill="#d99a2b" />
+      <path d="M36 12h28M35 19h30M35 81h30M36 88h28" stroke="#a86f12" strokeWidth="1.7" />
+      <rect x="82" y="44" width="7" height="12" rx="2.5" fill="#c2851c" />
+      <circle cx="50" cy="50" r="33" fill="#f5c04a" /><circle cx="50" cy="50" r="33" fill="none" stroke="#b97d12" strokeWidth="2.2" />
+      <circle cx="50" cy="50" r="27.5" fill="#ffd978" />
+      {Array.from({ length: 12 }, (_, i) => <rect key={i} x="49" y="22.5" width="2" height={i % 3 === 0 ? 5 : 3} fill="#9a650c" transform={`rotate(${i * 30} 50 50)`} />)}
+      <circle cx="50" cy="50" r="21" fill="#1c2735" /><circle cx="50" cy="50" r="21" fill="none" stroke="#7de0c1" strokeWidth="1.1" />
+      <circle cx="50" cy="33" r="1.8" fill="#ffd978" /><circle cx="67" cy="50" r="1.8" fill="#ffd978" /><circle cx="50" cy="67" r="1.8" fill="#ffd978" /><circle cx="33" cy="50" r="1.8" fill="#ffd978" />
+      <path d="M50 50V36" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" /><path d="M50 50 60 57" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M50 50 38 60" stroke="#ff6b6b" strokeWidth="1.1" strokeLinecap="round" /><circle cx="50" cy="50" r="2.6" fill="#ffd978" />
+      <path d="M28 36a26 26 0 0 1 22-16" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" opacity=".55" />
+    </>
+  ),
+  "nft-ring": (
+    <>
+      <path d="M18 46 25 10h50l7 36z" fill="#9c2424" /><path d="M25 44 30 15h40l5 29z" fill="#6a1212" />
+      <path d="M12 48h76l-6 40H18z" fill="#d63b3b" /><path d="M12 48h76v9H12z" fill="#ef6262" /><path d="M18 88 12 48h8l4 40z" fill="#000" opacity=".12" />
+      <rect x="21" y="55" width="58" height="9" rx="4" fill="#2a0c0c" />
+      <ellipse cx="50" cy="46" rx="14" ry="18" fill="none" stroke="#ffd34d" strokeWidth="5.5" />
+      <ellipse cx="50" cy="46" rx="14" ry="18" fill="none" stroke="#fff3b0" strokeWidth="1.4" strokeDasharray="10 40" strokeDashoffset="6" />
+      <path d="M50 14 59 22 50 32 41 22z" fill="#9be9ff" /><path d="M41 22 50 14 59 22H41z" fill="#e4fbff" /><path d="M50 32 41 22h18z" fill="#4cc6f2" /><path d="M50 32 50 22 59 22z" fill="#7fdcff" />
+      <path d="M62 10l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#fff" opacity=".9" />
+    </>
+  ),
+  "nft-gem": (
+    <>
+      <path d="M12 54 22 34l12 18-4 30H16z" fill="#3fb6e6" /><path d="M22 34 34 52 22 82 16 82 12 54z" fill="#2792c4" />
+      <path d="M88 54 78 34 66 52l4 30h14z" fill="#3fb6e6" /><path d="M78 34 66 52 78 82h6l4-28z" fill="#8fe6ff" opacity=".7" />
+      <path d="M50 4 68 26 63 78 50 96 37 78 32 26z" fill="#5fd3ff" /><path d="M50 4 32 26 37 78 50 96z" fill="#2aa4d8" />
+      <path d="M32 26 50 4 68 26 50 36z" fill="#d4f7ff" /><path d="M50 36 32 26 37 78 50 96z" fill="#2aa4d8" opacity=".55" /><path d="M50 36 68 26 63 78 50 96z" fill="#9ae9ff" />
+      <path d="M44 14 38 30" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" opacity=".8" />
+      <path d="M80 12l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#fff" opacity=".9" />
+    </>
+  ),
+  "nft-flameheart": (
+    <>
+      <path d="M50 2c6 12 20 14 22 32 1 9-4 15-4 15s12-3 18 9c-3 22-26 34-36 38C40 92 17 80 12 58c4-11 15-9 15-9s-5-5-4-15C25 18 42 14 50 2z" fill="#ff8a1f" />
+      <path d="M50 14c5 9 14 11 15 24 0 6-3 10-3 10s9-1 11 7C70 64 56 70 50 72c-8-2-22-8-24-17 3-7 11-5 11-5s-4-4-3-12c2-12 12-14 16-24z" fill="#ffd23f" />
+      <path d="M50 84C26 68 18 54 18 42a16 16 0 0 1 32-4 16 16 0 0 1 32 4c0 12-8 26-32 42z" fill="#e5192e" />
+      <path d="M26 38a10 10 0 0 1 14-8" fill="none" stroke="#ff8a8a" strokeWidth="3" strokeLinecap="round" opacity=".8" />
+    </>
+  ),
+  "nft-frog": (
+    <>
+      <ellipse cx="26" cy="90" rx="13" ry="6" fill="#2ab547" /><ellipse cx="74" cy="90" rx="13" ry="6" fill="#2ab547" />
+      <ellipse cx="50" cy="68" rx="31" ry="24" fill="#39d353" /><ellipse cx="50" cy="76" rx="19" ry="14" fill="#b4f58f" />
+      <ellipse cx="50" cy="44" rx="33" ry="23" fill="#39d353" />
+      <circle cx="31" cy="26" r="14" fill="#39d353" /><circle cx="69" cy="26" r="14" fill="#39d353" />
+      <circle cx="31" cy="26" r="11" fill="#fff" /><circle cx="69" cy="26" r="11" fill="#fff" />
+      <circle cx="33" cy="28" r="5.8" fill="#16241a" /><circle cx="67" cy="28" r="5.8" fill="#16241a" />
+      <circle cx="35" cy="25.5" r="1.9" fill="#fff" /><circle cx="69" cy="25.5" r="1.9" fill="#fff" />
+      <path d="M24 52q26 22 52 0" fill="none" stroke="#17692a" strokeWidth="3.4" strokeLinecap="round" />
+      <path d="M43 59q7 12 14 0z" fill="#ff5c8a" />
+      <circle cx="44" cy="45" r="1.4" fill="#17692a" /><circle cx="56" cy="45" r="1.4" fill="#17692a" />
+    </>
+  ),
+  "nft-dog": (
+    <>
+      <path d="M20 26 5 60l19 10 8-36z" fill="#5c6675" /><path d="M80 26 95 60 76 70 68 34z" fill="#5c6675" />
+      <ellipse cx="50" cy="52" rx="31" ry="29" fill="#e8eff7" /><ellipse cx="50" cy="66" rx="17" ry="13" fill="#fff" />
+      <ellipse cx="50" cy="58" rx="6.5" ry="4.8" fill="#222831" />
+      <circle cx="37" cy="44" r="8" fill="#fff" stroke="#9aa6b5" strokeWidth="1.4" /><circle cx="63" cy="44" r="8" fill="#fff" stroke="#9aa6b5" strokeWidth="1.4" />
+      <circle cx="37" cy="47" r="4.4" fill="#1b2330" /><circle cx="63" cy="47" r="4.4" fill="#1b2330" />
+      <path d="M26 34 44 39M74 34 56 39" stroke="#5c6675" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M34 53q-4 11-1 20q5-8 1-20zM66 53q4 11 1 20q-5-8-1-20z" fill="#5ac8fa" />
+      <path d="M42 72q8-6 16 0" fill="none" stroke="#222831" strokeWidth="2.6" strokeLinecap="round" />
+      <ellipse cx="50" cy="93" rx="22" ry="7" fill="#d4dde8" />
+    </>
+  ),
+  "nft-catarms": (
+    <>
+      <path d="M38 52 4 42l3 11 31 11z" fill="#ff7eb6" /><path d="M62 52 96 42l-3 11-31 11z" fill="#ff7eb6" />
+      <path d="M36 50h28l5 32H31z" fill="#fff0f6" /><path d="M36 50h28l1 8H35z" fill="#ffc2dc" opacity=".6" />
+      <rect x="35" y="78" width="11" height="17" rx="5" fill="#ff7eb6" /><rect x="54" y="78" width="11" height="17" rx="5" fill="#ff7eb6" />
+      <path d="M33 22 30 4l16 9zM67 22 70 4 54 13z" fill="#ff7eb6" /><path d="M35 20 34 10l8 5zM65 20 66 10l-8 5z" fill="#ffc2dc" />
+      <circle cx="50" cy="32" r="21" fill="#ff7eb6" />
+      <circle cx="42" cy="31" r="2.8" fill="#2a1420" /><circle cx="58" cy="31" r="2.8" fill="#2a1420" />
+      <path d="M47 38q3 3 6 0" fill="none" stroke="#2a1420" strokeWidth="2" strokeLinecap="round" /><path d="M50 35v3" stroke="#2a1420" strokeWidth="2" />
+      <circle cx="35" cy="37" r="3.4" fill="#ff4f93" opacity=".5" /><circle cx="65" cy="37" r="3.4" fill="#ff4f93" opacity=".5" />
+    </>
+  ),
+});
+
 export function NftFigure({ id }: { id: string }) {
   const fig = NFT_FIGURES[id];
   if (!fig) return null;

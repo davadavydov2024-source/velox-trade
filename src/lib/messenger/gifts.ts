@@ -89,6 +89,13 @@ export const GIFTS: GiftDef[] = [
   { id: "nft-whale", emoji: "🐋", title: "Кит", price: 45, category: "nft", nft: true, colors: ["#123650", "#08171f"], limited: 700 },
   { id: "nft-music", emoji: "🎵", title: "Мелодия", price: 25, category: "nft", nft: true, colors: ["#3a2a52", "#18112a"], limited: 5000 },
   { id: "nft-skull", emoji: "💀", title: "Череп", price: 35, category: "nft", nft: true, colors: ["#2c2c33", "#131317"], limited: 1800 },
+{ id: "nft-watch", emoji: "⌚", title: "Золотые часы", price: 50, category: "nft", nft: true, colors: ["#4a3a10", "#211a08"], limited: 900 },
+{ id: "nft-ring", emoji: "💍", title: "Кольцо в шкатулке", price: 50, category: "nft", nft: true, colors: ["#4a1620", "#21080c"], limited: 800 },
+{ id: "nft-gem", emoji: "💎", title: "Ледяной самоцвет", price: 45, category: "nft", nft: true, colors: ["#123a4a", "#0a1a21"], limited: 1100 },
+{ id: "nft-flameheart", emoji: "❤️‍🔥", title: "Огненное сердце", price: 40, category: "nft", nft: true, colors: ["#4a1a10", "#210a07"], limited: 1600 },
+{ id: "nft-frog", emoji: "🐸", title: "Квакша", price: 30, category: "nft", nft: true, colors: ["#16401f", "#0a1d0e"], limited: 3000 },
+{ id: "nft-dog", emoji: "🐶", title: "Грустный пёс", price: 30, category: "nft", nft: true, colors: ["#2a3340", "#12161d"], limited: 3000 },
+{ id: "nft-catarms", emoji: "🐱", title: "Розовый кот", price: 25, category: "nft", nft: true, colors: ["#4a1c3a", "#1f0e1a"], limited: 5000 },
   // — 🎃 Хеллоуин: лимитированная коллекция (маленькие тиражи, свои фоны, узоры и модели)
   { id: "hw-jack", emoji: "🎃", title: "Тыква-фонарь", price: 50, category: "halloween", nft: true, colors: ["#4a2a0c", "#1c0d02"], limited: 1031 },
   { id: "hw-vampire", emoji: "🧛", title: "Граф Вампир", price: 50, category: "halloween", nft: true, colors: ["#3a0f1a", "#14060a"], limited: 666 },
