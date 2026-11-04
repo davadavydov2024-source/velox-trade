@@ -15,14 +15,14 @@ export function ProfileMusic({ trackId }: { trackId: string }) {
   const on = m.current?.id === t.id;
   const playing = on && m.playing;
   return (
-    <div className="mx-card flex items-center gap-3 px-3 py-2.5" style={{ margin: "0 16px 12px" }}>
-      <TrackCover track={t} size={46} radius={10} />
+    <div className="flex items-center gap-3 px-3 py-2.5" style={{ margin: "0 16px 12px", borderRadius: 24, background: "rgba(0,0,0,0.38)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <TrackCover track={t} size={48} radius={14} />
       <div className="min-w-0 flex-1">
-        <p className="text-[15.5px] font-semibold truncate">{t.title}</p>
+        <p className="text-[16px] font-extrabold truncate">{t.title}</p>
         <p className="text-[13px] mx-muted truncate">{t.artist}</p>
       </div>
       {t.duration ? <span className="text-[13px] mx-muted tabular-nums">{fmtTime(t.duration)}</span> : null}
-      <button onClick={() => (on ? m.toggle() : m.playQueue([t], 0))} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform" style={{ background: "var(--mx-accent)", color: "#fff" }} aria-label={playing ? "Пауза" : "Играть"}>
+      <button onClick={() => (on ? m.toggle() : m.playQueue([t], 0))} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform" style={{ background: "#8f9bb6", color: "#fff" }} aria-label={playing ? "Пауза" : "Играть"}>
         {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" style={{ marginLeft: 2 }} />}
       </button>
     </div>

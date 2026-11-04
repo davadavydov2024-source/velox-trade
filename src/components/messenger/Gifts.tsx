@@ -1,12 +1,12 @@
 "use client";
 
-import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
 import { NftFigure, hasNftFigure } from "./NftFigures";
 import { NftDetails, NftHero } from "./NftHero";
+import { GiftTile } from "./GiftTile";
 import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
@@ -174,7 +174,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
     } catch (err) {
       if (err instanceof MApiError && err.data?.needTopup) {
         toast("error", err.message);
-        startTopup(Math.max(10, (picked?.price ?? 10) - (wallet ?? 0))).catch(() => {});
+        window.open("/profile/stars", "_blank");
       } else toast("error", err instanceof MApiError ? err.message : "Не удалось отправить подарок");
     } finally {
       setBusy(false);
@@ -414,22 +414,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
             const d = giftById(g.giftId);
             if (!d) return null;
             return (
-              <button key={g.id} onClick={() => setOpen(g)} className="relative rounded-[18px] aspect-square overflow-hidden flex items-center justify-center active:scale-[0.97] transition-transform"
-                style={{ opacity: g.hidden && !mine ? 0.45 : 1, border: "1px solid var(--mx-line)", background: g.nft ? `radial-gradient(circle at 50% 40%, ${backdropOf(g.nft.backdrop).colors[0]}55 0%, ${backdropOf(g.nft.backdrop).colors[1]}22 60%, var(--mx-surface) 100%)` : "var(--mx-surface)" }}>
-                {g.nft?.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={g.nft.imageUrl} alt="" className="w-full h-full object-cover" draggable={false} />
-                ) : g.nft ? (
-                  <NftArt gift={d} nft={g.nft} size="100%" />
-                ) : (
-                  <span style={{ fontSize: 52, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.35))" }}>{d.emoji}</span>
-                )}
-                {g.nft && <span className="absolute top-1.5 right-2 text-[11px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>#{g.nft.number}</span>}
-                {g.hidden ? <span className="absolute top-1.5 left-1.5 flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}><EyeOff size={11} />Скрыт</span>
-                  : g.pinned ? <span className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}><Pin size={11} fill="currentColor" /></span> : null}
-                {g.from && <span className="absolute bottom-1.5 right-1.5"><Avatar src={g.from.photoURL} name={g.from.displayName} seed={g.from.uid} size={20} /></span>}
-                {g.salePrice ? <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-black/55 text-white">{g.salePrice} ⭐</span> : null}
-              </button>
+              <GiftTile key={g.id} g={g} mine={mine} onClick={() => setOpen(g)} />
             );
           })}
         </div>
@@ -445,8 +430,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
           <div className={open.nft ? "pb-8" : "px-5 pb-8 flex flex-col items-center"}>
             {open.nft ? <NftHero gift={def} nft={open.nft} /> : (
               <>
-            <GiftArt gift={def} size={160} />
-            <p className="text-[20px] font-semibold mt-3">{def.title}</p>
+            <GiftArt gift={def} size={160} imageUrl={open.nft?.imageUrl} nft={open.nft} />
+            <p className="text-[20px] font-semibold mt-3">{def.title}{open.nft ? ` #${open.nft.number}` : ""}</p>
             <p className="mx-muted text-[14px]">{money(open.price)} · {new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</p>
             <div className="flex items-center gap-2 mt-3">
               {open.from ? (

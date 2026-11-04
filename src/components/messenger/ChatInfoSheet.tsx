@@ -1,13 +1,13 @@
 "use client";
 
-import { UsernameRow } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, BadgeCheck, Bookmark, ChevronRight, Copy, Crown, FileText, Gem, Gift, Hash, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users } from "lucide-react";
+import { Bell, BellOff, BadgeCheck, Bookmark, Calendar, ChevronRight, Copy, Crown, Eye, FileText, Gem, Gift, Hash, Link2, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { InfoRow, ProfileHeader, ProfileRoundBtn, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
+import { BadgeDot, InfoLine, InfoRow, LinkChip, ProfileHeader, ProfileRoundBtn, ProfileShell, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
+import { PostsTab } from "./Posts";
 import { ProfileMusic } from "./ProfileMusic";
 import { NumberTierChip } from "./Numbers";
 import { formatNumber, numberTier } from "@/lib/messenger/numbers";
@@ -16,8 +16,8 @@ import { ChannelSettingsSheet, ContactEditSheet, PeopleListSheet } from "./Chann
 import { MAccount, MChat, MMessage } from "./mtypes";
 import { birthdayText, chatPhoto, chatTitle, formatTime, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural } from "./util";
 
-type Tab = "stories" | "gifts" | "media" | "files" | "links" | "polls";
-const TAB_LABEL: Record<Tab, string> = { stories: "Публикации", gifts: "Подарки", media: "Медиа", files: "Файлы", links: "Ссылки", polls: "Опросы" };
+type Tab = "stories" | "gifts" | "posts" | "media" | "files" | "links" | "polls";
+const TAB_LABEL: Record<Tab, string> = { stories: "Истории", gifts: "Подарки", posts: "Посты", media: "Медиа", files: "Файлы", links: "Ссылки", polls: "Опросы" };
 const URL_RE = /https?:\/\/[^\s<]+[^\s<.,;:!?)"']/g;
 
 function Tile({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
@@ -48,14 +48,14 @@ function ProfileChannelCard({ handle }: { handle: string }) {
   if (!c) return null;
   const last = c.posts[c.posts.length - 1];
   return (
-    <div className="px-4 mb-4">
-      <div className="flex justify-between px-3 mb-1.5 text-[13px] uppercase tracking-wide mx-muted"><span>Канал</span><span className="normal-case">{c.subscribers} {plural(c.subscribers, "подписчик", "подписчика", "подписчиков")}</span></div>
-      <a href={`/m?join=@${handle}`} className="mx-card flex items-center gap-3 px-4 py-3">
-        <Avatar src={c.photoURL} name={c.title} seed={handle} size={52} />
+    <div className="px-4 mb-3">
+      <a href={`/m?join=@${handle}`} className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 24, background: "rgba(0,0,0,0.38)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <Avatar src={c.photoURL} name={c.title} seed={handle} size={46} />
         <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-2"><p className="font-semibold truncate">{c.title}</p>{last && <span className="mx-muted text-[12.5px] shrink-0">{formatTime(last.createdAt)}</span>}</div>
-          <p className="mx-muted text-[14px] line-clamp-2">{last ? last.text || (last.kind === "image" ? "📷 Фото" : "Публикация") : "Пока нет публикаций"}</p>
+          <p className="font-extrabold truncate text-[16px]">{c.title}</p>
+          <p className="mx-muted text-[13.5px] truncate">{last ? last.text || (last.kind === "image" ? "Фото" : "Публикация") : "Пока нет публикаций"}</p>
         </div>
+        <span className="shrink-0 px-3 py-1 rounded-full text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.14)" }}>{c.subscribers} {plural(c.subscribers, "подписчик", "подписчика", "подписчиков")}</span>
       </a>
     </div>
   );
@@ -83,7 +83,7 @@ export function ChatInfoSheet({
   // «посмотрел профиль» — счётчик просмотров (свои и частые повторы сервер не считает)
   useEffect(() => { if (open && isDm && !saved && peerId) mApi("profile-view", { uid: peerId }).catch(() => {}); }, [open, isDm, saved, peerId]);
 
-  const tabs: Tab[] = isDm ? (saved ? ["media", "files", "links"] : ["stories", "gifts", "media", "files", "links"]) : ["media", "files", "links", "polls"];
+  const tabs: Tab[] = isDm ? (saved ? ["media", "files", "links"] : ["gifts", "posts", "stories", "media", "files", "links"]) : ["media", "files", "links", "polls"];
   const [tab, setTab] = useState<Tab>(tabs[0]);
   const [shop, setShop] = useState(false);
   const [edit, setEdit] = useState(false);
@@ -111,11 +111,14 @@ export function ChatInfoSheet({
   const link = !isDm && chat.handle ? `${typeof location !== "undefined" ? location.origin : ""}/m?join=@${chat.handle}` : "";
   const copy = (text: string, ok: string) => navigator.clipboard?.writeText(text).then(() => toast("success", ok)).catch(() => {});
   const bday = birthdayText(peer?.birthday);
+  const bioLinks = Array.from(new Set((peer?.bio?.match(URL_RE) ?? []).slice(0, 3)));
+  const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 
   const empty = (t: string) => <p className="mx-muted text-center text-[14px] py-8 px-6">{t}</p>;
 
   return (
     <Sheet open={open} onClose={() => { onClose(); }} full>
+      <ProfileShell>
       <ProfileHeader
         seed={isDm ? peerId : chat.id}
         name={title}
@@ -126,7 +129,7 @@ export function ChatInfoSheet({
         orbit={orbit}
         statusPill={isDm && !saved ? lastSeenText(peer) : undefined}
         subtitle={isDm ? undefined : `${chat.members.length} ${chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}`}
-        topRight={((isDm && !saved) || (!isDm && isAdmin)) ? <ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => (isDm ? setEdit(true) : setSettings(true))} /> : undefined}
+        topRight={<>{((isDm && !saved) || (!isDm && isAdmin)) && <ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => (isDm ? setEdit(true) : setSettings(true))} />}<ProfileRoundBtn icon={<X size={19} />} label="Закрыть" onClick={onClose} /></>}
       />
 
       <div className="flex gap-2 px-4 py-3">
@@ -141,25 +144,30 @@ export function ChatInfoSheet({
       {isDm && peer?.channelHandle && <ProfileChannelCard handle={peer.channelHandle} />}
 
       {((isDm && !saved && peer) || peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
-        <div className="mx-card" style={{ margin: "0 16px 12px" }}>
+        <div className="pb-2">
           {peer?.number && <InfoRow value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
-          {peer?.handle && peerId && <UsernameRow uid={peerId} handle={peer.handle} onCopy={(t) => copy(t, "Скопировано")} />}
-          {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} right={<Copy size={16} className="mx-muted" />} />}
+          {peer?.handle && <InfoRow value={`@${peer.handle}`} label="Имя пользователя" onClick={() => copy(`@${peer.handle}`, "Скопировано")} />}
+          {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} />}
           {peer?.bio && <InfoRow value={peer.bio} label="Описание" />}
           {bday && <InfoRow value={bday} label="День рождения" />}
           {chat.description && <InfoRow value={chat.description} label="Описание" />}
           {contact?.note && <InfoRow value={contact.note} label="Заметка (видите только вы)" />}
           {badgeList.length > 0 && (
-            <div className="px-4 py-2.5">
+            <div className="px-5 py-2">
               <div className="flex gap-2 flex-wrap">
-                {badgeList.map((bd) => <span key={bd.key} title={bd.label} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: bd.color, color: "#fff" }}>{BADGE_ICON[bd.icon]}</span>)}
+                {badgeList.map((bd) => <BadgeDot key={bd.key} color={bd.color} title={bd.label}>{BADGE_ICON[bd.icon]}</BadgeDot>)}
               </div>
               <span className="block text-[13px] mx-muted mt-1.5">Значки</span>
             </div>
           )}
-          {isDm && !saved && peer?.createdAt ? <InfoRow value={`На MiliGram с ${new Date(peer.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}`} label="Дата регистрации" /> : null}
+          {bioLinks.length > 0 && (
+            <div className="px-5 py-1.5 flex flex-wrap gap-2">
+              {bioLinks.map((u) => <LinkChip key={u} href={u} label={hostOf(u)} icon={<Link2 size={15} />} />)}
+            </div>
+          )}
+          {isDm && !saved && peer?.createdAt ? <InfoLine icon={<Calendar size={15} />}>{`На MiliGram с ${new Date(peer.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })} г.`}</InfoLine> : null}
           {isDm && !saved && peer?.numId ? <InfoRow value={`ID: ${peer.numId}`} label="Идентификатор" /> : null}
-          {isDm && !saved && typeof peer?.views === "number" && peer.views > 0 ? <InfoRow value={fmtCount(peer.views)} label="Просмотры профиля" /> : null}
+          {isDm && !saved && typeof peer?.views === "number" && peer.views > 0 ? <InfoLine icon={<Eye size={16} />}>{fmtCount(peer.views)}</InfoLine> : null}
         </div>
       )}
 
@@ -176,6 +184,7 @@ export function ChatInfoSheet({
 
       <div className="pb-24">
         {tab === "gifts" && isDm && !saved && <GiftsProfileTab uid={peerId} mine={false} name={title} />}
+        {tab === "posts" && isDm && !saved && <PostsTab uid={peerId} mine={false} />}
         {tab === "stories" && (stories === null ? <div className="flex justify-center py-8"><Spinner /></div> : stories.length === 0 ? empty("Нет публикаций") : (
           <div className="grid grid-cols-3 gap-1 px-4">
             {stories.map((s) => (
@@ -217,6 +226,7 @@ export function ChatInfoSheet({
       {isDm && !saved && <ContactEditSheet open={edit} onClose={() => setEdit(false)} uid={peerId} account={peer} onSaved={(c) => setContact(c)} />}
       {!isDm && <PeopleListSheet open={!!list} onClose={() => setList(null)} chat={chat} me={me} mode={list ?? "members"} canManage={isAdmin} />}
       {!isDm && isAdmin && <ChannelSettingsSheet open={settings} onClose={() => setSettings(false)} chat={chat} me={me} onCounts={(k) => setList(k)} />}
+      </ProfileShell>
     </Sheet>
   );
 }

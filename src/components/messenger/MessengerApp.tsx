@@ -14,8 +14,6 @@ import { SettingsPane } from "./SettingsPane";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AuthScreens, JoinScreen } from "./AuthScreens";
-import { LoginCode } from "./LoginCode";
-import { getDeviceId } from "@/lib/messenger/client";
 import { ContactsPane } from "./ContactsPane";
 import { MiniPlayer, MusicProvider } from "./MusicPlayer";
 import { NewChatSheet } from "./NewChatSheet";
@@ -36,19 +34,6 @@ export function MessengerApp() {
   const { stories, reload: reloadStories } = useStories(!!account && !account.banned);
 
   const [tab, setTab] = useState<Tab>("chats");
-  // регистрация устройства; если у аккаунта уже есть рабочая сессия — вход подтверждается кодом
-  const [needCode, setNeedCode] = useState(false);
-  const [devChecked, setDevChecked] = useState(false);
-  useEffect(() => {
-    if (!account || account.banned || !me) return;
-    let dead = false;
-    mApi<{ needCode?: boolean }>("session", { deviceId: getDeviceId() })
-      .then((r) => { if (!dead) setNeedCode(!!r.needCode); })
-      .catch(() => {})
-      .finally(() => { if (!dead) setDevChecked(true); });
-    return () => { dead = true; };
-  }, [account, me]);
-
   const [newChat, setNewChat] = useState(false);
   const [storyUid, setStoryUid] = useState<string | null>(null);
   const [creator, setCreator] = useState(false);
@@ -154,9 +139,6 @@ export function MessengerApp() {
       </div>
     );
   }
-
-  if (!devChecked) return <div className="h-full flex items-center justify-center"><Spinner size={30} /></div>;
-  if (needCode) return <LoginCode onDone={() => setNeedCode(false)} onLogout={() => { signOut(auth).catch(() => {}); }} />;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "contacts", label: "Контакты", icon: <Users size={24} /> },
