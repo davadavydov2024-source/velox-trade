@@ -1,7 +1,7 @@
 /** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
-export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
+export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift";
 
 export interface MessengerAccount {
   uid: string;
@@ -15,14 +15,13 @@ export interface MessengerAccount {
   showLastSeen: boolean;
   banned: boolean;
   verified?: boolean;
-  aliases?: string[]; // дополнительные юзернеймы
-  verifyKind?: "verified" | "official" | "major" | "trusted" | null; // вид галочки (выдаёт админ)
-  verifyText?: string | null; // подпись под профилем: «подтверждён как …»
-  tag?: string | null; // метка рядом с именем: CEO, DEV и т.п. (выдаёт админ)
   bannerURL?: string | null; // баннер профиля (обложка)
   status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
   channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
   plusUntil?: number; // «Премиум Плюс» активен, пока plusUntil > Date.now()
+  profileChannel?: string | null; // чат (канал), который показан в профиле: выбирается из своих каналов, может быть закрытым
+  aliases?: string[]; // дополнительные имена «а также @…» (выдаёт администрация)
+  socials?: { kind: string; value: string }[]; // ссылки на соцсети в профиле (до 3)
   frame?: { id: string; color: string } | null; // надетая рамка аватарки
   numId?: number; // числовой ID аккаунта (с 100000)
   views?: number; // сколько раз смотрели профиль
@@ -46,9 +45,6 @@ export interface MessengerChat {
   updatedAt: number;
   readBy: Record<string, number>;
   pinnedMessageIds: string[];
-  verifyKind?: "verified" | "official" | "major" | "trusted" | null; // галочка канала/группы
-  verifyText?: string | null;
-  tag?: string | null;
   handle?: string; // публичный @канал (поиск, вступление по ссылке /m?join=@handle)
   inviteCode?: string; // пригласительная ссылка /m?join=<код>
   permissions?: Partial<ChatPermissions>; // права участников по умолчанию (группа)
@@ -62,23 +58,6 @@ export interface MessengerChat {
   banned?: string[];
   freeFor?: string[]; // кому можно писать бесплатно (владелец платных сообщений сам ответил им)
   service?: boolean; // служебный чат «MiliGram Push»: только читать, отвечать нельзя
-}
-
-export interface MessengerGiveaway {
-  title: string;
-  desc?: string;
-  prize: string;
-  buttonText: string;
-  buttonColor: string;
-  endsAt?: number; // конец по времени
-  maxParticipants?: number; // конец по числу участников
-  winnersCount: number;
-  premiumOnly?: boolean;
-  count: number;
-  status: "active" | "ended";
-  recent?: { uid: string; name: string; photoURL?: string | null }[];
-  winners?: { uid: string; name: string; handle?: string; photoURL?: string | null }[];
-  endedAt?: number;
 }
 
 export interface MessengerMessage {
@@ -102,10 +81,10 @@ export interface MessengerMessage {
   sticker?: { pack: string; index: number; emoji?: string; preview?: string };
   gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
   poll?: MessengerPoll;
-  giveaway?: MessengerGiveaway; // kind: "giveaway", картинка — mediaUrl
   mentions?: string[]; // uid упомянутых через @handle
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
   kb?: string[]; // быстрые ответы бота (кнопки под последним сообщением)
+  joinRequest?: { chatId: string; uid: string; title: string; name: string; status: "pending" | "approved" | "declined" }; // служебное сообщение «заявка в канал» с кнопками «Принять / Отклонить»
   hiddenFor?: string[]; // «удалить у себя»: этим пользователям сообщение не показывать
 }
 
@@ -121,7 +100,6 @@ export interface MessengerUserChat {
   mentions?: number; // непрочитанные упоминания (значок @)
   markedUnread?: boolean; // «отметить непрочитанным»
   clearedAt?: number; // «очистить историю у себя»: сообщения старше не показывать
-  hiddenAt?: number; // чат удалён у себя: скрыт, пока нет новых сообщений
 }
 
 export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"] as const;

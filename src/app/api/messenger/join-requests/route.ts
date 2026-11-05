@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { canDo, fail, loadChat, requireMessenger } from "@/lib/messenger/server";
+import { resolveJoinRequest, type JoinNotif } from "@/lib/messenger/joinRequests";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,12 +32,15 @@ export async function POST(req: NextRequest) {
   if (typeof b.uid !== "string" || !b.uid || b.uid.includes("/")) return fail("uid обязателен");
   const db = adminDb();
   const reqRef = db.collection("messengerJoinRequests").doc(`${loaded.chat.id}_${b.uid}`);
-  if (!(await reqRef.get()).exists) return fail("Заявка не найдена", 404);
+  const reqSnap = await reqRef.get();
+  if (!reqSnap.exists) return fail("Заявка уже обработана", 404);
+  const reqData = reqSnap.data() as { chatId: string; uid: string; notif?: JoinNotif[] };
   if (b.approve === true && !loaded.chat.members.includes(b.uid)) {
     const max = loaded.chat.type === "channel" ? 5000 : 200;
     if (loaded.chat.members.length >= max) return fail("В чате нет мест", 403);
     await db.collection("messengerChats").doc(loaded.chat.id).update({ members: FieldValue.arrayUnion(b.uid) });
   }
   await reqRef.delete();
+  await resolveJoinRequest({ chatId: loaded.chat.id, uid: b.uid, notif: reqData.notif }, loaded.chat.title ?? "канал", b.approve === true);
   return NextResponse.json({ ok: true });
 }

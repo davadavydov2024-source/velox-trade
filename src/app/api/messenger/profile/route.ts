@@ -54,6 +54,18 @@ export async function POST(req: NextRequest) {
       upd.channelHandle = v;
     }
   }
+  if ("profileChannel" in b) {
+    // канал в профиле: любой из МОИХ каналов (создатель или админ), в том числе закрытый
+    const v = b.profileChannel;
+    if (v === null || v === "") { upd.profileChannel = null; upd.channelHandle = null; }
+    else {
+      if (typeof v !== "string" || v.includes("/")) return fail("Некорректный канал");
+      const chat = (await adminDb().collection("messengerChats").doc(v).get()).data();
+      if (!chat || chat.type !== "channel" || !(chat.createdBy === me.uid || (chat.admins ?? []).includes(me.uid))) return fail("Канал не найден или ты не его админ");
+      upd.profileChannel = v;
+      upd.channelHandle = chat.handle ?? null;
+    }
+  }
   if ("profileTrack" in b) {
     // мелодия профиля: трек из раздела «Музыка»
     const v = b.profileTrack;

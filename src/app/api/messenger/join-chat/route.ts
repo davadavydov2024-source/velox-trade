@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger } from "@/lib/messenger/server";
-import { sendWebPush } from "@/lib/webPushServer";
+import { createJoinRequest } from "@/lib/messenger/joinRequests";
 
 export const runtime = "nodejs";
 
@@ -37,9 +37,7 @@ export async function POST(req: NextRequest) {
   if (members.length >= max) return fail("В чате нет мест", 403);
 
   if (chat.joinByRequest) {
-    await db.collection("messengerJoinRequests").doc(`${chatId}_${me.uid}`).set({ chatId, uid: me.uid, createdAt: Date.now() });
-    const admins = Array.from(new Set([chat.createdBy as string, ...((chat.admins as string[]) ?? [])]));
-    await Promise.allSettled(admins.map((a) => sendWebPush(a, { title: `Заявка в «${chat.title ?? "чат"}»`, body: `${me.account.displayName} хочет вступить`, url: `/m/app?chat=${chatId}` }, "messages")));
+    await createJoinRequest(chatId, chat as { title?: string; createdBy: string; admins?: string[] }, { uid: me.uid, displayName: me.account.displayName, handle: me.account.handle });
     return NextResponse.json({ chatId, requested: true });
   }
   await ref.update({ members: FieldValue.arrayUnion(me.uid) });
