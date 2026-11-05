@@ -10,6 +10,7 @@ import {
 import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
+import { GiveawaySheet } from "./Giveaway";
 import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
@@ -90,6 +91,7 @@ export function ChatView({
   const [stickerPack, setStickerPack] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
+  const [gwOpen, setGwOpen] = useState(false);
   const [giftOpen, setGiftOpen] = useState(false);
   const [muteMenu, setMuteMenu] = useState(false);
   const [info, setInfo] = useState(false);
@@ -680,6 +682,7 @@ export function ChatView({
                 me={me}
                 chatType={chat.type}
                 accounts={accountsAll}
+                chatId={chat.id}
                 showAuthor={!sameAsPrev}
                 isLastInGroup={!sameAsNext}
                 read={isRead(msg)}
@@ -797,6 +800,7 @@ export function ChatView({
           items={[
             { label: "Информация", icon: <Info size={20} />, onPress: () => setInfo(true) },
             { label: "Подарить подарок", icon: <Gift size={20} />, hidden: chat.type !== "dm" || saved || peer?.uid === "velox_dating", onPress: () => setGiftOpen(true) },
+            { label: "Запустить розыгрыш", icon: <Gift size={20} />, hidden: chat.type === "dm" || !isAdmin || !!chat.service, onPress: () => setGwOpen(true) },
             { label: "Поиск по сообщениям", icon: <Search size={20} />, onPress: () => { setSearchQ(""); setSearchOpen(true); } },
             { label: userChat?.pinned ? "Открепить чат" : "Закрепить чат", icon: userChat?.pinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => chatSetting({ pinned: !userChat?.pinned }) },
             muted
@@ -807,6 +811,7 @@ export function ChatView({
           ]}
         />
       </Sheet>
+      {chat.type !== "dm" && isAdmin && <GiveawaySheet open={gwOpen} onClose={() => setGwOpen(false)} chatId={chat.id} me={me} />}
       <Sheet open={muteMenu} onClose={() => setMuteMenu(false)} title="Отключить уведомления">
         <MenuList
           onDone={() => setMuteMenu(false)}

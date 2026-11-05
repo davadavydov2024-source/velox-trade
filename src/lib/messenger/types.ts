@@ -1,7 +1,7 @@
 /** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
-export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift";
+export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
 
 export interface MessengerAccount {
   uid: string;
@@ -64,6 +64,23 @@ export interface MessengerChat {
   service?: boolean; // служебный чат «MiliGram Push»: только читать, отвечать нельзя
 }
 
+export interface MessengerGiveaway {
+  title: string;
+  desc?: string;
+  prize: string;
+  buttonText: string;
+  buttonColor: string;
+  endsAt?: number; // конец по времени
+  maxParticipants?: number; // конец по числу участников
+  winnersCount: number;
+  premiumOnly?: boolean;
+  count: number;
+  status: "active" | "ended";
+  recent?: { uid: string; name: string; photoURL?: string | null }[];
+  winners?: { uid: string; name: string; handle?: string; photoURL?: string | null }[];
+  endedAt?: number;
+}
+
 export interface MessengerMessage {
   id: string;
   from: string; // ставит сервер по токену, клиенту доверять нельзя
@@ -85,6 +102,7 @@ export interface MessengerMessage {
   sticker?: { pack: string; index: number; emoji?: string; preview?: string };
   gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
   poll?: MessengerPoll;
+  giveaway?: MessengerGiveaway; // kind: "giveaway", картинка — mediaUrl
   mentions?: string[]; // uid упомянутых через @handle
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
   kb?: string[]; // быстрые ответы бота (кнопки под последним сообщением)

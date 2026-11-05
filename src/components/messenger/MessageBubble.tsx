@@ -5,6 +5,7 @@ import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loa
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
+import { GiveawayCard } from "./Giveaway";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
@@ -78,6 +79,7 @@ function MessageRowImpl({
   me,
   chatType,
   accounts,
+  chatId,
   showAuthor,
   isLastInGroup,
   read,
@@ -98,6 +100,7 @@ function MessageRowImpl({
   me: string;
   chatType: MChatType;
   accounts: Record<string, MAccount | null | undefined>;
+  chatId?: string;
   showAuthor: boolean;
   isLastInGroup: boolean;
   read: boolean;
@@ -227,6 +230,14 @@ function MessageRowImpl({
   let content: ReactNode;
   if (msg.deletedForAll) {
     content = <p className="italic opacity-70">Сообщение удалено</p>;
+  } else if (msg.kind === "giveaway" && msg.giveaway) {
+    content = (
+      <>
+        <GiveawayCard msg={msg} chatId={chatId ?? ""} me={me} />
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
   } else if (msg.kind === "poll" && msg.poll) {
     const poll = msg.poll;
     const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
