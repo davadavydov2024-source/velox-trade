@@ -1,15 +1,15 @@
 "use client";
 
-import { ReactNode, useRef } from "react";
-import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft } from "lucide-react";
+import { ReactNode, memo, useRef } from "react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
+import { GiveawayCard } from "./Giveaway";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
 import { StickerMedia } from "./StickerMedia";
-import { JoinRequestActions } from "./JoinRequestActions";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
 
@@ -73,12 +73,13 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
   );
 }
 
-export function MessageRow({
+function MessageRowImpl({
   msg,
   pending,
   me,
   chatType,
   accounts,
+  chatId,
   showAuthor,
   isLastInGroup,
   read,
@@ -99,6 +100,7 @@ export function MessageRow({
   me: string;
   chatType: MChatType;
   accounts: Record<string, MAccount | null | undefined>;
+  chatId?: string;
   showAuthor: boolean;
   isLastInGroup: boolean;
   read: boolean;
@@ -228,6 +230,14 @@ export function MessageRow({
   let content: ReactNode;
   if (msg.deletedForAll) {
     content = <p className="italic opacity-70">Сообщение удалено</p>;
+  } else if (msg.kind === "giveaway" && msg.giveaway) {
+    content = (
+      <>
+        <GiveawayCard msg={msg} chatId={chatId ?? ""} me={me} />
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
   } else if (msg.kind === "poll" && msg.poll) {
     const poll = msg.poll;
     const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
@@ -328,13 +338,32 @@ export function MessageRow({
         <span className="absolute bottom-0 right-0 text-[11px] px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: "rgba(0,0,0,0.4)" }}>{formatTime(msg.createdAt)}{mine && (read ? <CheckCheck size={12} /> : <Check size={12} />)}</span>
       </div>
     );
+  } else if (msg.kind === "text" && /^🔑 Код входа\n\d{6}/.test(msg.text ?? "")) {
+    const lines = (msg.text ?? "").split("\n");
+    const code = lines[1];
+    const rest = lines.slice(2).join("\n").trim();
+    content = (
+      <div style={{ minWidth: 230 }}>
+        <p className="flex items-center gap-2 text-[13px] font-semibold" style={{ color: "var(--mx-accent)" }}>🔑 Код входа</p>
+        <p className="my-2 text-[34px] font-bold tracking-[0.18em] tabular-nums select-all">{code}</p>
+        <button
+          onClick={() => { navigator.clipboard?.writeText(code).catch(() => {}); }}
+          className="w-full h-10 rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2 active:opacity-70"
+          style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text, #fff)" }}
+        >
+          <Copy size={16} /> Копировать код
+        </button>
+        <p className="whitespace-pre-wrap text-[12.5px] mx-muted mt-2.5">{rest}</p>
+        {meta}
+        <div className="clear-both" />
+      </div>
+    );
   } else {
     content = (
       <>
         <span className="whitespace-pre-wrap">
           <Linkified text={msg.text ?? ""} />
         </span>
-        {msg.joinRequest && <JoinRequestActions jr={msg.joinRequest} />}
         {meta}
         <div className="clear-both" />
       </>
@@ -435,3 +464,15 @@ export function MessageRow({
     </div>
   );
 }
+
+
+/**
+ * Строка сообщения перерисовывается только когда изменились её данные (сообщение, статус, выделение, группировка).
+ * Обработчики из сравнения исключены — ChatView передаёт стабильные обёртки над актуальными функциями (см. H в ChatView).
+ * На телефоне это убирает лишние перерисовки сотен пузырей при печати, «в сети», таймере и новых сообщениях.
+ */
+export const MessageRow = memo(MessageRowImpl, (a, b) =>
+  a.msg === b.msg && a.pending === b.pending && a.me === b.me && a.chatType === b.chatType && a.accounts === b.accounts &&
+  a.showAuthor === b.showAuthor && a.isLastInGroup === b.isLastInGroup && a.read === b.read && a.selecting === b.selecting &&
+  a.selected === b.selected && a.highlight === b.highlight && !!a.onSwipeReply === !!b.onSwipeReply
+);
