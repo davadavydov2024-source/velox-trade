@@ -51,6 +51,14 @@ export function useMyAccount(uid?: string | null) {
 /** Один аккаунт с живым статусом «в сети» (для открытого чата). */
 export function useLiveAccount(uid?: string | null): MAccount | null {
   const [acc, setAcc] = useState<MAccount | null>(null);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const l = () => setTick((t) => t + 1);
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
   useEffect(() => {
     if (!uid) return setAcc(null);
     return onSnapshot(
@@ -59,7 +67,7 @@ export function useLiveAccount(uid?: string | null): MAccount | null {
       () => setAcc(null)
     );
   }, [uid]);
-  return acc;
+  return withContactName(acc);
 }
 
 export function useMyChats(uid?: string | null) {
@@ -131,6 +139,51 @@ export function useFolders(uid?: string | null): MFolder[] {
 const accountCache = new Map<string, MAccount | null>();
 const accountPending = new Set<string>();
 let cacheVersion = 0;
+
+// ---- мои имена для контактов (видны только мне, как «Изм.» в Telegram): подменяют displayName везде ----
+const contactNames = new Map<string, string>();
+let contactsVersion = 0;
+const fullName = (first?: string, last?: string) => [first, last].map((x) => (x ?? "").trim()).filter(Boolean).join(" ");
+function withContactName<T extends MAccount | null | undefined>(a: T): T {
+  if (!a) return a;
+  const n = contactNames.get(a.uid);
+  return n && n !== a.displayName ? ({ ...a, displayName: n, originalName: a.displayName } as T) : a;
+}
+export async function reloadContactNames() {
+  try {
+    const r = await mApi<{ contacts?: Record<string, { firstName?: string; lastName?: string }> }>("contact");
+    contactNames.clear();
+    Object.entries(r.contacts ?? {}).forEach(([uid, c]) => {
+      const n = fullName(c.firstName, c.lastName);
+      if (n) contactNames.set(uid, n);
+    });
+    contactsVersion++;
+    listeners.forEach((l) => l());
+  } catch {
+    // имена необязательны — без них показываем настоящие
+  }
+}
+/** Сразу применить новое имя (после «Изм.»), не дожидаясь перезагрузки списка. */
+export function setContactName(uid: string, firstName?: string, lastName?: string) {
+  const n = fullName(firstName, lastName);
+  if (n) contactNames.set(uid, n);
+  else contactNames.delete(uid);
+  contactsVersion++;
+  listeners.forEach((l) => l());
+}
+/** Грузит мои имена контактов (при входе и при возвращении на вкладку). Вызывать один раз в корне мессенджера. */
+export function useContactNames(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    reloadContactNames();
+    const onVis = () => document.visibilityState === "visible" && reloadContactNames();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      contactNames.clear();
+    };
+  }, [enabled]);
+}
 const listeners = new Set<() => void>();
 
 async function loadAccounts(uids: string[]) {
@@ -172,10 +225,10 @@ export function useAccounts(uids: string[]): Record<string, MAccount | null> {
   }, [key]);
   return useMemo(() => {
     const out: Record<string, MAccount | null> = {};
-    uids.forEach((u) => (out[u] = accountCache.get(u) ?? null));
+    uids.forEach((u) => (out[u] = withContactName(accountCache.get(u) ?? null)));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, cacheVersion]);
+  }, [key, cacheVersion, contactsVersion]);
 }
 
 export function useMessages(chatId: string | null, pageSize = 60) {

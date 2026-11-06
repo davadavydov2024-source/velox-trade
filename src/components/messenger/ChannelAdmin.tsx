@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Crown, ShieldOff, UserMinus, UserPlus } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
-import { useAccounts } from "./hooks";
+import { setContactName, useAccounts } from "./hooks";
 import { Avatar, Section, Sheet, Switch } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
 import { MAccount, MChat } from "./mtypes";
@@ -149,17 +149,20 @@ export function ContactEditSheet({ open, onClose, uid, account, onSaved }: { ope
   const { toast } = useToast();
   const [f, setF] = useState({ firstName: "", lastName: "", note: "" });
   const [busy, setBusy] = useState(false);
+  // настоящее имя человека (displayName может быть уже подменён моим именем для контакта)
+  const realName = (account as (MAccount & { originalName?: string }) | null)?.originalName ?? account?.displayName ?? "";
   useEffect(() => {
     if (!open) return;
-    mApi<typeof f>(`contact?uid=${encodeURIComponent(uid)}`).then((d) => setF({ firstName: d.firstName || account?.displayName || "", lastName: d.lastName, note: d.note })).catch(() => setF({ firstName: account?.displayName ?? "", lastName: "", note: "" }));
+    mApi<typeof f>(`contact?uid=${encodeURIComponent(uid)}`).then((d) => setF({ firstName: d.firstName || realName || "", lastName: d.lastName, note: d.note })).catch(() => setF({ firstName: realName, lastName: "", note: "" }));
   }, [open, uid]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     setBusy(true);
     try {
       // имя как у человека и без фамилии/заметки — запись не нужна
-      const same = f.firstName.trim() === (account?.displayName ?? "") && !f.lastName.trim() && !f.note.trim();
+      const same = f.firstName.trim() === realName && !f.lastName.trim() && !f.note.trim();
       const body = same ? { uid, firstName: "", lastName: "", note: "" } : { uid, ...f };
       await mApi("contact", body);
+      setContactName(uid, body.firstName, body.lastName);
       onSaved(body);
       onClose();
     } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); } finally { setBusy(false); }
