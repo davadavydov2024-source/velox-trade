@@ -15,7 +15,7 @@ async function call<T = any>(url: string, body?: unknown): Promise<T> {
   return d as T;
 }
 
-type ChatHit = { id: string; type: string; title: string; handle: string; verifyKind: VerifyKind | null; verifyText: string; tag: string };
+type ChatHit = { id: string; type: string; title: string; handle: string; verifyKind: VerifyKind | null; verifyText: string; tag: string; tagText?: string };
 
 /** Вкладка «Метки»: галочки (подтверждённый / официальный / major / доверенный) и текстовые метки (CEO, DEV…) людям и каналам. */
 export function AdminMarks() {
@@ -28,6 +28,7 @@ export function AdminMarks() {
   const [kind, setKind] = useState<VerifyKind | null>(null);
   const [text, setText] = useState("");
   const [tag, setTag] = useState("");
+  const [tagText, setTagText] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -41,15 +42,15 @@ export function AdminMarks() {
   const pickUser = (a: MAccount) => {
     const x = a as any;
     setUser(a); setQ(""); setFound([]);
-    setKind(x.verifyKind ?? (x.verified ? "verified" : null)); setText(x.verifyText ?? ""); setTag(x.tag ?? "");
+    setKind(x.verifyKind ?? (x.verified ? "verified" : null)); setText(x.verifyText ?? ""); setTag(x.tag ?? ""); setTagText(x.tagText ?? "");
   };
   const findChat = async () => {
     try {
       const d = await call<{ chat: ChatHit }>(`/api/admin/messenger/marks?handle=${encodeURIComponent(q.trim())}`);
-      setChat(d.chat); setKind(d.chat.verifyKind); setText(d.chat.verifyText); setTag(d.chat.tag);
+      setChat(d.chat); setKind(d.chat.verifyKind); setText(d.chat.verifyText); setTag(d.chat.tag); setTagText(d.chat.tagText ?? "");
     } catch (e: any) { toast("error", e.message); }
   };
-  const reset = () => { setUser(null); setChat(null); setKind(null); setText(""); setTag(""); setQ(""); };
+  const reset = () => { setUser(null); setChat(null); setKind(null); setText(""); setTag(""); setTagText(""); setQ(""); };
   const hasTarget = mode === "user" ? !!user : !!chat;
 
   const apply = async (clear: boolean) => {
@@ -59,10 +60,10 @@ export function AdminMarks() {
       await call("/api/admin/messenger/marks", {
         target: mode,
         ...(mode === "user" ? { uid: user!.uid } : { handle: chat!.handle }),
-        kind: clear ? null : kind, text: clear ? "" : text, tag: clear ? "" : tag,
+        kind: clear ? null : kind, text: clear ? "" : text, tag: clear ? "" : tag, tagText: clear ? "" : tagText,
       });
       toast("success", clear ? "Метки сняты" : "Сохранено");
-      if (clear) { setKind(null); setText(""); setTag(""); }
+      if (clear) { setKind(null); setText(""); setTag(""); setTagText(""); }
     } catch (e: any) { toast("error", e.message); } finally { setBusy(false); }
   };
 
@@ -118,6 +119,7 @@ export function AdminMarks() {
           <div className="px-4 flex flex-col gap-2.5">
             <input className="mx-input" maxLength={200} placeholder="Описание под профилем (необязательно)" value={text} onChange={(e) => setText(e.target.value)} disabled={!kind} />
             <input className="mx-input" maxLength={TAG_MAX} placeholder="Метка рядом с именем: CEO, DEV, SUPPORT…" value={tag} onChange={(e) => setTag(e.target.value)} />
+            <input className="mx-input" maxLength={200} placeholder="Что значит метка (видно по нажатию), необязательно" value={tagText} onChange={(e) => setTagText(e.target.value)} disabled={!tag} />
             <div className="flex gap-2">
               <button disabled={busy} onClick={() => apply(false)} className="flex-1 py-3 rounded-2xl text-white text-[16px] font-medium" style={{ background: "var(--mx-accent)", opacity: busy ? 0.6 : 1 }}>Сохранить</button>
               <button disabled={busy} onClick={() => apply(true)} className="px-5 py-3 rounded-2xl mx-card text-[16px]" style={{ color: "#ff3b30" }}>Снять всё</button>

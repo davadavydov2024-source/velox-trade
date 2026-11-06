@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, X } from "lucide-react";
-import { markKind, verifyMeta, type VerifyKind } from "@/lib/messenger/marks";
+import { markKind, tagInfo, verifyMeta, type VerifyKind } from "@/lib/messenger/marks";
 import { gradientFor, initials } from "./util";
 
 export function Avatar({
@@ -79,21 +79,50 @@ export function VerifiedBadge({ size = 15, kind = "verified" }: { size?: number;
   );
 }
 
-/** Галочка человека или канала, если она есть (учитывает и старый флаг verified). */
-export function VerifyMark({ acc, size = 15 }: { acc?: { verified?: boolean; verifyKind?: string | null } | null; size?: number }) {
+const nameOf = (o: unknown): string => ((o as { displayName?: string; title?: string } | null)?.displayName ?? (o as { title?: string } | null)?.title ?? "") as string;
+
+/** Галочка человека или канала, если она есть. По нажатию — окно с пояснением, как в Telegram. */
+export function VerifyMark({ acc, size = 15 }: { acc?: { verified?: boolean; verifyKind?: string | null; verifyText?: string | null } | null; size?: number }) {
+  const [open, setOpen] = useState(false);
   const k = markKind(acc);
-  return k ? <VerifiedBadge size={size} kind={k} /> : null;
+  if (!k) return null;
+  const meta = verifyMeta(k);
+  return (
+    <span onClick={(e) => e.stopPropagation()} className="inline-flex shrink-0 align-middle">
+      <span role="button" tabIndex={0} aria-label={meta.label} className="inline-flex cursor-pointer" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(true); }}>
+        <VerifiedBadge size={size} kind={k} />
+      </span>
+      <Sheet open={open} onClose={() => setOpen(false)} zIndex={90}>
+        <div className="px-6 pt-4 pb-6 flex flex-col items-center text-center">
+          <VerifiedBadge size={64} kind={k} />
+          <p className="font-bold text-[20px] mt-3">{meta.label}</p>
+          {nameOf(acc) && <p className="mx-muted text-[14px]">{nameOf(acc)}</p>}
+          <p className="text-[15px] mt-3 opacity-90">{acc?.verifyText?.trim() || meta.desc}</p>
+          <button className="mx-btn w-full mt-5" onClick={() => setOpen(false)}>Понятно</button>
+        </div>
+      </Sheet>
+    </span>
+  );
 }
 
-/** Метка рядом с именем, которую выдал админ: CEO, DEV… */
-export function TagChip({ acc, light = false }: { acc?: { tag?: string | null } | null; light?: boolean }) {
+/** Метка рядом с именем, которую выдал админ: CEO, DEV… По нажатию — что она значит. */
+export function TagChip({ acc, light = false }: { acc?: { tag?: string | null; tagText?: string | null } | null; light?: boolean }) {
+  const [open, setOpen] = useState(false);
   if (!acc?.tag) return null;
+  const style = light ? { background: "rgba(255,255,255,0.22)", color: "#fff" } : { background: "color-mix(in srgb, var(--mx-accent) 18%, transparent)", color: "var(--mx-accent)" };
   return (
-    <span
-      className="shrink-0 px-1.5 rounded-md text-[10.5px] font-extrabold uppercase tracking-wide leading-[18px]"
-      style={light ? { background: "rgba(255,255,255,0.22)", color: "#fff" } : { background: "color-mix(in srgb, var(--mx-accent) 18%, transparent)", color: "var(--mx-accent)" }}
-    >
-      {acc.tag}
+    <span onClick={(e) => e.stopPropagation()} className="inline-flex shrink-0 align-middle">
+      <span role="button" tabIndex={0} className="shrink-0 px-1.5 rounded-md text-[10.5px] font-extrabold uppercase tracking-wide leading-[18px] cursor-pointer" style={style} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(true); }}>
+        {acc.tag}
+      </span>
+      <Sheet open={open} onClose={() => setOpen(false)} zIndex={90}>
+        <div className="px-6 pt-4 pb-6 flex flex-col items-center text-center">
+          <span className="px-4 py-1.5 rounded-xl text-[20px] font-extrabold uppercase tracking-wide" style={{ background: "color-mix(in srgb, var(--mx-accent) 18%, transparent)", color: "var(--mx-accent)" }}>{acc.tag}</span>
+          {nameOf(acc) && <p className="font-semibold text-[16px] mt-3">{nameOf(acc)}</p>}
+          <p className="text-[15px] mt-2 opacity-90">{tagInfo(acc.tag, acc.tagText)}</p>
+          <button className="mx-btn w-full mt-5" onClick={() => setOpen(false)}>Понятно</button>
+        </div>
+      </Sheet>
     </span>
   );
 }

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const snap = await adminDb().collection("messengerChats").where("handle", "==", h).limit(1).get();
   if (snap.empty) return err("Канал или группа с таким адресом не найдены", 404);
   const d = snap.docs[0].data();
-  return NextResponse.json({ chat: { id: snap.docs[0].id, type: d.type, title: d.title ?? "", handle: d.handle, verifyKind: d.verifyKind ?? null, verifyText: d.verifyText ?? "", tag: d.tag ?? "" } });
+  return NextResponse.json({ chat: { id: snap.docs[0].id, type: d.type, title: d.title ?? "", handle: d.handle, verifyKind: d.verifyKind ?? null, verifyText: d.verifyText ?? "", tag: d.tag ?? "", tagText: d.tagText ?? "" } });
 }
 
 export async function POST(req: NextRequest) {
@@ -35,10 +35,12 @@ export async function POST(req: NextRequest) {
   if (kind !== null && !isVerifyKind(kind)) return err("Неизвестный вид галочки");
   const text = typeof b.text === "string" ? b.text.trim().slice(0, 200) : "";
   const tag = typeof b.tag === "string" ? b.tag.trim().slice(0, TAG_MAX) : "";
+  const tagText = typeof b.tagText === "string" ? b.tagText.trim().slice(0, 200) : "";
   const patch: Record<string, unknown> = {
     verifyKind: kind ?? FieldValue.delete(),
     verifyText: kind && text ? text : FieldValue.delete(),
     tag: tag || FieldValue.delete(),
+    tagText: tag && tagText ? tagText : FieldValue.delete(),
   };
 
   if (b.target === "chat") {

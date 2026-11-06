@@ -15,3 +15,24 @@ export function markKind(o?: { verified?: boolean; verifyKind?: string | null } 
   if (isVerifyKind(o.verifyKind)) return o.verifyKind;
   return o.verified ? "verified" : null;
 }
+
+/** Что означает метка рядом с именем (показывается по нажатию). Админ может задать своё описание — оно главнее. */
+const TAG_DESCRIPTIONS: Record<string, string> = {
+  CEO: "Генеральный директор — руководитель MiliGram.",
+  CTO: "Технический директор — отвечает за технологии MiliGram.",
+  FOUNDER: "Основатель MiliGram.",
+  ОСНОВАТЕЛЬ: "Основатель MiliGram.",
+  DEV: "Разработчик — создаёт и поддерживает MiliGram.",
+  ADMIN: "Администратор — управляет платформой и следит за порядком.",
+  MOD: "Модератор — следит за соблюдением правил и помогает пользователям.",
+  SUPPORT: "Поддержка — поможет с вопросами и проблемами.",
+  DESIGN: "Дизайнер — отвечает за внешний вид MiliGram.",
+  QA: "Тестировщик — проверяет, что всё работает без ошибок.",
+  PR: "Представитель по связям с общественностью MiliGram.",
+  PARTNER: "Партнёр MiliGram.",
+  BOT: "Автоматический аккаунт MiliGram.",
+  VIP: "VIP — особый статус от администрации MiliGram.",
+};
+export function tagInfo(tag: string, custom?: string | null): string {
+  return custom?.trim() || TAG_DESCRIPTIONS[tag.trim().toUpperCase()] || "Метка выдана администрацией MiliGram.";
+}

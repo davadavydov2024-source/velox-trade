@@ -1,10 +1,9 @@
-﻿/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
+/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
 export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
 
 export interface MessengerAccount {
-  profileChannel?: string | null; // канал, показываемый в профиле
   uid: string;
   handle: string; // lowercase, 4–24 символа: a-z, 0-9, _
   displayName: string;
@@ -20,6 +19,7 @@ export interface MessengerAccount {
   verifyKind?: "verified" | "official" | "major" | "trusted" | null; // вид галочки (выдаёт админ)
   verifyText?: string | null; // подпись под профилем: «подтверждён как …»
   tag?: string | null; // метка рядом с именем: CEO, DEV и т.п. (выдаёт админ)
+  tagText?: string | null; // что значит метка (по нажатию)
   bannerURL?: string | null; // баннер профиля (обложка)
   status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
   channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
@@ -50,6 +50,7 @@ export interface MessengerChat {
   verifyKind?: "verified" | "official" | "major" | "trusted" | null; // галочка канала/группы
   verifyText?: string | null;
   tag?: string | null;
+  tagText?: string | null; // что значит метка (по нажатию)
   handle?: string; // публичный @канал (поиск, вступление по ссылке /m?join=@handle)
   inviteCode?: string; // пригласительная ссылка /m?join=<код>
   permissions?: Partial<ChatPermissions>; // права участников по умолчанию (группа)
