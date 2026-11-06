@@ -337,7 +337,7 @@ export async function ensureServiceAccount(): Promise<MessengerAuth> {
 }
 
 /** Служебное сообщение пользователю от «MiliGram Push»: создаёт закреплённый служебный чат (если его нет), пушит, считает непрочитанное. */
-export async function sendServiceMessage(uid: string, text: string, opts: { silent?: boolean } = {}): Promise<void> {
+export async function sendServiceMessage(uid: string, text: string, opts: { silent?: boolean; extra?: Record<string, unknown> } = {}): Promise<{ chatId: string; msgId: string }> {
   const svc = await ensureServiceAccount();
   const ref = adminDb().collection("messengerChats").doc(dmChatId(SERVICE_UID, uid));
   let snap = await ref.get();
@@ -346,7 +346,8 @@ export async function sendServiceMessage(uid: string, text: string, opts: { sile
     snap = await ref.get();
   }
   const chat = { id: ref.id, ...snap.data() } as MessengerChat;
-  await postMessage({ chat, sender: svc, kind: "text", text: text.slice(0, 3900), silent: opts.silent });
+  const msgId = await postMessage({ chat, sender: svc, kind: "text", text: text.slice(0, 3900), silent: opts.silent, extra: opts.extra });
+  return { chatId: ref.id, msgId };
 }
 
 // ---- Сеансы (устройства) ----
