@@ -16,6 +16,7 @@ import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import type { PollDraft } from "./PollCreateSheet";
+import "./chat-polish.css";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
 import { ChatInfoSheet } from "./ChatInfoSheet";
@@ -540,9 +541,11 @@ export function ChatView({
   // анимация появления — только у НОВЫХ строк (не у истории при открытии чата)
   const knownRows = useRef<Set<string>>(new Set());
   const rowsReady = useRef(false);
+  const newestKnown = useRef(0); // самое свежее из уже показанных: подгруженная СТАРАЯ история не анимируется (иначе экран «пляшет»)
   useEffect(() => {
     knownRows.current = new Set();
     rowsReady.current = false;
+    newestKnown.current = 0;
   }, [chat.id]);
   useEffect(() => {
     if (loading) return;
@@ -550,6 +553,7 @@ export function ChatView({
       knownRows.current.add(r.msg.id);
       const k = serverToTemp.get(r.msg.id);
       if (k) knownRows.current.add(k);
+      if (r.msg.createdAt > newestKnown.current) newestKnown.current = r.msg.createdAt;
     });
     rowsReady.current = true;
   });
@@ -693,7 +697,7 @@ export function ChatView({
           const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
           const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
           const rowKey = serverToTemp.get(msg.id) ?? msg.id;
-          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
+          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey) && msg.createdAt >= newestKnown.current;
           return (
             <div key={rowKey} className={isNewRow ? "mx-msg-in" : undefined}>
               {newDay && (

@@ -322,24 +322,53 @@ export function useStories(enabled: boolean) {
   return { stories, reload };
 }
 
-/** Высота видимой области: на iOS клавиатура уменьшает visualViewport, а не окно — без этого поле ввода уезжает. */
+/** Высота видимой области: на iOS клавиатура уменьшает visualViewport, а не окно — без этого поле ввода уезжает.
+ *  События visualViewport летят на каждом кадре анимации клавиатуры, поэтому обновляем раз в кадр и только при изменении. */
 export function useViewportHeight(): void {
   useEffect(() => {
     const vv = window.visualViewport;
+    const root = document.documentElement;
+    let raf = 0;
+    let lastH = -1;
+    let lastT = -1;
     const apply = () => {
-      const h = vv ? vv.height : window.innerHeight;
-      document.documentElement.style.setProperty("--mx-vh", `${h}px`);
-      if (vv && vv.offsetTop > 0) window.scrollTo(0, 0);
+      raf = 0;
+      const h = Math.round(vv ? vv.height : window.innerHeight);
+      const t = Math.round(vv?.offsetTop ?? 0);
+      if (h !== lastH) {
+        lastH = h;
+        root.style.setProperty("--mx-vh", `${h}px`);
+      }
+      if (t !== lastT) {
+        lastT = t;
+        root.style.setProperty("--mx-vt", `${t}px`); // iOS сдвигает видимую область при клавиатуре — мессенджер едет за ней
+      }
+      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(apply);
     };
     apply();
-    vv?.addEventListener("resize", apply);
-    vv?.addEventListener("scroll", apply);
-    window.addEventListener("resize", apply);
+    vv?.addEventListener("resize", schedule);
+    vv?.addEventListener("scroll", schedule);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    // страница под мессенджером не должна скроллиться и «пружинить»
+    const prev = { html: root.style.overflow, body: document.body.style.overflow, over: root.style.overscrollBehavior };
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
     return () => {
-      vv?.removeEventListener("resize", apply);
-      vv?.removeEventListener("scroll", apply);
-      window.removeEventListener("resize", apply);
-      document.documentElement.style.removeProperty("--mx-vh");
+      if (raf) cancelAnimationFrame(raf);
+      vv?.removeEventListener("resize", schedule);
+      vv?.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      root.style.removeProperty("--mx-vh");
+      root.style.removeProperty("--mx-vt");
+      root.style.overflow = prev.html;
+      document.body.style.overflow = prev.body;
+      root.style.overscrollBehavior = prev.over;
     };
   }, []);
 }

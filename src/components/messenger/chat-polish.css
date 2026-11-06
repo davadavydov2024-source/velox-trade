@@ -1,0 +1,29 @@
+/* Чат: стабильность прокрутки и аккуратный вид. Подключается из ChatView, лежит поверх messenger.css. */
+
+/* окно мессенджера следует за видимой областью (клавиатура на iOS), без дёрганья */
+.mx-root.mx-root { top: var(--mx-vt, 0px); height: var(--mx-vh, 100dvh); }
+
+/* лента: позицию при подгрузке истории восстанавливаем сами (ChatView) — встроенный scroll anchoring давал двойной сдвиг */
+.mx .mx-chat-wall { overflow-anchor: none; overscroll-behavior: contain; scroll-padding-bottom: 8px; }
+
+/* строки изолированы: перерисовка одного сообщения не заставляет браузер пересчитывать всю ленту */
+.mx .mx-row { contain: layout style; }
+
+/* появление нового сообщения: короткое и спокойное, без «пружины» со scale (она и качала экран) */
+@keyframes mx-polish-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.mx .mx-msg-in,
+.mx[data-design] .mx-msg-in:has(.mx-bubble.out),
+.mx[data-design] .mx-msg-in:has(.mx-bubble.in) { animation: mx-polish-in 0.16s ease-out both !important; transform-origin: center; }
+
+/* длинные слова и ссылки не вылезают за пузырь */
+.mx .mx-bubble { overflow-wrap: anywhere; word-break: break-word; }
+.mx .mx-bubble img, .mx .mx-bubble video { max-width: 100%; }
+
+/* поле ввода: без размытия под лентой (самая дорогая отрисовка при прокрутке), чёткая рамка в фокусе */
+.mx[data-design] .mx-composer-field { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: var(--mx-surface) !important; }
+.mx .mx-composer-input { caret-color: var(--mx-accent); }
+
+/* тап по сообщению: без серой вспышки и выделения текста при долгом нажатии */
+.mx .mx-bubble { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+
+@media (prefers-reduced-motion: reduce) { .mx .mx-msg-in { animation: none !important; } }
