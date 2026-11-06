@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   if ("error" in me) return me.error;
   const snap = await adminDb().collection("messengerChats").where("members", "array-contains", me.uid).limit(400).get();
   const channels = snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) }))
+    .map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) } as Record<string, any>))
     .filter((c) => c.type === "channel" && (c.createdBy === me.uid || (c.admins ?? []).includes(me.uid)))
     .map((c) => ({
       chatId: c.id as string,
