@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bell, MessageCircle, MessagesSquare, Plus, Settings, Users, X } from "lucide-react";
+import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
 import { mApi, MApiError } from "./api";
@@ -204,16 +204,11 @@ export function MessengerApp() {
         {/* нижняя плавающая стеклянная панель */}
         <nav className="mx-nav mx-liquid absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)", ["--i" as string]: Math.max(0, tabs.findIndex((t) => t.id === tab)) }}>
           <span className="mx-liquid-pill" aria-hidden />
-          {tabs.map((t, ti) => {
+          {tabs.map((t) => {
             const on = tab === t.id;
             return (
-              <Fragment key={t.id}>
-              {ti === 1 && (
-                <button onClick={() => setNewChat(true)} aria-label="Новый чат" className="mx-nav-plus shrink-0 self-center w-[52px] h-[52px] mx-1 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }}>
-                  <Plus size={26} strokeWidth={2.4} />
-                </button>
-              )}
               <button
+                key={t.id}
                 onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
                 className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
                 style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: "transparent" }}
@@ -226,7 +221,6 @@ export function MessengerApp() {
                 {t.label}
                 {t.id === "chats" && unread > 0 && <span className="mx-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
               </button>
-              </Fragment>
             );
           })}
         </nav>

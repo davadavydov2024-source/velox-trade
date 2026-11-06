@@ -715,15 +715,32 @@
 /* фильтры — таблетки; выбранный — светлая «подушка», как «Все / Обычные / Коллекции» */
 .mx[data-design] .mx-chip { height: 36px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--mx-muted); padding: 0 16px; }
 .mx[data-design] .mx-chip.on { background: var(--mx-surface2); color: var(--mx-text); border-bottom-color: transparent; box-shadow: none; }
-/* нижняя панель: тёмная таблетка, активная вкладка — цветом, по центру выпуклая «+» */
+/* нижняя панель: тёмная таблетка с контуром, подписанные вкладки, активная — в контурной «капсуле» */
 .mx[data-design] .mx-nav.mx-liquid {
-  left: 14px !important; right: 14px !important; bottom: calc(env(safe-area-inset-bottom) + 12px) !important; border-radius: 36px !important; padding: 7px 8px !important;
-  background: rgba(16,16,19,0.94) !important; border: 1px solid rgba(255,255,255,0.09) !important; align-items: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+  left: 14px !important; right: 14px !important; bottom: calc(env(safe-area-inset-bottom) + 12px) !important; border-radius: 40px !important; padding: 7px !important;
+  background: linear-gradient(180deg, rgba(38,38,42,0.96), rgba(16,16,18,0.97)) !important; border: 1.5px solid rgba(255,255,255,0.2) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55) !important;
 }
-.mx[data-theme="light"][data-design] .mx-nav.mx-liquid { background: rgba(250,250,252,0.96) !important; border-color: rgba(0,0,0,0.07) !important; box-shadow: 0 10px 30px rgba(0,0,0,0.12) !important; }
-.mx[data-design] .mx-liquid-pill { display: none !important; }
-.mx[data-design] .mx-nav.mx-liquid button { border-radius: 24px !important; }
-.mx[data-design] .mx-nav .mx-nav-plus { border-radius: 999px !important; box-shadow: 0 8px 22px -6px var(--mx-accent); transition: transform .12s; }
-.mx[data-design] .mx-nav .mx-nav-plus:active { transform: scale(.92); }
+.mx[data-theme="light"][data-design] .mx-nav.mx-liquid { background: rgba(250,250,252,0.97) !important; border-color: rgba(0,0,0,0.12) !important; box-shadow: 0 10px 30px rgba(0,0,0,0.12) !important; }
+.mx[data-design] .mx-liquid-pill { display: block !important; border-radius: 999px !important; background: rgba(255,255,255,0.1) !important; border: 1.5px solid rgba(255,255,255,0.32) !important; box-shadow: none !important; }
+.mx[data-theme="light"][data-design] .mx-liquid-pill { background: rgba(0,0,0,0.05) !important; border-color: rgba(0,0,0,0.18) !important; }
+.mx[data-design] .mx-nav.mx-liquid button { border-radius: 999px !important; }
 .mx[data-design] .mx-sheet-x:active { transform: scale(.92); }
+/* кнопки шапки — круглые, с тонким контуром */
+.mx[data-design] .mx-pill-btn, .mx[data-design] .mx-icon-btn { border: 1px solid rgba(255,255,255,0.14); }
+.mx[data-theme="light"][data-design] .mx-pill-btn, .mx[data-theme="light"][data-design] .mx-icon-btn { border-color: rgba(0,0,0,0.1); }
+
+/* ===== Магазин подарков: плитки без рамок-градиентов, подарок «парит» на свечении, золотая цена, уголок-лента ===== */
+.mx-gift-tile { background: var(--mx-surface); border: 1px solid var(--mx-line); transition: transform .15s, background .15s; opacity: 0; animation: mx-gift-in .45s cubic-bezier(.2,.8,.2,1) forwards; }
+.mx-gift-tile:active { transform: scale(.95); background: var(--mx-surface2); }
+@keyframes mx-gift-in { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+.mx-gift-float { display: inline-block; animation: mx-gift-float 3.6s ease-in-out infinite; animation-delay: var(--gd, 0s); will-change: transform; }
+@keyframes mx-gift-float { 0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); } 50% { transform: translateY(-6px) rotate(2deg) scale(1.04); } }
+.mx-gift-glow { position: absolute; inset: 6%; border-radius: 50%; opacity: .55; filter: blur(14px); animation: mx-gift-glow 3.6s ease-in-out infinite; animation-delay: var(--gd, 0s); }
+@keyframes mx-gift-glow { 0%, 100% { opacity: .35; transform: scale(.9); } 50% { opacity: .7; transform: scale(1.08); } }
+.mx-gift-spark { position: absolute; font-size: 13px; color: #ffe9a8; opacity: 0; animation: mx-gift-spark 2.6s ease-in-out infinite; pointer-events: none; text-shadow: 0 0 6px rgba(255,220,120,.9); }
+@keyframes mx-gift-spark { 0%, 100% { opacity: 0; transform: scale(.4) rotate(0); } 50% { opacity: 1; transform: scale(1.1) rotate(45deg); } }
+.mx-gift-price { display: inline-flex; align-items: center; gap: 4px; padding: 5px 13px; border-radius: 999px; background: rgba(245,166,35,0.14); color: #ffd56a; font-weight: 700; font-size: 14.5px; white-space: nowrap; }
+.mx-ribbon { position: absolute; top: 0; right: 0; width: 66px; height: 66px; overflow: hidden; pointer-events: none; z-index: 2; border-top-right-radius: 22px; }
+.mx-ribbon span { position: absolute; top: 13px; right: -24px; width: 92px; text-align: center; transform: rotate(45deg); background: #4caf50; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .02em; padding: 2px 0; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+@media (prefers-reduced-motion: reduce) { .mx-gift-float, .mx-gift-glow, .mx-gift-spark, .mx-gift-tile { animation: none !important; opacity: 1; } }

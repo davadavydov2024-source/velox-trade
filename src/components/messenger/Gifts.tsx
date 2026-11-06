@@ -2,7 +2,7 @@
 
 import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag } from "lucide-react";
+import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
 import { NftFigure, hasNftFigure } from "./NftFigures";
@@ -98,7 +98,25 @@ export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef
 }
 
 /** Плитка подарка: эмодзи на тёмном градиенте; для NFT — карточка по признакам. */
-export function GiftArt({ gift, size = 96, imageUrl, badge, nft }: { gift: GiftDef; size?: number; imageUrl?: string; badge?: React.ReactNode; nft?: GiftNft }) {
+export function GiftArt({ gift, size = 96, imageUrl, badge, nft, flat, delay = 0 }: { gift: GiftDef; size?: number; imageUrl?: string; badge?: React.ReactNode; nft?: GiftNft; /** без плитки: подарок «парит» на мягком свечении (как в магазине Telegram) */ flat?: boolean; delay?: number }) {
+  if (flat && !nft) {
+    const d = { ["--gd" as string]: `${-delay * 0.37}s` } as React.CSSProperties;
+    return (
+      <div className="relative flex items-center justify-center shrink-0 select-none" style={{ width: size, height: size, ...d }}>
+        <span className="mx-gift-glow" style={{ background: `radial-gradient(circle, ${gift.colors[0]}99 0%, transparent 66%)` }} aria-hidden />
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" className="mx-gift-float w-full h-full object-contain relative" draggable={false} />
+        ) : hasNftFigure(gift.id) ? (
+          <svg viewBox="0 0 200 200" width={size * 0.94} height={size * 0.94} className="mx-gift-float relative" style={{ filter: "drop-shadow(0 6px 10px rgba(0,0,0,.5))" }} aria-hidden><NftFigure id={gift.id} /></svg>
+        ) : (
+          <span className="mx-gift-float relative" style={{ fontSize: size * 0.6, lineHeight: 1, filter: "drop-shadow(0 6px 10px rgba(0,0,0,.5))" }}>{gift.emoji}</span>
+        )}
+        {(gift.nft || gift.limited) && [[14, 18, 0], [80, 12, 0.9], [84, 70, 1.6]].map(([x, y, t], i) => <span key={i} className="mx-gift-spark" style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${t}s` }} aria-hidden>✦</span>)}
+        {badge}
+      </div>
+    );
+  }
   if (nft && !imageUrl) return <div className="relative shrink-0" style={{ width: size, height: size }}><NftArt gift={gift} nft={nft} size={size} />{badge}</div>;
   return (
     <div className="relative rounded-2xl flex items-center justify-center shrink-0 select-none overflow-hidden" style={{ width: size, height: size, background: `radial-gradient(circle at 50% 35%, ${gift.colors[0]}, ${gift.colors[1]})` }}>
@@ -183,7 +201,12 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title={target?.name ? `Подарок для ${target.name}` : "Отправить подарок"} full zIndex={70}>
+    <Sheet open={open} onClose={onClose} full zIndex={70}>
+      <div className="flex items-center justify-between px-4 pt-1.5 pb-3 shrink-0 gap-3">
+        <button onClick={onClose} aria-label="Закрыть" className="mx-sheet-x w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--mx-surface2)", border: "1px solid var(--mx-line)" }}><X size={20} /></button>
+        <p className="font-bold text-[19px] truncate text-center flex-1">{target?.name ? `Подарок для ${target.name}` : "Купить подарок"}</p>
+        <div className="text-right shrink-0 leading-tight"><p className="mx-muted text-[12.5px]">Баланс</p><p className="font-semibold text-[15px]" style={{ color: "#ffd56a" }}>{wallet === null ? "…" : money(wallet)}</p></div>
+      </div>
       {!target ? (
         <div className="p-4">
           <p className="mx-muted text-[13.5px] mb-2">Кому отправим подарок?</p>
@@ -195,7 +218,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
         </div>
       ) : picked ? (
         <div className="px-5 pb-6 flex flex-col items-center">
-          {picked.nft ? <NftArt gift={picked} nft={sample} size={150} sample /> : <GiftArt gift={picked} size={150} />}
+          {picked.nft ? <NftArt gift={picked} nft={sample} size={170} sample /> : <GiftArt gift={picked} size={170} flat />}
           <p className="text-[19px] font-semibold mt-3">{picked.title}{picked.nft ? " · NFT" : ""}</p>
           <p className="mx-muted text-[14px]">{money(picked.price)}{picked.limited ? ` · тираж ${picked.limited}` : ""}</p>
           {picked.nft && <p className="mx-muted text-[13px] text-center mt-1">Номер, модель, фон и узор выпадут случайно — у каждого экземпляра они свои.</p>}
@@ -213,17 +236,19 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
         <div className="pb-6">
           <div className="flex gap-2 overflow-x-auto px-4 pb-3 mx-scroll">
             {GIFT_CATEGORIES.map((c) => (
-              <button key={c.id} onClick={() => setCat(c.id)} className="shrink-0 px-3.5 py-1.5 rounded-full text-[14px]" style={{ background: cat === c.id ? "var(--mx-accent)" : "var(--mx-surface2)", color: cat === c.id ? "var(--mx-accent-text)" : "var(--mx-text)" }}>{c.label}</button>
+              <button key={c.id} onClick={() => setCat(c.id)} className="shrink-0 px-4 py-2 rounded-full text-[14.5px] font-medium" style={{ background: cat === c.id ? "var(--mx-surface2)" : "transparent", color: cat === c.id ? "var(--mx-text)" : "var(--mx-muted)", border: cat === c.id ? "1px solid var(--mx-line)" : "1px solid transparent" }}>{c.label}</button>
             ))}
           </div>
-          <div className="grid grid-cols-3 gap-2.5 px-4">
-            {list.map((g) => {
+          <div className="grid grid-cols-3 gap-2.5 px-3.5">
+            {list.map((g, idx) => {
               const left = g.limited ? g.limited - (stock[g.id] ?? 0) : null;
+              const ribbon = g.nft ? "NFT" : g.limited ? "лимит" : null;
               return (
-                <button key={g.id} onClick={() => setPicked(g)} className="flex flex-col items-center rounded-2xl p-2 active:scale-95 transition-transform" style={{ background: "var(--mx-surface2)" }}>
-                  <GiftArt gift={g} size={84} badge={g.nft ? <span className="absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,.45)", color: "#fff" }}>NFT</span> : undefined} />
-                  <span className="text-[13px] mt-1.5 truncate max-w-full">{g.title}</span>
-                  <span className="text-[13px] font-semibold" style={{ color: "var(--mx-accent)" }}>{money(g.price)}</span>
+                <button key={g.id} onClick={() => setPicked(g)} className="mx-gift-tile relative flex flex-col items-center rounded-[22px] pt-3 pb-3 px-1.5 overflow-hidden" style={{ animationDelay: `${Math.min(idx, 12) * 40}ms` }}>
+                  {ribbon && <span className="mx-ribbon" aria-hidden><span>{ribbon}</span></span>}
+                  <GiftArt gift={g} size={92} flat delay={idx % 7} />
+                  <span className="mx-gift-price mt-2">{money(g.price)}</span>
+                  <span className="text-[12.5px] mt-1.5 truncate max-w-full opacity-80">{g.title}</span>
                   {left !== null && <span className="mx-muted text-[11px]">осталось {left}</span>}
                 </button>
               );
