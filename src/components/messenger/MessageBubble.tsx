@@ -266,8 +266,8 @@ function MessageRowImpl({
     );
   } else if (msg.kind === "sticker") {
     content = msg.mediaUrl ? (
-      <div className="relative">
-        <StickerMedia url={msg.mediaUrl ?? ""} size={176} loop={false} onClick={() => { if (!selecting && msg.sticker?.pack) onOpenStickerPack?.(msg.sticker.pack); }} />
+      <div className="relative mx-sticker-msg">
+        <StickerMedia url={msg.mediaUrl ?? ""} size={176} loop onClick={() => { if (!selecting && msg.sticker?.pack) onOpenStickerPack?.(msg.sticker.pack); }} />
         <span className="absolute bottom-1 right-1 text-[11px] px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: "rgba(0,0,0,0.45)" }}>{formatTime(msg.createdAt)}{mine && (read ? <CheckCheck size={12} /> : <Check size={12} />)}</span>
       </div>
     ) : (

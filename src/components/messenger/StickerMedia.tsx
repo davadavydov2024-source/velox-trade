@@ -38,7 +38,7 @@ function fetchLottie(url: string): Promise<any> {
 }
 
 /** Не больше MAX_PLAYING стикеров играют одновременно — остальные показывают превью (экономит процессор и батарею). */
-const MAX_PLAYING = 12;
+const MAX_PLAYING = 16;
 const playing = new Set<string>();
 function acquire(id: string) { if (playing.has(id)) return true; if (playing.size >= MAX_PLAYING) return false; playing.add(id); return true; }
 function release(id: string) { playing.delete(id); }

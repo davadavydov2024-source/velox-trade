@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
+import { Bell, MessageCircle, MessagesSquare, Plus, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
 import { mApi, MApiError } from "./api";
@@ -14,6 +14,8 @@ import { SettingsPane } from "./SettingsPane";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AuthScreens, JoinScreen } from "./AuthScreens";
+import { LoginCode } from "./LoginCode";
+import { getDeviceId } from "@/lib/messenger/client";
 import { ContactsPane } from "./ContactsPane";
 import { MiniPlayer, MusicProvider } from "./MusicPlayer";
 import { NewChatSheet } from "./NewChatSheet";
@@ -34,6 +36,19 @@ export function MessengerApp() {
   const { stories, reload: reloadStories } = useStories(!!account && !account.banned);
 
   const [tab, setTab] = useState<Tab>("chats");
+  // регистрация устройства; если у аккаунта уже есть рабочая сессия — вход подтверждается кодом
+  const [needCode, setNeedCode] = useState(false);
+  const [devChecked, setDevChecked] = useState(false);
+  useEffect(() => {
+    if (!account || account.banned || !me) return;
+    let dead = false;
+    mApi<{ needCode?: boolean }>("session", { deviceId: getDeviceId() })
+      .then((r) => { if (!dead) setNeedCode(!!r.needCode); })
+      .catch(() => {})
+      .finally(() => { if (!dead) setDevChecked(true); });
+    return () => { dead = true; };
+  }, [account, me]);
+
   const [newChat, setNewChat] = useState(false);
   const [storyUid, setStoryUid] = useState<string | null>(null);
   const [creator, setCreator] = useState(false);
@@ -140,6 +155,9 @@ export function MessengerApp() {
     );
   }
 
+  if (!devChecked) return <div className="h-full flex items-center justify-center"><Spinner size={30} /></div>;
+  if (needCode) return <LoginCode onDone={() => setNeedCode(false)} onLogout={() => { signOut(auth).catch(() => {}); }} />;
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "contacts", label: "Контакты", icon: <Users size={24} /> },
     { id: "chats", label: "Чаты", icon: <MessageCircle size={24} /> },
@@ -186,11 +204,16 @@ export function MessengerApp() {
         {/* нижняя плавающая стеклянная панель */}
         <nav className="mx-nav mx-liquid absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)", ["--i" as string]: Math.max(0, tabs.findIndex((t) => t.id === tab)) }}>
           <span className="mx-liquid-pill" aria-hidden />
-          {tabs.map((t) => {
+          {tabs.map((t, ti) => {
             const on = tab === t.id;
             return (
+              <Fragment key={t.id}>
+              {ti === 1 && (
+                <button onClick={() => setNewChat(true)} aria-label="Новый чат" className="mx-nav-plus shrink-0 self-center w-[52px] h-[52px] mx-1 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }}>
+                  <Plus size={26} strokeWidth={2.4} />
+                </button>
+              )}
               <button
-                key={t.id}
                 onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
                 className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
                 style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: "transparent" }}
@@ -203,6 +226,7 @@ export function MessengerApp() {
                 {t.label}
                 {t.id === "chats" && unread > 0 && <span className="mx-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
               </button>
+              </Fragment>
             );
           })}
         </nav>

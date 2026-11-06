@@ -700,44 +700,30 @@
 @media (prefers-reduced-motion: reduce) { .mx *, .mx *::before, .mx *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 
 
-/* ===== ДИЗАЙН «ORBIT» (по видео): почти чёрный фон, фиолетовый акцент, тонкие рамки карточек, таблетки и стеклянные шторки ===== */
-.mx[data-design="tg"][data-theme="dark"] {
-  --mx-bg: #08080a; --mx-surface: #111115; --mx-surface2: #1a1a20; --mx-in: #17171c;
-  --mx-line: rgba(255,255,255,0.07); --mx-muted: #7f808a; --mx-glass: rgba(18,18,22,0.78);
+/* ===== ДИЗАЙН «ORBIT» (как на видео): угольно-чёрный фон, индиго-акцент, мягкие карточки 22px, таблетки, плавающая панель с «+» ===== */
+.mx[data-theme="dark"] {
+  --mx-bg: #0c0c0e; --mx-surface: #151518; --mx-surface2: #1f1f24; --mx-in: #1c1c21;
+  --mx-line: rgba(255,255,255,0.07); --mx-muted: #8a8a94; --mx-glass: rgba(20,20,24,0.9);
 }
-.mx[data-design="tg"][data-theme="dark"]:not([data-accent]) {
-  --mx-accent: #7c6cf6; --mx-accent-text: #ffffff;
-  --mx-out: linear-gradient(135deg, #7c6cf6, #6152e6); --mx-out-text: #ffffff;
+.mx:not([data-accent="custom"]) { --mx-accent: #7466f5; --mx-accent-text: #ffffff; }
+.mx[data-design] .mx-card { border-radius: 22px; border: 1px solid var(--mx-line); }
+.mx[data-design] .mx-sheet-panel { border-radius: 28px 28px 0 0 !important; border: 1px solid var(--mx-line); border-bottom: 0; }
+.mx[data-theme="dark"][data-design] .mx-sheet-panel { background: #121215 !important; }
+.mx[data-design] .mx-search { height: 46px; border-radius: 999px; background: var(--mx-surface); border: 1px solid var(--mx-line); }
+.mx[data-design] .mx-input { border-radius: 16px; background: var(--mx-surface2); border-color: transparent; }
+.mx[data-design] .mx-btn { border-radius: 16px; font-weight: 700; }
+/* фильтры — таблетки; выбранный — светлая «подушка», как «Все / Обычные / Коллекции» */
+.mx[data-design] .mx-chip { height: 36px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--mx-muted); padding: 0 16px; }
+.mx[data-design] .mx-chip.on { background: var(--mx-surface2); color: var(--mx-text); border-bottom-color: transparent; box-shadow: none; }
+/* нижняя панель: тёмная таблетка, активная вкладка — цветом, по центру выпуклая «+» */
+.mx[data-design] .mx-nav.mx-liquid {
+  left: 14px !important; right: 14px !important; bottom: calc(env(safe-area-inset-bottom) + 12px) !important; border-radius: 36px !important; padding: 7px 8px !important;
+  background: rgba(16,16,19,0.94) !important; border: 1px solid rgba(255,255,255,0.09) !important; align-items: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
 }
-.mx[data-design="tg"][data-theme="light"]:not([data-accent]) { --mx-accent: #6d5ef0; --mx-out: #e9e6ff; --mx-out-text: #17142e; }
-.mx[data-design="tg"][data-theme="dark"]:not([data-accent]) .mx-bubble.out .mx-meta { color: rgba(255,255,255,0.72); }
-.mx[data-design="tg"][data-theme="light"]:not([data-accent]) .mx-bubble.out .mx-meta { color: #6d5ef0; }
-
-/* карточки и списки — с тонкой рамкой и крупным скруглением */
-.mx[data-design="tg"] .mx-card { border: 1px solid var(--mx-line); border-radius: 20px; }
-.mx[data-design="tg"][data-theme="dark"] .mx-card { background: var(--mx-surface); }
-.mx[data-design="tg"] .mx-input, .mx[data-design="tg"] .mx-search { border-radius: 14px; background: var(--mx-surface); border: 1px solid var(--mx-line); }
-.mx[data-design="tg"] .mx-btn { border-radius: 999px; font-weight: 600; box-shadow: 0 8px 22px -10px var(--mx-accent); }
-
-/* вкладки-«чипсы»: выбранная — залитая таблетка, как «Все 385 / NFT / Обычные» на видео */
-.mx[data-design="tg"] .mx-chip { border-radius: 999px; border: 1px solid var(--mx-line); background: transparent; }
-.mx[data-design="tg"][data-theme="dark"] .mx-chip.on { background: #2a2a31; color: #fff; border-color: transparent; border-bottom-color: transparent; }
-.mx[data-design="tg"][data-theme="light"] .mx-chip.on { background: #e6e6ee; color: #111; border-color: transparent; border-bottom-color: transparent; }
-
-/* нижняя панель: тёмная таблетка с рамкой, активная вкладка — фиолетовая подсветка */
-.mx[data-design="tg"][data-theme="dark"] .mx-nav.mx-liquid { background: rgba(16,16,20,0.9) !important; border-color: rgba(255,255,255,0.08) !important; box-shadow: 0 10px 30px rgba(0,0,0,0.55) !important; }
-.mx[data-design="tg"][data-theme="dark"]:not([data-accent]) .mx-liquid-pill { background: color-mix(in srgb, var(--mx-accent) 22%, transparent) !important; }
-
-/* шторки: тёмная панель с большим скруглением и «ручкой» */
-.mx[data-design="tg"] .mx-sheet-panel { border-radius: 26px 26px 0 0 !important; border: 1px solid var(--mx-line); border-bottom: 0; }
-.mx[data-design="tg"][data-theme="dark"] .mx-sheet-panel { background: #0f0f13 !important; }
-
-/* кнопки в шапке чата — тёмные таблетки */
-@media (max-width: 899px) {
-  .mx[data-design="tg"][data-theme="dark"] .mx-chat-head .mx-pill-btn { background: #16161b; border: 1px solid var(--mx-line); }
-}
-
-/* стикеры «живут» в чате: лёгкое появление и отклик на нажатие */
-@keyframes mx-stk-in { from { transform: scale(.82); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.mx .mx-sticker-msg { animation: mx-stk-in .28s cubic-bezier(.34,1.56,.64,1); transition: transform .15s; }
-.mx .mx-sticker-msg:active { transform: scale(.94); }
+.mx[data-theme="light"][data-design] .mx-nav.mx-liquid { background: rgba(250,250,252,0.96) !important; border-color: rgba(0,0,0,0.07) !important; box-shadow: 0 10px 30px rgba(0,0,0,0.12) !important; }
+.mx[data-design] .mx-liquid-pill { display: none !important; }
+.mx[data-design] .mx-nav.mx-liquid button { border-radius: 24px !important; }
+.mx[data-design] .mx-nav .mx-nav-plus { border-radius: 999px !important; box-shadow: 0 8px 22px -6px var(--mx-accent); transition: transform .12s; }
+.mx[data-design] .mx-nav .mx-nav-plus:active { transform: scale(.92); }
+.mx[data-design] .mx-sheet-x:active { transform: scale(.92); }

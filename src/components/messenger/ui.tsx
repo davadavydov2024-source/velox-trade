@@ -129,12 +129,12 @@ export function Sheet({
         style={{ background: "var(--mx-surface)", borderRadius: "22px 22px 0 0", maxHeight: full ? "94%" : "86%", height: full ? "94%" : undefined }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mt-2 mb-1 h-1 w-9 rounded-full shrink-0" style={{ background: "var(--mx-line)" }} />
+        <div className="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full shrink-0" style={{ background: "var(--mx-line)" }} />
         {title && (
           <div className="flex items-center justify-between px-5 pt-2 pb-2 shrink-0">
-            <p className="font-semibold text-[17px]">{title}</p>
-            <button onClick={onClose} className="mx-muted p-1" aria-label="Закрыть">
-              <X size={20} />
+            <p className="font-bold text-[20px] truncate">{title}</p>
+            <button onClick={onClose} className="mx-sheet-x w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--mx-surface2)" }} aria-label="Закрыть">
+              <X size={18} />
             </button>
           </div>
         )}
