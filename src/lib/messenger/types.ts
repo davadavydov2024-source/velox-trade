@@ -1,9 +1,10 @@
-/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
+﻿/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
 export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
 
 export interface MessengerAccount {
+  profileChannel?: string | null; // канал, показываемый в профиле
   uid: string;
   handle: string; // lowercase, 4–24 символа: a-z, 0-9, _
   displayName: string;
