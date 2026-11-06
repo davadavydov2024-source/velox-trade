@@ -221,12 +221,15 @@ export function ChatView({
       }
       return;
     }
-    // подгрузили более старые — сохраняем позицию
+    // подгрузили более старые — сохраняем позицию (только когда список реально вырос, иначе ждём ответа)
     if (prevHeight.current) {
-      el.scrollTop = el.scrollHeight - prevHeight.current + el.scrollTop;
-      prevHeight.current = 0;
-      prevCount.current = total;
-      return;
+      if (total > prevCount.current) {
+        el.scrollTop = el.scrollHeight - prevHeight.current + el.scrollTop;
+        prevHeight.current = 0;
+        prevCount.current = total;
+        return;
+      }
+      if (!hasMore) prevHeight.current = 0;
     }
     const added = total - prevCount.current;
     prevCount.current = total;
@@ -235,17 +238,23 @@ export function ChatView({
     const livePending = pending.some((p) => !(p.serverId && messages.some((m) => m.id === p.serverId)));
     if (atBottom.current || last?.from === me || livePending) scrollToBottom(true);
     else setUnreadNew((n) => n + added);
-  }, [total, messages, pending.length, me, scrollToBottom]);
+  }, [total, messages, pending.length, me, scrollToBottom, hasMore]);
 
   // ---- «прочитано» ----
   const lastIncoming = [...messages].reverse().find((m) => m.from !== me);
+  const [tabVisible, setTabVisible] = useState(() => typeof document === "undefined" || document.visibilityState === "visible");
   useEffect(() => {
-    if (!lastIncoming || document.visibilityState !== "visible") return;
+    const onVis = () => setTabVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+  useEffect(() => {
+    if (!lastIncoming || !tabVisible) return;
     const readAt = chat.readBy?.[me] ?? 0;
     if (readAt >= lastIncoming.createdAt && (userChat?.unread ?? 0) === 0) return;
     const t = setTimeout(() => mApi("read", { chatId: chat.id }).catch(() => {}), 400);
     return () => clearTimeout(t);
-  }, [lastIncoming?.id, chat.id, me, userChat?.unread, chat.readBy, lastIncoming]);
+  }, [lastIncoming?.id, chat.id, me, userChat?.unread, chat.readBy, lastIncoming, tabVisible]);
 
   // ---- «печатает…» ----
   const sendTyping = () => {
@@ -269,7 +278,7 @@ export function ChatView({
       } catch (err) {
         const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
         toast("error", msg);
-        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { setPending((q) => q.filter((y) => y.tempId !== tempId)); send(`r${Date.now()}`, payload); } } : x)));
+        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { setPending((q) => q.map((y) => (y.tempId === tempId ? { ...y, status: "sending", retry: undefined } : y))); send(tempId, payload); } } : x)));
       }
     },
     [chat.id, toast]
@@ -298,9 +307,9 @@ export function ChatView({
     }
   };
 
-  const failUpload = (tempId: string, err: unknown) => {
+  const failUpload = (tempId: string, err: unknown, again?: () => void) => {
     toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить файл");
-    patchPending(tempId, { status: "failed", retry: () => setPending((l) => l.filter((x) => x.tempId !== tempId)) });
+    patchPending(tempId, { status: "failed", retry: () => { setPending((l) => l.filter((x) => x.tempId !== tempId)); again?.(); } });
   };
 
   const sendMedia = async (files: File[], caption: string) => {
@@ -341,7 +350,7 @@ export function ChatView({
         replyTo: rep,
       });
     } catch (err) {
-      failUpload(tempId, err);
+      failUpload(tempId, err, () => sendMedia(valid, caption));
     }
   };
 
@@ -353,7 +362,7 @@ export function ChatView({
       send(tempId, { kind: "file", mediaUrl: up.url, text: file.name, replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      failUpload(tempId, err);
+      failUpload(tempId, err, () => sendFile(file));
     }
   };
 
@@ -364,7 +373,7 @@ export function ChatView({
       send(tempId, { kind: "voice", mediaUrl: up.url, duration: Math.round(a.duration), waveform: a.waveform.map((v) => Math.round(v * 100) / 100), replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      failUpload(tempId, err);
+      failUpload(tempId, err, () => sendVoice(a));
     }
   };
 
@@ -375,7 +384,7 @@ export function ChatView({
       send(tempId, { kind: "videoNote", mediaUrl: up.url, duration: Math.round(v.duration), replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      failUpload(tempId, err);
+      failUpload(tempId, err, () => sendVideoNote(v));
     }
   };
 
@@ -444,7 +453,7 @@ export function ChatView({
       let el = find();
       let tries = 0;
       if (!el && hasMoreRef.current) toast("info", "Ищу сообщение…");
-      while (!el && hasMoreRef.current && tries < 15) {
+      while (!el && hasMoreRef.current && tries < 40) {
         await loadMore();
         await new Promise((r) => setTimeout(r, 160));
         el = find();

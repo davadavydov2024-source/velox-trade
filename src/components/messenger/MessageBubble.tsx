@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, memo, useRef } from "react";
+import { ReactNode, memo, useRef, useState } from "react";
 import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
@@ -10,6 +10,8 @@ import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
 import { StickerMedia } from "./StickerMedia";
+import { mApi, MApiError } from "./api";
+import { useToast } from "@/lib/toastContext";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
 
@@ -73,6 +75,66 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
   );
 }
 
+function PollView({ poll, msgId, chatId }: { poll: NonNullable<MMessage["poll"]>; msgId: string; chatId: string }) {
+  const { toast } = useToast();
+  const [picked, setPicked] = useState<number[]>([]);
+  const [busy, setBusy] = useState(false);
+  const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
+  const canVote = !poll.closed && !!chatId;
+  const vote = async (options: number[]) => {
+    if (busy || options.length === 0) return;
+    setBusy(true);
+    try {
+      const res = await mApi<{ correct?: boolean; explanation?: string }>("poll", { chatId, msgId, action: "vote", options });
+      if (poll.quiz && typeof res?.correct === "boolean") toast(res.correct ? "success" : "info", res.correct ? "Верно!" : "Неверно" + (res.explanation ? `: ${res.explanation}` : ""));
+      setPicked([]);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось проголосовать");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const onPick = (i: number) => {
+    if (!canVote) return;
+    if (poll.multiple) setPicked((p) => (p.includes(i) ? p.filter((x) => x !== i) : [...p, i]));
+    else vote([i]);
+  };
+  return (
+    <>
+      <p className="font-semibold mb-0.5">{poll.question}</p>
+      <p className="text-[12px] opacity-70 mb-2">
+        {poll.closed ? "Опрос завершён" : poll.quiz ? "Викторина" : poll.anonymous ? "Анонимный опрос" : "Публичный опрос"}
+        {poll.multiple ? " · несколько ответов" : ""}
+      </p>
+      <div className="space-y-1.5" style={{ minWidth: 200 }}>
+        {poll.options.map((o, i) => {
+          const pct = Math.round((o.count / total) * 100);
+          const on = picked.includes(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={!canVote || busy}
+              onClick={(e) => { e.stopPropagation(); onPick(i); }}
+              className="relative block w-full text-left rounded-lg overflow-hidden px-2.5 py-1.5"
+              style={{ background: "rgba(127,127,127,0.18)", outline: on ? "2px solid currentColor" : "none", outlineOffset: -2, cursor: canVote ? "pointer" : "default" }}
+            >
+              <span className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: "rgba(127,127,127,0.28)" }} />
+              <span className="relative flex items-center justify-between gap-3 text-[14px]"><span>{o.text}</span><span className="opacity-75 text-[12.5px]">{o.count > 0 ? `${pct}%` : ""}</span></span>
+            </button>
+          );
+        })}
+      </div>
+      {poll.multiple && canVote && picked.length > 0 && (
+        <button type="button" disabled={busy} onClick={(e) => { e.stopPropagation(); vote(picked); }} className="w-full mt-2 h-9 rounded-lg text-[14px] font-semibold" style={{ background: "rgba(127,127,127,0.28)" }}>
+          Проголосовать
+        </button>
+      )}
+      <p className="text-[12px] opacity-70 mt-2">Проголосовало: {poll.total}</p>
+    </>
+  );
+}
+
 function MessageRowImpl({
   msg,
   pending,
@@ -122,6 +184,8 @@ function MessageRowImpl({
   const lastTap = useRef(0);
   const moved = useRef(false);
   const author = accounts[msg.from];
+  const rowRef = useRef<HTMLDivElement>(null);
+  const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
 
   if (msg.kind === "system") {
     return (
@@ -145,8 +209,6 @@ function MessageRowImpl({
   const isMedia = msg.kind === "image";
   const urls = msg.mediaUrls?.length ? msg.mediaUrls : msg.mediaUrl ? [msg.mediaUrl] : [];
 
-  const rowRef = useRef<HTMLDivElement>(null);
-  const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
   const touchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
     sw.current = { x: t.clientX, y: t.clientY, dx: 0, axis: "", fired: false };
@@ -239,27 +301,9 @@ function MessageRowImpl({
       </>
     );
   } else if (msg.kind === "poll" && msg.poll) {
-    const poll = msg.poll;
-    const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
     content = (
       <>
-        <p className="font-semibold mb-0.5">{poll.question}</p>
-        <p className="text-[12px] opacity-70 mb-2">
-          {poll.closed ? "Опрос завершён" : poll.quiz ? "Викторина" : poll.anonymous ? "Анонимный опрос" : "Публичный опрос"}
-          {poll.multiple ? " · несколько ответов" : ""}
-        </p>
-        <div className="space-y-1.5" style={{ minWidth: 200 }}>
-          {poll.options.map((o, i) => {
-            const pct = Math.round((o.count / total) * 100);
-            return (
-              <div key={i} className="relative rounded-lg overflow-hidden px-2.5 py-1.5" style={{ background: "rgba(127,127,127,0.18)" }}>
-                <span className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: "rgba(127,127,127,0.28)" }} />
-                <span className="relative flex items-center justify-between gap-3 text-[14px]"><span>{o.text}</span><span className="opacity-75 text-[12.5px]">{o.count > 0 ? `${pct}%` : ""}</span></span>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-[12px] opacity-70 mt-2">Проголосовало: {poll.total}</p>
+        <PollView poll={msg.poll} msgId={msg.id} chatId={chatId ?? ""} />
         {meta}
         <div className="clear-both" />
       </>
@@ -273,6 +317,33 @@ function MessageRowImpl({
     ) : (
       <>
         <span className="text-[34px] leading-none">🧩</span> <span className="opacity-80">Стикер</span>
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
+  } else if (pending && msg.kind === "image" && urls.length === 0) {
+    content = (
+      <>
+        <div className="flex items-center justify-center rounded-[15px]" style={{ width: "min(220px, 72vw)", aspectRatio: "1", background: "var(--mx-surface2)" }}>
+          <Loader2 size={26} className="animate-spin opacity-70" />
+        </div>
+        {msg.text && <p className="px-2 pt-1.5 pb-0.5 whitespace-pre-wrap">{msg.text}</p>}
+        <span className="mx-meta" style={{ float: "right" }}>{formatTime(msg.createdAt)}<Clock size={12} className="mx-clock" /></span>
+        <div className="clear-both" />
+      </>
+    );
+  } else if (pending && msg.kind === "voice" && !msg.mediaUrl) {
+    content = (
+      <>
+        <span className="flex items-center gap-2 py-1" style={{ minWidth: 150 }}>🎤 <span>Голосовое {msg.duration ? formatDuration(msg.duration) : ""}</span></span>
+        {meta}
+        <div className="clear-both" />
+      </>
+    );
+  } else if (pending && isNote && !msg.mediaUrl) {
+    content = (
+      <>
+        <span className="flex items-center gap-2 py-1" style={{ minWidth: 150 }}>⏺ <span>Видеокружок {msg.duration ? formatDuration(msg.duration) : ""}</span></span>
         {meta}
         <div className="clear-both" />
       </>

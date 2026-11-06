@@ -155,8 +155,9 @@ export function Composer({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const touch = typeof window !== "undefined" && "ontouchstart" in window;
-    if (e.key === "Enter" && !e.shiftKey && enterToSend && !touch) {
+    // «грубый» указатель = телефон/планшет (на ноутбуках с тачскрином Enter всё равно отправляет); во время набора через IME Enter не трогаем
+    const touch = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+    if (e.key === "Enter" && !e.shiftKey && enterToSend && !touch && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
     }

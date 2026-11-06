@@ -66,7 +66,11 @@ export function useMyChats(uid?: string | null) {
   const [chats, setChats] = useState<MChat[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setChats([]);
+      setLoading(true);
+      return;
+    }
     // Без orderBy: array-contains + orderBy по другому полю требует составного индекса — сортируем на клиенте.
     const q = query(collection(db, "messengerChats"), where("members", "array-contains", uid));
     return onSnapshot(
@@ -86,7 +90,10 @@ export function useMyChats(uid?: string | null) {
 export function useUserChats(uid?: string | null): Record<string, MUserChat> {
   const [map, setMap] = useState<Record<string, MUserChat>>({});
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setMap({});
+      return;
+    }
     return onSnapshot(
       collection(db, "messengerUserChats", uid, "chats"),
       (snap) => {
@@ -103,7 +110,10 @@ export function useUserChats(uid?: string | null): Record<string, MUserChat> {
 export function useFolders(uid?: string | null): MFolder[] {
   const [folders, setFolders] = useState<MFolder[]>([]);
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setFolders([]);
+      return;
+    }
     return onSnapshot(
       collection(db, "messengerUserFolders", uid, "folders"),
       (snap) => {
@@ -120,6 +130,7 @@ export function useFolders(uid?: string | null): MFolder[] {
 // ---- кэш аккаунтов (имена и фото для списка чатов, групп, реакций) ----
 const accountCache = new Map<string, MAccount | null>();
 const accountPending = new Set<string>();
+let cacheVersion = 0;
 const listeners = new Set<() => void>();
 
 async function loadAccounts(uids: string[]) {
@@ -138,11 +149,13 @@ async function loadAccounts(uids: string[]) {
       }
     })
   );
+  cacheVersion++;
   listeners.forEach((l) => l());
 }
 
 export function cacheAccounts(list: MAccount[]) {
   list.forEach((a) => accountCache.set(a.uid, a));
+  cacheVersion++;
   listeners.forEach((l) => l());
 }
 
@@ -162,7 +175,7 @@ export function useAccounts(uids: string[]): Record<string, MAccount | null> {
     uids.forEach((u) => (out[u] = accountCache.get(u) ?? null));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, accountCache.size]);
+  }, [key, cacheVersion]);
 }
 
 export function useMessages(chatId: string | null, pageSize = 60) {
@@ -171,9 +184,11 @@ export function useMessages(chatId: string | null, pageSize = 60) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const cache = useRef(new Map<string, { s: string; m: MMessage }>());
+  const loadedCount = useRef(0); // сколько запрошено в последнем пришедшем снимке — пока count больше, догрузка уже идёт
 
   useEffect(() => {
     cache.current = new Map();
+    loadedCount.current = 0;
     setMessages([]);
     setCount(pageSize);
     setLoading(true);
@@ -181,13 +196,15 @@ export function useMessages(chatId: string | null, pageSize = 60) {
 
   useEffect(() => {
     if (!chatId) return;
-    const q = query(collection(db, "messengerChats", chatId, "messages"), orderBy("createdAt", "desc"), limit(count));
+    // просим на одно сообщение больше: так точно знаем, есть ли ещё история (раньше при ровно N сообщениях спиннер крутился вечно)
+    const q = query(collection(db, "messengerChats", chatId, "messages"), orderBy("createdAt", "desc"), limit(count + 1));
     return onSnapshot(
       q,
       (snap) => {
         // не меняем ссылку на сообщение, если оно не изменилось, — тогда мемоизированные пузыри не перерисовываются
         const next = new Map<string, { s: string; m: MMessage }>();
-        const list = snap.docs.map((d) => {
+        const docs = snap.docs.slice(0, count);
+        const list = docs.map((d) => {
           const fresh = { id: d.id, ...d.data() } as MMessage;
           const s = JSON.stringify(fresh);
           const prev = cache.current.get(d.id);
@@ -196,15 +213,19 @@ export function useMessages(chatId: string | null, pageSize = 60) {
           return m;
         }).reverse();
         cache.current = next;
+        loadedCount.current = count;
         setMessages(list);
-        setHasMore(snap.size >= count);
+        setHasMore(snap.size > count);
         setLoading(false);
       },
       () => setLoading(false)
     );
   }, [chatId, count]);
 
-  const loadMore = useCallback(() => setCount((c) => c + pageSize), [pageSize]);
+  const loadMore = useCallback(() => {
+    // не накручиваем страницы, пока предыдущая не загрузилась (onScroll стреляет десятки раз подряд)
+    setCount((c) => (c > loadedCount.current && loadedCount.current > 0 ? c : c + pageSize));
+  }, [pageSize]);
   return { messages, loading, hasMore, loadMore };
 }
 
@@ -263,7 +284,7 @@ function toMs(v: any): number {
 /** Кто печатает: документы messengerChats/{id}/typing/{uid} с полем at; свежим считаем at не старше 5 с. */
 export function useTyping(chatId: string | null, me: string): string[] {
   const [map, setMap] = useState<Record<string, number>>({});
-  const now = useNow(1000);
+  const [, force] = useState(0);
   useEffect(() => {
     setMap({});
     if (!chatId) return;
@@ -277,7 +298,16 @@ export function useTyping(chatId: string | null, me: string): string[] {
       () => {}
     );
   }, [chatId]);
-  return Object.entries(map)
-    .filter(([uid, at]) => uid !== me && now - at < 5000)
-    .map(([uid]) => uid);
+  const now = Date.now();
+  const active = Object.entries(map).filter(([uid, at]) => uid !== me && now - at < 5000).map(([uid]) => uid);
+  // один таймер на ближайшее «протухание» вместо перерисовки всего чата каждую секунду
+  const activeKey = active.join(",");
+  useEffect(() => {
+    if (!activeKey) return;
+    const soonest = Math.min(...Object.entries(map).filter(([uid]) => uid !== me).map(([, at]) => at + 5000).filter((t) => t > Date.now()));
+    if (!isFinite(soonest)) return;
+    const t = setTimeout(() => force((x) => x + 1), Math.max(50, soonest - Date.now() + 50));
+    return () => clearTimeout(t);
+  }, [activeKey, map, me]);
+  return active;
 }

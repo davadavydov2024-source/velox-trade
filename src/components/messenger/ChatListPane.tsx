@@ -253,7 +253,7 @@ export function ChatListPane({
           </button>
           <div className="flex-1 text-center min-w-0 px-2">
             <h1 className="text-[18px] font-bold leading-tight truncate">Чаты</h1>
-            {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
+            {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal % 10 === 1 && unreadTotal % 100 !== 11 ? "ый" : "ых"}</p>}
           </div>
           <div className="flex gap-2">
             <button onClick={onCreateStory} className="mx-pill-btn w-11 h-11" aria-label="Новая история"><Camera size={21} /></button>
