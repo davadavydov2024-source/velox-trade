@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, BadgeCheck, Bookmark, Calendar, ChevronRight, Copy, Crown, Eye, FileText, Gem, Gift, Hash, Link2, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users, X, Camera, Filter, Music2, Play, Send, AtSign } from "lucide-react";
@@ -217,7 +217,7 @@ export function ChatInfoSheet({
       <ProfileTabs tabs={tabs} value={tab} onChange={setTab} labels={TAB_LABEL} right={tab === "gifts" ? <button onClick={() => setGiftFilter((v) => !v)} className="w-12 flex items-center justify-center" style={{ color: giftFilter ? "#fff" : "#8b8b96" }} aria-label="Фильтр подарков"><Filter size={18} /></button> : undefined} />
 
       <div className="pb-24">
-        {tab === "gifts" && isDm && !saved && <GiftsProfileTab uid={peerId} mine={false} name={title} showFilters={giftFilter} />}
+        {tab === "gifts" && isDm && !saved && <GiftsProfileTab uid={peerId} mine={false} name={title} />}
         {tab === "posts" && isDm && !saved && <PostsTab uid={peerId} mine={false} />}
         {tab === "stories" && (stories === null ? <div className="flex justify-center py-8"><Spinner /></div> : stories.length === 0 ? empty("Нет публикаций") : (
           <div className="grid grid-cols-3 gap-1 px-4">
