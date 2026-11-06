@@ -67,7 +67,8 @@ export function useLiveAccount(uid?: string | null): MAccount | null {
       () => setAcc(null)
     );
   }, [uid]);
-  return withContactName(acc);
+  // без useMemo новый объект на каждый рендер ломал бы мемоизацию пузырей в чате (accountsAll менялся бы всегда)
+  return useMemo(() => withContactName(acc), [acc, contactsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function useMyChats(uid?: string | null) {
