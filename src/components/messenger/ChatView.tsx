@@ -15,8 +15,6 @@ import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner } 
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
-import type { PollDraft } from "./PollCreateSheet";
-import "./chat-polish.css";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
 import { ChatInfoSheet } from "./ChatInfoSheet";
@@ -30,23 +28,24 @@ const NEAR_BOTTOM = 140;
 
 function readDims(file: File): Promise<{ width?: number; height?: number }> {
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const done = (d: { width?: number; height?: number }) => {
-      URL.revokeObjectURL(url);
-      resolve(d);
-    };
     if (file.type.startsWith("video/")) {
       const v = document.createElement("video");
       v.preload = "metadata";
-      v.onloadedmetadata = () => done({ width: v.videoWidth, height: v.videoHeight });
-      v.onerror = () => done({});
-      v.src = url;
+      v.onloadedmetadata = () => {
+        resolve({ width: v.videoWidth, height: v.videoHeight });
+        URL.revokeObjectURL(v.src);
+      };
+      v.onerror = () => resolve({});
+      v.src = URL.createObjectURL(file);
       return;
     }
     const img = new Image();
-    img.onload = () => done({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => done({});
-    img.src = url;
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => resolve({});
+    img.src = URL.createObjectURL(file);
   });
 }
 
@@ -70,7 +69,7 @@ export function ChatView({
   const { toast } = useToast();
   const wallpaper = useMxPrefs((s) => s.wallpaper);
   const now = useNow(15_000);
-  const { messages: allMessages, loading, hasMore, loadMore, error: loadError, retry: retryLoad } = useMessages(chat.id);
+  const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
   const clearedAt = userChat?.clearedAt ?? 0;
   const messages = useMemo(
@@ -222,15 +221,12 @@ export function ChatView({
       }
       return;
     }
-    // подгрузили более старые — сохраняем позицию (только когда список реально вырос, иначе ждём ответа)
+    // подгрузили более старые — сохраняем позицию
     if (prevHeight.current) {
-      if (total > prevCount.current) {
-        el.scrollTop = el.scrollHeight - prevHeight.current + el.scrollTop;
-        prevHeight.current = 0;
-        prevCount.current = total;
-        return;
-      }
-      if (!hasMore) prevHeight.current = 0;
+      el.scrollTop = el.scrollHeight - prevHeight.current + el.scrollTop;
+      prevHeight.current = 0;
+      prevCount.current = total;
+      return;
     }
     const added = total - prevCount.current;
     prevCount.current = total;
@@ -239,23 +235,40 @@ export function ChatView({
     const livePending = pending.some((p) => !(p.serverId && messages.some((m) => m.id === p.serverId)));
     if (atBottom.current || last?.from === me || livePending) scrollToBottom(true);
     else setUnreadNew((n) => n + added);
-  }, [total, messages, pending.length, me, scrollToBottom, hasMore]);
+  }, [total, messages, pending.length, me, scrollToBottom]);
 
   // ---- «прочитано» ----
   const lastIncoming = [...messages].reverse().find((m) => m.from !== me);
-  const [tabVisible, setTabVisible] = useState(() => typeof document === "undefined" || document.visibilityState === "visible");
+  // Просмотры постов канала: засчитываем то, что реально видно на экране (один человек = один просмотр поста).
   useEffect(() => {
-    const onVis = () => setTabVisible(document.visibilityState === "visible");
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
+    if (chat.type !== "channel") return;
+    const seen = new Set<string>();
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      const ids: string[] = [];
+      scrollRef.current?.querySelectorAll<HTMLElement>("[data-mid]").forEach((el) => {
+        const id = el.dataset.mid;
+        if (!id || seen.has(id)) return;
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && r.bottom > 70 && r.top < window.innerHeight - 70) ids.push(id);
+      });
+      if (!ids.length) return;
+      const batch = ids.slice(0, 30);
+      batch.forEach((id) => seen.add(id));
+      mApi("channel-view", { chatId: chat.id, msgIds: batch }).catch(() => batch.forEach((id) => seen.delete(id)));
+    };
+    const t = setInterval(tick, 1500);
+    tick();
+    return () => clearInterval(t);
+  }, [chat.id, chat.type]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
-    if (!lastIncoming || !tabVisible) return;
+    if (!lastIncoming || document.visibilityState !== "visible") return;
     const readAt = chat.readBy?.[me] ?? 0;
     if (readAt >= lastIncoming.createdAt && (userChat?.unread ?? 0) === 0) return;
     const t = setTimeout(() => mApi("read", { chatId: chat.id }).catch(() => {}), 400);
     return () => clearTimeout(t);
-  }, [lastIncoming?.id, chat.id, me, userChat?.unread, chat.readBy, lastIncoming, tabVisible]);
+  }, [lastIncoming?.id, chat.id, me, userChat?.unread, chat.readBy, lastIncoming]);
 
   // ---- «печатает…» ----
   const sendTyping = () => {
@@ -279,7 +292,7 @@ export function ChatView({
       } catch (err) {
         const msg = err instanceof MApiError ? err.message : "Не удалось отправить сообщение";
         toast("error", msg);
-        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { setPending((q) => q.map((y) => (y.tempId === tempId ? { ...y, status: "sending", retry: undefined } : y))); send(tempId, payload); } } : x)));
+        setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, status: "failed", retry: () => { setPending((q) => q.filter((y) => y.tempId !== tempId)); send(`r${Date.now()}`, payload); } } : x)));
       }
     },
     [chat.id, toast]
@@ -299,33 +312,18 @@ export function ChatView({
     send(tempId, payload);
   };
 
-  const stickerBusy = useRef(false);
   const sendSticker = async (pack: string, index: number) => {
-    if (stickerBusy.current) return; // двойной тап не должен слать стикер дважды
-    stickerBusy.current = true;
-    const rep = replyPayload();
-    setReply(null);
     try {
-      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: rep });
-    } catch (err) {
-      toast("error", err instanceof MApiError ? err.message : "Не удалось отправить стикер");
-    } finally {
-      setTimeout(() => { stickerBusy.current = false; }, 350);
-    }
-  };
-
-  const sendPoll = async (p: PollDraft) => {
-    try {
-      await mApi("send", { chatId: chat.id, kind: "poll", poll: p, replyTo: replyPayload() });
+      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      toast("error", err instanceof MApiError ? err.message : "Не удалось создать опрос");
+      toast("error", err instanceof MApiError ? err.message : "Не удалось отправить стикер");
     }
   };
 
-  const failUpload = (tempId: string, err: unknown, again?: () => void) => {
+  const failUpload = (tempId: string, err: unknown) => {
     toast("error", err instanceof MApiError ? err.message : "Не удалось загрузить файл");
-    patchPending(tempId, { status: "failed", retry: () => { setPending((l) => l.filter((x) => x.tempId !== tempId)); again?.(); } });
+    patchPending(tempId, { status: "failed", retry: () => setPending((l) => l.filter((x) => x.tempId !== tempId)) });
   };
 
   const sendMedia = async (files: File[], caption: string) => {
@@ -366,7 +364,7 @@ export function ChatView({
         replyTo: rep,
       });
     } catch (err) {
-      failUpload(tempId, err, () => sendMedia(valid, caption));
+      failUpload(tempId, err);
     }
   };
 
@@ -378,7 +376,7 @@ export function ChatView({
       send(tempId, { kind: "file", mediaUrl: up.url, text: file.name, replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      failUpload(tempId, err, () => sendFile(file));
+      failUpload(tempId, err);
     }
   };
 
@@ -389,7 +387,7 @@ export function ChatView({
       send(tempId, { kind: "voice", mediaUrl: up.url, duration: Math.round(a.duration), waveform: a.waveform.map((v) => Math.round(v * 100) / 100), replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      failUpload(tempId, err, () => sendVoice(a));
+      failUpload(tempId, err);
     }
   };
 
@@ -400,7 +398,7 @@ export function ChatView({
       send(tempId, { kind: "videoNote", mediaUrl: up.url, duration: Math.round(v.duration), replyTo: replyPayload() });
       setReply(null);
     } catch (err) {
-      failUpload(tempId, err, () => sendVideoNote(v));
+      failUpload(tempId, err);
     }
   };
 
@@ -469,7 +467,7 @@ export function ChatView({
       let el = find();
       let tries = 0;
       if (!el && hasMoreRef.current) toast("info", "Ищу сообщение…");
-      while (!el && hasMoreRef.current && tries < 40) {
+      while (!el && hasMoreRef.current && tries < 15) {
         await loadMore();
         await new Promise((r) => setTimeout(r, 160));
         el = find();
@@ -541,11 +539,9 @@ export function ChatView({
   // анимация появления — только у НОВЫХ строк (не у истории при открытии чата)
   const knownRows = useRef<Set<string>>(new Set());
   const rowsReady = useRef(false);
-  const newestKnown = useRef(0); // самое свежее из уже показанных: подгруженная СТАРАЯ история не анимируется (иначе экран «пляшет»)
   useEffect(() => {
     knownRows.current = new Set();
     rowsReady.current = false;
-    newestKnown.current = 0;
   }, [chat.id]);
   useEffect(() => {
     if (loading) return;
@@ -553,7 +549,6 @@ export function ChatView({
       knownRows.current.add(r.msg.id);
       const k = serverToTemp.get(r.msg.id);
       if (k) knownRows.current.add(k);
-      if (r.msg.createdAt > newestKnown.current) newestKnown.current = r.msg.createdAt;
     });
     rowsReady.current = true;
   });
@@ -645,10 +640,8 @@ export function ChatView({
         {pinnedMsg || currentPinId ? (
           <button
             onClick={() => {
-              // идём к закрепу, который показан в плашке, а плашка переключается на следующий — как в Telegram
-              const target = currentPinId!;
-              setPinIndex((i) => (Math.min(i, pinned.length - 1) + 1) % pinned.length);
-              jumpTo(target);
+              jumpTo(currentPinId!);
+              setPinIndex((i) => (i + 1) % pinned.length);
             }}
             className="w-full flex items-center gap-3 px-4 py-1.5 text-left"
             style={{ borderTop: "1px solid var(--mx-line)" }}
@@ -679,13 +672,7 @@ export function ChatView({
             ))}
           </div>
         )}
-        {loadError && rows.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center gap-3 px-8 text-center mx-muted text-[14px]">
-            <p>Не удалось загрузить сообщения{loadError === "permission-denied" ? " — нет доступа к этому чату" : ". Проверь интернет"}.</p>
-            <button className="mx-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={retryLoad}>Повторить</button>
-          </div>
-        )}
-        {!loading && !loadError && rows.length === 0 && (
+        {!loading && rows.length === 0 && (
           <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
             {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
           </div>
@@ -697,7 +684,7 @@ export function ChatView({
           const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
           const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
           const rowKey = serverToTemp.get(msg.id) ?? msg.id;
-          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey) && msg.createdAt >= newestKnown.current;
+          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
           return (
             <div key={rowKey} className={isNewRow ? "mx-msg-in" : undefined}>
               {newDay && (
@@ -786,7 +773,6 @@ export function ChatView({
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
         onSendSticker={sendSticker}
-        onSendPoll={chat.type !== "dm" || !saved ? sendPoll : undefined}
         mentionables={chat.type === "group" ? (chat.members.filter((u) => u !== me).map((u) => accountsAll[u]).filter(Boolean) as MAccount[]) : []}
         onSaveEdit={saveEdit}
         onSendMedia={sendMedia}
