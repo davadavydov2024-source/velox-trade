@@ -15,6 +15,7 @@ import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner } 
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
+import type { PollDraft } from "./PollCreateSheet";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
 import { ChatInfoSheet } from "./ChatInfoSheet";
@@ -28,24 +29,23 @@ const NEAR_BOTTOM = 140;
 
 function readDims(file: File): Promise<{ width?: number; height?: number }> {
   return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const done = (d: { width?: number; height?: number }) => {
+      URL.revokeObjectURL(url);
+      resolve(d);
+    };
     if (file.type.startsWith("video/")) {
       const v = document.createElement("video");
       v.preload = "metadata";
-      v.onloadedmetadata = () => {
-        resolve({ width: v.videoWidth, height: v.videoHeight });
-        URL.revokeObjectURL(v.src);
-      };
-      v.onerror = () => resolve({});
-      v.src = URL.createObjectURL(file);
+      v.onloadedmetadata = () => done({ width: v.videoWidth, height: v.videoHeight });
+      v.onerror = () => done({});
+      v.src = url;
       return;
     }
     const img = new Image();
-    img.onload = () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-      URL.revokeObjectURL(img.src);
-    };
-    img.onerror = () => resolve({});
-    img.src = URL.createObjectURL(file);
+    img.onload = () => done({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => done({});
+    img.src = url;
   });
 }
 
@@ -69,7 +69,7 @@ export function ChatView({
   const { toast } = useToast();
   const wallpaper = useMxPrefs((s) => s.wallpaper);
   const now = useNow(15_000);
-  const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
+  const { messages: allMessages, loading, hasMore, loadMore, error: loadError, retry: retryLoad } = useMessages(chat.id);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
   const clearedAt = userChat?.clearedAt ?? 0;
   const messages = useMemo(
@@ -298,12 +298,27 @@ export function ChatView({
     send(tempId, payload);
   };
 
+  const stickerBusy = useRef(false);
   const sendSticker = async (pack: string, index: number) => {
+    if (stickerBusy.current) return; // двойной тап не должен слать стикер дважды
+    stickerBusy.current = true;
+    const rep = replyPayload();
+    setReply(null);
     try {
-      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: replyPayload() });
-      setReply(null);
+      await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: rep });
     } catch (err) {
       toast("error", err instanceof MApiError ? err.message : "Не удалось отправить стикер");
+    } finally {
+      setTimeout(() => { stickerBusy.current = false; }, 350);
+    }
+  };
+
+  const sendPoll = async (p: PollDraft) => {
+    try {
+      await mApi("send", { chatId: chat.id, kind: "poll", poll: p, replyTo: replyPayload() });
+      setReply(null);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось создать опрос");
     }
   };
 
@@ -626,8 +641,10 @@ export function ChatView({
         {pinnedMsg || currentPinId ? (
           <button
             onClick={() => {
-              jumpTo(currentPinId!);
-              setPinIndex((i) => (i + 1) % pinned.length);
+              // идём к закрепу, который показан в плашке, а плашка переключается на следующий — как в Telegram
+              const target = currentPinId!;
+              setPinIndex((i) => (Math.min(i, pinned.length - 1) + 1) % pinned.length);
+              jumpTo(target);
             }}
             className="w-full flex items-center gap-3 px-4 py-1.5 text-left"
             style={{ borderTop: "1px solid var(--mx-line)" }}
@@ -658,7 +675,13 @@ export function ChatView({
             ))}
           </div>
         )}
-        {!loading && rows.length === 0 && (
+        {loadError && rows.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center gap-3 px-8 text-center mx-muted text-[14px]">
+            <p>Не удалось загрузить сообщения{loadError === "permission-denied" ? " — нет доступа к этому чату" : ". Проверь интернет"}.</p>
+            <button className="mx-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={retryLoad}>Повторить</button>
+          </div>
+        )}
+        {!loading && !loadError && rows.length === 0 && (
           <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
             {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
           </div>
@@ -759,6 +782,7 @@ export function ChatView({
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
         onSendSticker={sendSticker}
+        onSendPoll={chat.type !== "dm" || !saved ? sendPoll : undefined}
         mentionables={chat.type === "group" ? (chat.members.filter((u) => u !== me).map((u) => accountsAll[u]).filter(Boolean) as MAccount[]) : []}
         onSaveEdit={saveEdit}
         onSendMedia={sendMedia}

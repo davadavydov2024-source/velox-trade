@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
+import { BarChart3, BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { EmojiPanel } from "./EmojiPanel";
 import { StickerSuggest } from "./StickersUI";
 import { safeImageSrc } from "@/lib/safeImage";
 import { MenuList, Sheet } from "./ui";
+import { PollCreateSheet, PollDraft } from "./PollCreateSheet";
 import { RecordedAudio, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } from "./Recorders";
 import { useMxPrefs } from "./prefs";
 import { MX_FEATURES } from "./features";
@@ -38,6 +39,7 @@ export function Composer({
   onSendVoice,
   onSendVideoNote,
   onSendSticker,
+  onSendPoll,
   onTyping,
 }: {
   chatId: string;
@@ -57,6 +59,7 @@ export function Composer({
   onSendVoice: (a: RecordedAudio) => void;
   onSendVideoNote: (v: RecordedVideo) => void;
   onSendSticker?: (pack: string, index: number) => void;
+  onSendPoll?: (p: PollDraft) => void;
   onTyping: () => void;
 }) {
   const { toast } = useToast();
@@ -64,6 +67,7 @@ export function Composer({
   const [text, setText] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
   const [mode, setMode] = useState<"voice" | "video">("voice");
   const [videoOpen, setVideoOpen] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -438,9 +442,11 @@ export function Composer({
             { label: "Фото", icon: <ImageIcon size={21} />, onPress: () => mediaInput.current?.click() },
             { label: "Камера", icon: <Camera size={21} />, onPress: () => cameraInput.current?.click() },
             { label: "Файл (PDF, ZIP, TXT)", icon: <FileIcon size={21} />, onPress: () => fileInput.current?.click() },
+            { label: "Опрос", icon: <BarChart3 size={21} />, hidden: !onSendPoll || !!editing, onPress: () => setPollOpen(true) },
           ]}
         />
       </Sheet>
+      {onSendPoll && <PollCreateSheet open={pollOpen} onClose={() => setPollOpen(false)} onCreate={onSendPoll} />}
 
       {videoOpen && (
         <VideoNoteRecorder

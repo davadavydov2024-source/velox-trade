@@ -1,6 +1,8 @@
 "use client";
 
-import { ReactNode, memo, useRef, useState } from "react";
+import { ReactNode, memo, useEffect, useRef, useState } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
@@ -75,9 +77,19 @@ function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: num
   );
 }
 
-function PollView({ poll, msgId, chatId }: { poll: NonNullable<MMessage["poll"]>; msgId: string; chatId: string }) {
+function PollView({ poll, msgId, chatId, me }: { poll: NonNullable<MMessage["poll"]>; msgId: string; chatId: string; me: string }) {
   const { toast } = useToast();
   const [picked, setPicked] = useState<number[]>([]);
+  // свой голос: messages/{id}/votes/{uid} (если правила Firestore не пускают — просто не подсвечиваем)
+  const [mine, setMine] = useState<number[]>([]);
+  useEffect(() => {
+    if (!chatId || !msgId) return;
+    return onSnapshot(
+      doc(db, "messengerChats", chatId, "messages", msgId, "votes", me),
+      (snap) => setMine(Array.isArray(snap.data()?.options) ? (snap.data()!.options as number[]) : []),
+      () => setMine([])
+    );
+  }, [chatId, msgId, me]);
   const [busy, setBusy] = useState(false);
   const total = Math.max(1, poll.total || poll.options.reduce((s, o) => s + o.count, 0));
   const canVote = !poll.closed && !!chatId;
@@ -94,8 +106,19 @@ function PollView({ poll, msgId, chatId }: { poll: NonNullable<MMessage["poll"]>
       setBusy(false);
     }
   };
+  const retract = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await mApi("poll", { chatId, msgId, action: "retract" });
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось отозвать голос");
+    } finally {
+      setBusy(false);
+    }
+  };
   const onPick = (i: number) => {
-    if (!canVote) return;
+    if (!canVote || (poll.quiz && mine.length > 0)) return;
     if (poll.multiple) setPicked((p) => (p.includes(i) ? p.filter((x) => x !== i) : [...p, i]));
     else vote([i]);
   };
@@ -109,7 +132,7 @@ function PollView({ poll, msgId, chatId }: { poll: NonNullable<MMessage["poll"]>
       <div className="space-y-1.5" style={{ minWidth: 200 }}>
         {poll.options.map((o, i) => {
           const pct = Math.round((o.count / total) * 100);
-          const on = picked.includes(i);
+          const on = picked.includes(i) || (picked.length === 0 && mine.includes(i));
           return (
             <button
               key={i}
@@ -130,7 +153,12 @@ function PollView({ poll, msgId, chatId }: { poll: NonNullable<MMessage["poll"]>
           Проголосовать
         </button>
       )}
-      <p className="text-[12px] opacity-70 mt-2">Проголосовало: {poll.total}</p>
+      <p className="text-[12px] opacity-70 mt-2">
+        Проголосовало: {poll.total}
+        {canVote && !poll.quiz && mine.length > 0 && (
+          <button type="button" disabled={busy} onClick={(e) => { e.stopPropagation(); retract(); }} className="underline ml-2">Отозвать голос</button>
+        )}
+      </p>
     </>
   );
 }
@@ -303,7 +331,7 @@ function MessageRowImpl({
   } else if (msg.kind === "poll" && msg.poll) {
     content = (
       <>
-        <PollView poll={msg.poll} msgId={msg.id} chatId={chatId ?? ""} />
+        <PollView poll={msg.poll} msgId={msg.id} chatId={chatId ?? ""} me={me} />
         {meta}
         <div className="clear-both" />
       </>

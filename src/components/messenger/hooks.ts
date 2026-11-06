@@ -236,6 +236,8 @@ export function useMessages(chatId: string | null, pageSize = 60) {
   const [count, setCount] = useState(pageSize);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const cache = useRef(new Map<string, { s: string; m: MMessage }>());
   const loadedCount = useRef(0); // сколько запрошено в последнем пришедшем снимке — пока count больше, догрузка уже идёт
 
@@ -245,6 +247,7 @@ export function useMessages(chatId: string | null, pageSize = 60) {
     setMessages([]);
     setCount(pageSize);
     setLoading(true);
+    setError(null);
   }, [chatId, pageSize]);
 
   useEffect(() => {
@@ -254,32 +257,45 @@ export function useMessages(chatId: string | null, pageSize = 60) {
     return onSnapshot(
       q,
       (snap) => {
-        // не меняем ссылку на сообщение, если оно не изменилось, — тогда мемоизированные пузыри не перерисовываются
-        const next = new Map<string, { s: string; m: MMessage }>();
-        const docs = snap.docs.slice(0, count);
-        const list = docs.map((d) => {
-          const fresh = { id: d.id, ...d.data() } as MMessage;
+        const store = cache.current;
+        const build = (d: { id: string; data: () => unknown }) => {
+          const fresh = { id: d.id, ...(d.data() as object) } as MMessage;
           const s = JSON.stringify(fresh);
-          const prev = cache.current.get(d.id);
-          const m = prev && prev.s === s ? prev.m : fresh;
-          next.set(d.id, { s, m });
-          return m;
-        }).reverse();
-        cache.current = next;
+          const prev = store.get(d.id);
+          const entry = prev && prev.s === s ? prev : { s, m: fresh };
+          store.set(d.id, entry);
+          return entry;
+        };
+        // JSON.stringify только для изменившихся документов, а не для всей истории на каждый снимок
+        snap.docChanges().forEach((ch) => (ch.type === "removed" ? store.delete(ch.doc.id) : build(ch.doc)));
+        const docs = snap.docs.slice(0, count);
+        const keep = new Set(docs.map((d) => d.id));
+        const list = docs.map((d) => (store.get(d.id) ?? build(d)).m).reverse();
+        Array.from(store.keys()).forEach((k) => !keep.has(k) && store.delete(k));
         loadedCount.current = count;
         setMessages(list);
         setHasMore(snap.size > count);
+        setError(null);
         setLoading(false);
       },
-      () => setLoading(false)
+      (err) => {
+        console.error("messages read error:", err);
+        setError((err as { code?: string })?.code || "unknown");
+        setLoading(false);
+      }
     );
-  }, [chatId, count]);
+  }, [chatId, count, attempt]);
 
   const loadMore = useCallback(() => {
     // не накручиваем страницы, пока предыдущая не загрузилась (onScroll стреляет десятки раз подряд)
     setCount((c) => (c > loadedCount.current && loadedCount.current > 0 ? c : c + pageSize));
   }, [pageSize]);
-  return { messages, loading, hasMore, loadMore };
+  const retry = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    setAttempt((a) => a + 1);
+  }, []);
+  return { messages, loading, hasMore, loadMore, error, retry };
 }
 
 /** Активные истории от контактов (обновляются раз в минуту и по запросу). */
