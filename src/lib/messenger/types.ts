@@ -1,4 +1,4 @@
-/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
+﻿/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
 export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
@@ -86,6 +86,7 @@ export interface MessengerGiveaway {
 }
 
 export interface MessengerMessage {
+  joinRequest?: any; // заявка на вступление (временно, уточнить тип)
   id: string;
   from: string; // ставит сервер по токену, клиенту доверять нельзя
   kind: MessageKind;
