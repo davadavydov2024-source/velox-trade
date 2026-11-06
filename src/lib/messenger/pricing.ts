@@ -1,6 +1,6 @@
 /** Цены Mili Premium в рублях (оплата картой / СБП / криптой через RollyPay — тот же способ, что и пополнение баланса Velox Trade). Поменяй числа — изменится и страница оплаты, и условия подписки. */
-export const PREMIUM_PRICE_RUB = 149;
-export const PLUS_PRICE_RUB = 399;
+export const PREMIUM_PRICE_RUB = 60;
+export const PLUS_PRICE_RUB = 77;
 export const PREMIUM_PLANS = {
   premium: { title: "Mili Premium", rub: PREMIUM_PRICE_RUB, days: 30 },
   plus: { title: "Премиум Плюс", rub: PLUS_PRICE_RUB, days: 30 },
