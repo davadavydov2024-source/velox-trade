@@ -46,7 +46,7 @@ jobs:
             desktop/dist/latest.yml
 
   android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # закреплено: на новых образах нет `convert`, а Android SDK/Java гарантированно есть здесь
     env:
       KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 17 }
       - name: Создаём Android-проект
         working-directory: android-app
@@ -66,14 +66,18 @@ jobs:
       - name: Иконка и заставка
         working-directory: android-app/android/app/src/main/res
         run: |
+          # ImageMagick 7 называется `magick`, 6 — `convert`; если ни одного нет — ставим
+          IM=$(command -v magick || command -v convert || true)
+          if [ -z "$IM" ]; then sudo apt-get update -y && sudo apt-get install -y imagemagick; IM=$(command -v magick || command -v convert); fi
+          echo "ImageMagick: $IM"
           rm -rf mipmap-anydpi-v26
           for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
             d=${pair%%:*}; s=${pair##*:}
             for n in ic_launcher ic_launcher_round ic_launcher_foreground; do
-              convert "$GITHUB_WORKSPACE/public/miligram/icon-512.png" -resize ${s}x${s} "mipmap-$d/$n.png"
+              "$IM" "$GITHUB_WORKSPACE/public/miligram/icon-512.png" -resize ${s}x${s} "mipmap-$d/$n.png"
             done
           done
-          find . -name splash.png -exec convert -size 480x480 xc:black {} \;
+          find . -name splash.png -exec "$IM" -size 480x480 xc:black {} \;
       - name: Версия
         working-directory: android-app/android/app
         run: |
@@ -102,7 +106,7 @@ jobs:
 
   release:
     needs: [windows, android]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
