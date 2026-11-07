@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag } from "lucide-react";
@@ -23,6 +23,7 @@ import { PostsTab } from "./Posts";
 import { ShopSheet } from "./Shop";
 import { ProfileTrackPicker } from "./ProfileMusic";
 import { ChatInfoSheet } from "./ChatInfoSheet";
+import { AppDownloads } from "./AppDownloads";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
@@ -790,6 +791,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Languages size={17} />} color="#af52de" label="Язык" value="Русский" onClick={() => setPage("language")} />
           <div className="max-[899px]:hidden"><Row icon={<Keyboard size={17} />} color="#ff9500" label="Горячие клавиши" onClick={() => setPage("hotkeys")} /></div>
           <Row icon={<Download size={17} />} color="#00b8d9" label="Добавить на экран «Домой»" onClick={() => setInstallHelp(true)} />
+          <AppDownloads />
         </Section>
 
         <Section>

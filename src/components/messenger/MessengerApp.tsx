@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
+import { NotificationGate } from "./NotificationGate";
 import { mApi, MApiError } from "./api";
 import { useToast } from "@/lib/toastContext";
 import { Avatar, Spinner } from "./ui";
@@ -149,6 +150,7 @@ export function MessengerApp() {
 
   return (
     <MusicProvider>
+      <NotificationGate uid={me} />
     <div className="h-full flex">
       {/* ---- левая панель ---- */}
       <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--mx-line)" }}>
