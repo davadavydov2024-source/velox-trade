@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
+import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { EmojiPanel } from "./EmojiPanel";
 import { StickerSuggest } from "./StickersUI";
 import { safeImageSrc } from "@/lib/safeImage";
 import { MenuList, Sheet } from "./ui";
-import { PollCreateSheet, PollDraft } from "./PollCreateSheet";
 import { RecordedAudio, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } from "./Recorders";
 import { useMxPrefs } from "./prefs";
 import { MX_FEATURES } from "./features";
 import { formatDuration } from "./util";
 import { Avatar } from "./ui";
+import { PhotoEditor } from "./PhotoEditor";
 import type { MAccount } from "./mtypes";
 
 export interface ComposerReply {
@@ -39,7 +39,6 @@ export function Composer({
   onSendVoice,
   onSendVideoNote,
   onSendSticker,
-  onSendPoll,
   onTyping,
 }: {
   chatId: string;
@@ -59,7 +58,6 @@ export function Composer({
   onSendVoice: (a: RecordedAudio) => void;
   onSendVideoNote: (v: RecordedVideo) => void;
   onSendSticker?: (pack: string, index: number) => void;
-  onSendPoll?: (p: PollDraft) => void;
   onTyping: () => void;
 }) {
   const { toast } = useToast();
@@ -67,7 +65,6 @@ export function Composer({
   const [text, setText] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
-  const [pollOpen, setPollOpen] = useState(false);
   const [mode, setMode] = useState<"voice" | "video">("voice");
   const [videoOpen, setVideoOpen] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -159,9 +156,8 @@ export function Composer({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // «грубый» указатель = телефон/планшет (на ноутбуках с тачскрином Enter всё равно отправляет); во время набора через IME Enter не трогаем
-    const touch = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
-    if (e.key === "Enter" && !e.shiftKey && enterToSend && !touch && !e.nativeEvent.isComposing) {
+    const touch = typeof window !== "undefined" && "ontouchstart" in window;
+    if (e.key === "Enter" && !e.shiftKey && enterToSend && !touch) {
       e.preventDefault();
       submit();
     }
@@ -179,19 +175,24 @@ export function Composer({
     });
   };
 
+  // фото сначала открываются в редакторе (обрезка, рисунок, «замазать», текст, фильтры); гифки и svg уходят как есть
+  const [editFiles, setEditFiles] = useState<File[] | null>(null);
+  const sendOrEdit = (files: File[]) => {
+    if (files.some((f) => /gif|svg/i.test(f.type))) { onSendMedia(files, text.trim()); setText(""); return; }
+    setEditFiles(files);
+  };
   const pickFiles = (list: FileList | null, kind: "media" | "file") => {
     const files = Array.from(list ?? []);
     if (files.length === 0) return;
     if (kind === "file") return onSendFile(files[0]);
-    onSendMedia(files, text.trim());
-    setText("");
+    sendOrEdit(files);
   };
 
   const onPaste = (e: React.ClipboardEvent) => {
     const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
     if (files.length > 0) {
       e.preventDefault();
-      onSendMedia(files, "");
+      sendOrEdit(files);
     }
   };
 
@@ -442,11 +443,18 @@ export function Composer({
             { label: "Фото", icon: <ImageIcon size={21} />, onPress: () => mediaInput.current?.click() },
             { label: "Камера", icon: <Camera size={21} />, onPress: () => cameraInput.current?.click() },
             { label: "Файл (PDF, ZIP, TXT)", icon: <FileIcon size={21} />, onPress: () => fileInput.current?.click() },
-            { label: "Опрос", icon: <BarChart3 size={21} />, hidden: !onSendPoll || !!editing, onPress: () => setPollOpen(true) },
           ]}
         />
       </Sheet>
-      {onSendPoll && <PollCreateSheet open={pollOpen} onClose={() => setPollOpen(false)} onCreate={onSendPoll} />}
+
+      {editFiles && (
+        <PhotoEditor
+          files={editFiles}
+          caption={text.trim()}
+          onCancel={() => setEditFiles(null)}
+          onDone={(fs, cap) => { setEditFiles(null); onSendMedia(fs, cap); setText(""); }}
+        />
+      )}
 
       {videoOpen && (
         <VideoNoteRecorder
