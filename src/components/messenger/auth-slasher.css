@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&display=swap");
+
+/* Регистрация / вход MiliGram в стиле Slasher: чёрный фон с синим свечением, широкий жирный заголовок,
+   тёмные карточки с тонкой рамкой, яркая синяя кнопка-«пилюля». Всё внутри .sl-auth — на остальной сайт не влияет. */
+.sl-auth {
+  --sl-blue: #126bf7;
+  --sl-blue-hi: #2f82ff;
+  --sl-line: rgba(255, 255, 255, 0.08);
+  --sl-muted: #8b90a0;
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  background: #000;
+  color: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+.sl-auth::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 50% -8%, rgba(18, 107, 247, 0.38), transparent 70%),
+    radial-gradient(700px 420px at 100% 110%, rgba(18, 107, 247, 0.16), transparent 70%);
+}
+.sl-wrap { position: relative; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+.sl-col { width: 100%; max-width: 400px; animation: sl-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes sl-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sl-col { animation: none; } }
+
+.sl-logo { text-align: center; margin-bottom: 26px; }
+.sl-logo img { width: 84px; height: 84px; margin: 0 auto; border-radius: 26px; box-shadow: 0 10px 50px -8px rgba(18, 107, 247, 0.75), 0 0 0 1px var(--sl-line); }
+.sl-title { font-family: "Unbounded", var(--font-onest, system-ui), sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1.1; margin-top: 18px; }
+.sl-sub { color: var(--sl-muted); font-size: 14.5px; margin-top: 8px; }
+
+/* переключатель «Регистрация / Вход» */
+.sl-tabs { display: flex; padding: 4px; margin-bottom: 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--sl-line); }
+.sl-tab { flex: 1; height: 42px; border-radius: 999px; font-size: 14.5px; font-weight: 600; color: var(--sl-muted); transition: background 0.18s, color 0.18s, box-shadow 0.18s; }
+.sl-tab-on { background: var(--sl-blue); color: #fff; box-shadow: 0 6px 22px -6px rgba(18, 107, 247, 0.9); }
+
+/* карточка, поля, кнопки */
+.sl-auth .card { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--sl-line); border-radius: 24px; box-shadow: 0 20px 60px -30px rgba(18, 107, 247, 0.5); padding: 20px; }
+.sl-auth .input-field { background: #111113; border: 1px solid var(--sl-line); border-radius: 14px; height: 52px; padding: 0 16px; color: #fff; font-size: 16px; }
+.sl-auth .input-field::placeholder { color: #5d6272; }
+.sl-auth .input-field:focus { border-color: var(--sl-blue); box-shadow: 0 0 0 3px rgba(18, 107, 247, 0.25); outline: none; }
+.sl-auth .btn-primary { background: var(--sl-blue); color: #fff; border-radius: 999px; height: 52px; padding: 0 22px; font-weight: 600; box-shadow: 0 10px 34px -10px rgba(18, 107, 247, 0.85); transition: background 0.15s, transform 0.1s; }
+.sl-auth .btn-primary:hover { background: var(--sl-blue-hi); }
+.sl-auth .btn-primary:active { transform: translateY(1px); }
+.sl-auth .btn-secondary { background: rgba(255, 255, 255, 0.06); color: #fff; border: 1px solid var(--sl-line); border-radius: 999px; }
+.sl-auth .text-accent { color: #5da2ff; }
+.sl-auth .text-red-300 { color: #ff8a8a; }
+.sl-auth .rounded-btn { border-radius: 16px; }

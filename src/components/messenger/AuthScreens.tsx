@@ -5,26 +5,17 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Send } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { mApi } from "@/lib/messenger/client";
+import "./auth-slasher.css";
 
 const authError = (code?: string) =>
   code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found" ? "Неверная почта или пароль"
   : code === "auth/too-many-requests" ? "Слишком много попыток, подожди немного" : "Не удалось войти";
 
-function Backdrop() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-3xl opacity-40" style={{ background: "radial-gradient(circle, var(--mx-accent), transparent 65%)" }} />
-      <div className="absolute -bottom-40 -right-28 w-[480px] h-[480px] rounded-full blur-3xl opacity-35" style={{ background: "radial-gradient(circle, #ff4081, transparent 65%)" }} />
-    </div>
-  );
-}
-
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="h-full overflow-y-auto relative">
-      <Backdrop />
-      <div className="relative min-h-full flex items-center justify-center px-5 py-8">
-        <div className="w-full max-w-sm">{children}</div>
+    <div className="sl-auth">
+      <div className="sl-wrap">
+        <div className="sl-col">{children}</div>
       </div>
     </div>
   );
@@ -32,11 +23,11 @@ function Shell({ children }: { children: ReactNode }) {
 
 function Logo({ subtitle = "Быстрый и милый мессенджер Velox Trade" }: { subtitle?: string }) {
   return (
-    <div className="text-center mb-6">
+    <div className="sl-logo">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/miligram/icon-512.png" alt="MiliGram" className="w-28 h-28 mx-auto rounded-[30px] shadow-glow" />
-      <h1 className="text-3xl font-bold mt-4 tracking-tight">MiliGram</h1>
-      <p className="text-white/55 text-sm mt-1">{subtitle}</p>
+      <img src="/miligram/icon-512.png" alt="MiliGram" />
+      <h1 className="sl-title">MiliGram</h1>
+      <p className="sl-sub">{subtitle}</p>
     </div>
   );
 }
@@ -227,9 +218,9 @@ export function AuthScreens() {
   return (
     <Shell>
       <Logo subtitle={isReg ? "Создай аккаунт за полминуты" : "С возвращением"} />
-      <div className="flex p-1 rounded-btn bg-white/5 border border-white/10 mb-3">
+      <div className="sl-tabs">
         {([["register", "Регистрация"], ["login", "Вход"]] as const).map(([m, label]) => (
-          <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} className={`flex-1 py-2.5 rounded-[12px] text-sm font-semibold transition-all ${mode === m ? "bg-accent text-black shadow-glow" : "text-white/55"}`}>{label}</button>
+          <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} className={`sl-tab ${mode === m ? "sl-tab-on" : ""}`}>{label}</button>
         ))}
       </div>
       <form noValidate onSubmit={isReg ? register : login} className="card p-5 space-y-3">
