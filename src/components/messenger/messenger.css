@@ -744,3 +744,13 @@
 .mx-ribbon { position: absolute; top: 0; right: 0; width: 66px; height: 66px; overflow: hidden; pointer-events: none; z-index: 2; border-top-right-radius: 22px; }
 .mx-ribbon span { position: absolute; top: 13px; right: -24px; width: 92px; text-align: center; transform: rotate(45deg); background: #4caf50; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .02em; padding: 2px 0; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 @media (prefers-reduced-motion: reduce) { .mx-gift-float, .mx-gift-glow, .mx-gift-spark, .mx-gift-tile { animation: none !important; opacity: 1; } }
+
+
+/* ===== Экран не «гуляет» вправо-влево (как в Telegram): запрет горизонтального скролла и резинки, длинные слова и медиа не вылезают за край ===== */
+html:has(.mx), body:has(.mx) { overflow-x: hidden !important; overscroll-behavior-x: none; max-width: 100%; }
+.mx { overflow-x: hidden; max-width: 100vw; overscroll-behavior-x: none; }
+.mx .mx-scroll { overflow-x: hidden !important; overscroll-behavior-x: none; }
+.mx .mx-chat-wall { touch-action: pan-y; overflow-wrap: anywhere; word-break: break-word; }
+.mx .mx-chat-wall img, .mx .mx-chat-wall video, .mx .mx-chat-wall canvas { max-width: 100%; }
+.mx .mx-chat-wall pre { max-width: 100%; overflow-x: auto; }
+.mx .mx-chat-wall a { overflow-wrap: anywhere; }
