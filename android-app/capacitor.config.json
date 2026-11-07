@@ -1,0 +1,12 @@
+{
+  "appId": "com.miligram.app",
+  "appName": "MiliGram",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "server": {
+    "url": "https://mili-gram.vercel.app/m",
+    "cleartext": false,
+    "allowNavigation": ["mili-gram.vercel.app", "*.firebaseapp.com", "accounts.google.com"]
+  },
+  "android": { "allowMixedContent": false }
+}

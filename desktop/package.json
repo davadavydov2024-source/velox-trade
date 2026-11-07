@@ -1,0 +1,35 @@
+{
+  "name": "miligram-desktop",
+  "version": "0.1.0",
+  "description": "MiliGram для Windows",
+  "author": "MiliGram",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.miligram.desktop",
+    "productName": "MiliGram",
+    "directories": { "buildResources": "build", "output": "dist" },
+    "files": ["main.js", "offline.html", "build/icon.png"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.png" },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "MiliGram-Setup.${ext}"
+    },
+    "publish": [{ "provider": "github", "owner": "davadavydov2024-source", "repo": "velox-trade" }]
+  }
+}

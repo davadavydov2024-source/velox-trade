@@ -1,0 +1,77 @@
+/* Главная MiliGram в стиле Slasher: чёрный фон, синее свечение, широкий жирный заголовок, карточки с тонкой рамкой.
+   Страница закрывает собой шапку/подвал магазина (как и сам мессенджер). */
+.sl-land {
+  --b: #126bf7; --bh: #2f82ff; --line: rgba(255,255,255,.08); --muted: #8b90a0;
+  position: fixed; inset: 0; z-index: 9999; overflow-y: auto; overflow-x: hidden;
+  background: #000; color: #fff; font-family: var(--font-onest), system-ui, sans-serif;
+  -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
+}
+.sl-glow { position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(1000px 560px at 50% -6%, rgba(18,107,247,.34), transparent 70%), radial-gradient(700px 420px at 90% 100%, rgba(18,107,247,.14), transparent 70%); }
+.sl-land > *:not(.sl-glow) { position: relative; }
+.sl-land a { color: inherit; text-decoration: none; }
+
+.sl-nav { position: sticky; top: 12px; z-index: 5; margin: 12px auto 0; max-width: 1080px; width: calc(100% - 24px); display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px 10px 16px; border-radius: 20px; background: rgba(10,12,18,.72); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.sl-brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-unbounded), sans-serif; font-weight: 700; font-size: 19px; letter-spacing: -.02em; }
+.sl-brand img { border-radius: 10px; }
+
+.sl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 24px; border-radius: 999px; font-weight: 600; font-size: 15.5px; transition: background .15s, transform .1s, border-color .15s; white-space: nowrap; }
+.sl-btn:active { transform: translateY(1px); }
+.sl-btn-sm { height: 40px; padding: 0 18px; font-size: 14px; }
+.sl-btn-blue { background: var(--b); color: #fff; box-shadow: 0 10px 34px -10px rgba(18,107,247,.85); }
+.sl-btn-blue:hover { background: var(--bh); }
+.sl-btn-ghost { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: #fff; }
+.sl-btn-ghost:hover { background: rgba(255,255,255,.1); }
+.sl-soon { opacity: .55; cursor: default; }
+
+.sl-hero { max-width: 1080px; margin: 0 auto; padding: 56px 20px 32px; display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
+.sl-h1 { font-family: var(--font-unbounded), sans-serif; font-weight: 800; text-transform: uppercase; line-height: 1.08; letter-spacing: -.01em; font-size: clamp(30px, 7.2vw, 56px); margin: 0; }
+.sl-h1 span { color: var(--b); }
+.sl-lead { color: var(--muted); font-size: 17px; line-height: 1.55; max-width: 520px; margin: 22px 0 0; }
+.sl-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.sl-note { color: #5d6272; font-size: 13px; margin-top: 18px; }
+
+.sl-phone { justify-self: center; width: min(300px, 100%); border-radius: 44px; padding: 14px; background: linear-gradient(180deg, #0b0d12, #050608); border: 1px solid var(--line); box-shadow: 0 40px 100px -40px rgba(18,107,247,.7); }
+.sl-phone-bar { display: flex; align-items: center; gap: 10px; padding: 8px 8px 12px; border-bottom: 1px solid var(--line); }
+.sl-phone-bar b { display: block; font-size: 14px; } .sl-phone-bar small { color: var(--muted); font-size: 11.5px; }
+.sl-ava { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--b), #7ab2ff); }
+.sl-chat { display: flex; flex-direction: column; gap: 8px; padding: 18px 4px; min-height: 250px; }
+.sl-msg { max-width: 82%; padding: 9px 13px; border-radius: 18px; font-size: 14px; line-height: 1.35; }
+.sl-in { align-self: flex-start; background: #15171d; border-bottom-left-radius: 6px; }
+.sl-out { align-self: flex-end; background: var(--b); border-bottom-right-radius: 6px; }
+.sl-typing { display: flex; gap: 4px; padding: 13px 14px; }
+.sl-typing i { width: 7px; height: 7px; border-radius: 50%; background: #6b7280; animation: sl-dot 1.2s infinite ease-in-out; }
+.sl-typing i:nth-child(2) { animation-delay: .15s; } .sl-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes sl-dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+.sl-compose { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; padding: 6px 6px 6px 16px; border-radius: 999px; background: #111113; border: 1px solid var(--line); color: #5d6272; font-size: 14px; }
+.sl-compose em { width: 34px; height: 34px; border-radius: 50%; background: var(--b); color: #fff; display: grid; place-items: center; }
+
+.sl-section { max-width: 1080px; margin: 0 auto; padding: 72px 20px 8px; text-align: center; }
+.sl-h2 { font-family: var(--font-unbounded), sans-serif; font-weight: 700; font-size: clamp(24px, 4.6vw, 36px); letter-spacing: -.01em; margin: 0; }
+.sl-sub { color: var(--muted); font-size: 15.5px; margin: 12px 0 0; }
+.sl-grid { display: grid; gap: 14px; margin-top: 32px; text-align: left; grid-template-columns: 1fr; }
+.sl-card { display: block; padding: 20px; border-radius: 22px; background: rgba(255,255,255,.03); border: 1px solid var(--line); transition: border-color .15s, background .15s, transform .15s; }
+.sl-card h3 { font-size: 16.5px; font-weight: 700; margin: 14px 0 6px; } .sl-card p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0; }
+.sl-card-link:hover { border-color: rgba(18,107,247,.55); background: rgba(18,107,247,.07); transform: translateY(-2px); }
+.sl-ico { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--b); color: #fff; }
+.sl-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-size: 13.5px; font-weight: 600; color: #5da2ff; }
+
+.sl-faq-list { max-width: 720px; margin: 28px auto 0; text-align: left; display: grid; gap: 10px; }
+.sl-faq details { border-radius: 18px; background: rgba(255,255,255,.03); border: 1px solid var(--line); padding: 0 18px; }
+.sl-faq summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; font-weight: 600; font-size: 15.5px; }
+.sl-faq summary::-webkit-details-marker { display: none; }
+.sl-plus { flex: none; width: 26px; height: 26px; padding: 5px; border-radius: 50%; background: var(--b); transition: transform .2s; }
+.sl-faq details[open] .sl-plus { transform: rotate(45deg); }
+.sl-faq details p { color: var(--muted); font-size: 14.5px; line-height: 1.6; margin: 0 0 16px; }
+
+.sl-final { display: flex; flex-direction: column; align-items: center; padding: 44px 20px; border-radius: 32px; background: radial-gradient(600px 240px at 50% 0%, rgba(18,107,247,.28), transparent 70%), rgba(255,255,255,.03); border: 1px solid var(--line); }
+.sl-final img { border-radius: 16px; margin-bottom: 16px; box-shadow: 0 8px 40px -8px rgba(18,107,247,.8); }
+.sl-final .sl-btn { margin-top: 24px; }
+
+.sl-foot { max-width: 1080px; margin: 72px auto 0; padding: 28px 20px 40px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; color: #5d6272; font-size: 13px; }
+.sl-foot div { display: flex; flex-wrap: wrap; gap: 20px; } .sl-foot a:hover { color: #fff; }
+
+@media (min-width: 640px) { .sl-grid-4 { grid-template-columns: repeat(2, 1fr); } .sl-grid-3 { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px) { .sl-hero { grid-template-columns: 1.15fr .85fr; padding-top: 84px; } .sl-grid-4 { grid-template-columns: repeat(4, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .sl-typing i { animation: none; } .sl-land { scroll-behavior: auto; } }

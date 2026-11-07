@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&display=swap");
 
 /* Регистрация / вход MiliGram в стиле Slasher: чёрный фон с синим свечением, широкий жирный заголовок,
    тёмные карточки с тонкой рамкой, яркая синяя кнопка-«пилюля». Всё внутри .sl-auth — на остальной сайт не влияет. */
@@ -30,7 +29,7 @@
 
 .sl-logo { text-align: center; margin-bottom: 26px; }
 .sl-logo img { width: 84px; height: 84px; margin: 0 auto; border-radius: 26px; box-shadow: 0 10px 50px -8px rgba(18, 107, 247, 0.75), 0 0 0 1px var(--sl-line); }
-.sl-title { font-family: "Unbounded", var(--font-onest, system-ui), sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1.1; margin-top: 18px; }
+.sl-title { font-family: var(--font-unbounded), var(--font-onest, system-ui), sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1.1; margin-top: 18px; }
 .sl-sub { color: var(--sl-muted); font-size: 14.5px; margin-top: 8px; }
 
 /* переключатель «Регистрация / Вход» */

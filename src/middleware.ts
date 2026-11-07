@@ -7,7 +7,7 @@ export function middleware(req: NextRequest) {
   let res: NextResponse;
   if (req.nextUrl.pathname === "/") {
     const url = req.nextUrl.clone();
-    url.pathname = "/m";
+    url.pathname = "/welcome";
     res = NextResponse.rewrite(url);
   } else {
     res = NextResponse.next();
