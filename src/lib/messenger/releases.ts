@@ -1,4 +1,4 @@
-/** Репозиторий с релизами приложений (GitHub Releases). Можно переопределить переменной NEXT_PUBLIC_RELEASES_REPO в Vercel. */
+/** Публичный репозиторий с релизами приложений (GitHub Releases). Можно переопределить переменной NEXT_PUBLIC_RELEASES_REPO в Vercel. */
 export const RELEASES_REPO = process.env.NEXT_PUBLIC_RELEASES_REPO || "davadavydov2024-source/velox-trade";
 /** Адрес самого мессенджера в браузере. */
 export const APP_PATH = "/m";

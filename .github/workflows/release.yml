@@ -106,15 +106,18 @@ jobs:
 
   release:
     needs: [windows, android]
+    # публикуем то, что собралось: если Android упал, Windows всё равно попадёт в релиз (и наоборот)
+    if: ${{ !cancelled() && (needs.windows.result == 'success' || needs.android.result == 'success') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
+      # Репозиторий публичный, поэтому релиз публикуем прямо в него (токен по умолчанию, секреты не нужны)
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: MiliGram ${{ env.TAG }}
-          generate_release_notes: true
+          body: "MiliGram ${{ env.TAG }}: установщик для Windows и APK для Android."
           files: |
             out/MiliGram-Setup.exe
             out/MiliGram-Setup.exe.blockmap
