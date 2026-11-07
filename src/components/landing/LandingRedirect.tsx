@@ -9,6 +9,8 @@ export function LandingRedirect({ to }: { to: string }) {
   const router = useRouter();
   const { user, loading } = useAuth();
   useEffect(() => {
+    // /?landing — посмотреть лендинг, даже будучи залогиненным
+    if (new URLSearchParams(window.location.search).has("landing")) return;
     const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone;
     if (standalone || (!loading && user)) router.replace(to);
   }, [loading, user, router, to]);
