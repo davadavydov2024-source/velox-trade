@@ -2,9 +2,11 @@
 
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Mail, Send } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { mApi } from "@/lib/messenger/client";
+import { useAuth } from "@/lib/authContext";
+import { getFeatureFlags } from "@/lib/featureFlags";
 import "./auth-slasher.css";
 
 const authError = (code?: string) =>
@@ -153,6 +155,70 @@ function HandleLine({ handle, edited, onEdit, onChange }: { handle: string; edit
   );
 }
 
+/** Вернуться в мессенджер после входа через Telegram (страница /auth/telegram-finish читает эту метку). */
+const RETURN_KEY = "mx-return";
+function startTelegramLogin() {
+  try { localStorage.setItem(RETURN_KEY, `/m|${Date.now()}`); } catch {}
+  window.location.href = "/api/auth/telegram-oidc/start";
+}
+
+function TelegramButton({ label }: { label: string }) {
+  return (
+    <button type="button" onClick={startTelegramLogin} className="w-full flex items-center justify-center gap-2.5 h-[50px] rounded-full font-semibold text-white" style={{ background: "#2AABEE" }}>
+      <Send size={18} /> {label}
+    </button>
+  );
+}
+
+/** Сброс пароля: письмо со ссылкой уходит владельцу почты (как на Velox Trade). */
+function ResetScreen({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) {
+  const { resetPassword } = useAuth();
+  const [email, setEmail] = useState(initialEmail);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!EMAIL_OK.test(email.trim())) return setError("Проверь почту — она записана неверно");
+    setBusy(true); setError("");
+    try {
+      await resetPassword(email.trim());
+      setSent(true);
+    } catch (err: any) {
+      // не раскрываем, есть ли такая почта: для «нет такого аккаунта» показываем тот же успех
+      if (err?.code === "auth/user-not-found") setSent(true);
+      else setError(err?.code === "auth/too-many-requests" ? "Слишком много попыток, подожди немного" : "Не удалось отправить письмо. Попробуй ещё раз");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Shell>
+      <Logo subtitle="Восстановление пароля" />
+      <div className="card p-5 space-y-3">
+        {sent ? (
+          <>
+            <p className="font-semibold flex items-center gap-2"><Check size={18} style={{ color: "#34c759" }} /> Письмо отправлено</p>
+            <p className="text-sm text-white/60">Если для <b className="text-white/85">{email.trim()}</b> есть аккаунт, на неё придёт ссылка для нового пароля. Проверь и папку «Спам».</p>
+            <p className="text-xs text-white/40">Регистрировался только через Telegram — пароля нет: просто войди через Telegram, а почту и пароль можно добавить в Настройках.</p>
+          </>
+        ) : (
+          <form noValidate onSubmit={submit} className="space-y-3">
+            <p className="text-sm text-white/60">Укажи почту, на которую зарегистрирован аккаунт, — пришлём ссылку для нового пароля.</p>
+            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required />
+            {error && <p className="text-sm text-red-300">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />} Отправить ссылку
+            </button>
+          </form>
+        )}
+      </div>
+      <button onClick={onBack} className="mx-auto mt-4 text-xs text-white/50 flex items-center gap-1"><ArrowLeft size={13} /> Вернуться ко входу</button>
+    </Shell>
+  );
+}
+
 export function AuthScreens() {
   const [mode, setMode] = useState<"login" | "register">("register");
   const open = useGate();
@@ -165,6 +231,10 @@ export function AuthScreens() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [tg, setTg] = useState<{ code: string; botUrl: string } | null>(null);
+  const [withTelegram, setWithTelegram] = useState(false); // «почта + Telegram»: привязать бота прямо сейчас (необязательно)
+  const [resetting, setResetting] = useState(false);
+  const [tgEnabled, setTgEnabled] = useState(false);
+  useEffect(() => { getFeatureFlags().then((f) => setTgEnabled(!!(f.telegramLoginEnabled || f.telegramRegisterEnabled))).catch(() => {}); }, []);
 
   // пока человек не менял @username вручную — показываем предложенный по имени
   const shownHandle = handleEdited ? handle : handleBase(name, email) + "••••";
@@ -186,7 +256,10 @@ export function AuthScreens() {
       let h = handleEdited ? handle : suggestHandle(name, email);
       for (let attempt = 0; ; attempt++) {
         try {
-          setTg(await mApi<{ code: string; botUrl: string }>("signup", { gateToken, email: email.trim(), password, handle: h, displayName: name.trim() }));
+          const r = await mApi<{ done?: boolean; code?: string; botUrl?: string }>("signup", { gateToken, email: email.trim(), password, handle: h, displayName: name.trim(), telegram: withTelegram });
+          if (r.done) await signInWithEmailAndPassword(auth, email.trim(), password); // без Telegram: аккаунт готов, просто входим
+          else if (r.code && r.botUrl) setTg({ code: r.code, botUrl: r.botUrl });
+          else throw new Error("Сервер не вернул ссылку на бота. Попробуй ещё раз");
           break;
         } catch (err: any) {
           // автоподбор: если такой @username занят — тихо пробуем другой (вручную введённый не трогаем)
@@ -214,6 +287,8 @@ export function AuthScreens() {
     );
   }
 
+  if (resetting) return <ResetScreen initialEmail={email} onBack={() => setResetting(false)} />;
+
   const isReg = mode === "register";
   return (
     <Shell>
@@ -227,6 +302,7 @@ export function AuthScreens() {
         {isReg && <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Как тебя зовут?" maxLength={40} className="input-field" required />}
         <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required />
         <PasswordField value={password} onChange={setPassword} autoComplete={isReg ? "new-password" : "current-password"} placeholder={isReg ? "Пароль (от 8 символов)" : "Пароль"} />
+        {!isReg && <button type="button" onClick={() => setResetting(true)} className="block ml-auto -mt-1 text-xs text-accent">Забыли пароль?</button>}
         {isReg && (
           <HandleLine handle={shownHandle} edited={handleEdited} onEdit={() => { setHandle(suggestHandle(name, email)); setHandleEdited(true); }} onChange={setHandle} />
         )}
@@ -235,8 +311,19 @@ export function AuthScreens() {
         <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
           {busy && <Loader2 size={18} className="animate-spin" />} {isReg ? "Создать аккаунт" : "Войти"}
         </button>
-        {isReg && <p className="text-[11.5px] text-white/40 flex gap-1.5 justify-center"><Send size={12} className="shrink-0 mt-0.5 text-[#229ED9]" /> В конце — один клик «Старт» в Telegram-боте.</p>}
+        {isReg && (
+          <label className="flex items-start gap-2.5 text-[12.5px] text-white/55 cursor-pointer select-none">
+            <input type="checkbox" checked={withTelegram} onChange={(e) => setWithTelegram(e.target.checked)} className="mt-0.5 accent-[#126bf7]" />
+            <span>Сразу привязать Telegram — придут уведомления о входах и работает вход по коду. Можно и позже в Настройках.</span>
+          </label>
+        )}
       </form>
+      {tgEnabled && (
+        <div className="mt-3 space-y-2.5">
+          <p className="text-center text-[11.5px] text-white/35">или без почты и пароля</p>
+          <TelegramButton label={isReg ? "Продолжить с Telegram" : "Войти через Telegram"} />
+        </div>
+      )}
     </Shell>
   );
 }
