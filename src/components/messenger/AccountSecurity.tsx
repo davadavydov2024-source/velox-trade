@@ -7,6 +7,7 @@ import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
+import { ResetScreen } from "./AuthScreens";
 import { IconBox, Sheet } from "./ui";
 
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -18,7 +19,7 @@ const authMsg = (code?: string) =>
 
 /** «Вход и пароль» в настройках: сменить пароль / добавить почту и пароль (если вошёл через Telegram) и привязать Telegram. */
 export function AccountSecurity() {
-  const { user, resetPassword } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const noPassword = isServiceEmail(user?.email); // регистрация только через Telegram: настоящей почты и пароля ещё нет
@@ -58,11 +59,8 @@ export function AccountSecurity() {
     setBusy(false);
   }
 
-  async function forgot() {
-    if (!user?.email || noPassword) return;
-    try { await resetPassword(user.email); toast("success", `Ссылка для нового пароля отправлена на ${user.email}`); }
-    catch { toast("error", "Не удалось отправить письмо"); }
-  }
+  // «Не помню текущий пароль»: код на почту → новый пароль (текущий знать не нужно)
+  const [resetOpen, setResetOpen] = useState(false);
 
   // --- Telegram ---
   const [tg, setTg] = useState<{ linked: boolean; username?: string | null } | null>(null);
@@ -117,7 +115,7 @@ export function AccountSecurity() {
             </div>
             {error && <p className="text-[14px] px-1" style={{ color: "var(--mx-danger)" }}>{error}</p>}
             <button type="submit" disabled={busy} className="mx-btn w-full flex items-center justify-center gap-2">{busy && <Loader2 size={17} className="animate-spin" />} {noPassword ? "Сохранить" : "Изменить пароль"}</button>
-            {!noPassword && <button type="button" onClick={forgot} className="block mx-auto text-[13px]" style={{ color: "var(--mx-accent)" }}>Не помню текущий пароль — отправить ссылку на почту</button>}
+            {!noPassword && <button type="button" onClick={() => setResetOpen(true)} className="block mx-auto text-[13px]" style={{ color: "var(--mx-accent)" }}>Не помню текущий пароль — сменить по коду на почту</button>}
           </form>
 
           <div className="space-y-2">
@@ -135,6 +133,18 @@ export function AccountSecurity() {
           </div>
         </div>
       </Sheet>
+
+      {resetOpen && user?.email && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 700, background: "#000" }}>
+          <ResetScreen
+            mode="settings"
+            lockEmail
+            initialEmail={user.email}
+            onBack={() => setResetOpen(false)}
+            onDone={() => { setResetOpen(false); toast("success", "Пароль изменён"); }}
+          />
+        </div>
+      )}
     </>
   );
 }

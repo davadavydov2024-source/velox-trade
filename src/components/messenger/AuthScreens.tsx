@@ -5,7 +5,6 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Mail, Send } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { mApi } from "@/lib/messenger/client";
-import { useAuth } from "@/lib/authContext";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import "./auth-slasher.css";
 
@@ -170,25 +169,49 @@ function TelegramButton({ label }: { label: string }) {
   );
 }
 
-/** Сброс пароля: письмо со ссылкой уходит владельцу почты (как на Velox Trade). */
-function ResetScreen({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) {
-  const { resetPassword } = useAuth();
+/**
+ * Сброс пароля по коду из письма (как при регистрации на Velox Trade): почта → 6 цифр → новый пароль.
+ * Работает и на экране входа (забыл пароль), и из Настроек (вошёл, но не помнишь текущий) — mode="settings" не перезаходит.
+ */
+export function ResetScreen({ initialEmail, onBack, mode = "login", lockEmail, onDone }: { initialEmail: string; onBack: () => void; mode?: "login" | "settings"; lockEmail?: boolean; onDone?: () => void }) {
+  const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [cool, setCool] = useState(0);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (cool <= 0) return;
+    const t = setTimeout(() => setCool((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cool]);
+
+  async function sendCode(e?: FormEvent) {
+    e?.preventDefault();
     if (!EMAIL_OK.test(email.trim())) return setError("Проверь почту — она записана неверно");
+    setBusy(true); setError(""); setInfo("");
+    try {
+      await mApi("password-reset", { email: email.trim() });
+      setStep("code"); setCool(45);
+      setInfo(`Если для ${email.trim()} есть аккаунт, мы отправили на неё 6-значный код. Проверь и папку «Спам».`);
+    } catch (err: any) { setError(errText(err)); }
+    setBusy(false);
+  }
+
+  async function confirm(e: FormEvent) {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(code.trim())) return setError("Код — 6 цифр из письма");
+    if (pw.length < 8) return setError("Пароль — минимум 8 символов");
     setBusy(true); setError("");
     try {
-      await resetPassword(email.trim());
-      setSent(true);
+      await mApi("password-reset", { email: email.trim(), code: code.trim(), password: pw });
+      if (mode === "login") await signInWithEmailAndPassword(auth, email.trim(), pw); // сразу входим с новым паролем
+      else onDone?.();
     } catch (err: any) {
-      // не раскрываем, есть ли такая почта: для «нет такого аккаунта» показываем тот же успех
-      if (err?.code === "auth/user-not-found") setSent(true);
-      else setError(err?.code === "auth/too-many-requests" ? "Слишком много попыток, подожди немного" : "Не удалось отправить письмо. Попробуй ещё раз");
+      setError(err?.code?.startsWith?.("auth/") ? "Пароль изменён, но войти не удалось — попробуй войти вручную" : errText(err));
     }
     setBusy(false);
   }
@@ -197,24 +220,30 @@ function ResetScreen({ initialEmail, onBack }: { initialEmail: string; onBack: (
     <Shell>
       <Logo subtitle="Восстановление пароля" />
       <div className="card p-5 space-y-3">
-        {sent ? (
-          <>
-            <p className="font-semibold flex items-center gap-2"><Check size={18} style={{ color: "#34c759" }} /> Письмо отправлено</p>
-            <p className="text-sm text-white/60">Если для <b className="text-white/85">{email.trim()}</b> есть аккаунт, на неё придёт ссылка для нового пароля. Проверь и папку «Спам».</p>
-            <p className="text-xs text-white/40">Регистрировался только через Telegram — пароля нет: просто войди через Telegram, а почту и пароль можно добавить в Настройках.</p>
-          </>
-        ) : (
-          <form noValidate onSubmit={submit} className="space-y-3">
-            <p className="text-sm text-white/60">Укажи почту, на которую зарегистрирован аккаунт, — пришлём ссылку для нового пароля.</p>
-            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required />
+        {step === "email" ? (
+          <form noValidate onSubmit={sendCode} className="space-y-3">
+            <p className="text-sm text-white/60">{lockEmail ? "Пришлём 6-значный код на твою почту — по нему можно задать новый пароль, текущий знать не нужно." : "Укажи почту аккаунта — пришлём на неё 6-значный код для нового пароля."}</p>
+            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required readOnly={lockEmail} />
             {error && <p className="text-sm text-red-300">{error}</p>}
             <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
-              {busy ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />} Отправить ссылку
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />} Отправить код
             </button>
           </form>
+        ) : (
+          <form noValidate onSubmit={confirm} className="space-y-3">
+            {info && <p className="text-sm text-white/60">{info}</p>}
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Код из письма" className="input-field text-center tracking-[0.4em]" required />
+            <PasswordField value={pw} onChange={setPw} autoComplete="new-password" placeholder="Новый пароль (от 8 символов)" />
+            {error && <p className="text-sm text-red-300">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
+              {busy && <Loader2 size={18} className="animate-spin" />} Сохранить пароль
+            </button>
+            <button type="button" disabled={busy || cool > 0} onClick={() => sendCode()} className="block mx-auto text-xs text-accent disabled:opacity-40">{cool > 0 ? `Отправить код ещё раз (${cool} с)` : "Отправить код ещё раз"}</button>
+          </form>
         )}
+        <p className="text-xs text-white/40">Регистрировался только через Telegram — пароля нет: войди через Telegram, а почту и пароль можно добавить в Настройках.</p>
       </div>
-      <button onClick={onBack} className="mx-auto mt-4 text-xs text-white/50 flex items-center gap-1"><ArrowLeft size={13} /> Вернуться ко входу</button>
+      <button onClick={onBack} className="mx-auto mt-4 text-xs text-white/50 flex items-center gap-1"><ArrowLeft size={13} /> {mode === "login" ? "Вернуться ко входу" : "Назад"}</button>
     </Shell>
   );
 }
