@@ -740,7 +740,7 @@ export function ChatView({
 
       {chat.type === "dm" && peer && (peer.plusUntil ?? 0) > Date.now() && (peer.messagePrice ?? 0) > 0 && !chat.freeFor?.includes(me) && (
         <div className="shrink-0 text-center text-[13px] px-4 py-1.5" style={{ background: "var(--mx-bg)", color: "#ffb400", borderTop: "1px solid var(--mx-line)" }}>
-          💫 Сообщение этому человеку стоит {peer.messagePrice} ⭐ — они уйдут на его баланс
+          💫 Сообщение этому человеку стоит {peer.messagePrice} 🪙 — они уйдут на его баланс
         </div>
       )}
       {(() => {

@@ -24,7 +24,7 @@ function auditLabel(a: AuditItem): string {
   switch (a.action) {
     case "messenger_grant_premium": return `Выдан Premium на ${i.days} дн.`;
     case "messenger_revoke_premium": return "Снят Premium";
-    case "messenger_grant_stars": return `Начислено ${i.amount} ⭐`;
+    case "messenger_grant_stars": return `Начислено ${i.amount} 🪙`;
     case "messenger_grant_gift": return `Подарок «${giftById(String(i.giftId))?.title ?? i.giftId}» × ${i.count ?? 1}`;
     case "messenger_revoke_gift": return "Подарок отобран";
     case "messenger_sticker_pack_save": return `Набор стикеров сохранён: ${i.slug} (${i.count} шт)`;
@@ -69,7 +69,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [sent, setSent] = useState(0);
   const [past, setPast] = useState<Past[]>([]);
 
-  // «Выдать»: премиум, ⭐, подарки и NFT
+  // «Выдать»: премиум, 🪙, подарки и NFT
   const [giveTo, setGiveTo] = useState<MAccount | null>(null);
   const [info, setInfo] = useState<GrantInfo | null>(null);
   const [busyKey, setBusyKey] = useState("");
@@ -244,7 +244,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     <p className="truncate font-semibold">{giveTo.displayName}</p>
                     <p className="mx-muted text-[12.5px]">@{giveTo.handle}</p>
                     <p className="text-[12.5px] mt-0.5" style={{ color: "var(--mx-accent)" }}>
-                      {info ? `${info.wallet} ⭐ · ${info.account.premiumUntil > Date.now() ? `Premium до ${new Date(info.account.premiumUntil).toLocaleDateString("ru-RU")}` : "без Premium"}` : "Загружаю…"}
+                      {info ? `${info.wallet} 🪙 · ${info.account.premiumUntil > Date.now() ? `Premium до ${new Date(info.account.premiumUntil).toLocaleDateString("ru-RU")}` : "без Premium"}` : "Загружаю…"}
                     </p>
                   </div>
                   <button className="mx-chip" onClick={() => { setGiveTo(null); setInfo(null); }}>Другой</button>
@@ -262,8 +262,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
                 <div className="mx-card p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold">⭐ Пополнить кошелёк MiliGram</p>
-                    <span className="text-[13px] mx-muted">сейчас: <b style={{ color: "var(--mx-text)" }}>{info ? info.wallet : "…"} ⭐</b></span>
+                    <p className="font-semibold">🪙 Пополнить кошелёк MiliGram</p>
+                    <span className="text-[13px] mx-muted">сейчас: <b style={{ color: "var(--mx-text)" }}>{info ? info.wallet : "…"} 🪙</b></span>
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {[10, 50, 100, 250, 500, 1000, 5000].map((n) => (
@@ -271,18 +271,18 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     ))}
                   </div>
                   <div className="flex items-center gap-2 rounded-2xl px-3" style={{ background: "var(--mx-surface)" }}>
-                    <span className="text-[18px]">⭐</span>
+                    <span className="text-[18px]">🪙</span>
                     <input className="flex-1 bg-transparent outline-none py-3 text-[18px] font-semibold tabular-nums" type="text" inputMode="numeric" placeholder="Сумма" value={starsAmount}
                       onChange={(e) => setStarsAmount(e.target.value.replace(/\D/g, "").slice(0, 7))}
                       onKeyDown={(e) => { if (e.key === "Enter" && starsAmount && !busyKey) document.getElementById("mx-stars-go")?.click(); }} />
                     {starsAmount && <button className="mx-muted text-[13px]" onClick={() => setStarsAmount("")} aria-label="Очистить">✕</button>}
                   </div>
-                  {starsAmount && info && <p className="mx-muted text-[13px]">После пополнения будет: <b style={{ color: "var(--mx-text)" }}>{info.wallet + Number(starsAmount)} ⭐</b></p>}
+                  {starsAmount && info && <p className="mx-muted text-[13px]">После пополнения будет: <b style={{ color: "var(--mx-text)" }}>{info.wallet + Number(starsAmount)} 🪙</b></p>}
                   <button id="mx-stars-go" className="mx-btn w-full" disabled={!!busyKey || !starsAmount || Number(starsAmount) < 1 || Number(starsAmount) > 1_000_000}
-                    onClick={() => { const n = Number(starsAmount); if (n >= 5000 && !window.confirm(`Начислить ${n} ⭐ пользователю @${giveTo.handle}?`)) return; grant("st", { action: "stars", amount: n }, `Начислено ${n} ⭐`).then(() => setStarsAmount("")); }}>
-                    {busyKey === "st" ? "Начисляю…" : starsAmount ? `Начислить ${starsAmount} ⭐` : "Начислить"}
+                    onClick={() => { const n = Number(starsAmount); if (n >= 5000 && !window.confirm(`Начислить ${n} 🪙 пользователю @${giveTo.handle}?`)) return; grant("st", { action: "stars", amount: n }, `Начислено ${n} 🪙`).then(() => setStarsAmount("")); }}>
+                    {busyKey === "st" ? "Начисляю…" : starsAmount ? `Начислить ${starsAmount} 🪙` : "Начислить"}
                   </button>
-                  <p className="mx-muted text-[12px]">Звёзды попадают в кошелёк MiliGram (подарки, Premium, юзернеймы), не в баланс магазина Velox Trade. Начисление записывается в журнал, человеку приходит уведомление.</p>
+                  <p className="mx-muted text-[12px]">Монеты попадают в кошелёк MiliGram (подарки, Premium, юзернеймы), не в баланс магазина Velox Trade. Начисление записывается в журнал, человеку приходит уведомление.</p>
                 </div>
 
                 <div className="mx-card p-4 space-y-3">
@@ -292,7 +292,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       {GIFTS.filter((g) => g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · тираж {g.limited}</option>)}
                     </optgroup>
                     <optgroup label="Обычные подарки">
-                      {GIFTS.filter((g) => !g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · {g.price} ⭐</option>)}
+                      {GIFTS.filter((g) => !g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · {g.price} 🪙</option>)}
                     </optgroup>
                   </select>
                   {selGift?.nft && (
@@ -323,7 +323,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                   >
                     {busyKey === "g" ? "Дарю…" : `Подарить${giftCount > 1 ? ` × ${giftCount}` : ""}`}
                   </button>
-                  <p className="mx-muted text-[12px]">Бесплатно для тебя. Подарки от администрации нельзя обменять на ⭐. NFT занимает номер в тираже.</p>
+                  <p className="mx-muted text-[12px]">Бесплатно для тебя. Подарки от администрации нельзя обменять на 🪙. NFT занимает номер в тираже.</p>
                 </div>
 
                 <div className="mx-card">

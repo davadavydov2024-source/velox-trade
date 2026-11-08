@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag } from "lucide-react";
@@ -23,9 +23,6 @@ import { PostsTab } from "./Posts";
 import { ShopSheet } from "./Shop";
 import { ProfileTrackPicker } from "./ProfileMusic";
 import { ChatInfoSheet } from "./ChatInfoSheet";
-import { AppLockSettings } from "./AppLockSettings";
-import { AccountSecurity } from "./AccountSecurity";
-import { AppDownloads } from "./AppDownloads";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
@@ -413,7 +410,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
   const [payBusy, setPayBusy] = useState<string | null>(null);
   const [orders, setOrders] = useState<{ orderId: string; plan: string; amount: number; status: string; createdAt: number }[]>([]);
   /** Сверяет оплату с платёжной системой и включает подписку, если счёт оплачен. */
-  const sync = () => mApi<{ credited: number; orders: typeof orders }>("premium/pay").then((d) => { setOrders(d.orders); if (d.credited > 0) { toast("success", "Оплата получена — подписка активна ⭐"); load(); } }).catch(() => {});
+  const sync = () => mApi<{ credited: number; orders: typeof orders }>("premium/pay").then((d) => { setOrders(d.orders); if (d.credited > 0) { toast("success", "Оплата получена — подписка активна ✨"); load(); } }).catch(() => {});
   useEffect(() => {
     load();
     sync();
@@ -439,17 +436,17 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
     }
   };
   const buy = async () => {
-    if (!info || !confirm(`Купить Mili Premium на ${info.days} дн. за ${info.priceStars} ⭐?`)) return;
+    if (!info || !confirm(`Купить Mili Premium на ${info.days} дн. за ${info.priceStars} 🪙?`)) return;
     try {
       await mApi("premium", { action: "buy" });
-      toast("success", "Mili Premium активен ⭐");
+      toast("success", "Mili Premium активен ✨");
       load();
     } catch (err: any) {
       toast("error", err?.message || "Не получилось");
     }
   };
   const buyPlus = async () => {
-    if (!info || !confirm(`Подключить Премиум Плюс на ${info.plusDays ?? 30} дн. за ${info.plusPriceStars ?? 49} ⭐?`)) return;
+    if (!info || !confirm(`Подключить Премиум Плюс на ${info.plusDays ?? 30} дн. за ${info.plusPriceStars ?? 49} 🪙?`)) return;
     try {
       await mApi("premium", { action: "buy-plus" });
       toast("success", "Премиум Плюс активен 💫");
@@ -469,8 +466,8 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
         </div></div>
         {info && (
           <div className="mx-card p-4 space-y-2" style={{ outline: info.plus ? "2px solid #ffb400" : "none" }}>
-            <div className="flex items-center justify-between"><p className="text-[17px] font-semibold">💫 Премиум Плюс</p><span className="font-semibold" style={{ color: "#ffb400" }}>{info.plusPriceStars ?? 49} ⭐ / {info.plusDays ?? 30} дн.</span></div>
-            <p className="mx-muted text-[13.5px]">Всё из Premium + платные сообщения: назначьте цену в ⭐, и каждое сообщение от новых людей будет приносить вам звёзды на баланс. Операции — на странице «Кошелёк ⭐».</p>
+            <div className="flex items-center justify-between"><p className="text-[17px] font-semibold">💫 Премиум Плюс</p><span className="font-semibold" style={{ color: "#ffb400" }}>{info.plusPriceStars ?? 49} 🪙 / {info.plusDays ?? 30} дн.</span></div>
+            <p className="mx-muted text-[13.5px]">Всё из Premium + платные сообщения: назначьте цену в 🪙, и каждое сообщение от новых людей будет приносить вам монеты на баланс. Операции — на странице «Кошелёк 🪙».</p>
             {info.plus && info.plusUntil && <p className="text-[13px]" style={{ color: "#ffb400" }}>Активен до {new Date(info.plusUntil).toLocaleDateString("ru-RU")}</p>}
             <button className="mx-btn" onClick={buyPlus}>{info.plus ? "Продлить Плюс" : "Подключить Плюс"}</button>
           </div>
@@ -504,7 +501,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
-            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} 🪙 за {info.days} дн. · на кошельке: {info.wallet} 🪙 · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
             <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
           </>
         ) : (
@@ -786,8 +783,6 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         <Section>
           <Row icon={<Bell size={17} />} color="#ff3b30" label="Уведомления и звуки" onClick={() => setPage("notifications")} />
           <Row icon={<LockKeyhole size={17} />} color="#8e8e93" label="Конфиденциальность" onClick={() => setPage("privacy")} />
-          <AppLockSettings />
-          <AccountSecurity />
           <Row icon={<Database size={17} />} color="#34c759" label="Данные и память" onClick={() => setPage("data")} />
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
@@ -795,11 +790,10 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Languages size={17} />} color="#af52de" label="Язык" value="Русский" onClick={() => setPage("language")} />
           <div className="max-[899px]:hidden"><Row icon={<Keyboard size={17} />} color="#ff9500" label="Горячие клавиши" onClick={() => setPage("hotkeys")} /></div>
           <Row icon={<Download size={17} />} color="#00b8d9" label="Добавить на экран «Домой»" onClick={() => setInstallHelp(true)} />
-          <AppDownloads />
         </Section>
 
         <Section>
-          <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк ⭐" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
+          <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк 🪙" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
         </Section>
 

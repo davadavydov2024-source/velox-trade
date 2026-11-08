@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // платные сообщения («Премиум Плюс» у получателя): списываем ⭐ до отправки, при сбое возвращаем
+  // платные сообщения («Премиум Плюс» у получателя): списываем 🪙 до отправки, при сбое возвращаем
   const paid = await chargePaidMessage(chat, me);
   if ("error" in paid) return paid.error;
   let id: string;

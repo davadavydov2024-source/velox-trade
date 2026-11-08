@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const DAY = 24 * 60 * 60 * 1000;
 
-/** GET — статус Mili Premium и баланс ⭐ кошелька на сайте. */
+/** GET — статус Mili Premium и баланс 🪙 кошелька на сайте. */
 export async function GET(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/** POST { action: "buy" } — купить/продлить Mili Premium за ⭐ с кошелька Velox (его пополняют на странице «Пополнение ⭐»). */
+/** POST { action: "buy" } — купить/продлить Mili Premium за 🪙 с кошелька Velox (его пополняют на странице «Пополнение 🪙»). */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ ok: true, plusUntil: until });
     } catch (e: any) {
-      if (e?.message === "not-enough") return NextResponse.json({ error: `Нужно ${PLUS_PRICE_STARS} ⭐ на балансе — пополни кошелёк`, needTopup: true }, { status: 402 });
+      if (e?.message === "not-enough") return NextResponse.json({ error: `Нужно ${PLUS_PRICE_STARS} 🪙 на балансе — пополни кошелёк`, needTopup: true }, { status: 402 });
       console.error("messenger plus error:", e);
       return fail("Не удалось оформить Премиум Плюс", 500);
     }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, premiumUntil: until });
   } catch (e: any) {
-    if (e?.message === "not-enough") return NextResponse.json({ error: `Нужно ${PREMIUM_PRICE_STARS} ⭐ на балансе — пополни кошелёк на странице «Пополнение ⭐»`, needTopup: true }, { status: 402 });
+    if (e?.message === "not-enough") return NextResponse.json({ error: `Нужно ${PREMIUM_PRICE_STARS} 🪙 на балансе — пополни кошелёк на странице «Пополнение 🪙»`, needTopup: true }, { status: 402 });
     console.error("messenger premium error:", e);
     return fail("Не удалось оформить Mili Premium", 500);
   }

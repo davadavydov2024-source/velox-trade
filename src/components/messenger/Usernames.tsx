@@ -12,7 +12,7 @@ const VIEWS = [["shop", "Магазин"], ["market", "Рынок"], ["rent", "�
 type View = (typeof VIEWS)[number][0];
 const left = (t: number) => { const d = Math.ceil((t - Date.now()) / 86_400_000); return d > 1 ? `ещё ${d} дн.` : "до завтра"; };
 
-/** «Юзернеймы»: магазин коллекционных @имён за ⭐, перепродажа между людьми и аренда. */
+/** «Юзернеймы»: магазин коллекционных @имён за 🪙, перепродажа между людьми и аренда. */
 export function UsernamesPage({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
   const [view, setView] = useState<View>("shop");
@@ -59,7 +59,7 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
       <div className="mx-scroll flex-1 pb-24">
         <div className="px-4 pt-3 pb-2">
           <div className="mx-card px-4 py-3 text-[13.5px]">
-            <p>Твой @ник: <b>@{data?.handle ?? "…"}</b> · баланс <b>{data?.wallet ?? "…"} ⭐</b></p>
+            <p>Твой @ник: <b>@{data?.handle ?? "…"}</b> · баланс <b>{data?.wallet ?? "…"} 🪙</b></p>
             <p className="mx-muted mt-1">Короткие и красивые @имена. Купленное имя твоё: его можно использовать вместо обычного, перепродать или сдать в аренду. Комиссия с продаж и аренды — {data?.fee ?? 10}%.</p>
           </div>
         </div>
@@ -69,8 +69,8 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
 
         {view !== "mine" && (
           <div className="px-4 pb-2 flex flex-wrap gap-2 items-center text-[13.5px]">
-            <input className="mx-input" style={{ width: 78 }} inputMode="numeric" placeholder="от ⭐" value={minP} onChange={(e) => setMinP(e.target.value.replace(/\D/g, ""))} />
-            <input className="mx-input" style={{ width: 78 }} inputMode="numeric" placeholder="до ⭐" value={maxP} onChange={(e) => setMaxP(e.target.value.replace(/\D/g, ""))} />
+            <input className="mx-input" style={{ width: 78 }} inputMode="numeric" placeholder="от 🪙" value={minP} onChange={(e) => setMinP(e.target.value.replace(/\D/g, ""))} />
+            <input className="mx-input" style={{ width: 78 }} inputMode="numeric" placeholder="до 🪙" value={maxP} onChange={(e) => setMaxP(e.target.value.replace(/\D/g, ""))} />
             <select className="mx-input" style={{ width: 112 }} value={len} onChange={(e) => setLen(Number(e.target.value))}>
               <option value={0}>Любая длина</option><option value={2}>2 буквы</option><option value={3}>3 буквы</option><option value={4}>4 буквы</option><option value={5}>5 и больше</option>
             </select>
@@ -87,25 +87,25 @@ export function UsernamesPage({ onBack }: { onBack: () => void }) {
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-semibold truncate">@{x.name}</p>
               <p className="mx-muted text-[12.5px] truncate">
-                {view === "shop" && `${x.price} ⭐`}
-                {view === "market" && `${x.price} ⭐${x.mine ? " · твой" : ""}`}
-                {view === "rent" && `${x.perDay} ⭐ / день${x.rentedUntil ? ` · занят, ${left(x.rentedUntil)}` : ""}${x.mine ? " · твой" : ""}`}
-                {view === "mine" && [x.role === "renter" ? `аренда, ${left(x.rentUntil ?? 0)}` : "куплен", x.using ? "используется" : "", x.salePrice ? `продаётся за ${x.salePrice} ⭐` : "", x.rentPerDay ? `сдаётся по ${x.rentPerDay} ⭐/день` : "", x.rentedOut && x.role === "owner" ? `сдан, ${left(x.rentUntil ?? 0)}` : ""].filter(Boolean).join(" · ")}
+                {view === "shop" && `${x.price} 🪙`}
+                {view === "market" && `${x.price} 🪙${x.mine ? " · твой" : ""}`}
+                {view === "rent" && `${x.perDay} 🪙 / день${x.rentedUntil ? ` · занят, ${left(x.rentedUntil)}` : ""}${x.mine ? " · твой" : ""}`}
+                {view === "mine" && [x.role === "renter" ? `аренда, ${left(x.rentUntil ?? 0)}` : "куплен", x.using ? "используется" : "", x.salePrice ? `продаётся за ${x.salePrice} 🪙` : "", x.rentPerDay ? `сдаётся по ${x.rentPerDay} 🪙/день` : "", x.rentedOut && x.role === "owner" ? `сдан, ${left(x.rentUntil ?? 0)}` : ""].filter(Boolean).join(" · ")}
               </p>
             </div>
-            {view === "shop" && <Btn id={x.name + "buy"} onClick={() => window.confirm(`Купить @${x.name} за ${x.price} ⭐?`) && act("buy", x.name, {}, `@${x.name} теперь твой`)}>Купить</Btn>}
-            {view === "market" && !x.mine && <Btn id={x.name + "buy-resale"} onClick={() => window.confirm(`Купить @${x.name} за ${x.price} ⭐?`) && act("buy-resale", x.name, {}, `@${x.name} теперь твой`)}>Купить</Btn>}
-            {view === "rent" && !x.mine && (!x.rentedUntil || x.byMe) && <Btn id={x.name + "rent"} onClick={() => { const d = ask(`Сколько дней арендовать @${x.name}? (1–${data.rentDaysMax}, ${x.perDay} ⭐ в день)`, "7"); if (d) act("rent", x.name, { days: d }, `@${x.name} арендован`); }}>{x.byMe ? "Продлить" : "Арендовать"}</Btn>}
+            {view === "shop" && <Btn id={x.name + "buy"} onClick={() => window.confirm(`Купить @${x.name} за ${x.price} 🪙?`) && act("buy", x.name, {}, `@${x.name} теперь твой`)}>Купить</Btn>}
+            {view === "market" && !x.mine && <Btn id={x.name + "buy-resale"} onClick={() => window.confirm(`Купить @${x.name} за ${x.price} 🪙?`) && act("buy-resale", x.name, {}, `@${x.name} теперь твой`)}>Купить</Btn>}
+            {view === "rent" && !x.mine && (!x.rentedUntil || x.byMe) && <Btn id={x.name + "rent"} onClick={() => { const d = ask(`Сколько дней арендовать @${x.name}? (1–${data.rentDaysMax}, ${x.perDay} 🪙 в день)`, "7"); if (d) act("rent", x.name, { days: d }, `@${x.name} арендован`); }}>{x.byMe ? "Продлить" : "Арендовать"}</Btn>}
             {view === "mine" && (
               <div className="flex flex-wrap gap-1.5 justify-end max-w-[210px]">
                 {x.using ? <Btn ghost id={x.name + "deactivate"} onClick={() => act("deactivate", x.name, {}, "Вернулся обычный @ник")}>Не использовать</Btn> : (x.role === "renter" || (!x.rentPerDay && !x.rentedOut)) && <Btn id={x.name + "activate"} onClick={() => act("activate", x.name, {}, `Теперь твой ник — @${x.name}`)}>Использовать</Btn>}
-                {x.role === "owner" && (x.salePrice ? <Btn ghost id={x.name + "unlist-sale"} onClick={() => act("unlist-sale", x.name, {}, "Снято с продажи")}>Снять с продажи</Btn> : !x.rentedOut && <Btn ghost id={x.name + "list-sale"} onClick={() => { const p = ask(`Цена продажи @${x.name} в ⭐ (тебе достанется на ${data.fee}% меньше):`); if (p) act("list-sale", x.name, { price: p }, "Выставлено на продажу"); }}>Продать</Btn>)}
-                {x.role === "owner" && (x.rentPerDay ? <Btn ghost id={x.name + "unlist-rent"} onClick={() => act("unlist-rent", x.name, {}, "Снято с аренды")}>Снять с аренды</Btn> : <Btn ghost id={x.name + "list-rent"} onClick={() => { const p = ask(`Цена аренды @${x.name} в ⭐ за день:`); if (p) act("list-rent", x.name, { price: p }, "Выставлено в аренду"); }}>Сдать</Btn>)}
+                {x.role === "owner" && (x.salePrice ? <Btn ghost id={x.name + "unlist-sale"} onClick={() => act("unlist-sale", x.name, {}, "Снято с продажи")}>Снять с продажи</Btn> : !x.rentedOut && <Btn ghost id={x.name + "list-sale"} onClick={() => { const p = ask(`Цена продажи @${x.name} в 🪙 (тебе достанется на ${data.fee}% меньше):`); if (p) act("list-sale", x.name, { price: p }, "Выставлено на продажу"); }}>Продать</Btn>)}
+                {x.role === "owner" && (x.rentPerDay ? <Btn ghost id={x.name + "unlist-rent"} onClick={() => act("unlist-rent", x.name, {}, "Снято с аренды")}>Снять с аренды</Btn> : <Btn ghost id={x.name + "list-rent"} onClick={() => { const p = ask(`Цена аренды @${x.name} в 🪙 за день:`); if (p) act("list-rent", x.name, { price: p }, "Выставлено в аренду"); }}>Сдать</Btn>)}
               </div>
             )}
           </div>
         ))}
-        {view === "shop" && <p className="mx-muted text-[12px] px-4 pt-3">Не хватает ⭐? Пополни кошелёк в разделе «Кошелёк ⭐».</p>}
+        {view === "shop" && <p className="mx-muted text-[12px] px-4 pt-3">Не хватает 🪙? Пополни кошелёк в разделе «Кошелёк 🪙».</p>}
       </div>
     </>
   );
@@ -124,9 +124,9 @@ export function ExtraUsernames({ uid }: { uid: string }) {
       <p className="mx-muted text-[12.5px] mb-1">Коллекционные юзернеймы</p>
       {items.map((x) => (
         <div key={x.name} className="flex items-center gap-2 py-1">
-          <span className="min-w-0 flex-1"><span style={{ color: "var(--mx-accent)" }}>@{x.name}</span> <span className="mx-muted text-[12.5px]">{x.price ? `· продаётся за ${x.price} ⭐` : x.rentPerDay ? `· аренда ${x.rentPerDay} ⭐/день` : "· не продаётся"}</span></span>
+          <span className="min-w-0 flex-1"><span style={{ color: "var(--mx-accent)" }}>@{x.name}</span> <span className="mx-muted text-[12.5px]">{x.price ? `· продаётся за ${x.price} 🪙` : x.rentPerDay ? `· аренда ${x.rentPerDay} 🪙/день` : "· не продаётся"}</span></span>
           {!x.mine && x.price ? <button disabled={!!busy} className="px-3 py-1 rounded-full text-[13px] font-semibold" style={{ background: "var(--mx-accent)", color: "#fff" }} onClick={async () => {
-            if (!window.confirm(`Купить @${x.name} за ${x.price} ⭐?`)) return;
+            if (!window.confirm(`Купить @${x.name} за ${x.price} 🪙?`)) return;
             setBusy(x.name);
             try { await mApi("usernames", { action: "buy-resale", name: x.name }); toast("success", `@${x.name} теперь твой`); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось купить"); }
             setBusy("");
@@ -179,21 +179,21 @@ export function UsernameRow({ uid, handle, onCopy }: { uid: string; handle: stri
             <p className="mx-muted text-[14px] mt-1">Коллекционный юзернейм</p>
             <p className="text-[14.5px] mt-4 mx-muted">Владелец приобрёл этот юзернейм в магазине MiliGram. Он ведёт на тот же профиль, что и основной @{handle}.</p>
             <p className="text-[16px] font-medium mt-4">
-              {open.price ? `Продаётся за ${open.price} ⭐` : open.rentPerDay ? `Сдаётся в аренду: ${open.rentPerDay} ⭐ в день` : "Сейчас не продаётся"}
+              {open.price ? `Продаётся за ${open.price} 🪙` : open.rentPerDay ? `Сдаётся в аренду: ${open.rentPerDay} 🪙 в день` : "Сейчас не продаётся"}
             </p>
             {!open.mine && open.price ? (
               <button
                 disabled={busy}
                 className="mx-btn mt-4"
                 onClick={async () => {
-                  if (!window.confirm(`Купить @${open.name} за ${open.price} ⭐?`)) return;
+                  if (!window.confirm(`Купить @${open.name} за ${open.price} 🪙?`)) return;
                   setBusy(true);
                   try { await mApi("usernames", { action: "buy-resale", name: open.name }); toast("success", `@${open.name} теперь твой`); setOpen(null); load(); }
                   catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось купить"); }
                   setBusy(false);
                 }}
               >
-                Купить за {open.price} ⭐
+                Купить за {open.price} 🪙
               </button>
             ) : null}
           </div>

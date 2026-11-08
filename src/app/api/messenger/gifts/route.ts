@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET                → { wallet, stock: { [giftId]: sold } }  — баланс ⭐ и сколько ограниченных подарков уже раскуплено
+ * GET                → { wallet, stock: { [giftId]: sold } }  — баланс 🪙 и сколько ограниченных подарков уже раскуплено
  * GET ?uid=<uid|me>  → { gifts: GiftView[], total, stars }    — подарки в профиле (скрытые видит только владелец)
  */
 export async function GET(req: NextRequest) {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const [user, stockSnap] = await Promise.all([db.collection("users").doc(me.uid).get(), db.collection("messengerGiftStock").get()]);
     const stock: Record<string, number> = {};
     stockSnap.forEach((d) => (stock[d.id] = (d.data().sold as number | undefined) ?? 0));
-    return NextResponse.json({ wallet: (user.data()?.starsWallet as number | undefined) ?? 0, stock });
+    return NextResponse.json({ wallet: (user.data()?.miliWallet as number | undefined) ?? 0, stock });
   }
 
   const target = uidParam === "me" ? me.uid : uidParam;
@@ -54,11 +54,11 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST { action: "send", toUid, giftId, message?, anonymous? } — купить подарок за ⭐ кошелька и отправить.
+ * POST { action: "send", toUid, giftId, message?, anonymous? } — купить подарок за 🪙 кошелька и отправить.
  * POST { action: "toggle", id, hidden } — показать/скрыть свой подарок в профиле.
- * POST { action: "convert", id }        — обменять полученный подарок на ⭐ (GIFT_CONVERT_RATE от цены).
+ * POST { action: "convert", id }        — обменять полученный подарок на 🪙 (GIFT_CONVERT_RATE от цены).
  * POST { action: "pin", id, pinned }     — закрепить/открепить подарок вверху профиля (до GIFT_PIN_MAX).
- * POST { action: "list", id, price }     — выставить свой подарок на продажу за price ⭐ (price: null — снять с продажи).
+ * POST { action: "list", id, price }     — выставить свой подарок на продажу за price 🪙 (price: null — снять с продажи).
  * POST { action: "transfer", id, toUid, message? } — подарить свой подарок другому пользователю.
  * POST { action: "buy", id }             — купить выставленный подарок у другого пользователя (продавец получает цену минус GIFT_SALE_FEE).
  */
@@ -88,19 +88,19 @@ export async function POST(req: NextRequest) {
         const snap = await tx.get(ref);
         const g = snap.data() as MessengerGift | undefined;
         if (!g || g.to !== me.uid) throw new Error("not-found");
-        if (g.nft) throw new Error("nft"); // NFT-подарки не обмениваются на звёзды
-        if (g.byAdmin) throw new Error("admin-gift"); // бесплатный подарок от администрации — не источник ⭐
+        if (g.nft) throw new Error("nft"); // NFT-подарки не обмениваются на монеты
+        if (g.byAdmin) throw new Error("admin-gift"); // бесплатный подарок от администрации — не источник 🪙
         const stars = Math.floor(g.price * GIFT_CONVERT_RATE);
         tx.delete(ref);
-        tx.set(db.collection("users").doc(me.uid), { starsWallet: FieldValue.increment(stars) }, { merge: true });
-        tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: stars, type: "gift_convert", ref: id, at: Date.now() });
+        tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(stars) }, { merge: true });
+        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: stars, type: "gift_convert", ref: id, at: Date.now() });
         return stars;
       });
       return NextResponse.json({ ok: true, stars: back });
     } catch (e: any) {
       if (e?.message === "not-found") return fail("Подарок не найден", 404);
-      if (e?.message === "nft") return fail("NFT-подарок нельзя обменять на звёзды");
-      if (e?.message === "admin-gift") return fail("Подарок от администрации нельзя обменять на ⭐");
+      if (e?.message === "nft") return fail("NFT-подарок нельзя обменять на монеты");
+      if (e?.message === "admin-gift") return fail("Подарок от администрации нельзя обменять на 🪙");
       console.error("gift convert error:", e);
       return fail("Не удалось обменять подарок", 500);
     }
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     }
     if (g.byAdmin) return fail("Подарок от администрации нельзя продать");
     const price = Math.floor(Number(b.price));
-    if (!Number.isFinite(price) || price < GIFT_SALE_MIN || price > GIFT_SALE_MAX) return fail(`Цена от ${GIFT_SALE_MIN} до ${GIFT_SALE_MAX} ⭐`);
+    if (!Number.isFinite(price) || price < GIFT_SALE_MIN || price > GIFT_SALE_MAX) return fail(`Цена от ${GIFT_SALE_MIN} до ${GIFT_SALE_MAX} 🪙`);
     await ref.update({ salePrice: price });
     return NextResponse.json({ ok: true });
   }
@@ -168,14 +168,14 @@ export async function POST(req: NextRequest) {
         sellerUid = g.to;
         const buyerRef = db.collection("users").doc(me.uid);
         const buyer = await tx.get(buyerRef);
-        const have = (buyer.data()?.starsWallet as number | undefined) ?? 0;
+        const have = (buyer.data()?.miliWallet as number | undefined) ?? 0;
         if (have < g.salePrice) throw new Error("not-enough");
         const payout = Math.floor(g.salePrice * (1 - GIFT_SALE_FEE));
         const now = Date.now();
-        tx.set(buyerRef, { starsWallet: FieldValue.increment(-g.salePrice) }, { merge: true });
-        tx.set(db.collection("users").doc(g.to), { starsWallet: FieldValue.increment(payout) }, { merge: true });
-        tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now });
-        tx.set(db.collection("starsWalletLog").doc(), { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now });
+        tx.set(buyerRef, { miliWallet: FieldValue.increment(-g.salePrice) }, { merge: true });
+        tx.set(db.collection("users").doc(g.to), { miliWallet: FieldValue.increment(payout) }, { merge: true });
+        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now });
+        tx.set(db.collection("miliWalletLog").doc(), { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now });
         // новый владелец: подарок снова виден, не закреплён и не продаётся; byAdmin снимается (теперь он «купленный»)
         tx.update(ref, { to: me.uid, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), byAdmin: FieldValue.delete(), soldAt: now });
         return g.salePrice;
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       if (e?.message === "not-for-sale") return fail("Подарок уже не продаётся", 409);
       if (e?.message === "own") return fail("Это твой подарок");
-      if (e?.message === "not-enough") return NextResponse.json({ error: "Не хватает ⭐ на балансе", needTopup: true }, { status: 402 });
+      if (e?.message === "not-enough") return NextResponse.json({ error: "Не хватает 🪙 на балансе", needTopup: true }, { status: 402 });
       console.error("gift buy error:", e);
       return fail("Не удалось купить подарок", 500);
     }
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
   try {
     wallet = await db.runTransaction(async (tx) => {
       const [user, stock] = await Promise.all([tx.get(userRef), gift.limited ? tx.get(stockRef) : Promise.resolve(null)]);
-      const have = (user.data()?.starsWallet as number | undefined) ?? 0;
+      const have = (user.data()?.miliWallet as number | undefined) ?? 0;
       if (have < gift.price) throw new Error("not-enough");
       if (gift.limited) {
         const sold = (stock?.data()?.sold as number | undefined) ?? 0;
@@ -294,13 +294,13 @@ export async function POST(req: NextRequest) {
         // NFT: номер = порядковый в тираже, признаки выпадают случайно (криптослучайность)
         if (gift.nft) minted = rollNft(sold + 1, gift.limited, () => randomInt(0, 1_000_000) / 1_000_000, gift.category === "halloween");
       }
-      tx.set(userRef, { starsWallet: FieldValue.increment(-gift.price) }, { merge: true });
-      tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, at: now });
+      tx.set(userRef, { miliWallet: FieldValue.increment(-gift.price) }, { merge: true });
+      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, at: now });
       tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, ...(minted ? { nft: minted } : {}), ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
       return have - gift.price;
     });
   } catch (e: any) {
-    if (e?.message === "not-enough") return NextResponse.json({ error: `Нужно ${gift.price} ⭐ на балансе — пополни кошелёк на странице «Пополнение ⭐»`, needTopup: true }, { status: 402 });
+    if (e?.message === "not-enough") return NextResponse.json({ error: `Нужно ${gift.price} 🪙 на балансе — пополни кошелёк на странице «Пополнение 🪙»`, needTopup: true }, { status: 402 });
     if (e?.message === "sold-out") return fail("Этот подарок раскуплен", 409);
     console.error("gift send error:", e);
     return fail("Не удалось отправить подарок", 500);
@@ -308,11 +308,11 @@ export async function POST(req: NextRequest) {
 
   // карточка в личном чате (если получатель принимает сообщения или чат уже есть); сбой не отменяет покупку
   try {
-    if (!chat && toUid !== me.uid && target.privacy?.whoCanMessage !== "nobody") {
+    if (!chat && target.privacy?.whoCanMessage !== "nobody") {
       await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
       chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
     }
-    if (chat && toUid !== me.uid) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
+    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
   } catch (err) {
     console.error("gift chat message error:", err);
   }

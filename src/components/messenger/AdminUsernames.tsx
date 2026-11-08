@@ -55,7 +55,7 @@ export function AdminUsernames() {
     setBusy("");
   };
   const reprice = async (name: string, old: number) => {
-    const v = Number(window.prompt(`Новая цена @${name} в ⭐:`, String(old)));
+    const v = Number(window.prompt(`Новая цена @${name} в 🪙:`, String(old)));
     if (!Number.isInteger(v) || v < 1) return;
     try { await call({ action: "price", name, price: v }); load(); } catch (e: any) { toast("error", e.message); }
   };
@@ -85,7 +85,7 @@ export function AdminUsernames() {
                 <input type="checkbox" checked={s.on} onChange={(e) => setSugs((a) => a.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
                 <span className="flex-1 text-[15px] font-semibold">@{s.name}</span>
                 <input className="mx-input" style={{ width: 90 }} inputMode="numeric" value={s.price} onChange={(e) => setSugs((a) => a.map((x, j) => (j === i ? { ...x, price: Number(e.target.value.replace(/\D/g, "")) || 0 } : x)))} />
-                <span className="mx-muted">⭐</span>
+                <span className="mx-muted">🪙</span>
               </div>
             ))}
             <button className="px-4 py-2.5 rounded-xl font-medium" disabled={busy === "add"} style={{ background: "var(--mx-accent)", color: "#fff" }} onClick={() => addItems(sugs.filter((s) => s.on))}>{busy === "add" ? <Spinner /> : `Добавить выбранные (${sugs.filter((s) => s.on).length}) в магазин`}</button>
@@ -96,7 +96,7 @@ export function AdminUsernames() {
       <p className="px-4 pt-5 pb-2 text-[13px] uppercase tracking-wide mx-muted">Добавить своё имя</p>
       <div className="px-4 flex gap-2">
         <input className="mx-input flex-1" placeholder="например, king" value={manual} maxLength={24} onChange={(e) => setManual(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} />
-        <input className="mx-input" style={{ width: 90 }} inputMode="numeric" placeholder={manual.length >= 2 ? String(guess(manual)) : "⭐"} value={manualPrice} onChange={(e) => setManualPrice(e.target.value.replace(/\D/g, ""))} />
+        <input className="mx-input" style={{ width: 90 }} inputMode="numeric" placeholder={manual.length >= 2 ? String(guess(manual)) : "🪙"} value={manualPrice} onChange={(e) => setManualPrice(e.target.value.replace(/\D/g, ""))} />
         <button className="px-4 rounded-xl font-medium" style={{ background: "var(--mx-accent)", color: "#fff" }} disabled={busy === "add" || manual.length < 2} onClick={async () => { await addItems([{ name: manual, price: Number(manualPrice) || guess(manual) }]); setManual(""); setManualPrice(""); }}>{busy === "add" ? "…" : "Добавить"}</button>
       </div>
 
@@ -104,7 +104,7 @@ export function AdminUsernames() {
       {!shop ? <div className="flex justify-center py-6"><Spinner /></div> : shop.length === 0 ? <p className="mx-muted px-4 py-3 text-[14px]">Пусто</p> : shop.map((x) => (
         <div key={x.name} className="px-4 py-2 flex items-center gap-3">
           <span className="flex-1 text-[15px] font-semibold">@{x.name}</span>
-          <button className="text-[14px] underline" style={{ color: "var(--mx-accent)" }} onClick={() => reprice(x.name, x.price)}>{x.price} ⭐</button>
+          <button className="text-[14px] underline" style={{ color: "var(--mx-accent)" }} onClick={() => reprice(x.name, x.price)}>{x.price} 🪙</button>
           <button className="text-[13px]" style={{ color: "var(--mx-danger)" }} onClick={() => remove(x.name)}>Убрать</button>
         </div>
       ))}

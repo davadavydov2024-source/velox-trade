@@ -154,7 +154,7 @@ export function NftTraits({ nft }: { nft: GiftNft }) {
   );
 }
 
-const money = (n: number) => `${n} ⭐`;
+const money = (n: number) => `${n} 🪙`;
 
 /* ───────────── Магазин: выбрать подарок и отправить ───────────── */
 
@@ -254,7 +254,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
               );
             })}
           </div>
-          <p className="mx-muted text-[12.5px] text-center px-6 mt-4">Звёзды списываются с кошелька Velox. Пополнить: «Пополнение ⭐» в профиле на сайте.</p>
+          <p className="mx-muted text-[12.5px] text-center px-6 mt-4">Монеты списываются с кошелька Velox. Пополнить: «Пополнение 🪙» в профиле на сайте.</p>
         </div>
       )}
     </Sheet>
@@ -390,11 +390,11 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
     try { await mApi("gifts", { action: "pin", id: g.id, pinned: !g.pinned }); toast("success", g.pinned ? "Подарок откреплён" : "Подарок закреплён в профиле"); setOpen(null); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
   const listForSale = async (g: GiftView, price: number | null) => {
-    try { await mApi("gifts", { action: "list", id: g.id, price }); toast("success", price ? `Выставлен на продажу за ${price} ⭐` : "Снят с продажи"); setSellOpen(false); setOpen(null); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
+    try { await mApi("gifts", { action: "list", id: g.id, price }); toast("success", price ? `Выставлен на продажу за ${price} 🪙` : "Снят с продажи"); setSellOpen(false); setOpen(null); load(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
   const buy = async (g: GiftView) => {
     const d = giftById(g.giftId);
-    if (!d || !g.salePrice || !confirm(`Купить «${d.title}»${g.nft ? ` #${g.nft.number}` : ""} за ${g.salePrice} ⭐?`)) return;
+    if (!d || !g.salePrice || !confirm(`Купить «${d.title}»${g.nft ? ` #${g.nft.number}` : ""} за ${g.salePrice} 🪙?`)) return;
     try { await mApi("gifts", { action: "buy", id: g.id }); toast("success", "Подарок куплен — он теперь в твоём профиле"); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
   const give = async (g: GiftView) => {
@@ -419,8 +419,8 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const convert = async (g: GiftView) => {
     const def = giftById(g.giftId);
     const back = Math.floor(g.price * GIFT_CONVERT_RATE);
-    if (!def || !confirm(`Обменять «${def.title}» на ${back} ⭐? Подарок исчезнет из профиля.`)) return;
-    try { await mApi("gifts", { action: "convert", id: g.id }); toast("success", `+${back} ⭐ на балансе`); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
+    if (!def || !confirm(`Обменять «${def.title}» на ${back} 🪙? Подарок исчезнет из профиля.`)) return;
+    try { await mApi("gifts", { action: "convert", id: g.id }); toast("success", `+${back} 🪙 на балансе`); setOpen(null); load(); onChanged?.(); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
 
   if (gifts === null) return <div className="flex justify-center py-10"><Spinner /></div>;
@@ -485,20 +485,20 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
                 ]} />
               )}
             {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
-            {open.salePrice ? <p className="mx-card px-4 py-2.5 mt-4 w-full text-[14.5px] text-center">Продаётся за <b>{open.salePrice} ⭐</b></p> : null}
+            {open.salePrice ? <p className="mx-card px-4 py-2.5 mt-4 w-full text-[14.5px] text-center">Продаётся за <b>{open.salePrice} 🪙</b></p> : null}
             {mine && (
               <div className="mx-card w-full mt-5 overflow-hidden">
                 <ActionRow icon={<Send size={20} />} label="Подарить" hint="другому человеку" onClick={() => { setGiveTo(null); setGiveMsg(""); setGiveOpen(true); }} />
                 {!open.hidden && <ActionRow icon={open.pinned ? <PinOff size={20} /> : <Pin size={20} />} label={open.pinned ? "Открепить" : "Закрепить в профиле"} hint={open.pinned ? undefined : `до ${GIFT_PIN_MAX}`} onClick={() => pin(open)} />}
                 {open.nft && <ActionRow icon={<Sparkles size={20} />} label={curStatusId === open.id ? "Убрать из статуса" : "Показать возле ника"} hint={premium ? undefined : "Premium"} locked={!premium && curStatusId !== open.id} onClick={() => wear(open)} />}
                 {open.salePrice
-                  ? <ActionRow icon={<Tag size={20} />} label="Снять с продажи" hint={`${open.salePrice} ⭐`} onClick={() => listForSale(open, null)} />
+                  ? <ActionRow icon={<Tag size={20} />} label="Снять с продажи" hint={`${open.salePrice} 🪙`} onClick={() => listForSale(open, null)} />
                   : <ActionRow icon={<Tag size={20} />} label="Продать" onClick={() => { setSellPrice(String(open.price)); setSellOpen(true); }} />}
                 <ActionRow icon={open.hidden ? <Eye size={20} /> : <EyeOff size={20} />} label={open.hidden ? "Показать в профиле" : "Скрыть из профиля"} onClick={() => toggle(open)} />
-                {!open.nft && <ActionRow icon={<Repeat size={20} />} label={`Обменять на ${Math.floor(open.price * GIFT_CONVERT_RATE)} ⭐`} onClick={() => convert(open)} />}
+                {!open.nft && <ActionRow icon={<Repeat size={20} />} label={`Обменять на ${Math.floor(open.price * GIFT_CONVERT_RATE)} 🪙`} onClick={() => convert(open)} />}
               </div>
             )}
-            {!mine && open.salePrice ? <button className="mx-btn w-full mt-4" onClick={() => buy(open)}>Купить за {open.salePrice} ⭐</button> : null}
+            {!mine && open.salePrice ? <button className="mx-btn w-full mt-4" onClick={() => buy(open)}>Купить за {open.salePrice} 🪙</button> : null}
             </div>
           </div>
         )}
@@ -522,9 +522,9 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
       <Sheet open={sellOpen && !!open} onClose={() => setSellOpen(false)} zIndex={70}>
         {open && (
           <div className="px-5 pb-8 flex flex-col gap-3">
-            <p className="text-[18px] font-semibold text-center">Цена в ⭐</p>
+            <p className="text-[18px] font-semibold text-center">Цена в 🪙</p>
             <input className="mx-input text-center text-[20px]" inputMode="numeric" value={sellPrice} onChange={(e) => setSellPrice(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Например, 100" />
-            {Number(sellPrice) > 0 && <p className="mx-muted text-[13px] text-center">Ты получишь {Math.floor(Number(sellPrice) * (1 - GIFT_SALE_FEE))} ⭐ (комиссия {Math.round(GIFT_SALE_FEE * 100)}%)</p>}
+            {Number(sellPrice) > 0 && <p className="mx-muted text-[13px] text-center">Ты получишь {Math.floor(Number(sellPrice) * (1 - GIFT_SALE_FEE))} 🪙 (комиссия {Math.round(GIFT_SALE_FEE * 100)}%)</p>}
             <button className="mx-btn" disabled={!(Number(sellPrice) > 0)} onClick={() => listForSale(open, Number(sellPrice))}>Выставить на продажу</button>
           </div>
         )}

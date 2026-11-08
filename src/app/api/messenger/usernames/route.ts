@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const name = typeof b.name === "string" ? b.name.toLowerCase().replace(/^@/, "") : "";
   if (!validName(name)) return fail("Некорректный юзернейм");
   const price = Math.floor(Number(b.price));
-  const needPrice = () => { if (!(price >= 1 && price <= PRICE_MAX)) throw new UErr(`Цена — целое число от 1 до ${PRICE_MAX} ⭐`); };
+  const needPrice = () => { if (!(price >= 1 && price <= PRICE_MAX)) throw new UErr(`Цена — целое число от 1 до ${PRICE_MAX} 🪙`); };
   try {
     switch (b.action) {
       case "buy": await buyShop(name, me.uid); break;

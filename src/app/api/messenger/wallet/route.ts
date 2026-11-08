@@ -7,7 +7,7 @@ import { PAID_MESSAGE_MAX, isPlus } from "@/lib/messenger/premium";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET — кошелёк ⭐: баланс, цена за сообщение, сколько заработано на платных сообщениях и история операций. */
+/** GET — кошелёк 🪙: баланс, цена за сообщение, сколько заработано на платных сообщениях и история операций. */
 export async function GET(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (!isPlus(me.account)) return fail("Платные сообщения доступны с «Премиум Плюс»", 403);
   const b = await req.json().catch(() => ({}));
   const price = Number(b.price);
-  if (!Number.isInteger(price) || price < 0 || price > PAID_MESSAGE_MAX) return fail(`Цена — целое число от 0 до ${PAID_MESSAGE_MAX} ⭐`);
+  if (!Number.isInteger(price) || price < 0 || price > PAID_MESSAGE_MAX) return fail(`Цена — целое число от 0 до ${PAID_MESSAGE_MAX} 🪙`);
   await adminDb().collection("messengerAccounts").doc(me.uid).update({ messagePrice: price });
   return NextResponse.json({ ok: true, messagePrice: price });
 }
