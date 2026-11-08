@@ -23,6 +23,8 @@ import { PostsTab } from "./Posts";
 import { ShopSheet } from "./Shop";
 import { ProfileTrackPicker } from "./ProfileMusic";
 import { ChatInfoSheet } from "./ChatInfoSheet";
+import { AppLockSettings } from "./AppLockSettings";
+import { AccountSecurity } from "./AccountSecurity";
 import { AppDownloads } from "./AppDownloads";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
@@ -784,6 +786,8 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         <Section>
           <Row icon={<Bell size={17} />} color="#ff3b30" label="Уведомления и звуки" onClick={() => setPage("notifications")} />
           <Row icon={<LockKeyhole size={17} />} color="#8e8e93" label="Конфиденциальность" onClick={() => setPage("privacy")} />
+          <AppLockSettings />
+          <AccountSecurity />
           <Row icon={<Database size={17} />} color="#34c759" label="Данные и память" onClick={() => setPage("data")} />
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />

@@ -42,7 +42,7 @@ export default function TelegramFinishPage() {
             // бонус за приглашение не критичен для входа
           }
         }
-        router.replace("/profile");
+        router.replace((() => { try { const [p, t] = (localStorage.getItem("mx-return") || "").split("|"); localStorage.removeItem("mx-return"); return p === "/m" && Date.now() - Number(t) < 600000 ? "/m" : "/profile"; } catch { return "/profile"; } })());
       } catch {
         setError("Не удалось войти через Telegram. Попробуй ещё раз.");
       }

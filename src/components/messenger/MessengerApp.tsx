@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
+import { AppLockGate } from "./AppLockGate";
 import { NotificationGate } from "./NotificationGate";
 import { mApi, MApiError } from "./api";
 import { useToast } from "@/lib/toastContext";
@@ -150,6 +151,7 @@ export function MessengerApp() {
 
   return (
     <MusicProvider>
+      <AppLockGate uid={me} />
       <NotificationGate uid={me} />
     <div className="h-full flex">
       {/* ---- левая панель ---- */}
