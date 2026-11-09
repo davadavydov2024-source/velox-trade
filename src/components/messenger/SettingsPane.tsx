@@ -26,13 +26,14 @@ import { ChatInfoSheet } from "./ChatInfoSheet";
 import { AppLockSettings } from "./AppLockSettings";
 import { AccountSecurity } from "./AccountSecurity";
 import { AppDownloads } from "./AppDownloads";
+import { AppIconPicker } from "./AppIconPicker";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -570,6 +571,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const back = () => setPage(null);
 
   if (page === "folders") return <div className="flex flex-col h-full"><FoldersPage folders={folders} onBack={back} /></div>;
+  if (page === "appicon") return <AppIconPicker onBack={back} />;
   if (page === "devices") return <div className="flex flex-col h-full"><DevicesPage onBack={back} /></div>;
   if (page === "docs") {
     const docs: [string, string, string][] = [["/rules", "Правила платформы", "Что можно и нельзя в Velox Trade и MiliGram"], ["/privacy", "Политика конфиденциальности", "Какие данные мы храним и как защищаем"], ["/terms", "Пользовательское соглашение", "Условия использования сервиса"], ["/premium-terms", "Условия подписки Mili Premium", "Оплата, срок действия и возврат"]];
@@ -780,6 +782,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
           <Row icon={<Music2 size={17} />} color="#1db954" label="Мелодия профиля" value={account.profileTrack ? "Выбрана" : "Не выбрана"} onClick={() => setTrackPicker(true)} />
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
+          <Row icon={<Smartphone size={17} />} color="#ff9500" label="Иконка приложения" onClick={() => setPage("appicon")} />
           <Row icon={<Smartphone size={17} />} color="#3390ec" label="Устройства" value={sessionCount ? String(sessionCount) : undefined} onClick={() => setPage("devices")} />
         </Section>
 

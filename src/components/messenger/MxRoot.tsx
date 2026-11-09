@@ -4,10 +4,32 @@ import { ReactNode, useEffect, useState } from "react";
 import { useViewportHeight } from "./hooks";
 import { FONT_CHOICES, useMxPrefs } from "./prefs";
 import "./messenger.css";
+import { applyIcon, getSavedIcon, listenInstall } from "./appIconPref";
+
+/** Единственный «правильный» адрес мессенджера. APK/PWA, собранные на другой домен, перебрасываются сюда. */
+const CANONICAL_HOST = "mili-gram.vercel.app";
 
 /** Корень мессенджера: на весь экран поверх сайта (Header и нижняя панель сайта скрыты), тема, акцент, размер текста. */
 export function MxRoot({ children }: { children: ReactNode }) {
   useViewportHeight();
+
+  // APK/установленное приложение, собранное на старый домен, — уводим на mili-gram.vercel.app/m
+  useEffect(() => {
+    const h = window.location.hostname;
+    if (h === CANONICAL_HOST || h === "localhost" || h === "127.0.0.1" || h.startsWith("192.168.")) return;
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone;
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (standalone || cap?.isNativePlatform?.() || /; wv\)/.test(navigator.userAgent)) {
+      window.location.replace(`https://${CANONICAL_HOST}/m`);
+    }
+  }, []);
+
+  // выбранная пользователем иконка + перехват события «Установить приложение»
+  useEffect(() => {
+    listenInstall();
+    const saved = getSavedIcon();
+    if (saved) applyIcon(saved, false);
+  }, []);
   const theme = useMxPrefs((s) => s.theme);
   const accent = useMxPrefs((s) => s.accent);
   const textSize = useMxPrefs((s) => s.textSize);
