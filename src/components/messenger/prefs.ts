@@ -30,12 +30,16 @@ interface MxPrefs {
   enterToSend: boolean;
   bubbleStyle: "round" | "classic" | "compact" | "outline" | "glass"; // форма пузырей сообщений
   font: string; // id шрифта из FONT_CHOICES
+  linkPreviews: boolean; // карточки-превью ссылок под сообщениями
+  quickReplies: string[]; // быстрые ответы (шаблоны)
   wallpaper: string; // id обоев чата ("none" / пусто — без обоев)
   setTheme: (t: MxTheme) => void;
   setFont: (id: string) => void;
   setAccent: (a: string) => void;
   setTextSize: (n: number) => void;
   setEnterToSend: (v: boolean) => void;
+  setLinkPreviews: (v: boolean) => void;
+  setQuickReplies: (l: string[]) => void;
   setWallpaper: (id: string) => void;
   setBubbleStyle: (b: "round" | "classic" | "compact" | "outline" | "glass") => void;
 }
@@ -50,6 +54,8 @@ export const useMxPrefs = create<MxPrefs>()(
       accent: "",
       textSize: 15,
       enterToSend: true,
+      linkPreviews: true,
+      quickReplies: [],
       wallpaper: "none",
       bubbleStyle: "round",
       setTheme: (theme) => set({ theme }),
@@ -57,6 +63,8 @@ export const useMxPrefs = create<MxPrefs>()(
       setAccent: (accent) => set({ accent }),
       setTextSize: (textSize) => set({ textSize }),
       setEnterToSend: (enterToSend) => set({ enterToSend }),
+      setLinkPreviews: (linkPreviews) => set({ linkPreviews }),
+      setQuickReplies: (quickReplies) => set({ quickReplies }),
       setWallpaper: (wallpaper) => set({ wallpaper }),
       setBubbleStyle: (bubbleStyle) => set({ bubbleStyle }),
     }),

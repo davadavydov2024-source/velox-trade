@@ -12,6 +12,7 @@ import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
 import { StickerMedia } from "./StickerMedia";
+import { LinkPreview } from "./LinkPreview";
 import { mApi, MApiError } from "./api";
 import { useToast } from "@/lib/toastContext";
 
@@ -463,6 +464,7 @@ function MessageRowImpl({
         <span className="whitespace-pre-wrap">
           <Linkified text={msg.text ?? ""} />
         </span>
+        {msg.kind === "text" && !msg.deletedForAll && msg.text && <LinkPreview text={msg.text} />}
         {meta}
         <div className="clear-both" />
       </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2 } from "lucide-react";
+import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2, Zap } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { EmojiPanel } from "./EmojiPanel";
 import { StickerSuggest } from "./StickersUI";
@@ -13,6 +13,7 @@ import { MX_FEATURES } from "./features";
 import { formatDuration } from "./util";
 import { Avatar } from "./ui";
 import { PhotoEditor } from "./PhotoEditor";
+import { QuickReplies } from "./QuickReplies";
 import type { MAccount } from "./mtypes";
 
 export interface ComposerReply {
@@ -111,6 +112,7 @@ export function Composer({
   useEffect(autosize, [text, autosize]);
 
   const [silentOpen, setSilentOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const holdSend = useRef<any>(null);
   const [caret, setCaret] = useState(0);
 
@@ -357,6 +359,7 @@ export function Composer({
                 onFocus={() => setEmojiOpen(false)}
                 enterKeyHint="enter"
               />
+              {!editing && <button onClick={() => setQuickOpen(true)} className="w-9 h-10 flex items-center justify-center mx-muted shrink-0" aria-label="Быстрые ответы"><Zap size={20} /></button>}
               <button onClick={() => setEmojiOpen((v) => !v)} className="w-10 h-10 flex items-center justify-center mx-muted shrink-0" aria-label="Эмодзи">
                 {emojiOpen ? <Keyboard size={22} /> : <Smile size={22} />}
               </button>
@@ -422,6 +425,7 @@ export function Composer({
 
       {emojiOpen && <EmojiPanel onPick={insertEmoji} onSticker={onSendSticker} />}
 
+      <QuickReplies open={quickOpen} onClose={() => setQuickOpen(false)} draft={text} onPick={(t) => { setText((v) => (v.trim() ? `${v.trimEnd()} ${t}` : t)); requestAnimationFrame(() => taRef.current?.focus()); }} />
       <Sheet open={silentOpen} onClose={() => setSilentOpen(false)}>
         <MenuList
           onDone={() => setSilentOpen(false)}

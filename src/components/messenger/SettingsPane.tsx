@@ -720,6 +720,10 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                   <div><p>Enter — отправить</p><p className="text-[13px] mx-muted">На компьютере. Shift+Enter — перенос строки.</p></div>
                   <Switch on={prefs.enterToSend} onChange={prefs.setEnterToSend} />
                 </div>
+                <div className="flex items-center justify-between px-4 py-3.5 gap-4" style={{ borderTop: "1px solid var(--mx-line)" }}>
+                  <div><p>Превью ссылок</p><p className="text-[13px] mx-muted">Карточка с заголовком и картинкой под сообщением со ссылкой.</p></div>
+                  <Switch on={prefs.linkPreviews} onChange={prefs.setLinkPreviews} />
+                </div>
               </div>
             </div>
           )}
