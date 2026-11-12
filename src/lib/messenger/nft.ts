@@ -146,5 +146,12 @@ export function nftTier(nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): Nf
 
 /** Особый номер: #1–#10, последний в тираже, круглые сотни, повторяющиеся цифры (77, 111, 777…). */
 export function isSpecialNumber(n: number, supply: number): boolean {
-  return n <= 10 || n === supply || (n >= 100 && n % 100 === 0) || (n >= 11 && /^(\d)\1+$/.test(String(n)));
+  return n <= 10 || (supply > 0 && n === supply) || (n >= 100 && n % 100 === 0) || (n >= 11 && /^(\d)\1+$/.test(String(n)));
+}
+
+/** Ориентировочная «Ценность» экземпляра в 🪙: цена подарка + улучшения, умноженная на редкость сочетания признаков. */
+export function nftValue(nft: GiftNft, giftPrice: number): number {
+  const mult: Record<NftTierId, number> = { common: 0.9, rare: 1.3, epic: 2, legendary: 3.5, mythic: 6 };
+  const base = giftPrice + (nft.upPrice ?? 0);
+  return Math.max(1, Math.round(base * mult[nftTier(nft)] * (isSpecialNumber(nft.number, nft.supply) ? 1.25 : 1)));
 }

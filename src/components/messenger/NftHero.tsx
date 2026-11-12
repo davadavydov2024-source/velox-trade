@@ -53,7 +53,7 @@ export function NftHero({ gift, nft }: { gift: GiftDef; nft: GiftNft }) {
       </svg>
       <div className="relative text-center px-6 pb-5 -mt-3">
         <p className="text-[24px] font-bold leading-tight">{gift.title}</p>
-        <p className="text-[14px] mt-0.5" style={{ color: "rgba(255,255,255,0.78)" }}>Коллекционный подарок · #{nft.number}</p>
+        <p className="text-[14px] mt-0.5" style={{ color: "rgba(255,255,255,0.78)" }}>{nft.upgraded ? `#${nft.number}` : `Коллекционный подарок · #${nft.number}`}</p>
       </div>
       <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.22))" }} />
     </div>
@@ -65,7 +65,7 @@ function PctChip({ r }: { r: number }) {
 }
 
 /** Таблица свойств коллекционного подарка: владелец и данные, затем модель / фон / символ с процентом редкости, тираж. */
-export function NftDetails({ nft, rows = [] }: { nft: GiftNft; rows?: [string, ReactNode][] }) {
+export function NftDetails({ nft, rows = [], issued, value }: { nft: GiftNft; rows?: [string, ReactNode][]; issued?: number; value?: number }) {
   const attrs: [string, string, number][] = [
     ["Модель", nft.model, modelOf(nft.model).rarity],
     ["Фон", nft.backdrop, backdropOf(nft.backdrop).rarity],
@@ -80,10 +80,18 @@ export function NftDetails({ nft, rows = [] }: { nft: GiftNft; rows?: [string, R
       {attrs.map(([k, v, r]) => (
         <div key={k} className="flex items-center justify-between gap-4 px-4 py-2.5"><span className="mx-muted">{k}</span><span className="flex items-center gap-2 min-w-0"><span className="truncate">{v}</span><PctChip r={r} /></span></div>
       ))}
+      {nft.upgraded ? (
+        <>
+          <div className="flex items-center justify-between gap-4 px-4 py-2.5"><span className="mx-muted">Выпущено</span><span>{(issued ?? nft.number).toLocaleString("ru-RU")}{special && <span className="ml-2 text-[12px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: "rgba(255,180,0,0.16)", color: "#e0a000" }}>особый номер</span>}</span></div>
+          {value ? <div className="flex items-center justify-between gap-4 px-4 py-2.5"><span className="mx-muted">Ценность</span><span>~ {value} 🪙</span></div> : null}
+          <div className="flex items-center justify-between gap-4 px-4 py-2.5"><span className="mx-muted">Улучшен</span><span>{new Date(nft.upAt ?? 0).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })} · {nft.upPrice ?? 0} 🪙</span></div>
+        </>
+      ) : (
       <div className="flex items-center justify-between gap-4 px-4 py-2.5">
         <span className="mx-muted">Тираж</span>
         <span>#{nft.number} из {nft.supply.toLocaleString("ru-RU")}{special && <span className="ml-2 text-[12px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: "rgba(255,180,0,0.16)", color: "#e0a000" }}>особый номер</span>}</span>
       </div>
+      )}
     </div>
   );
 }

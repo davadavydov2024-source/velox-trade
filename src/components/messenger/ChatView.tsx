@@ -1,11 +1,12 @@
 "use client";
 
+import { ghostNow } from "./ghost";
 import { wallpaperClass } from "./Wallpaper";
 import { useMxPrefs } from "./prefs";
 import { StickerPackSheet } from "./StickersUI";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark, Gift, FileDown,
+  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark, Gift,
 } from "lucide-react";
 import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
@@ -69,7 +70,7 @@ export function ChatView({
   const { toast } = useToast();
   const wallpaper = useMxPrefs((s) => s.wallpaper);
   const now = useNow(15_000);
-  const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
+  const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id, 60, me);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
   const clearedAt = userChat?.clearedAt ?? 0;
   const messages = useMemo(
@@ -265,14 +266,17 @@ export function ChatView({
   useEffect(() => {
     if (!lastIncoming || document.visibilityState !== "visible") return;
     const readAt = chat.readBy?.[me] ?? 0;
+    const g = ghostNow();
+    if (g.noRead && (userChat?.unread ?? 0) === 0) return;
     if (readAt >= lastIncoming.createdAt && (userChat?.unread ?? 0) === 0) return;
-    const t = setTimeout(() => mApi("read", { chatId: chat.id }).catch(() => {}), 400);
+    const t = setTimeout(() => mApi("read", { chatId: chat.id, ...(g.noRead ? { ghost: true } : {}), ...(g.hideOnline ? { quiet: true } : {}) }).catch(() => {}), 400);
     return () => clearTimeout(t);
   }, [lastIncoming?.id, chat.id, me, userChat?.unread, chat.readBy, lastIncoming]);
 
   // ---- «печатает…» ----
   const sendTyping = () => {
     const t = Date.now();
+    if (ghostNow().noTyping) return;
     if (t - lastTypingSent.current < 3000) return;
     lastTypingSent.current = t;
     mApi("typing", { chatId: chat.id }).catch(() => {});
@@ -592,25 +596,6 @@ export function ChatView({
     ];
   };
 
-  /** Скачивает загруженную переписку текстовым файлом (только то, что видно этому пользователю). */
-  const exportChat = () => {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const fmt = (t: number) => { const d = new Date(t); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-    const body = messages
-      .filter((m) => !m.deletedForAll)
-      .map((m) => `[${fmt(m.createdAt)}] ${m.from === me ? "Вы" : accountsAll[m.from]?.displayName ?? "Участник"}: ${m.text || (m.kind === "text" ? "" : `<${m.kind}>`)}`)
-      .join("\n");
-    const blob = new Blob([`\uFEFF${body}\n`], { type: "text/plain;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `miligram-chat-${new Date().toISOString().slice(0, 10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast("success", "Переписка сохранена в файл");
-  };
-
   const currentPinId = pinned.length ? pinned[Math.min(pinIndex, pinned.length - 1)] : null;
   const pinnedMsg = currentPinId ? messages.find((m) => m.id === currentPinId) : null;
 
@@ -844,7 +829,6 @@ export function ChatView({
             { label: "Подарить подарок", icon: <Gift size={20} />, hidden: chat.type !== "dm" || saved || peer?.uid === "velox_dating", onPress: () => setGiftOpen(true) },
             { label: "Запустить розыгрыш", icon: <Gift size={20} />, hidden: chat.type === "dm" || !isAdmin || !!chat.service, onPress: () => setGwOpen(true) },
             { label: "Поиск по сообщениям", icon: <Search size={20} />, onPress: () => { setSearchQ(""); setSearchOpen(true); } },
-            { label: "Экспорт чата (.txt)", icon: <FileDown size={20} />, hidden: !!chat.noForwards, onPress: exportChat },
             { label: userChat?.pinned ? "Открепить чат" : "Закрепить чат", icon: userChat?.pinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => chatSetting({ pinned: !userChat?.pinned }) },
             muted
               ? { label: "Включить звук", icon: <Bell size={20} />, onPress: () => chatSetting({ muted: false, mutedUntil: 0 }) }

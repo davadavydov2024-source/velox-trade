@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useViewportHeight } from "./hooks";
 import { FONT_CHOICES, useMxPrefs } from "./prefs";
+import { useAdv } from "./advPrefs";
 import "./messenger.css";
 import { applyIcon, getSavedIcon, listenInstall } from "./appIconPref";
 
@@ -36,6 +37,7 @@ export function MxRoot({ children }: { children: ReactNode }) {
   const bubbleStyle = useMxPrefs((s) => s.bubbleStyle);
   const fontId = useMxPrefs((s) => s.font);
   const fontDef = FONT_CHOICES.find((f) => f.id === fontId);
+  const adv = useAdv();
 
   // веб-шрифт подгружаем только когда он выбран
   useEffect(() => {
@@ -78,11 +80,13 @@ export function MxRoot({ children }: { children: ReactNode }) {
   }, [resolved, accent]);
 
   const style: Record<string, string> = { "--mx-font": `${textSize}px` };
+  style["--mx-bubble-r"] = `${adv.bubbleRadius}px`;
+  style["--mx-lh"] = String(adv.lineHeight);
   if (accent) style["--mx-accent"] = accent;
   if (fontDef?.css) style.fontFamily = fontDef.css;
 
   return (
-    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-design="tg" data-bubble={bubbleStyle} data-accent={accent ? "custom" : undefined} style={style as React.CSSProperties}>
+    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-design="tg" data-bubble={bubbleStyle} data-accent={accent ? "custom" : undefined} data-avatar={adv.avatarShape} data-names={adv.boldNames ? "bold" : undefined} data-dense={adv.denseChats ? "1" : undefined} style={style as React.CSSProperties}>
       {children}
     </div>
   );

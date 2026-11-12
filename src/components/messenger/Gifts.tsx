@@ -4,11 +4,12 @@ import { startTopup } from "./Wallet";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight, EyeOff, Eye, Gift, Lock, Pin, PinOff, Repeat, Search, Send, Sparkles, Tag, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
-import { GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
+import { canUpgradeGift, giftUpgradePrice, GIFTS, GIFT_CATEGORIES, GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, giftById, type GiftCategory, type GiftDef, type GiftNft, type GiftView } from "@/lib/messenger/gifts";
 import { NftFigure, hasNftFigure } from "./NftFigures";
 import { NftDetails, NftHero } from "./NftHero";
 import { GiftTile } from "./GiftTile";
-import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
+import { ActionBtn, RevealSheet, UpgradeSheet, type UpgradeResult } from "./GiftUpgrade";
+import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, nftValue, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
@@ -146,7 +147,7 @@ export function NftTraits({ nft }: { nft: GiftNft }) {
         <span className="mx-muted">Редкость</span>
         <span className="font-semibold" style={{ color: NFT_TIERS[nftTier(nft)].color }}>{NFT_TIERS[nftTier(nft)].label} <span className="mx-muted text-[12.5px] font-normal">· шанс {(nftComboChance(nft) * 100).toFixed(nftComboChance(nft) < 0.0001 ? 5 : 3)}%</span></span>
       </div>
-      <div className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">Номер</span><span>#{nft.number} из {nft.supply}{isSpecialNumber(nft.number, nft.supply) && <span className="ml-1.5 text-[12px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,213,106,.16)", color: "#ffd56a" }}>✦ особый номер</span>}</span></div>
+      <div className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">Номер</span><span>#{nft.number}{nft.supply > 0 ? ` из ${nft.supply}` : ""}{isSpecialNumber(nft.number, nft.supply) && <span className="ml-1.5 text-[12px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,213,106,.16)", color: "#ffd56a" }}>✦ особый номер</span>}</span></div>
       {rows.map(([k, v, r]) => (
         <div key={k} className="flex items-center justify-between px-4 py-2.5"><span className="mx-muted">{k}</span><span>{v} <span className="mx-muted text-[12.5px]">{rarityPct(r)}</span></span></div>
       ))}
@@ -358,6 +359,10 @@ function ActionRow({ icon, label, hint, onClick, danger, locked }: { icon: React
 export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; mine: boolean; name?: string; onChanged?: () => void }) {
   const { toast } = useToast();
   const [gifts, setGifts] = useState<GiftView[] | null>(null);
+  const [issued, setIssued] = useState<Record<string, number>>({});
+  const [upOpen, setUpOpen] = useState(false);
+  const [more, setMore] = useState(false);
+  const [reveal, setReveal] = useState<{ nft: GiftNft; issued: number } | null>(null);
   const [cat, setCat] = useState<"all" | GiftCategory>("all");
   const [open, setOpen] = useState<GiftView | null>(null);
   const [shop, setShop] = useState(false);
@@ -373,7 +378,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
   const curStatusId = statusGiftId !== undefined ? statusGiftId : myAcc?.status?.kind === "nft" ? myAcc.status.giftDocId : null;
 
   const load = useCallback(() => {
-    mApi<{ gifts: GiftView[] }>(`gifts?uid=${mine ? "me" : encodeURIComponent(uid)}`).then((d) => setGifts(d.gifts)).catch(() => setGifts([]));
+    mApi<{ gifts: GiftView[]; issued?: Record<string, number> }>(`gifts?uid=${mine ? "me" : encodeURIComponent(uid)}`).then((d) => { setGifts(d.gifts); setIssued(d.issued ?? {}); }).catch(() => setGifts([]));
   }, [uid, mine]);
   useEffect(load, [load]);
 
@@ -412,7 +417,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
     try {
       await mApi("profile", { status: on ? null : { kind: "nft", giftDocId: g.id } });
       setStatusGiftId(on ? null : g.id);
-      toast("success", on ? "Убрано из статуса" : "Теперь он стоит рядом с твоим ником ✨");
+      toast("success", on ? "NFT снят со статуса" : "NFT теперь ваш статус");
       setOpen(null);
     } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
   };
@@ -446,7 +451,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
             const d = giftById(g.giftId);
             if (!d) return null;
             return (
-              <GiftTile key={g.id} g={g} mine={mine} onClick={() => setOpen(g)} />
+              <GiftTile key={g.id} g={g} mine={mine} onClick={() => { setMore(false); setOpen(g); }} />
             );
           })}
         </div>
@@ -477,7 +482,7 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
             )}
             <div className={open.nft ? "px-4 pt-3 flex flex-col items-center" : "contents"}>
               {open.nft && (
-                <NftDetails nft={open.nft} rows={[
+                <NftDetails nft={open.nft} issued={issued[open.giftId]} value={nftValue(open.nft, open.price)} rows={[
                   ["Владелец", mine ? "Вы" : name || "—"],
                   ["Отправитель", open.from ? open.from.displayName : "Анонимно"],
                   ["Получен", new Date(open.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })],
@@ -486,7 +491,26 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
               )}
             {open.message && <p className="mx-card px-4 py-3 mt-4 w-full text-[15px] whitespace-pre-wrap">{open.message}</p>}
             {open.salePrice ? <p className="mx-card px-4 py-2.5 mt-4 w-full text-[14.5px] text-center">Продаётся за <b>{open.salePrice} 🪙</b></p> : null}
-            {mine && (
+            {mine && open.nft && (
+              <div className="w-full mt-4">
+                <div className="grid grid-cols-4 gap-2">
+                  <ActionBtn icon={<Send size={19} />} label="Передать" onClick={() => { setGiveTo(null); setGiveMsg(""); setGiveOpen(true); }} />
+                  <ActionBtn icon={<Tag size={19} />} label={open.salePrice ? "Снять" : "Продать"} onClick={() => (open.salePrice ? listForSale(open, null) : (setSellPrice(String(open.price)), setSellOpen(true)))} />
+                  <ActionBtn icon={<span className="text-[18px] leading-none">👑</span>} label={curStatusId === open.id ? "Снять" : "Надеть"} active={curStatusId === open.id} onClick={() => wear(open)} />
+                  <ActionBtn icon={<span className="text-[18px] leading-none">⋯</span>} label="Ещё" onClick={() => setMore((v) => !v)} />
+                </div>
+                {more && (
+                  <div className="mx-card w-full mt-3 overflow-hidden">
+                    {!open.hidden && <ActionRow icon={open.pinned ? <PinOff size={20} /> : <Pin size={20} />} label={open.pinned ? "Открепить" : "Закрепить в профиле"} hint={open.pinned ? undefined : `до ${GIFT_PIN_MAX}`} onClick={() => pin(open)} />}
+                    <ActionRow icon={open.hidden ? <Eye size={20} /> : <EyeOff size={20} />} label={open.hidden ? "Показать в профиле" : "Скрыть из профиля"} onClick={() => toggle(open)} />
+                  </div>
+                )}
+              </div>
+            )}
+            {mine && !open.nft && canUpgradeGift(def) && (
+              <button className="mx-btn w-full mt-5" onClick={() => setUpOpen(true)}><Sparkles size={17} className="inline mr-1.5 -mt-0.5" />Улучшить до NFT · {giftUpgradePrice(def)} 🪙</button>
+            )}
+            {mine && !open.nft && (
               <div className="mx-card w-full mt-5 overflow-hidden">
                 <ActionRow icon={<Send size={20} />} label="Подарить" hint="другому человеку" onClick={() => { setGiveTo(null); setGiveMsg(""); setGiveOpen(true); }} />
                 {!open.hidden && <ActionRow icon={open.pinned ? <PinOff size={20} /> : <Pin size={20} />} label={open.pinned ? "Открепить" : "Закрепить в профиле"} hint={open.pinned ? undefined : `до ${GIFT_PIN_MAX}`} onClick={() => pin(open)} />}
@@ -518,6 +542,16 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
           <RecipientList me={uid} exclude={[uid]} onPick={setGiveTo} />
         ))}
       </Sheet>
+
+      {open && def && mine && (
+        <UpgradeSheet open={upOpen} onClose={() => setUpOpen(false)} giftDocId={open.id} def={def} onUpgraded={(r: UpgradeResult) => { setUpOpen(false); setOpen({ ...open, nft: r.nft }); setReveal({ nft: r.nft, issued: r.issued }); setIssued((m) => ({ ...m, [open.giftId]: r.issued })); load(); onChanged?.(); }} />
+      )}
+      {open && def && reveal && (
+        <RevealSheet open onClose={() => { setReveal(null); setOpen(null); }} def={def} nft={reveal.nft} price={open.price} issued={reveal.issued} ownerName="Вы" wearing={curStatusId === open.id}
+          onTransfer={() => { setReveal(null); setGiveTo(null); setGiveMsg(""); setGiveOpen(true); }}
+          onSell={() => { setReveal(null); setSellPrice(String(open.price)); setSellOpen(true); }}
+          onWear={() => { setReveal(null); wear({ ...open, nft: reveal.nft }); }} />
+      )}
 
       <Sheet open={sellOpen && !!open} onClose={() => setSellOpen(false)} zIndex={70}>
         {open && (

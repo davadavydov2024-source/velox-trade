@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag } from "lucide-react";
+import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Upload, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag, Ghost, Circle, Square } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -31,9 +31,11 @@ import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
+import { useGhost, resetDeletedMarks, exportSettings, importSettings, resetAllSettings } from "./ghost";
+import { useAdv, type AvatarShape } from "./advPrefs";
 import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon";
+export type Page = null | "notifications" | "data" | "privacy" | "ghost" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -531,6 +533,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const profileGifts = useProfileGifts(me);
   const orbitGifts = profileGifts?.filter((g) => g.pinned && !g.hidden) ?? [];
   const [installHelp, setInstallHelp] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [sessionCount, setSessionCount] = useState<number | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -604,7 +607,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
       <div className="flex flex-col h-full">
         <PageHeader
           onBack={back}
-          title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши", admin: "Админ-панель", docs: "Документы" }[page]}
+          title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", ghost: "Режим призрака и удалённые", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши", admin: "Админ-панель", docs: "Документы" }[page]}
         />
         <div className="mx-scroll flex-1 pt-3 pb-24 px-4">
           {page === "notifications" && (
@@ -618,6 +621,24 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
             <div className="space-y-3">
               <div className="mx-card"><div className="px-4 py-3.5 text-[15px] mx-muted">Фото, голосовые и видео загружаются при просмотре и хранятся на сервере. Файлы, удалённые у всех, пропадают из чата.</div></div>
               <button className="mx-btn" style={{ background: "var(--mx-surface)", color: "var(--mx-danger)" }} onClick={clearDrafts}>Удалить все черновики на этом устройстве</button>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Данные настроек</p>
+                <div className="mx-card">
+                  <button className="w-full flex items-center justify-between px-4 py-3.5 text-left" onClick={() => { const blob = new Blob([exportSettings()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "miligram-settings.json"; a.click(); URL.revokeObjectURL(a.href); }}>
+                    <span>Экспорт настроек</span><Download size={18} className="mx-muted" />
+                  </button>
+                  <button className="w-full flex items-center justify-between px-4 py-3.5 text-left" onClick={() => importFileRef.current?.click()}>
+                    <span>Импорт настроек</span><Upload size={18} className="mx-muted" />
+                  </button>
+                  <input ref={importFileRef} type="file" accept="application/json" hidden onChange={async (e) => {
+                    const f = e.target.files?.[0]; e.target.value = "";
+                    if (!f) return;
+                    const ok = importSettings(await f.text());
+                    toast(ok ? "success" : "error", ok ? "Настройки импортированы, перезагрузите страницу" : "Не удалось прочитать файл настроек");
+                  }} />
+                  <button className="w-full px-4 py-3.5 text-left" style={{ color: "var(--mx-danger)" }} onClick={() => { resetAllSettings(); toast("success", "Настройки сброшены на этом устройстве"); }}>Сбросить настройки оформления</button>
+                </div>
+              </div>
             </div>
           )}
           {page === "privacy" && (
@@ -628,6 +649,9 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                   <Switch on={account.showLastSeen !== false} onChange={setShowLastSeen} />
                 </div>
               </div>
+              <button onClick={() => setPage("ghost")} className="mx-card w-full flex items-center justify-between px-4 py-3.5 text-left">
+                <span>Режим призрака и удалённые сообщения</span><ChevronRight size={18} className="mx-muted" />
+              </button>
               {(["whoCanMessage", "whoCanAddToGroups"] as const).map((k) => {
                 const privacy = account.privacy ?? { whoCanMessage: "everyone", whoCanAddToGroups: "everyone" };
                 return (
@@ -649,6 +673,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
               })}
             </div>
           )}
+          {page === "ghost" && <GhostSettingsPage />}
           {page === "general" && (
             <div className="space-y-5">
               <div>
@@ -720,11 +745,8 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                   <div><p>Enter — отправить</p><p className="text-[13px] mx-muted">На компьютере. Shift+Enter — перенос строки.</p></div>
                   <Switch on={prefs.enterToSend} onChange={prefs.setEnterToSend} />
                 </div>
-                <div className="flex items-center justify-between px-4 py-3.5 gap-4" style={{ borderTop: "1px solid var(--mx-line)" }}>
-                  <div><p>Превью ссылок</p><p className="text-[13px] mx-muted">Карточка с заголовком и картинкой под сообщением со ссылкой.</p></div>
-                  <Switch on={prefs.linkPreviews} onChange={prefs.setLinkPreviews} />
-                </div>
               </div>
+              <AdvancedDesignSettings />
             </div>
           )}
           {page === "stickers" && <StickersSettings />}
@@ -882,3 +904,76 @@ export function InstallSteps() {
   );
 }
 
+
+/** Приватность → «Режим призрака и удалённые сообщения» — настройки этого устройства, как в OtherGram. */
+function GhostSettingsPage() {
+  const g = useGhost();
+  const { toast } = useToast();
+  const [resetting, setResetting] = useState(false);
+  const note = "На этом телефоне сообщения всё равно отмечаются прочитанными, просто собеседник этого не видит. Если вы ответите на сообщение, для собеседника чат обычно отметится прочитанным.";
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Режим призрака</p>
+        <div className="mx-card">
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Не отправлять «прочитано»</span><Switch on={g.noRead} onChange={(v) => g.set("noRead", v)} /></div>
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Не отправлять «печатает…»</span><Switch on={g.noTyping} onChange={(v) => g.set("noTyping", v)} /></div>
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Не показывать «в сети»</span><Switch on={g.hideOnline} onChange={(v) => g.set("hideOnline", v)} /></div>
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Смотреть истории незаметно</span><Switch on={g.quietStories} onChange={(v) => g.set("quietStories", v)} /></div>
+        </div>
+        <p className="mx-muted text-[13px] px-3 mt-1.5">{note}</p>
+      </div>
+      <div>
+        <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Удалённые сообщения</p>
+        <div className="mx-card">
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Сохранять сообщения, удалённые собеседником</span><Switch on={g.keepDeleted} onChange={(v) => g.set("keepDeleted", v)} /></div>
+          <button className="w-full px-4 py-3.5 text-left" onClick={() => { const n = resetDeletedMarks(); setResetting(true); setTimeout(() => setResetting(false), 1200); toast("success", n ? `Пометки «удалено» сброшены: ${n}` : "Помечать нечего"); }} disabled={resetting}>Сбросить пометки «удалено»</button>
+        </div>
+        <p className="mx-muted text-[13px] px-3 mt-1.5">Сообщения, которые кто-то удалил, останутся на этом телефоне с пометкой «удалено рядом со временем». Работает только для уже полученных сообщений. Учтите, что ничего никуда не отправляется — для собеседника сообщение исчезло.</p>
+      </div>
+    </div>
+  );
+}
+
+const AVATAR_SHAPES: [AvatarShape, string][] = [["circle", "Круг"], ["squircle", "Сквиркл"], ["square", "Квадрат"]];
+
+/** Общие настройки → аватарки, типографика, чаты (настройки этого устройства). */
+function AdvancedDesignSettings() {
+  const a = useAdv();
+  return (
+    <>
+      <div>
+        <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Аватарки</p>
+        <div className="mx-card px-4 py-3.5 flex items-center gap-3">
+          {AVATAR_SHAPES.map(([id, label]) => (
+            <button key={id} onClick={() => a.set("avatarShape", id)} className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl" style={{ background: a.avatarShape === id ? "var(--mx-surface2)" : "transparent", outline: a.avatarShape === id ? "2px solid var(--mx-accent)" : "1px solid var(--mx-line)" }}>
+              <span className="w-9 h-9" style={{ background: "linear-gradient(135deg, var(--mx-accent), #8b5cf6)", borderRadius: id === "circle" ? "50%" : id === "squircle" ? "30%" : "8%" }} />
+              <span className="text-[12.5px]">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Типографика</p>
+        <div className="mx-card divide-y" style={{ borderColor: "var(--mx-line)" }}>
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between mb-2"><span>Скругление пузырей: {a.bubbleRadius}</span></div>
+            <input type="range" min={6} max={26} step={1} value={a.bubbleRadius} onChange={(e) => a.set("bubbleRadius", Number(e.target.value))} className="w-full" style={{ accentColor: "var(--mx-accent)" }} />
+          </div>
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between mb-2"><span>Межстрочный интервал: {a.lineHeight.toFixed(2)}</span></div>
+            <input type="range" min={1.15} max={1.6} step={0.01} value={a.lineHeight} onChange={(e) => a.set("lineHeight", Number(e.target.value))} className="w-full" style={{ accentColor: "var(--mx-accent)" }} />
+          </div>
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Жирные имена в чатах</span><Switch on={a.boldNames} onChange={(v) => a.set("boldNames", v)} /></div>
+        </div>
+      </div>
+      <div>
+        <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Чаты</p>
+        <div className="mx-card">
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Компактный список чатов</span><Switch on={a.denseChats} onChange={(v) => a.set("denseChats", v)} /></div>
+          <div className="flex items-center justify-between px-4 py-3.5 gap-4"><span>Скрывать текст сообщения в списке</span><Switch on={a.hideChatPreview} onChange={(v) => a.set("hideChatPreview", v)} /></div>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -116,6 +116,12 @@ export const GIFTS: GiftDef[] = [
   { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
+export const GIFT_UPGRADE_MIN = 15;
+/** Цена улучшения обычного подарка до коллекционного NFT: втрое дороже подарка, но не меньше GIFT_UPGRADE_MIN. */
+export const giftUpgradePrice = (g: Pick<GiftDef, "price">): number => Math.max(GIFT_UPGRADE_MIN, g.price * 3);
+/** Улучшать можно только обычные подарки (не NFT и не уже улучшенные). */
+export const canUpgradeGift = (g: GiftDef | undefined): boolean => !!g && !g.nft;
+
 export const giftById = (id: string): GiftDef | undefined => GIFTS.find((g) => g.id === id);
 
 /** Выданный подарок: коллекция messengerGifts. */
@@ -144,6 +150,9 @@ export interface GiftNft {
   backdrop: string; // фон
   symbol: string; // узор
   imageUrl?: string; // необязательно: готовая картинка вместо отрисовки по признакам
+  upgraded?: boolean; // улучшен из обычного подарка («Улучшить до NFT»): supply = 0, «Выпущено» считается по счётчику коллекции
+  upPrice?: number; // сколько 🪙 заплачено за улучшение
+  upAt?: number; // когда улучшен
 }
 
 /** Запись в ответе GET /api/messenger/gifts?uid= */

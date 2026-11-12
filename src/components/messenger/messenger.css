@@ -754,3 +754,17 @@ html:has(.mx), body:has(.mx) { overflow-x: hidden !important; overscroll-behavio
 .mx .mx-chat-wall img, .mx .mx-chat-wall video, .mx .mx-chat-wall canvas { max-width: 100%; }
 .mx .mx-chat-wall pre { max-width: 100%; overflow-x: auto; }
 .mx .mx-chat-wall a { overflow-wrap: anywhere; }
+
+/* — конфетти при улучшении подарка до NFT — */
+.mx-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }
+.mx-confetti span { position: absolute; top: -12px; border-radius: 2px; opacity: 0; animation: mx-confetti-fall linear forwards; }
+@keyframes mx-confetti-fall { 0% { opacity: 1; translate: 0 0; } 100% { opacity: 0; translate: 24px 520px; rotate: 540deg; } }
+.mx-ghost-note { font-size: 13px; color: var(--mx-muted); padding: 8px 16px 0; }
+.mx-deleted-mark { color: var(--mx-danger); font-weight: 600; }
+
+/* — расширенное оформление (Настройки → Расширенные) — */
+.mx[data-avatar="squircle"] .mx-av { border-radius: 30% !important; }
+.mx[data-avatar="square"] .mx-av { border-radius: 8% !important; }
+.mx .mx-bubble { border-radius: var(--mx-bubble-r, 18px) !important; line-height: var(--mx-lh, 1.32); }
+.mx[data-names="bold"] .mx-chat-name { font-weight: 800; }
+.mx[data-dense="1"] .mx-chat-row { padding-top: 6px !important; padding-bottom: 6px !important; }

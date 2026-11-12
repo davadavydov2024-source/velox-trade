@@ -6,7 +6,7 @@ import { dmChatId, fail, isDmBlocked, postMessage, requireMessenger, SERVICE_UID
 import { randomInt } from "crypto";
 import { rollNft } from "@/lib/messenger/nft";
 import type { GiftNft } from "@/lib/messenger/gifts";
-import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, GIFT_PIN_MAX, GIFT_SALE_FEE, GIFT_SALE_MAX, GIFT_SALE_MIN, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
+import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, canUpgradeGift, giftUpgradePrice, GIFT_PIN_MAX, GIFT_SALE_FEE, GIFT_SALE_MAX, GIFT_SALE_MIN, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
@@ -23,10 +23,12 @@ export async function GET(req: NextRequest) {
   const uidParam = req.nextUrl.searchParams.get("uid");
 
   if (!uidParam) {
-    const [user, stockSnap] = await Promise.all([db.collection("users").doc(me.uid).get(), db.collection("messengerGiftStock").get()]);
+    const [user, stockSnap, upSnap] = await Promise.all([db.collection("users").doc(me.uid).get(), db.collection("messengerGiftStock").get(), db.collection("messengerGiftUpgrades").get()]);
     const stock: Record<string, number> = {};
     stockSnap.forEach((d) => (stock[d.id] = (d.data().sold as number | undefined) ?? 0));
-    return NextResponse.json({ wallet: (user.data()?.miliWallet as number | undefined) ?? 0, stock });
+    const issued: Record<string, number> = {};
+    upSnap.forEach((d) => (issued[d.id] = (d.data().count as number | undefined) ?? 0));
+    return NextResponse.json({ wallet: (user.data()?.miliWallet as number | undefined) ?? 0, stock, issued });
   }
 
   const target = uidParam === "me" ? me.uid : uidParam;
@@ -50,7 +52,14 @@ export async function GET(req: NextRequest) {
       ...(g.nft ? { nft: g.nft } : {}),
     };
   });
-  return NextResponse.json({ gifts, total: gifts.length, stars: gifts.reduce((n, g) => n + g.price, 0) });
+  // сколько экземпляров каждой коллекции уже улучшено до NFT («Выпущено» в карточке коллекционного подарка)
+  const issued: Record<string, number> = {};
+  const upIds = Array.from(new Set(gifts.filter((g) => g.nft?.upgraded).map((g) => g.giftId)));
+  if (upIds.length) {
+    const ups = await db.getAll(...upIds.map((i) => db.collection("messengerGiftUpgrades").doc(i)));
+    ups.forEach((d, i) => (issued[upIds[i]] = (d.data()?.count as number | undefined) ?? 0));
+  }
+  return NextResponse.json({ gifts, issued, total: gifts.length, stars: gifts.reduce((n, g) => n + g.price, 0) });
 }
 
 /**
@@ -60,6 +69,7 @@ export async function GET(req: NextRequest) {
  * POST { action: "pin", id, pinned }     — закрепить/открепить подарок вверху профиля (до GIFT_PIN_MAX).
  * POST { action: "list", id, price }     — выставить свой подарок на продажу за price 🪙 (price: null — снять с продажи).
  * POST { action: "transfer", id, toUid, message? } — подарить свой подарок другому пользователю.
+ * POST { action: "upgrade", id }          — улучшить обычный подарок до коллекционного NFT за giftUpgradePrice 🪙 (рандомные модель/символ/фон, номер по счётчику коллекции).
  * POST { action: "buy", id }             — купить выставленный подарок у другого пользователя (продавец получает цену минус GIFT_SALE_FEE).
  */
 export async function POST(req: NextRequest) {
@@ -251,7 +261,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  if (b.action !== "send") return fail("action: send | toggle | convert | pin | list | buy | transfer");
+  if (b.action === "upgrade") {
+    // «Улучшить до NFT»: обычный подарок за 🪙 становится коллекционным — номер, модель, символ и фон выпадают случайно.
+    if (!(await rateLimit(`msgr_gift_up_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
+    const id = typeof b.id === "string" && !b.id.includes("/") ? b.id : "";
+    if (!id) return fail("id обязателен");
+    const ref = db.collection("messengerGifts").doc(id);
+    const userRef = db.collection("users").doc(me.uid);
+    try {
+      const out = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const g = snap.data() as MessengerGift | undefined;
+        if (!g || g.to !== me.uid) throw new Error("not-found");
+        const def = giftById(g.giftId);
+        if (!def || g.nft || !canUpgradeGift(def)) throw new Error("not-upgradable");
+        const cost = giftUpgradePrice(def);
+        const upRef = db.collection("messengerGiftUpgrades").doc(g.giftId);
+        const [user, up] = await Promise.all([tx.get(userRef), tx.get(upRef)]);
+        const have = (user.data()?.miliWallet as number | undefined) ?? 0;
+        if (have < cost) throw new Error("not-enough");
+        const number = ((up.data()?.count as number | undefined) ?? 0) + 1;
+        const now = Date.now();
+        const rolled = rollNft(number, 0, () => randomInt(0, 1_000_000) / 1_000_000, false);
+        const nft: GiftNft = { ...rolled, supply: 0, upgraded: true, upPrice: cost, upAt: now };
+        tx.set(upRef, { count: number }, { merge: true });
+        tx.set(userRef, { miliWallet: FieldValue.increment(-cost) }, { merge: true });
+        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -cost, type: "gift_upgrade", ref: id, at: now });
+        tx.update(ref, { nft, salePrice: FieldValue.delete() });
+        return { nft, wallet: have - cost, issued: number };
+      });
+      return NextResponse.json({ ok: true, ...out });
+    } catch (e: any) {
+      if (e?.message === "not-found") return fail("Подарок не найден", 404);
+      if (e?.message === "not-upgradable") return fail("Этот подарок нельзя улучшить");
+      if (e?.message === "not-enough") return NextResponse.json({ error: "Не хватает 🪙 на улучшение — пополни кошелёк", needTopup: true }, { status: 402 });
+      console.error("gift upgrade error:", e);
+      return fail("Не удалось улучшить подарок", 500);
+    }
+  }
+
+  if (b.action !== "send") return fail("action: send | toggle | convert | pin | list | buy | transfer | upgrade");
 
   if (!(await rateLimit(`msgr_gift_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
   const gift = giftById(String(b.giftId ?? ""));

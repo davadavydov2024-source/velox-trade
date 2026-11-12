@@ -4,7 +4,11 @@ import { loadChat, requireMessenger } from "@/lib/messenger/server";
 
 export const runtime = "nodejs";
 
-/** POST { chatId } — отметить чат прочитанным (двойная галочка у собеседника) и обнулить счётчик. */
+/**
+ * POST { chatId, ghost?, quiet? } — отметить чат прочитанным (двойная галочка у собеседника) и обнулить счётчик.
+ * ghost: «режим призрака» — счётчик обнуляем только у себя, собеседник галочку прочтения не получает.
+ * quiet: не обновлять «был(а) в сети».
+ */
 export async function POST(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
@@ -14,9 +18,9 @@ export async function POST(req: NextRequest) {
   const db = adminDb();
   const now = Date.now();
   const batch = db.batch();
-  batch.update(db.collection("messengerChats").doc(loaded.chat.id), { [`readBy.${me.uid}`]: now });
+  if (b.ghost !== true) batch.update(db.collection("messengerChats").doc(loaded.chat.id), { [`readBy.${me.uid}`]: now });
   batch.set(db.collection("messengerUserChats").doc(me.uid).collection("chats").doc(loaded.chat.id), { unread: 0, mentions: 0, markedUnread: false }, { merge: true });
-  batch.update(db.collection("messengerAccounts").doc(me.uid), { lastSeenAt: now });
+  if (b.ghost !== true && b.quiet !== true) batch.update(db.collection("messengerAccounts").doc(me.uid), { lastSeenAt: now });
   await batch.commit();
   return NextResponse.json({ ok: true });
 }

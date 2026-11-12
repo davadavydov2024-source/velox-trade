@@ -1,5 +1,6 @@
 "use client";
 
+import { applyKept } from "./ghost";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -232,7 +233,7 @@ export function useAccounts(uids: string[]): Record<string, MAccount | null> {
   }, [key, cacheVersion, contactsVersion]);
 }
 
-export function useMessages(chatId: string | null, pageSize = 60) {
+export function useMessages(chatId: string | null, pageSize = 60, me?: string) {
   const [messages, setMessages] = useState<MMessage[]>([]);
   const [count, setCount] = useState(pageSize);
   const [hasMore, setHasMore] = useState(false);
@@ -271,7 +272,7 @@ export function useMessages(chatId: string | null, pageSize = 60) {
         snap.docChanges().forEach((ch) => (ch.type === "removed" ? store.delete(ch.doc.id) : build(ch.doc)));
         const docs = snap.docs.slice(0, count);
         const keep = new Set(docs.map((d) => d.id));
-        const list = docs.map((d) => (store.get(d.id) ?? build(d)).m).reverse();
+        const list = applyKept(chatId, me, docs.map((d) => (store.get(d.id) ?? build(d)).m).reverse());
         Array.from(store.keys()).forEach((k) => !keep.has(k) && store.delete(k));
         loadedCount.current = count;
         setMessages(list);
@@ -285,7 +286,7 @@ export function useMessages(chatId: string | null, pageSize = 60) {
         setLoading(false);
       }
     );
-  }, [chatId, count, attempt]);
+  }, [chatId, count, attempt, me]);
 
   const loadMore = useCallback(() => {
     // не накручиваем страницы, пока предыдущая не загрузилась (onScroll стреляет десятки раз подряд)

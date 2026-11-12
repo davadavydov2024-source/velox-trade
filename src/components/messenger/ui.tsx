@@ -27,7 +27,7 @@ export function Avatar({
   const [c1, c2] = gradientFor(seed ?? name);
   const inner = (
     <div
-      className="relative rounded-full overflow-hidden flex items-center justify-center text-white font-semibold shrink-0 select-none"
+      className="mx-av relative rounded-full overflow-hidden flex items-center justify-center text-white font-semibold shrink-0 select-none"
       style={{ width: size, height: size, background: src && !bad ? "var(--mx-surface2)" : `linear-gradient(135deg, ${c1}, ${c2})`, fontSize: size * 0.38 }}
     >
       {src && !bad ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import { ghostNow } from "./ghost";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Eye, Plus, Send, Trash2, X } from "lucide-react";
@@ -114,7 +115,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
 
   // отметка «просмотрено»
   useEffect(() => {
-    if (story && !mine && !story.viewers?.includes(me)) mApi("stories/view", { storyId: story.id }).then(onChanged).catch(() => {});
+    if (story && !mine && !ghostNow().quietStories && !story.viewers?.includes(me)) mApi("stories/view", { storyId: story.id }).then(onChanged).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { ghostNow } from "./ghost";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
@@ -52,7 +53,7 @@ export function MessengerApp() {
   // --- присутствие: «в сети» (нужна поддержка на сервере — см. NOTES-B.md) ---
   useEffect(() => {
     if (!account || account.banned) return;
-    const ping = () => document.visibilityState === "visible" && mApi("presence", {}).catch(() => {});
+    const ping = () => document.visibilityState === "visible" && !ghostNow().hideOnline && mApi("presence", {}).catch(() => {});
     ping();
     const t = setInterval(ping, 60_000);
     document.addEventListener("visibilitychange", ping);

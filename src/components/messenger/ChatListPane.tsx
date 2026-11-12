@@ -1,5 +1,7 @@
 "use client";
 
+import { ghostNow } from "./ghost";
+import { useAdv } from "./advPrefs";
 import { useMemo, useState } from "react";
 import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
@@ -70,6 +72,7 @@ export function ChatListPane({
   const { toast } = useToast();
   const now = useNow(20_000);
   const peerIds = chats.filter((c) => c.type === "dm").map((c) => peerUid(c, me));
+  const hidePreview = useAdv((x) => x.hideChatPreview);
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
 
@@ -117,7 +120,7 @@ export function ChatListPane({
       toast("success", mode === "me" || mode === "both" ? "Чат удалён" : mode === "leave" ? "Вы вышли из чата" : "Чат удалён для всех");
     } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось удалить"); }
   };
-  const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id }).catch(() => {}));
+  const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id, ...(ghostNow().noRead ? { ghost: true } : {}), ...(ghostNow().hideOnline ? { quiet: true } : {}) }).catch(() => {}));
 
   const activeFolder = folders.find((f) => f.id === folderId);
   const unreadByFolder = (f: MFolder | null) =>
@@ -169,7 +172,7 @@ export function ChatListPane({
     const mineLast = last?.from === me;
     const readByPeer = mineLast && last ? (c.type === "dm" ? (c.readBy?.[peerUid(c, me)] ?? 0) >= last.at : c.members.some((u) => u !== me && (c.readBy?.[u] ?? 0) >= last.at)) : false;
     const senderName = last && c.type !== "dm" && !mineLast ? accounts[last.from]?.displayName?.split(" ")[0] : mineLast && c.type !== "dm" ? "Вы" : "";
-    const preview = last ? previewText(last.kind, last.text) : c.type === "channel" ? "Канал создан" : "Нет сообщений";
+    const preview = last && hidePreview ? "Сообщение" : last ? previewText(last.kind, last.text) : c.type === "channel" ? "Канал создан" : "Нет сообщений";
 
     const left: SwipeAction[] = [
       { label: uc?.pinned ? "Открепить" : "Закрепить", icon: uc?.pinned ? <PinOff size={21} /> : <Pin size={21} />, color: "#ff9500", onPress: () => act([c.id], { pinned: !uc?.pinned }) },
@@ -196,7 +199,7 @@ export function ChatListPane({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
+              <p className="mx-chat-name truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
                 {title} <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
