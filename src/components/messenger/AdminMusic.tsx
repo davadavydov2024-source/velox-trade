@@ -9,6 +9,7 @@ import { useToast } from "@/lib/toastContext";
 import type { MusicRequest, MusicTrack } from "@/lib/messenger/music";
 import { Spinner } from "./ui";
 import { fmtTime, TrackCover } from "./MusicPlayer";
+import { BulkMusicUpload } from "./BulkMusicUpload";
 
 type AdminRequest = MusicRequest & { userName?: string };
 
@@ -221,6 +222,8 @@ export function AdminMusic() {
           </button>
         ))}
       </div>
+
+      <BulkMusicUpload existing={tracks ?? []} onDone={load} />
 
       <p className="px-4 pt-5 pb-2 text-[13px] uppercase tracking-wide mx-muted">Добавить песню</p>
       <div className="px-4 flex flex-col gap-2.5">
