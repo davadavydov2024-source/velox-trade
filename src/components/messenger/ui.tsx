@@ -49,7 +49,7 @@ export function Avatar({
       )}
       {online && (
         <span
-          className="absolute rounded-full"
+          className="absolute rounded-full mx-online-dot"
           style={{ width: size * 0.26, height: size * 0.26, right: ring ? 2 : 0, bottom: ring ? 2 : 0, background: "#34c759", border: "2.5px solid var(--mx-bg)" }}
         />
       )}

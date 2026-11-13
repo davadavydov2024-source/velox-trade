@@ -780,3 +780,14 @@ html:has(.mx), body:has(.mx) { overflow-x: hidden !important; overscroll-behavio
 .mx-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .mx-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes mx-typing-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+/* — превью ссылки под текстом сообщения (og:title/description/image), как в Telegram — */
+.mx-link-preview { display: flex; align-items: center; gap: 9px; margin-top: 6px; padding: 7px 9px 7px 10px; border-radius: 12px; background: color-mix(in srgb, currentColor 8%, transparent); text-decoration: none; color: inherit; cursor: pointer; max-width: 320px; }
+.mx-link-preview-bar { width: 3px; align-self: stretch; min-height: 32px; border-radius: 3px; background: currentColor; opacity: 0.55; flex-shrink: 0; }
+.mx-link-preview-img { width: 52px; height: 52px; border-radius: 9px; object-fit: cover; flex-shrink: 0; background: rgba(128,128,128,0.18); }
+
+/* — лёгкий «дышащий» пульс у зелёной точки онлайн-статуса — */
+.mx-online-dot { position: relative; }
+.mx-online-dot::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid #34c759; opacity: 0; animation: mx-online-pulse 2.6s ease-out infinite; pointer-events: none; }
+@keyframes mx-online-pulse { 0% { transform: scale(0.55); opacity: 0.55; } 70% { transform: scale(1.7); opacity: 0; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mx-online-dot::after { animation: none; } }
