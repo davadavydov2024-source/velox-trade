@@ -13,7 +13,6 @@ import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
 import { StickerMedia } from "./StickerMedia";
 import { mApi, MApiError } from "./api";
-import { LinkPreviewCard } from "./LinkPreview";
 import { useToast } from "@/lib/toastContext";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
@@ -460,13 +459,11 @@ function MessageRowImpl({
       </div>
     );
   } else {
-    const firstUrl = !msg.deletedForAll ? (msg.text ?? "").match(URL_RE)?.[0] : undefined;
     content = (
       <>
         <span className="whitespace-pre-wrap">
           <Linkified text={msg.text ?? ""} />
         </span>
-        {firstUrl && <LinkPreviewCard url={firstUrl} mine={mine} />}
         {meta}
         <div className="clear-both" />
       </>

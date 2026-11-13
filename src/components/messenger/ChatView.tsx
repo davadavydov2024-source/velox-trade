@@ -12,7 +12,7 @@ import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { GiveawaySheet } from "./Giveaway";
-import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner, TypingDots } from "./ui";
+import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
@@ -151,9 +151,6 @@ export function ChatView({
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
   }, []);
 
-  // «липкая» дата сверху при прокрутке, как в Telegram: видна только пока скроллишь, гаснет через ~0.9с после остановки
-  const [scrolling, setScrolling] = useState(false);
-  const scrollingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -165,9 +162,6 @@ export function ChatView({
       prevHeight.current = el.scrollHeight;
       loadMore();
     }
-    setScrolling(true);
-    if (scrollingTimer.current) clearTimeout(scrollingTimer.current);
-    scrollingTimer.current = setTimeout(() => setScrolling(false), 900);
   };
 
   // разделитель «Новые сообщения»: ставим один раз при открытии чата перед первым непрочитанным
@@ -638,10 +632,7 @@ export function ChatView({
                   <VerifyMark acc={chat.type === "dm" ? peer : chat} size={16} /><TagChip acc={chat.type === "dm" ? peer : chat} />{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
                 </p>
-                <p className="text-[12.5px] truncate leading-tight flex items-center gap-1.5" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>
-                  {typingNames.length > 0 && <TypingDots />}
-                  <span className="truncate">{typingNames.length > 0 ? status.replace("…", "") : status}</span>
-                </p>
+                <p className="text-[12.5px] truncate leading-tight" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
               </div>
             </button>
             <button onClick={() => setInfo(true)} className="shrink-0 rounded-full overflow-hidden" aria-label="Профиль" style={{ border: "2px solid rgba(255,255,255,0.18)" }}>
@@ -674,7 +665,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className={`mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative ${wallpaperClass(wallpaper)} ${scrolling ? "mx-scrolling" : ""}`}>
+      <div ref={scrollRef} onScroll={onScroll} className={`mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative ${wallpaperClass(wallpaper)}`}>
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && (
           <div className="px-3 pt-4 space-y-2.5">
@@ -690,62 +681,53 @@ export function ChatView({
             {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
           </div>
         )}
-        {(() => {
-          type RowMeta = { msg: MMessage; pend?: MPending; sameAsPrev: boolean; sameAsNext: boolean; rowKey: string; isNewRow: boolean; newDay: boolean };
-          const rowMeta: RowMeta[] = rows.map(({ msg, pending: pend }, i) => {
-            const prev = rows[i - 1]?.msg;
-            const next = rows[i + 1]?.msg;
-            const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
-            const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
-            const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
-            const rowKey = serverToTemp.get(msg.id) ?? msg.id;
-            const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
-            return { msg, pend, sameAsPrev, sameAsNext, rowKey, isNewRow, newDay };
-          });
-          const dayGroups: { key: string; label: string; items: RowMeta[] }[] = [];
-          rowMeta.forEach((r) => {
-            if (r.newDay || dayGroups.length === 0) dayGroups.push({ key: `day-${r.rowKey}`, label: dayLabel(r.msg.createdAt, now), items: [] });
-            dayGroups[dayGroups.length - 1].items.push(r);
-          });
-          return dayGroups.map((g) => (
-            <div key={g.key}>
-              <div className="mx-sticky-date"><span className="mx-sticky-date-pill text-[12.5px] px-3 py-1 rounded-full mx-glass font-medium">{g.label}</span></div>
-              {g.items.map((r) => (
-                <div key={r.rowKey} className={r.isNewRow ? "mx-msg-in" : undefined}>
-                  {dividerId === r.msg.id && (
-                    <div className="flex items-center gap-3 px-4 my-2">
-                      <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
-                      <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Новые сообщения</span>
-                      <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
-                    </div>
-                  )}
-                  <MessageRow
-                    msg={r.msg}
-                    pending={r.pend}
-                    me={me}
-                    chatType={chat.type}
-                    accounts={accountsAll}
-                    chatId={chat.id}
-                    showAuthor={!r.sameAsPrev}
-                    isLastInGroup={!r.sameAsNext}
-                    read={isRead(r.msg)}
-                    selecting={selecting}
-                    selected={!!selection?.has(r.msg.id)}
-                    highlight={highlightId === r.msg.id}
-                    onOpenMedia={(u) => H.current.openMedia(u)}
-                    onOpenStickerPack={(s) => H.current.setStickerPack(s)}
-                    onSwipeReply={canPost && !r.pend && !r.msg.deletedForAll && r.msg.kind !== "system" ? () => H.current.startReply(r.msg) : undefined}
-                    onJumpTo={(id) => H.current.jumpTo(id)}
-                    onReact={(e) => H.current.react(r.msg, e)}
-                    onMenu={() => !r.pend && H.current.setMenuMsg(r.msg)}
-                    onToggleSelect={() => H.current.toggleSelect(r.msg.id)}
-                    onDoubleTap={() => !r.pend && !r.msg.deletedForAll && H.current.react(r.msg, DOUBLE_TAP_REACTION)}
-                  />
+        {rows.map(({ msg, pending: pend }, i) => {
+          const prev = rows[i - 1]?.msg;
+          const next = rows[i + 1]?.msg;
+          const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
+          const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
+          const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
+          const rowKey = serverToTemp.get(msg.id) ?? msg.id;
+          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
+          return (
+            <div key={rowKey} className={isNewRow ? "mx-msg-in" : undefined}>
+              {newDay && (
+                <div className="flex justify-center my-2.5">
+                  <span className="text-[12.5px] px-3 py-1 rounded-full mx-glass font-medium">{dayLabel(msg.createdAt, now)}</span>
                 </div>
-              ))}
+              )}
+              {dividerId === msg.id && (
+                <div className="flex items-center gap-3 px-4 my-2">
+                  <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
+                  <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Новые сообщения</span>
+                  <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
+                </div>
+              )}
+              <MessageRow
+                msg={msg}
+                pending={pend}
+                me={me}
+                chatType={chat.type}
+                accounts={accountsAll}
+                chatId={chat.id}
+                showAuthor={!sameAsPrev}
+                isLastInGroup={!sameAsNext}
+                read={isRead(msg)}
+                selecting={selecting}
+                selected={!!selection?.has(msg.id)}
+                highlight={highlightId === msg.id}
+                onOpenMedia={(u) => H.current.openMedia(u)}
+                onOpenStickerPack={(s) => H.current.setStickerPack(s)}
+                onSwipeReply={canPost && !pend && !msg.deletedForAll && msg.kind !== "system" ? () => H.current.startReply(msg) : undefined}
+                onJumpTo={(id) => H.current.jumpTo(id)}
+                onReact={(e) => H.current.react(msg, e)}
+                onMenu={() => !pend && H.current.setMenuMsg(msg)}
+                onToggleSelect={() => H.current.toggleSelect(msg.id)}
+                onDoubleTap={() => !pend && !msg.deletedForAll && H.current.react(msg, DOUBLE_TAP_REACTION)}
+              />
             </div>
-          ));
-        })()}
+          );
+        })}
       </div>
 
       {showDown && (

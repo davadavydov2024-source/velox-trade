@@ -6,12 +6,12 @@ import { useMemo, useState } from "react";
 import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
-import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, TypingDots } from "./ui";
+import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
-import { useAccounts, useNow, useTypingMap } from "./hooks";
+import { useAccounts, useNow } from "./hooks";
 import { MAccount, MChat, MFolder, MUserChat } from "./mtypes";
 import { chatPhoto, chatTitle, formatListTime, isChatMuted, isOnline, isSavedMessages, peerUid, previewText } from "./util";
 
@@ -73,7 +73,6 @@ export function ChatListPane({
   const now = useNow(20_000);
   const peerIds = chats.filter((c) => c.type === "dm").map((c) => peerUid(c, me));
   const hidePreview = useAdv((x) => x.hideChatPreview);
-  const typingMap = useTypingMap(chats.map((c) => c.id), me);
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
 
@@ -168,7 +167,7 @@ export function ChatListPane({
     const muted = isChatMuted(uc?.muted, uc?.mutedUntil, now);
     const unread = uc?.unread ?? 0;
     const last = c.lastMessage;
-    const typing = (typingMap[c.id] ?? []).length > 0;
+    const typing = false; // «печатает» берётся из подколлекции чата только в открытом чате (см. ChatView)
     const draft = activeId === c.id ? "" : readDraft(c.id);
     const mineLast = last?.from === me;
     const readByPeer = mineLast && last ? (c.type === "dm" ? (c.readBy?.[peerUid(c, me)] ?? 0) >= last.at : c.members.some((u) => u !== me && (c.readBy?.[u] ?? 0) >= last.at)) : false;
@@ -212,7 +211,7 @@ export function ChatListPane({
             <div className="flex items-start gap-2 mt-0.5">
               <p className="text-[15px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
                 {typing ? (
-                  <span className="inline-flex items-center gap-1.5" style={{ color: "var(--mx-accent)" }}><TypingDots />печатает</span>
+                  <span style={{ color: "var(--mx-accent)" }}>печатает…</span>
                 ) : draft ? (
                   <>
                     <span style={{ color: "var(--mx-danger)" }}>Черновик: </span>

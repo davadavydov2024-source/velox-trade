@@ -49,7 +49,7 @@ export function Avatar({
       )}
       {online && (
         <span
-          className="absolute rounded-full mx-online-dot"
+          className="absolute rounded-full"
           style={{ width: size * 0.26, height: size * 0.26, right: ring ? 2 : 0, bottom: ring ? 2 : 0, background: "#34c759", border: "2.5px solid var(--mx-bg)" }}
         />
       )}
@@ -225,17 +225,6 @@ export function IconBox({ color, children }: { color: string; children: ReactNod
   return (
     <span className="mx-icon-box" style={{ background: color }}>
       {children}
-    </span>
-  );
-}
-
-/** Три подпрыгивающие точки «печатает…», как в Telegram — в шапке чата и в списке диалогов. */
-export function TypingDots() {
-  return (
-    <span className="mx-typing-dots" aria-hidden>
-      <span />
-      <span />
-      <span />
     </span>
   );
 }
