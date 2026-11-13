@@ -37,7 +37,7 @@ function metaContent(html: string, attr: "property" | "name", key: string): stri
 /** Достаём og:title/description/image из <head> простыми регэксами — полноценный HTML-парсер тут не нужен. */
 function extract(html: string, pageUrl: string): LinkPreview {
   const head = html.slice(0, html.toLowerCase().indexOf("</head>") + 7 || html.length) || html;
-  const title = metaContent(head, "property", "og:title") ?? decodeEntities(head.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? "").trim() || undefined;
+  const title = (metaContent(head, "property", "og:title") ?? decodeEntities(head.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? "").trim()) || undefined;
   const description = metaContent(head, "property", "og:description") ?? metaContent(head, "name", "description");
   let image = metaContent(head, "property", "og:image");
   if (image) {
