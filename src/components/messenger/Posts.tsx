@@ -64,7 +64,7 @@ export function PostsTab({ uid, mine, canModerate }: { uid: string; mine: boolea
   return (
     <div className="px-4 pb-6 flex flex-col gap-3">
       {mine && (
-        <div className="rounded-[22px] p-3" style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.09)" }}>
+        <div className="rounded-[22px] p-3" style={{ background: "var(--mx-surface)" }}>
           <textarea className="w-full bg-transparent outline-none resize-none text-[16px] min-h-[64px]" placeholder="Что нового?" maxLength={POST_TEXT_MAX} value={text} onChange={(e) => setText(e.target.value)} />
           {preview && (
             <div className="relative mt-1 mb-2 inline-block">
@@ -84,7 +84,7 @@ export function PostsTab({ uid, mine, canModerate }: { uid: string; mine: boolea
       {posts === null ? <div className="flex justify-center py-8"><Spinner /></div> : posts.length === 0 ? (
         <p className="mx-muted text-center text-[14.5px] py-8 px-6">{mine ? "Постов пока нет. Напиши первый." : "Постов пока нет"}</p>
       ) : posts.map((p) => (
-        <div key={p.id} className="rounded-[22px] p-3.5" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}>
+        <div key={p.id} className="rounded-[22px] p-3.5" style={{ background: "var(--mx-surface)" }}>
           <div className="flex items-center gap-2.5">
             <Avatar src={author?.photoURL ?? null} name={author?.displayName ?? ""} seed={uid} size={38} />
             <div className="min-w-0 flex-1 leading-tight">

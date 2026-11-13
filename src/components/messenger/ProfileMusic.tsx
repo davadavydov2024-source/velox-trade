@@ -15,7 +15,7 @@ export function ProfileMusic({ trackId }: { trackId: string }) {
   const on = m.current?.id === t.id;
   const playing = on && m.playing;
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5" style={{ margin: "0 16px 12px", borderRadius: 24, background: "rgba(0,0,0,0.38)", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="flex items-center gap-3 px-3 py-2.5" style={{ margin: "0 16px 12px", borderRadius: 24, background: "var(--mx-surface)" }}>
       <TrackCover track={t} size={48} radius={14} />
       <div className="min-w-0 flex-1">
         <p className="text-[16px] font-extrabold truncate">{t.title}</p>

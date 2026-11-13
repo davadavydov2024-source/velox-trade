@@ -8,7 +8,7 @@ import { mApi } from "./api";
 import { Avatar, Sheet, Spinner, TagChip, VerifiedBadge, VerifyMark } from "./ui";
 import { markKind, verifyMeta } from "@/lib/messenger/marks";
 import { StatusBadge } from "./StatusBadge";
-import { BadgeDot, InfoLine, InfoRow, LinkChip, ProfileHeader, ProfileRoundBtn, ProfileShell, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
+import { BadgeDot, InfoLine, InfoRow, LinkChip, ProfileCard, ProfileHeader, ProfileRoundBtn, ProfileShell, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
 import { PostsTab } from "./Posts";
 import { ProfileMusic } from "./ProfileMusic";
 import { NumberTierChip } from "./Numbers";
@@ -51,13 +51,13 @@ function ProfileChannelCard({ handle }: { handle: string }) {
   const last = c.posts[c.posts.length - 1];
   return (
     <div className="px-4 mb-3">
-      <a href={`/m?join=@${handle}`} className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 24, background: "rgba(0,0,0,0.38)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <a href={`/m?join=@${handle}`} className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 24, background: "var(--mx-surface)" }}>
         <Avatar src={c.photoURL} name={c.title} seed={handle} size={46} />
         <div className="min-w-0 flex-1">
           <p className="font-extrabold truncate text-[16px]">{c.title}</p>
           <p className="mx-muted text-[13.5px] truncate">{last ? last.text || (last.kind === "image" ? "Фото" : "Публикация") : "Пока нет публикаций"}</p>
         </div>
-        <span className="shrink-0 px-3 py-1 rounded-full text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.14)" }}>{c.subscribers} {plural(c.subscribers, "подписчик", "подписчика", "подписчиков")}</span>
+        <span className="shrink-0 px-3 py-1 rounded-full text-[12px] font-bold" style={{ background: "var(--mx-surface2)" }}>{c.subscribers} {plural(c.subscribers, "подписчик", "подписчика", "подписчиков")}</span>
       </a>
     </div>
   );
@@ -148,14 +148,14 @@ export function ChatInfoSheet({
       {isDm && peer?.channelHandle && <ProfileChannelCard handle={peer.channelHandle} />}
 
       {((isDm && !saved && peer) || peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
-        <div className="pb-2">
-          {peer?.number && <InfoRow value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
+        <ProfileCard title="Информация">
+          {peer?.number && <InfoRow icon={<Hash size={19} />} value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
           {peer?.handle && peerId && <UsernameRow uid={peerId} handle={peer.handle} onCopy={(t) => copy(t, "Скопировано")} />}
-          {link && <InfoRow value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} />}
-          {peer?.bio && <InfoRow value={peer.bio} label="Описание" />}
-          {bday && <InfoRow value={bday} label="День рождения" />}
-          {chat.description && <InfoRow value={chat.description} label="Описание" />}
-          {contact?.note && <InfoRow value={contact.note} label="Заметка (видите только вы)" />}
+          {link && <InfoRow icon={<Link2 size={19} />} value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} />}
+          {peer?.bio && <InfoRow icon={<FileText size={19} />} value={peer.bio} label="О себе" />}
+          {bday && <InfoRow icon={<Calendar size={19} />} value={bday} label="День рождения" />}
+          {chat.description && <InfoRow icon={<FileText size={19} />} value={chat.description} label="Описание" />}
+          {contact?.note && <InfoRow icon={<Pencil size={18} />} value={contact.note} label="Заметка (видите только вы)" />}
           {badgeList.length > 0 && (
             <div className="px-5 py-2">
               <div className="flex gap-2 flex-wrap">
@@ -172,7 +172,7 @@ export function ChatInfoSheet({
           {isDm && !saved && peer?.createdAt ? <InfoLine icon={<Calendar size={15} />}>{`На MiliGram с ${new Date(peer.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })} г.`}</InfoLine> : null}
           {isDm && !saved && peer?.numId ? <InfoRow value={`ID: ${peer.numId}`} label="Идентификатор" /> : null}
           {isDm && !saved && typeof peer?.views === "number" && peer.views > 0 ? <InfoLine icon={<Eye size={16} />}>{fmtCount(peer.views)}</InfoLine> : null}
-        </div>
+        </ProfileCard>
       )}
 
       {!isDm && (

@@ -9,6 +9,7 @@ import { isPremium } from "@/lib/messenger/premium";
 import type { MAccount } from "./mtypes";
 import { Avatar } from "./ui";
 import { AvatarFrame } from "./AvatarFrame";
+import { useMxPrefs } from "./prefs";
 
 /** Плоские цвета шапки профиля, как «цвет профиля» в Telegram: выбираются по uid, чтобы у человека он всегда был один. */
 const PROFILE_COLORS = ["#c75b4a", "#cf8a3c", "#8a63c4", "#4f9a62", "#3d93a8", "#4a86c8", "#bf5f86"];
@@ -67,21 +68,25 @@ export function ProfileRoundBtn({ icon, onClick, label }: { icon: ReactNode; onC
   return <button onClick={onClick} aria-label={label} className="w-10 h-10 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{icon}</button>;
 }
 
-const PROFILE_FONT = '"Manrope", ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif';
+const SHELL_DARK = { "--mx-bg": "#0e0e11", "--mx-surface": "#1a1b20", "--mx-surface2": "#24262c", "--mx-line": "rgba(255,255,255,0.08)", "--mx-text": "#f4f4f5", "--mx-muted": "#8b8d96" };
+const SHELL_LIGHT = { "--mx-bg": "#f2f2f6", "--mx-surface": "#ffffff", "--mx-surface2": "#ebebf0", "--mx-line": "rgba(0,0,0,0.08)", "--mx-text": "#121214", "--mx-muted": "#6d6f78" };
 
-/** Тёмная «стеклянная» карточка профиля (как в референсе): градиент от светлого серого сверху к почти чёрному, свой шрифт и свои цвета текста. */
+/** Фон профиля в духе Telegram: тема «как в приложении» (по умолчанию), светлая или тёмная — выбирается в Настройках → Общие. */
 export function ProfileShell({ children }: { children: ReactNode }) {
+  const mode = useMxPrefs((s) => s.profileTheme);
+  const vars = mode === "dark" ? SHELL_DARK : mode === "light" ? SHELL_LIGHT : {};
   return (
-    <div
-      className="relative"
-      style={{
-        minHeight: "100%", color: "#fff", fontFamily: PROFILE_FONT,
-        background: "linear-gradient(165deg, #3d3d44 0%, #27272d 32%, #17171b 68%, #101013 100%)",
-        ["--mx-text" as string]: "#ffffff", ["--mx-muted" as string]: "#9e9ea9", ["--mx-surface" as string]: "rgba(255,255,255,0.07)",
-        ["--mx-surface2" as string]: "rgba(255,255,255,0.11)", ["--mx-line" as string]: "rgba(255,255,255,0.1)",
-      } as React.CSSProperties}
-    >
-      <style>{'@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap");'}</style>
+    <div className="relative" style={{ minHeight: "100%", color: "var(--mx-text)", background: "var(--mx-bg)", ...vars } as React.CSSProperties}>
+      {children}
+    </div>
+  );
+}
+
+/** Блок-карточка профиля («Информация») с заголовком цвета акцента — как в Telegram. */
+export function ProfileCard({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <div style={{ margin: "0 16px 12px", borderRadius: 18, background: "var(--mx-surface)", padding: "4px 0 6px" }}>
+      {title && <p className="px-5 pt-3 pb-1 text-[14px] font-semibold" style={{ color: "var(--mx-accent)" }}>{title}</p>}
       {children}
     </div>
   );
@@ -100,8 +105,8 @@ export function BadgeDot({ color, title, children }: { color: string; title: str
 /** Чип-ссылка (как соцсети в профиле): тёмная пилюля с иконкой и названием сайта. */
 export function LinkChip({ href, label, icon }: { href: string; label: string; icon: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[13.5px] font-bold" style={{ background: "rgba(0,0,0,0.34)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
-      <span style={{ color: "#5ac8fa" }}>{icon}</span><span className="truncate max-w-[180px]">{label}</span>
+    <a href={href} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[13.5px] font-bold" style={{ background: "var(--mx-surface2)", color: "var(--mx-text)" }}>
+      <span style={{ color: "var(--mx-accent)" }}>{icon}</span><span className="truncate max-w-[180px]">{label}</span>
     </a>
   );
 }
@@ -126,12 +131,14 @@ export function ProfileHeader({
   const banner = account?.bannerURL ?? null;
   const bd = nft ? backdropOf(nft.backdrop) : null;
   const glow = bd ? bd.colors[0] : profileColor(seed);
-  const av = <AvatarFrame frame={account?.frame} size={avatarSize}><span className="block rounded-full" style={{ boxShadow: account?.frame ? undefined : `0 0 0 3px rgba(255,255,255,0.14), 0 12px 44px ${glow}66` }}><Avatar src={photo ?? null} name={name} seed={seed} size={avatarSize}>{avatarFallback}</Avatar></span></AvatarFrame>;
+  const c2 = bd && bd.colors.length > 1 ? bd.colors[bd.colors.length - 1] : `color-mix(in srgb, ${glow} 60%, #000)`;
+  const onColor = !banner; // без баннера шапка — цветной градиент с белым текстом, как в Telegram
+  const av = <AvatarFrame frame={account?.frame} size={avatarSize}><span className="block rounded-full" style={{ boxShadow: account?.frame ? undefined : `0 0 0 3px rgba(255,255,255,${onColor ? 0.38 : 0.14}), 0 10px 32px rgba(0,0,0,0.28)` }}><Avatar src={photo ?? null} name={name} seed={seed} size={avatarSize}>{avatarFallback}</Avatar></span></AvatarFrame>;
   const items = (orbit ?? []).slice(0, 6);
   const box = avatarSize + 110; // размер «поля» вокруг аватарки под подарки-спутники
   const R = avatarSize / 2 + 36;
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden" style={onColor ? { background: `linear-gradient(180deg, ${glow} 0%, ${c2} 100%)`, borderRadius: "0 0 28px 28px" } : undefined}>
       <style>{"@keyframes mx-orbit-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}.mx-orbit-float{animation:mx-orbit-float 3.4s ease-in-out infinite}"}</style>
       {banner ? (
         <div className="relative" style={{ height: 176 }}>
@@ -140,14 +147,11 @@ export function ProfileHeader({
           <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.15), var(--mx-bg))" }} />
         </div>
       ) : (
-        <>
-          <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 280, background: `radial-gradient(ellipse at 50% 0%, ${glow}59 0%, transparent 72%)` }} />
-          {nft && <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 220, opacity: 0.55 }}><Pattern ch={NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦"} /></div>}
-        </>
+        <div className="absolute inset-0 pointer-events-none" style={{ opacity: nft ? 0.75 : 0.5 }}><Pattern ch={nft ? (NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦") : "✦"} /></div>
       )}
       {topLeft && <div className="absolute left-3 top-3 z-10">{topLeft}</div>}
       {topRight && <div className="absolute right-3 top-3 z-10 flex gap-2">{topRight}</div>}
-      <div className="relative z-[1] flex flex-col items-center px-5 pb-4" style={{ marginTop: banner ? -(avatarSize / 2 + 42) : 14 }}>
+      <div className="relative z-[1] flex flex-col items-center px-5 pb-6" style={{ marginTop: banner ? -(avatarSize / 2 + 42) : 52 }}>
         <div className="relative flex items-center justify-center" style={{ width: box, height: box }}>
           {items.map((g, i) => {
             const ang = (-90 + (i * 360) / items.length + (items.length < 4 ? 20 : 0)) * (Math.PI / 180);
@@ -165,20 +169,23 @@ export function ProfileHeader({
             <div className="relative">{av}{avatarOverlay}</div>
           )}
         </div>
-        <p className="text-[27px] font-extrabold flex items-center justify-center gap-1.5 text-center leading-tight">{name}{badges}</p>
-        {statusPill && <span className="mt-2.5 px-4 py-1.5 rounded-full text-[13px] font-bold" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff" }}>{statusPill}</span>}
-        {subtitle && <p className="text-[14px] mt-1.5 text-center mx-muted">{subtitle}</p>}
+        <p className="text-[25px] font-bold flex items-center justify-center gap-1.5 text-center leading-tight" style={onColor ? { color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.25)" } : undefined}>{name}{badges}</p>
+        {statusPill && (onColor
+          ? <span className="mt-1 text-[14px]" style={{ color: "rgba(255,255,255,0.82)" }}>{statusPill}</span>
+          : <span className="mt-2.5 px-4 py-1.5 rounded-full text-[13px] font-bold" style={{ background: "var(--mx-surface2)", color: "var(--mx-text)" }}>{statusPill}</span>)}
+        {subtitle && <p className={`text-[14px] mt-1 text-center${onColor ? "" : " mx-muted"}`} style={onColor ? { color: "rgba(255,255,255,0.82)" } : undefined}>{subtitle}</p>}
       </div>
     </div>
   );
 }
 
 /** Строка данных профиля: сверху значение жирным, ниже серая подпись (без рамки — прямо на фоне карточки). */
-export function InfoRow({ value, label, onClick, accent, right }: { value: ReactNode; label: string; onClick?: () => void; accent?: boolean; right?: ReactNode }) {
+export function InfoRow({ value, label, onClick, accent, right, icon }: { value: ReactNode; label: string; onClick?: () => void; accent?: boolean; right?: ReactNode; icon?: ReactNode }) {
   const inner = (
     <>
+      {icon && <span className="shrink-0 mx-muted w-6 flex justify-center">{icon}</span>}
       <span className="block min-w-0 flex-1 text-left">
-        <span className="block text-[17px] font-bold break-words whitespace-pre-wrap leading-snug" style={{ color: accent ? "#5ac8fa" : undefined }}>{value}</span>
+        <span className="block text-[16.5px] font-medium break-words whitespace-pre-wrap leading-snug" style={{ color: accent ? "var(--mx-accent)" : undefined }}>{value}</span>
         <span className="block text-[13px] mx-muted mt-0.5">{label}</span>
       </span>
       {right}
@@ -191,9 +198,9 @@ export function InfoRow({ value, label, onClick, accent, right }: { value: React
 /** Плитка действия под шапкой профиля: тёмное стекло, иконка и подпись. */
 export function ProfileTile({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex-1 min-w-0 flex flex-col items-center gap-1.5 rounded-[20px] py-3 active:opacity-70 transition-opacity" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.09)", color: "#fff" }}>
+    <button onClick={onClick} className="flex-1 min-w-0 flex flex-col items-center gap-1.5 rounded-2xl py-3 active:opacity-70 transition-opacity" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>
       {icon}
-      <span className="text-[12.5px] font-bold truncate max-w-full px-1">{label}</span>
+      <span className="text-[12.5px] font-medium truncate max-w-full px-1">{label}</span>
     </button>
   );
 }
@@ -201,14 +208,14 @@ export function ProfileTile({ icon, label, onClick }: { icon: ReactNode; label: 
 /** Вкладки профиля: тёмная лента, активная жирная белая с полоской снизу (Подарки / Посты…). */
 export function ProfileTabs<T extends string>({ tabs, value, onChange, labels, right }: { tabs: T[]; value: T; onChange: (t: T) => void; labels: Record<T, string>; right?: ReactNode }) {
   return (
-    <div className="flex items-stretch mt-1 mb-3" style={{ background: "rgba(0,0,0,0.34)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+    <div className="flex items-stretch mt-1 mb-3" style={{ background: "var(--mx-surface)", borderTop: "1px solid var(--mx-line)", borderBottom: "1px solid var(--mx-line)" }}>
       <div className="flex flex-1 overflow-x-auto mx-noscrollbar">
         {tabs.map((t) => {
           const on = value === t;
           return (
-            <button key={t} onClick={() => onChange(t)} className="relative flex-1 shrink-0 px-4 h-12 text-[15px] font-extrabold whitespace-nowrap" style={{ color: on ? "#fff" : "#8b8b96", minWidth: 96 }}>
+            <button key={t} onClick={() => onChange(t)} className="relative flex-1 shrink-0 px-4 h-12 text-[15px] font-semibold whitespace-nowrap" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", minWidth: 96 }}>
               {labels[t]}
-              {on && <span className="absolute left-0 right-0 bottom-0 h-[3px] rounded-t-full" style={{ background: "#fff" }} />}
+              {on && <span className="absolute left-0 right-0 bottom-0 h-[3px] rounded-t-full" style={{ background: "var(--mx-accent)" }} />}
             </button>
           );
         })}
