@@ -382,6 +382,47 @@ function toMs(v: any): number {
 }
 
 /** Кто печатает: документы messengerChats/{id}/typing/{uid} с полем at; свежим считаем at не старше 5 с. */
+/**
+ * Кто печатает — сразу для нескольких чатов (список диалогов), без отдельного экрана чата.
+ * По одному слушателю `typing`-подколлекции на видимый чат; права доступа те же, что уже разрешают useTyping.
+ */
+export function useTypingMap(chatIds: string[], me: string): Record<string, string[]> {
+  const [raw, setRaw] = useState<Record<string, Record<string, number>>>({});
+  const key = chatIds.slice().sort().join(",");
+  useEffect(() => {
+    const ids = key ? key.split(",") : [];
+    setRaw((m) => {
+      const next: Record<string, Record<string, number>> = {};
+      ids.forEach((id) => (next[id] = m[id] ?? {}));
+      return next;
+    });
+    const subs = ids.map((id) =>
+      onSnapshot(
+        collection(db, "messengerChats", id, "typing"),
+        (snap) => {
+          const next: Record<string, number> = {};
+          snap.docs.forEach((d) => (next[d.id] = toMs(d.data()?.at)));
+          setRaw((m) => ({ ...m, [id]: next }));
+        },
+        () => {}
+      )
+    );
+    return () => subs.forEach((u) => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const now = useNow(1000);
+  return useMemo(() => {
+    const out: Record<string, string[]> = {};
+    Object.entries(raw).forEach(([chatId, m]) => {
+      out[chatId] = Object.entries(m)
+        .filter(([uid, at]) => uid !== me && now - at < 5000)
+        .map(([uid]) => uid);
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raw, me, now]);
+}
+
 export function useTyping(chatId: string | null, me: string): string[] {
   const [map, setMap] = useState<Record<string, number>>({});
   const [, force] = useState(0);
