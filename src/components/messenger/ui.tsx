@@ -229,6 +229,17 @@ export function IconBox({ color, children }: { color: string; children: ReactNod
   );
 }
 
+/** Три подпрыгивающие точки «печатает…», как в Telegram — в шапке чата и в списке диалогов. */
+export function TypingDots() {
+  return (
+    <span className="mx-typing-dots" aria-hidden>
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
 export function Spinner({ size = 20 }: { size?: number }) {
   return (
     <span
