@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("auth/email-code/send error:", err);
-    if (err?.message?.includes("Resend не настроен")) {
+    if (err?.message?.includes("не настроен")) {
       return NextResponse.json({ error: "Отправка почты не настроена на сервере — обратись к разработчику" }, { status: 500 });
     }
     return NextResponse.json({ error: "Не удалось отправить код" }, { status: 500 });
