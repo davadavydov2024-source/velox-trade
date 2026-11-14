@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
 /**
  * POST { action: "add", title, artist, audioUrl, coverUrl?, duration?, requestId? } — добавить песню (mp3 уже загружен в хранилище через upload-ticket "music").
  *      { action: "edit", id, title, artist }
+ *      { action: "replaceAudio", id, audioUrl } — заменить файл песни (сжатая версия)
  *      { action: "delete", id }
  *      { action: "reject", requestId, note? } — отклонить заявку
  * Автору заявки приходит сообщение от «MiliGram Push».
@@ -84,6 +85,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (b.action === "replaceAudio") {
+    // подмена файла песни на сжатую версию (оптимизация каталога); название, обложка, текст и счётчик остаются
+    if (!okId(b.id)) return err("id обязателен");
+    if (!isOwnMediaUrl(b.audioUrl)) return err("Аудиофайл не загружен");
+    const ref = db.collection("messengerMusicTracks").doc(b.id);
+    const t = (await ref.get()).data();
+    if (!t) return err("Трек не найден", 404);
+    await ref.update({ audioUrl: b.audioUrl });
+    if (t.audioUrl !== b.audioUrl) {
+      try {
+        const { del } = await import("@vercel/blob");
+        await del([t.audioUrl]);
+      } catch {}
+    }
+    await logAdminAccess(admin.uid, "messenger_music_replace_audio", { trackId: b.id, title: t.title });
+    return NextResponse.json({ ok: true });
+  }
+
   if (b.action === "delete") {
     if (!okId(b.id)) return err("id обязателен");
     const ref = db.collection("messengerMusicTracks").doc(b.id);
@@ -110,5 +129,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  return err("action: add | edit | lyrics | delete | reject");
+  return err("action: add | edit | lyrics | replaceAudio | delete | reject");
 }
