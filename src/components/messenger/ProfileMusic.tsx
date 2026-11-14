@@ -10,6 +10,9 @@ export function ProfileMusic({ trackId }: { trackId: string }) {
   const m = useMusic();
   const { ensureLoaded } = m;
   useEffect(() => { ensureLoaded(); }, [trackId, ensureLoaded]);
+  const { loaded, fetchTrack } = m;
+  const known = m.tracks.some((x) => x.id === trackId);
+  useEffect(() => { if (loaded && !known) fetchTrack(trackId); }, [loaded, known, trackId, fetchTrack]); // песни нет на загруженной странице каталога — спросим отдельно
   const t = m.tracks.find((x) => x.id === trackId);
   if (!t) return null;
   const on = m.current?.id === t.id;

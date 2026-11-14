@@ -65,6 +65,13 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
   }, []);
 
   const term = q.trim().toLowerCase();
+  // каталог постраничный: при поиске дополнительно спрашиваем сервер — песня может быть на ещё не загруженной странице
+  const { searchRemote, hasMore } = m;
+  useEffect(() => {
+    if (term.length < 2 || !hasMore) return;
+    const t = setTimeout(() => searchRemote(term), 350);
+    return () => clearTimeout(t);
+  }, [term, hasMore, searchRemote]);
   const list = useMemo(() => {
     let l = tab === "liked" ? m.tracks.filter((t) => m.likes.has(t.id)) : m.tracks;
     if (term) l = l.filter((t) => t.title.toLowerCase().includes(term) || t.artist.toLowerCase().includes(term));
@@ -163,7 +170,10 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
                 {(term || tab === "all") && <button className="mx-btn mx-auto mt-4" style={{ width: "auto", padding: "10px 22px" }} onClick={() => { if (term) setReqText(q.trim().slice(0, MUSIC_REQUEST_MAX)); setReqOpen(true); }}>Предложить песню</button>}
               </div>
             ) : (
-              <div className="pt-1">{list.map((t, i) => <TrackRow key={t.id} t={t} list={list} i={i} />)}</div>
+              <div className="pt-1">
+                {list.map((t, i) => <TrackRow key={t.id} t={t} list={list} i={i} />)}
+                {tab === "all" && !term && m.hasMore && <button onClick={() => m.loadMore()} className="block mx-auto my-4 px-6 h-11 rounded-full font-semibold text-[15px]" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Показать ещё</button>}
+              </div>
             )}
           </>
         ) : (

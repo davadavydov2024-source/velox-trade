@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { adminUids } from "@/lib/adminGuard";
@@ -11,20 +11,54 @@ export const dynamic = "force-dynamic";
 
 const okId = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length < 80 && !v.includes("/");
 
-/** GET — каталог треков + мои лайки + мои заявки. */
+/**
+ * GET — каталог треков + мои лайки + мои заявки. Каталог постраничный:
+ *   ?limit=150&after=<createdAt последней песни> — следующая страница;  ?q=текст — поиск;  ?ids=a,b — конкретные песни.
+ * В ответе next — курсор для следующей страницы (null, если больше нет).
+ */
 export async function GET(req: NextRequest) {
   const me = await requireMessenger(req);
   if ("error" in me) return me.error;
   const db = adminDb();
-  const [tracksSnap, likeSnap, reqSnap] = await Promise.all([
-    db.collection("messengerMusicTracks").orderBy("createdAt", "desc").limit(500).get(),
+  const sp = req.nextUrl.searchParams;
+  const limit = Math.max(10, Math.min(200, Number(sp.get("limit")) || 150));
+  const after = Number(sp.get("after")) || 0;
+  const q = (sp.get("q") ?? "").trim().toLowerCase().slice(0, 60);
+  const ids = (sp.get("ids") ?? "").split(",").map((x) => x.trim()).filter(okId).slice(0, 20);
+  const col = db.collection("messengerMusicTracks");
+  const mapDocs = (docs: QueryDocumentSnapshot[]) => docs.map((d) => ({ id: d.id, ...d.data() })) as MusicTrack[];
+
+  if (ids.length) {
+    const snaps = await Promise.all(ids.map((id) => col.doc(id).get()));
+    return NextResponse.json({ tracks: snaps.filter((s) => s.exists).map((s) => ({ id: s.id, ...s.data() })) as MusicTrack[], next: null });
+  }
+  if (q.length >= 2) {
+    const all = mapDocs((await col.orderBy("createdAt", "desc").limit(1000).get()).docs);
+    const hit = all.filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(q)).slice(0, 60);
+    return NextResponse.json({ tracks: hit, next: null });
+  }
+
+  let query = col.orderBy("createdAt", "desc");
+  if (after) query = query.startAfter(after);
+  const snap = await query.limit(limit + 1).get();
+  const hasMore = snap.docs.length > limit;
+  const tracks = mapDocs(snap.docs.slice(0, limit));
+  const next = hasMore && tracks.length ? tracks[tracks.length - 1].createdAt : null;
+  if (after) return NextResponse.json({ tracks, next });
+
+  const [likeSnap, reqSnap] = await Promise.all([
     db.collection("messengerMusicLikes").doc(me.uid).get(),
     db.collection("messengerMusicRequests").where("uid", "==", me.uid).limit(60).get(),
   ]);
-  const tracks = tracksSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as MusicTrack[];
-  const likes = ((likeSnap.data()?.ids as string[] | undefined) ?? []).filter((id) => tracks.some((t) => t.id === id));
+  const likeIds = ((likeSnap.data()?.ids as string[] | undefined) ?? []).filter(okId);
+  // любимые песни, которые не попали на первую страницу, догружаем отдельно
+  const have = new Set(tracks.map((t) => t.id));
+  const missing = likeIds.filter((id) => !have.has(id)).slice(0, 100);
+  const extra = missing.length ? (await Promise.all(missing.map((id) => col.doc(id).get()))).filter((s) => s.exists).map((s) => ({ id: s.id, ...s.data() })) as MusicTrack[] : [];
+  const all = [...tracks, ...extra];
+  const likes = likeIds.filter((id) => all.some((t) => t.id === id));
   const requests = (reqSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as MusicRequest[]).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
-  return NextResponse.json({ tracks, likes, requests });
+  return NextResponse.json({ tracks, extra, likes, requests, next });
 }
 
 /**

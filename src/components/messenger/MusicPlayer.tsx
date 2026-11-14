@@ -5,6 +5,7 @@ import { AlignLeft, ChevronDown, Heart, ListMusic, Loader2, Music2, Pause, Play,
 import { LyricsView } from "./LyricsView";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
+import { cacheTrack, getCachedBlobUrl, isSlowNet } from "@/lib/messenger/musicCache";
 import { gradientFor } from "./util";
 import type { MusicRequest, MusicTrack } from "@/lib/messenger/music";
 
@@ -18,6 +19,10 @@ type Ctl = {
   loading: boolean;
   ensureLoaded: () => void;
   reload: () => Promise<void>;
+  hasMore: boolean;
+  loadMore: () => Promise<void>;
+  fetchTrack: (id: string) => Promise<void>;
+  searchRemote: (q: string) => Promise<void>;
   current: MusicTrack | null;
   queue: MusicTrack[];
   index: number;
@@ -46,6 +51,9 @@ type Ctl = {
 };
 
 // время — в отдельном контексте: оно меняется ~4 раза в секунду, и перерисовываться должны только полосы прогресса, а не весь список треков
+/** Какой файл играть: на медленной сети или при экономии трафика — лёгкая копия (если она есть). */
+const pickSrc = (t: MusicTrack) => (t.liteUrl && isSlowNet() ? t.liteUrl : t.audioUrl);
+
 const Ctx = createContext<Ctl | null>(null);
 const TimeCtx = createContext<{ time: number; buffered: number }>({ time: 0, buffered: 0 });
 
@@ -113,6 +121,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [requests, setRequests] = useState<MusicRequest[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const nextRef = useRef<number | null>(null);
   const [queue, setQueue] = useState<MusicTrack[]>([]);
   const [index, setIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
@@ -139,6 +149,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const lastPos = useRef(0);
   const wd = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fb = useRef<{ id: string | null; obj: string | null }>({ id: null, obj: null });
+  const userVol = useRef(1); // громкость, выбранная человеком; у громких песен она дополнительно умножается на norm
+  const cacheObj = useRef<string | null>(null); // blob-ссылка на песню из кэша
+  const cachedFor = useRef<string | null>(null);
   const tryFb = useRef<(t: MusicTrack) => Promise<boolean>>(async () => false);
   const goNextRef = useRef<(auto: boolean) => void>(() => {});
   const acts = useRef<{ toggle: () => void; next: () => void; prev: () => void; seek: (t: number) => void }>({ toggle: () => {}, next: () => {}, prev: () => {}, seek: () => {} });
@@ -146,8 +159,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await mApi<{ tracks: MusicTrack[]; likes: string[]; requests: MusicRequest[] }>("music");
-      setTracks(d.tracks);
+      const d = await mApi<{ tracks: MusicTrack[]; extra?: MusicTrack[]; likes: string[]; requests: MusicRequest[]; next: number | null }>("music?limit=150");
+      setTracks([...d.tracks, ...(d.extra ?? [])]);
+      nextRef.current = d.next;
+      setHasMore(d.next != null);
       setLikes(new Set(d.likes));
       setRequests(d.requests);
       setLoaded(true);
@@ -158,6 +173,28 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
   const ensureLoaded = useCallback(() => { if (!loaded && !loading) reload(); }, [loaded, loading, reload]);
+
+  // каталог постраничный: добавляем новые песни, не дублируя уже загруженные
+  const merge = useCallback((add: MusicTrack[]) => setTracks((prev) => {
+    const have = new Set(prev.map((t) => t.id));
+    const fresh = add.filter((t) => !have.has(t.id));
+    return fresh.length ? [...prev, ...fresh] : prev;
+  }), []);
+  const loadMore = useCallback(async () => {
+    if (nextRef.current == null) return;
+    try {
+      const d = await mApi<{ tracks: MusicTrack[]; next: number | null }>(`music?limit=150&after=${nextRef.current}`);
+      merge(d.tracks);
+      nextRef.current = d.next;
+      setHasMore(d.next != null);
+    } catch { toast("error", "Не удалось подгрузить песни"); }
+  }, [merge, toast]);
+  const fetchTrack = useCallback(async (id: string) => {
+    try { merge((await mApi<{ tracks: MusicTrack[] }>(`music?ids=${encodeURIComponent(id)}`)).tracks); } catch {}
+  }, [merge]);
+  const searchRemote = useCallback(async (q: string) => {
+    try { merge((await mApi<{ tracks: MusicTrack[] }>(`music?q=${encodeURIComponent(q)}`)).tracks); } catch {}
+  }, [merge]);
 
   // play() с понятной реакцией на отказ браузера (Safari/iOS требуют запуск из нажатия)
   const safePlay = useCallback((a: HTMLAudioElement) => {
@@ -182,7 +219,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const ac = new AbortController();
     const killer = setTimeout(() => ac.abort(), 90_000);
     try {
-      const res = await fetch(t.audioUrl, { signal: ac.signal });
+      const res = await fetch(pickSrc(t), { signal: ac.signal });
       if (!res.ok) throw new Error(`сервер ответил ${res.status}`);
       const total = Number(res.headers.get("content-length")) || 0;
       let blob: Blob;
@@ -230,7 +267,22 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     counted.current = null;
     lastPos.current = 0;
     fb.current.id = null;
-    if (a.src !== t.audioUrl) a.src = t.audioUrl;
+    const src = pickSrc(t);
+    if (a.src !== src) a.src = src;
+    a.volume = Math.max(0, Math.min(1, userVol.current * (t.norm ?? 1))); // ровная громкость между песнями
+    if (cacheObj.current && cachedFor.current !== t.id) { URL.revokeObjectURL(cacheObj.current); cacheObj.current = null; cachedFor.current = null; }
+    // песня уже в кэше браузера — переключаемся на неё, старт мгновенный (в сети не нуждается)
+    getCachedBlobUrl(src).then((obj) => {
+      if (!obj) return;
+      const a2 = audioRef.current;
+      const cur = st.current.queue[st.current.index];
+      if (!a2 || !cur || cur.id !== t.id || a2.currentTime > 1.5 || a2.src.startsWith("blob:")) { URL.revokeObjectURL(obj); return; }
+      if (cacheObj.current) URL.revokeObjectURL(cacheObj.current);
+      cacheObj.current = obj;
+      cachedFor.current = t.id;
+      a2.src = obj;
+      safePlay(a2);
+    });
     setTime(0);
     setBuffered(0);
     setDuration(t.duration ?? 0);
@@ -284,7 +336,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const a = new Audio();
     a.preload = "auto";
-    try { const v = parseFloat(localStorage.getItem("mx-music-vol") ?? ""); if (Number.isFinite(v)) { a.volume = Math.max(0, Math.min(1, v)); setVolumeState(a.volume); } } catch {}
+    try { const v = parseFloat(localStorage.getItem("mx-music-vol") ?? ""); if (Number.isFinite(v)) { a.volume = Math.max(0, Math.min(1, v)); userVol.current = a.volume; setVolumeState(a.volume); } } catch {}
     audioRef.current = a;
     const bufEnd = () => {
       const b = a.buffered;
@@ -315,13 +367,26 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const onErr = () => {
       if (!a.getAttribute("src")) return; // сброс плеера (stop) — не ошибка
       const cur = st.current.queue[st.current.index];
+      if (cur && cacheObj.current && a.src === cacheObj.current) { cacheObj.current = null; a.src = pickSrc(cur); safePlay(a); return; } // битый кэш — играем из сети
+      if (cur?.liteUrl && a.src === cur.liteUrl) { a.src = cur.audioUrl; safePlay(a); return; } // лёгкая копия не открылась — основной файл
       if (cur && fb.current.id !== cur.id && !a.src.startsWith("blob:")) { tryFb.current(cur); return; } // сначала пробуем запасной путь
       setPlaying(false);
       setBuffering(false);
       const code = a.error?.code;
       toast("error", code === 4 ? "Файл не открывается: проверь, что это mp3 и ссылка рабочая" : code === 2 ? "Проблема с сетью — не удалось загрузить трек" : "Не удалось воспроизвести трек");
     };
-    const evs: [string, () => void][] = [["timeupdate", onTime], ["progress", onProgress], ["loadedmetadata", onMeta], ["durationchange", onMeta], ["play", onPlay], ["pause", onPause], ["waiting", onWait], ["loadstart", onWait], ["playing", onReady], ["canplay", onReady], ["seeked", onReady], ["ended", onEnd], ["error", onErr]];
+    // песня догрузилась: кладём в кэш её и следующую (если сеть нормальная), чтобы переключение было мгновенным
+    const onCan = () => {
+      const cur = st.current.queue[st.current.index];
+      if (!cur || a.src.startsWith("blob:") || isSlowNet()) return;
+      cacheTrack(pickSrc(cur));
+      const { queue: q, index: i, shuffle: sh, repeat: rp } = st.current;
+      if (!sh && rp !== "one") {
+        const n = i + 1 < q.length ? i + 1 : rp === "all" ? 0 : -1;
+        if (n >= 0 && q[n].id !== cur.id) cacheTrack(pickSrc(q[n]));
+      }
+    };
+    const evs: [string, () => void][] = [["timeupdate", onTime], ["canplaythrough", onCan], ["progress", onProgress], ["loadedmetadata", onMeta], ["durationchange", onMeta], ["play", onPlay], ["pause", onPause], ["waiting", onWait], ["loadstart", onWait], ["playing", onReady], ["canplay", onReady], ["seeked", onReady], ["ended", onEnd], ["error", onErr]];
     evs.forEach(([n, f]) => a.addEventListener(n, f));
     if (ms) {
       try {
@@ -360,7 +425,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !current) return;
-    if (a.src === current.audioUrl || (fb.current.id === current.id && a.src.startsWith("blob:"))) return; // этот трек уже загружен (запущен из клика)
+    if (a.src === pickSrc(current) || a.src === current.audioUrl || ((fb.current.id === current.id || cachedFor.current === current.id) && a.src.startsWith("blob:"))) return; // этот трек уже загружен (запущен из клика)
     startTrack(a, current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId]);
@@ -401,12 +466,14 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     if (wd.current) clearTimeout(wd.current);
     if (a) { a.pause(); a.removeAttribute("src"); }
     if (fb.current.obj) { URL.revokeObjectURL(fb.current.obj); fb.current.obj = null; }
+    if (cacheObj.current) { URL.revokeObjectURL(cacheObj.current); cacheObj.current = null; cachedFor.current = null; }
     setQueue([]); setIndex(-1); setPlaying(false); setBuffering(false); setTime(0); setDuration(0); setExpanded(false);
   }, []);
   const setVolume = useCallback((v: number) => {
     const a = audioRef.current;
     const x = Math.max(0, Math.min(1, v));
-    if (a) a.volume = x;
+    userVol.current = x;
+    if (a) { const c = st.current.queue[st.current.index]; a.volume = Math.max(0, Math.min(1, x * (c?.norm ?? 1))); }
     setVolumeState(x);
     try { localStorage.setItem("mx-music-vol", String(x)); } catch {}
   }, []);
@@ -425,11 +492,11 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const status = loadPct !== null ? `Загрузка ${Math.round(loadPct * 100)}%` : buffering && slow ? "Слабый интернет — идёт загрузка…" : buffering && !playing ? "Загрузка…" : "";
   const value = useMemo<Ctl>(() => ({
-    tracks, likes, requests, loaded, loading, ensureLoaded, reload, current, queue, index, playing, buffering, status, duration, shuffle, repeat, volume, expanded, pageOpen,
+    tracks, likes, requests, loaded, loading, ensureLoaded, reload, hasMore, loadMore, fetchTrack, searchRemote, current, queue, index, playing, buffering, status, duration, shuffle, repeat, volume, expanded, pageOpen,
     setVolume, setExpanded, setPageOpen, playQueue, toggle, next, prev, seek, stop, toggleLike,
     toggleShuffle: () => setShuffle((v) => !v),
     cycleRepeat: () => setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off")),
-  }), [tracks, likes, requests, loaded, loading, ensureLoaded, reload, current, queue, index, playing, buffering, status, duration, shuffle, repeat, volume, expanded, pageOpen, setVolume, playQueue, toggle, next, prev, seek, stop, toggleLike]);
+  }), [tracks, likes, requests, loaded, loading, ensureLoaded, reload, hasMore, loadMore, fetchTrack, searchRemote, current, queue, index, playing, buffering, status, duration, shuffle, repeat, volume, expanded, pageOpen, setVolume, playQueue, toggle, next, prev, seek, stop, toggleLike]);
   const timeVal = useMemo(() => ({ time, buffered }), [time, buffered]);
 
   return (

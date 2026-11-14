@@ -3,7 +3,7 @@
  * Это обычное перекодирование, ИИ тут не нужен: 320 kbps → 128 kbps уменьшает файл в ~2,5 раза почти без потери качества на слух.
  * Энкодер lamejs подгружается с CDN только при сжатии; если не получилось — вызывающий код загружает исходный файл.
  */
-export interface CompressResult { file: File; before: number; after: number; compressed: boolean }
+export interface CompressResult { file: File; before: number; after: number; compressed: boolean; norm?: number }
 
 type Mp3EncoderCtor = new (channels: number, sampleRate: number, kbps: number) => { encodeBuffer(l: Int16Array, r?: Int16Array): Int8Array; flush(): Int8Array };
 
@@ -38,6 +38,16 @@ export async function compressAudio(file: File, kbps = 128, onProgress?: (ratio:
     const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
     buf = await off.startRendering(); rate = 44100;
   }
+  // громкость: RMS по выборке; песни громче -16 dBFS получают множитель <1, чтобы все звучали ровно (тихие не трогаем)
+  let norm = 1;
+  try {
+    const d0 = buf.getChannelData(0);
+    let sum = 0, n = 0;
+    for (let i = 0; i < d0.length; i += 7) { sum += d0[i] * d0[i]; n++; }
+    const rmsDb = n ? 10 * Math.log10(sum / n + 1e-12) : -16;
+    norm = Math.max(0.25, Math.min(1, Math.pow(10, (-16 - rmsDb) / 20)));
+    norm = Math.round(norm * 1000) / 1000;
+  } catch {}
   const ch = Math.min(2, buf.numberOfChannels);
   const left = toInt16(buf.getChannelData(0));
   const right = ch === 2 ? toInt16(buf.getChannelData(1)) : undefined;
@@ -55,6 +65,6 @@ export async function compressAudio(file: File, kbps = 128, onProgress?: (ratio:
   onProgress?.(1);
 
   const blob = new Blob(parts, { type: "audio/mpeg" });
-  if (blob.size >= before * 0.95) return { file, before, after: before, compressed: false }; // не выиграли — оставляем оригинал
-  return { file: new File([blob], file.name.replace(/\.[^.]+$/, "") + ".mp3", { type: "audio/mpeg" }), before, after: blob.size, compressed: true };
+  if (blob.size >= before * 0.95) return { file, before, after: before, compressed: false, norm }; // не выиграли — оставляем оригинал
+  return { file: new File([blob], file.name.replace(/\.[^.]+$/, "") + ".mp3", { type: "audio/mpeg" }), before, after: blob.size, compressed: true, norm };
 }

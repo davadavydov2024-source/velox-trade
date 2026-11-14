@@ -93,3 +93,18 @@ export function makeCover(title: string, artist: string): Promise<File | null> {
     } catch { resolve(null); }
   });
 }
+
+/** Отпечаток файла (SHA-256 от размера, начала и конца) — чтобы не добавлять одну и ту же песню дважды. */
+export async function fileFingerprint(blob: Blob): Promise<string> {
+  try {
+    const head = new Uint8Array(await blob.slice(0, 256 * 1024).arrayBuffer());
+    const tail = new Uint8Array(await blob.slice(Math.max(0, blob.size - 64 * 1024)).arrayBuffer());
+    const meta = new TextEncoder().encode(`${blob.size}:`);
+    const all = new Uint8Array(meta.length + head.length + tail.length);
+    all.set(meta, 0); all.set(head, meta.length); all.set(tail, meta.length + head.length);
+    const h = new Uint8Array(await crypto.subtle.digest("SHA-256", all));
+    return Array.from(h.slice(0, 16)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return "";
+  }
+}

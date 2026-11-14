@@ -5,7 +5,8 @@ import { Check, Upload, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadMedia } from "@/lib/messenger/client";
 import { compressAudio } from "@/lib/messenger/compressAudio";
-import { makeCover, readId3 } from "@/lib/messenger/id3";
+import { fileFingerprint, makeCover, readId3 } from "@/lib/messenger/id3";
+import { shrinkImage } from "@/lib/messenger/image";
 import { useToast } from "@/lib/toastContext";
 import { Spinner } from "./ui";
 
@@ -32,7 +33,7 @@ async function addTrack(body: unknown) {
 }
 
 /** Массовая загрузка: выбираешь сразу много файлов — название, исполнитель и обложка берутся из тегов, песня сжимается, всё грузится по очереди. */
-export function BulkMusicUpload({ existing, onDone }: { existing: { title: string; artist: string }[]; onDone: () => void }) {
+export function BulkMusicUpload({ existing, onDone }: { existing: { title: string; artist: string; fp?: string }[]; onDone: () => void }) {
   const { toast } = useToast();
   const [items, setItems] = useState<Item[]>([]);
   const [rights, setRights] = useState(false);
@@ -60,7 +61,8 @@ export function BulkMusicUpload({ existing, onDone }: { existing: { title: strin
     for (const it of items) {
       if (it.status === "ok") continue;
       const dup = existing.some((t) => t.title.toLowerCase() === it.title.toLowerCase() && t.artist.toLowerCase() === it.artist.toLowerCase());
-      if (dup) { set(it.id, { status: "err", note: "Уже есть в каталоге" }); continue; }
+      const fp = await fileFingerprint(it.file);
+      if (dup || (fp && existing.some((t) => t.fp === fp))) { set(it.id, { status: "err", note: "Уже есть в каталоге" }); continue; }
       try {
         set(it.id, { status: "work", note: "Сжимаю…" });
         let up: File = it.file;
@@ -74,16 +76,26 @@ export function BulkMusicUpload({ existing, onDone }: { existing: { title: strin
         const type = up.type && up.type.startsWith("audio/") ? up.type : AUDIO_TYPE[ext] ?? "audio/mpeg";
         set(it.id, { note: "Загружаю…" });
         const audioUrl = await uploadMedia(new File([up], up.name, { type }), "music", ext);
+        // лёгкая копия для медленного интернета + громкость
+        let liteUrl: string | undefined;
+        let norm: number | undefined;
+        try {
+          set(it.id, { note: "Лёгкая копия…" });
+          const l = await compressAudio(up, 64);
+          norm = l.norm;
+          if (l.compressed && l.file.size < 30 * 1024 * 1024) liteUrl = await uploadMedia(l.file, "music", "mp3");
+        } catch {}
         const tags = await readId3(it.file);
         let cover: File | null = null;
         if (tags.cover && tags.cover.data.length < 4.5 * 1024 * 1024) {
           const ce = tags.cover.mime === "image/png" ? "png" : "jpg";
           cover = new File([tags.cover.data as BlobPart], `cover.${ce}`, { type: tags.cover.mime });
+          cover = (await shrinkImage(cover, 512)) ?? cover; // обложка 512 px вместо мегабайтов
         } else cover = await makeCover(it.title, it.artist || "MiliGram");
         let coverUrl: string | undefined;
         if (cover) coverUrl = await uploadMedia(cover, "music-cover", cover.name.endsWith("png") ? "png" : "jpg");
         const duration = await readDuration(it.file);
-        await addTrack({ action: "add", title: it.title, artist: it.artist, audioUrl, coverUrl, duration });
+        await addTrack({ action: "add", title: it.title, artist: it.artist, audioUrl, coverUrl, duration, ...(liteUrl ? { liteUrl } : {}), ...(norm !== undefined ? { norm } : {}), ...(fp ? { fp } : {}) });
         set(it.id, { status: "ok", note: undefined });
         ok++;
       } catch (e: any) {
