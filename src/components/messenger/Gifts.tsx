@@ -9,6 +9,7 @@ import { NftFigure, hasNftFigure } from "./NftFigures";
 import { NftDetails, NftHero } from "./NftHero";
 import { GiftTile } from "./GiftTile";
 import { ActionBtn, RevealSheet, UpgradeSheet, type UpgradeResult } from "./GiftUpgrade";
+import { isGiftMsgOpened } from "./GiftReceive";
 import { NFT_SYMBOL_CHARS, NFT_TIERS, backdropOf, isSpecialNumber, modelOf, nftComboChance, nftTier, nftValue, rarityPct, rollNft, symbolOf } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Avatar, Sheet, Spinner, Switch } from "./ui";
@@ -569,19 +570,25 @@ export function GiftsProfileTab({ uid, mine, name, onChanged }: { uid: string; m
 
 /* ───────────── Карточка подарка в чате ───────────── */
 
-export function GiftMessageCard({ giftId, text, price, mine, senderName, anonymous, toName, nft }: { docId?: string; giftId: string; text?: string; price: number; mine: boolean; senderName: string; anonymous?: boolean; toName: string; nft?: GiftNft }) {
+export function GiftMessageCard({ msgId, giftId, text, price, mine, senderName, anonymous, toName, nft, onOpen }: {
+  msgId: string; giftId: string; giftDocId?: string; text?: string; price: number; mine: boolean; senderName: string; anonymous?: boolean; toName: string; nft?: GiftNft; onOpen: () => void;
+}) {
   const g = giftById(giftId);
   if (!g) return null;
   const who = mine ? "Вы отправили подарок" : anonymous ? "Вам отправили подарок" : `${senderName} отправил(а) подарок`;
+  const opened = mine || isGiftMsgOpened(msgId);
   return (
     <div className="flex justify-center my-3">
-      <div className="mx-glass rounded-2xl px-6 py-4 flex flex-col items-center text-center" style={{ maxWidth: 260 }}>
+      <button onClick={onOpen} className="mx-glass rounded-2xl px-6 py-4 flex flex-col items-center text-center mx-gift-tap" style={{ maxWidth: 260 }}>
         <p className="text-[13.5px] mx-muted">{mine ? `${who} — ${toName}` : who}</p>
-        <div className="my-2"><GiftArt gift={g} size={120} nft={nft} /></div>
+        <div className="my-2 relative">
+          <GiftArt gift={g} size={120} nft={nft} />
+          {!opened && <span className="absolute -top-1 -right-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text, #fff)" }}>Открыть</span>}
+        </div>
         <p className="font-semibold">{g.title}{nft ? ` #${nft.number}` : ""}</p>
         <p className="mx-muted text-[12.5px]">{money(price)}</p>
         {text && <p className="mt-2 text-[14px] whitespace-pre-wrap">{text}</p>}
-      </div>
+      </button>
     </div>
   );
 }

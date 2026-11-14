@@ -7,12 +7,14 @@ import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loa
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
+import { GiftReceiveSheet } from "./GiftReceive";
 import { GiveawayCard } from "./Giveaway";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
 import { emojiOnlyCount, formatDuration, formatTime, gradientFor, isVideoUrl } from "./util";
 import { StickerMedia } from "./StickerMedia";
 import { mApi, MApiError } from "./api";
+import { LinkPreviewCard } from "./LinkPreview";
 import { useToast } from "@/lib/toastContext";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
@@ -214,6 +216,7 @@ function MessageRowImpl({
   const author = accounts[msg.from];
   const rowRef = useRef<HTMLDivElement>(null);
   const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
+  const [giftOpen, setGiftOpen] = useState(false);
 
   if (msg.kind === "system") {
     return (
@@ -226,7 +229,36 @@ function MessageRowImpl({
   if (msg.kind === "gift" && msg.gift) {
     return (
       <div data-mid={msg.id}>
-        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
+        <GiftMessageCard
+          msgId={msg.id}
+          giftId={msg.gift.giftId}
+          giftDocId={msg.gift.giftDocId}
+          text={msg.text}
+          price={msg.gift.price}
+          mine={mine}
+          anonymous={msg.gift.anonymous}
+          nft={msg.gift.nft}
+          senderName={author?.displayName ?? "Собеседник"}
+          toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"}
+          me={me}
+          toUid={msg.gift.to}
+          onOpen={() => setGiftOpen(true)}
+        />
+        <GiftReceiveSheet
+          open={giftOpen}
+          onClose={() => setGiftOpen(false)}
+          msgId={msg.id}
+          giftId={msg.gift.giftId}
+          giftDocId={msg.gift.giftDocId}
+          price={msg.gift.price}
+          text={msg.text}
+          mine={mine}
+          anonymous={msg.gift.anonymous}
+          senderName={author?.displayName ?? "Собеседник"}
+          toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"}
+          me={me}
+          toUid={msg.gift.to}
+        />
       </div>
     );
   }
@@ -459,11 +491,13 @@ function MessageRowImpl({
       </div>
     );
   } else {
+    const firstUrl = !msg.deletedForAll ? (msg.text ?? "").match(URL_RE)?.[0] : undefined;
     content = (
       <>
         <span className="whitespace-pre-wrap">
           <Linkified text={msg.text ?? ""} />
         </span>
+        {firstUrl && <LinkPreviewCard url={firstUrl} mine={mine} />}
         {meta}
         <div className="clear-both" />
       </>
