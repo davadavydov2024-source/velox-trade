@@ -39,17 +39,55 @@ const toInt16Chunk = (f: Float32Array, from: number, to: number): Int16Array => 
   return o;
 };
 
+/** Что это за файл на самом деле (по первым байтам) — для понятной ошибки. */
+export async function sniffAudio(blob: Blob): Promise<string> {
+  try {
+    const u = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+    const t = String.fromCharCode(...u.slice(0, 12));
+    const mb = (blob.size / 1048576).toFixed(1) + " МБ";
+    if (blob.size < 2048) return `файл почти пустой (${blob.size} байт)`;
+    if (t.startsWith("ID3")) return `MP3 с тегами, ${mb}`;
+    if (u[0] === 0xff && (u[1] & 0xe0) === 0xe0) return `MP3, ${mb}`;
+    if (t.startsWith("fLaC")) return `FLAC, ${mb}`;
+    if (t.startsWith("OggS")) return `OGG, ${mb}`;
+    if (t.startsWith("RIFF")) return `WAV/RIFF, ${mb}`;
+    if (t.slice(4, 8) === "ftyp") return `MP4/M4A, ${mb}`;
+    if (u[0] === 0x1a && u[1] === 0x45) return `WebM/MKV, ${mb}`;
+    if (/^\s*</.test(t)) return `это НЕ аудио, а HTML/XML-страница (${mb})`;
+    if (/^[{\[]/.test(t)) return `это НЕ аудио, а JSON/текст (${mb})`;
+    return `неизвестный формат (${Array.from(u.slice(0, 6)).map((x) => x.toString(16).padStart(2, "0")).join(" ")}), ${mb}`;
+  } catch { return "не удалось определить формат"; }
+}
+
+/** MP3: выкидываем ID3-теги/мусор в начале и ищем первый настоящий кадр — Chrome иногда не декодирует файлы с большими тегами/обложками. */
+function stripToFrames(ab: ArrayBuffer): ArrayBuffer | null {
+  const u = new Uint8Array(ab);
+  let i = 0;
+  if (u[0] === 0x49 && u[1] === 0x44 && u[2] === 0x33) i = 10 + (((u[6] & 0x7f) << 21) | ((u[7] & 0x7f) << 14) | ((u[8] & 0x7f) << 7) | (u[9] & 0x7f));
+  for (; i < u.length - 4; i++) {
+    if (u[i] === 0xff && (u[i + 1] & 0xe0) === 0xe0 && (u[i + 1] & 0x18) !== 0x08 && (u[i + 2] & 0xf0) !== 0xf0 && (u[i + 2] & 0x0c) !== 0x0c) return ab.slice(i);
+  }
+  return null;
+}
+
 async function decode(file: File): Promise<AudioBuffer> {
   const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
   const ctx = new AC();
+  const run = (ab: ArrayBuffer) => new Promise<AudioBuffer>((res, rej) => {
+    const r = ctx.decodeAudioData(ab, res, (e) => rej(e || new Error("decode failed")));
+    if (r && typeof (r as any).catch === "function") (r as any).catch(rej);
+  });
   try {
     const ab = await file.arrayBuffer();
-    return await new Promise<AudioBuffer>((res, rej) => {
-      const r = ctx.decodeAudioData(ab, res, (e) => rej(e || new Error("decode failed")));
-      if (r && typeof (r as any).catch === "function") (r as any).catch(rej);
-    });
+    try { return await run(ab.slice(0)); }
+    catch (e1) {
+      const cut = stripToFrames(ab);
+      if (cut && cut.byteLength < ab.byteLength) { try { return await run(cut); } catch {} }
+      if (cut) { try { return await run(cut.slice(0, cut.byteLength - (cut.byteLength % 4))); } catch {} }
+      throw e1;
+    }
   } catch (e: any) {
-    throw new Error("Не удалось декодировать звук (" + (e?.message || e?.name || "формат не поддерживается или не хватает памяти") + ")");
+    throw new Error("Не удалось декодировать звук — " + (await sniffAudio(file)) + " (" + (e?.message || e?.name || "ошибка") + ")");
   } finally { ctx.close().catch(() => {}); }
 }
 
