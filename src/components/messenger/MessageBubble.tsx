@@ -240,8 +240,6 @@ function MessageRowImpl({
           nft={msg.gift.nft}
           senderName={author?.displayName ?? "Собеседник"}
           toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"}
-          me={me}
-          toUid={msg.gift.to}
           onOpen={() => setGiftOpen(true)}
         />
         <GiftReceiveSheet
