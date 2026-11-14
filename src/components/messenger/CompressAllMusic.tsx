@@ -108,8 +108,8 @@ export function CompressAllMusic({ tracks, onDone }: { tracks: MusicTrack[]; onD
                   liteUrl = await uploadMedia(l.file, "music", "mp3");
                 }
               }
-            } catch {
-              throw new Error("Файл не читается (повреждён или неподдерживаемый формат)");
+            } catch (e: any) {
+              throw new Error(String(e?.message || "Не удалось сжать файл"));
             }
           }
           if ((out !== src || badType) && out.size <= 30 * MB) {

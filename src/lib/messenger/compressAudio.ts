@@ -10,26 +10,53 @@ type Mp3EncoderCtor = new (channels: number, sampleRate: number, kbps: number) =
 let encoderPromise: Promise<Mp3EncoderCtor> | null = null;
 function loadEncoder(): Promise<Mp3EncoderCtor> {
   if (!encoderPromise) {
-    const url: string = "https://cdn.jsdelivr.net/npm/@breezystack/lamejs@1/+esm"; // адрес в переменной, чтобы TypeScript и webpack не пытались его собрать
-    encoderPromise = (import(/* webpackIgnore: true */ url) as Promise<any>).then((m: any) => (m.Mp3Encoder ?? m.default?.Mp3Encoder) as Mp3EncoderCtor);
+    // сначала свой файл с этого же сайта (/public/vendor/lamejs.js), потом запасные CDN
+    const urls: string[] = [
+      "/vendor/lamejs.js",
+      "https://cdn.jsdelivr.net/npm/@breezystack/lamejs@1.2.7/dist/lamejs.js",
+      "https://unpkg.com/@breezystack/lamejs@1.2.7/dist/lamejs.js",
+    ];
+    encoderPromise = (async () => {
+      let last = "";
+      for (const u of urls) {
+        try {
+          const m: any = await import(/* webpackIgnore: true */ (u.startsWith("/") ? location.origin + u : u) as string);
+          const E = m.Mp3Encoder ?? m.default?.Mp3Encoder;
+          if (E) return E as Mp3EncoderCtor;
+          last = "в модуле нет Mp3Encoder";
+        } catch (e: any) { last = String(e?.message || e); }
+      }
+      throw new Error("Не загрузился MP3-кодировщик: " + last);
+    })();
     encoderPromise.catch(() => { encoderPromise = null; });
   }
   return encoderPromise;
 }
 
-const toInt16 = (f: Float32Array): Int16Array => {
-  const o = new Int16Array(f.length);
-  for (let i = 0; i < f.length; i++) { const s = Math.max(-1, Math.min(1, f[i])); o[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+const toInt16Chunk = (f: Float32Array, from: number, to: number): Int16Array => {
+  const o = new Int16Array(to - from);
+  for (let i = from; i < to; i++) { const s = Math.max(-1, Math.min(1, f[i])); o[i - from] = s < 0 ? s * 0x8000 : s * 0x7fff; }
   return o;
 };
+
+async function decode(file: File): Promise<AudioBuffer> {
+  const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+  const ctx = new AC();
+  try {
+    const ab = await file.arrayBuffer();
+    return await new Promise<AudioBuffer>((res, rej) => {
+      const r = ctx.decodeAudioData(ab, res, (e) => rej(e || new Error("decode failed")));
+      if (r && typeof (r as any).catch === "function") (r as any).catch(rej);
+    });
+  } catch (e: any) {
+    throw new Error("Не удалось декодировать звук (" + (e?.message || e?.name || "формат не поддерживается или не хватает памяти") + ")");
+  } finally { ctx.close().catch(() => {}); }
+}
 
 export async function compressAudio(file: File, kbps = 128, onProgress?: (ratio: number) => void): Promise<CompressResult> {
   const before = file.size;
   const Enc = await loadEncoder();
-  const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-  const ctx = new AC();
-  let buf: AudioBuffer;
-  try { buf = await ctx.decodeAudioData(await file.arrayBuffer()); } finally { ctx.close().catch(() => {}); }
+  let buf: AudioBuffer = await decode(file);
 
   // lamejs надёжно работает на 44.1/48/32 кГц — остальное приводим к 44.1
   let rate = buf.sampleRate;
@@ -49,16 +76,17 @@ export async function compressAudio(file: File, kbps = 128, onProgress?: (ratio:
     norm = Math.round(norm * 1000) / 1000;
   } catch {}
   const ch = Math.min(2, buf.numberOfChannels);
-  const left = toInt16(buf.getChannelData(0));
-  const right = ch === 2 ? toInt16(buf.getChannelData(1)) : undefined;
+  const L = buf.getChannelData(0);
+  const R = ch === 2 ? buf.getChannelData(1) : undefined;
   const enc = new Enc(ch, rate, ch === 1 ? Math.min(kbps, 96) : kbps);
 
   const parts: BlobPart[] = [];
   const STEP = 1152 * 20;
-  for (let i = 0; i < left.length; i += STEP) {
-    const out = right ? enc.encodeBuffer(left.subarray(i, i + STEP), right.subarray(i, i + STEP)) : enc.encodeBuffer(left.subarray(i, i + STEP));
+  for (let i = 0; i < L.length; i += STEP) {
+    const e = Math.min(L.length, i + STEP);
+    const out = R ? enc.encodeBuffer(toInt16Chunk(L, i, e), toInt16Chunk(R, i, e)) : enc.encodeBuffer(toInt16Chunk(L, i, e));
     if (out.length) parts.push(new Uint8Array(out));
-    if ((i / STEP) % 25 === 0) { onProgress?.(i / left.length); await new Promise((r) => setTimeout(r)); } // отдаём управление браузеру
+    if ((i / STEP) % 25 === 0) { onProgress?.(i / L.length); await new Promise((r) => setTimeout(r)); } // отдаём управление браузеру
   }
   const tail = enc.flush();
   if (tail.length) parts.push(new Uint8Array(tail));
