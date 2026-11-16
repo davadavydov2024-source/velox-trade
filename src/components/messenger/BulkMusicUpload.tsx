@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Upload, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadMedia } from "@/lib/messenger/client";
-import { compressAudio } from "@/lib/messenger/compressAudio";
+import { checkAudio, compressAudio } from "@/lib/messenger/compressAudio";
 import { fileFingerprint, makeCover, readId3 } from "@/lib/messenger/id3";
 import { shrinkImage } from "@/lib/messenger/image";
 import { useToast } from "@/lib/toastContext";
@@ -61,6 +61,8 @@ export function BulkMusicUpload({ existing, onDone }: { existing: { title: strin
     for (const it of items) {
       if (it.status === "ok") continue;
       const dup = existing.some((t) => t.title.toLowerCase() === it.title.toLowerCase() && t.artist.toLowerCase() === it.artist.toLowerCase());
+      const bad = await checkAudio(it.file);
+      if (bad) { set(it.id, { status: "err", note: "Не добавлено: " + bad }); continue; }
       const fp = await fileFingerprint(it.file);
       if (dup || (fp && existing.some((t) => t.fp === fp))) { set(it.id, { status: "err", note: "Уже есть в каталоге" }); continue; }
       try {
