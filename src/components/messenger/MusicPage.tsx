@@ -8,6 +8,8 @@ import { mApi, MApiError } from "./api";
 import { PageHeader, Sheet, Spinner } from "./ui";
 import { Equalizer, fmtTime, TrackCover, useMusic } from "./MusicPlayer";
 import { MusicDiagSheet } from "./MusicDiag";
+import { BulkMusicUpload } from "./BulkMusicUpload";
+import { authedFetch } from "@/lib/authedFetch";
 
 type Tab = "all" | "liked" | "requests";
 
@@ -55,6 +57,13 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
   const [reqText, setReqText] = useState("");
   const [sending, setSending] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  const [worker, setWorker] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    authedFetch("/api/messenger/music-worker").then((r) => (r.ok ? r.json() : null)).then((d) => { if (live && d?.worker) setWorker(true); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   const { setPageOpen, ensureLoaded } = m;
   useEffect(() => {
@@ -118,6 +127,15 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
             <button onClick={() => setReqOpen(true)} className="px-3.5 py-2 rounded-full text-[14px] font-semibold shrink-0 active:scale-95 transition-transform" style={{ background: "#fff", color: "#111" }}>Предложить</button>
           </div>
         </div>
+
+        {worker && (
+          <div className="px-4 pt-3">
+            <button onClick={() => setAddOpen(true)} className="mx-card w-full px-4 py-3 flex items-center gap-3 text-left active:opacity-80">
+              <Music2 size={20} style={{ color: "var(--mx-accent)" }} />
+              <span className="flex-1 min-w-0"><span className="block text-[15px] font-medium">Добавить песни</span><span className="block text-[12.5px] mx-muted">Ты помощник по музыке — можно загружать треки</span></span>
+            </button>
+          </div>
+        )}
 
         {/* поиск */}
         <div className="px-4 pt-3">
@@ -202,6 +220,9 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
 
       <MusicDiagSheet open={diagOpen} onClose={() => setDiagOpen(false)} track={m.current ?? m.tracks[0] ?? null} />
 
+      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Добавить песни">
+        <div className="pb-8"><BulkMusicUpload existing={[]} onDone={() => m.reload()} /></div>
+      </Sheet>
       <Sheet open={reqOpen} onClose={() => setReqOpen(false)} title="Предложить песню">
         <div className="px-5 pb-8 flex flex-col gap-3">
           <p className="mx-muted text-[14px]">Напиши исполнителя и название. Заявка придёт администратору, а когда песня появится — мы сообщим в «MiliGram Push».</p>

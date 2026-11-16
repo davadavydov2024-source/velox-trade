@@ -11,6 +11,7 @@ import { Spinner } from "./ui";
 import { fmtTime, TrackCover } from "./MusicPlayer";
 import { BulkMusicUpload } from "./BulkMusicUpload";
 import { CompressAllMusic } from "./CompressAllMusic";
+import { MusicWorkersAdmin } from "./MusicWorkersAdmin";
 
 type AdminRequest = MusicRequest & { userName?: string };
 
@@ -223,6 +224,8 @@ export function AdminMusic() {
           </button>
         ))}
       </div>
+
+      <MusicWorkersAdmin />
 
       <CompressAllMusic tracks={tracks ?? []} onDone={load} />
 

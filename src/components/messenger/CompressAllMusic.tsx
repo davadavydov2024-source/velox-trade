@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Zap } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadMedia } from "@/lib/messenger/client";
-import { compressAudio } from "@/lib/messenger/compressAudio";
+import { checkAudio, compressAudio } from "@/lib/messenger/compressAudio";
 import { fileFingerprint } from "@/lib/messenger/id3";
 import { shrinkImage } from "@/lib/messenger/image";
 import { useToast } from "@/lib/toastContext";
@@ -12,7 +12,7 @@ import type { MusicTrack } from "@/lib/messenger/music";
 import { Spinner } from "./ui";
 
 type St = "wait" | "work" | "ok" | "skip" | "err";
-interface Row { id: string; label: string; st: St; note?: string }
+interface Row { id: string; label: string; st: St; note?: string; dead?: boolean }
 const MB = 1048576;
 
 /** Размер и тип файла без скачивания: HEAD, а если не вышло — запрос одного байта с Range. */
@@ -51,6 +51,18 @@ export function CompressAllMusic({ tracks, onDone }: { tracks: MusicTrack[]; onD
 
   const set = (id: string, p: Partial<Row>) => setRows((a) => a.map((x) => (x.id === id ? { ...x, ...p } : x)));
 
+  const dead = rows.filter((r) => r.dead);
+  const removeDead = async () => {
+    if (running || !dead.length) return;
+    if (!confirm(`Удалить с сайта ${dead.length} нерабочих песен? Это нельзя отменить.`)) return;
+    let n = 0;
+    for (const r of dead) {
+      try { await admin({ action: "delete", id: r.id }); n++; setRows((a) => a.filter((x) => x.id !== r.id)); } catch {}
+    }
+    toast("success", `Удалено нерабочих песен: ${n}`);
+    onDone();
+  };
+
   const run = async () => {
     if (running || !tracks.length) return;
     if (!confirm(`Оптимизировать ${tracks.length} песен (основной файл ${kbps} кбит/с, лёгкая копия, громкость, обложки)? Это долго, нужен включённый экран. Лучше на компьютере.`)) return;
@@ -86,6 +98,8 @@ export function CompressAllMusic({ tracks, onDone }: { tracks: MusicTrack[]; onD
           const res = await fetch(t.audioUrl);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const blob = await res.blob();
+          const bad = await checkAudio(blob);
+          if (bad) { failed++; set(t.id, { st: "err", dead: true, note: "Нерабочий файл: " + bad }); continue; }
           if (needFp) { const fp = await fileFingerprint(blob); if (fp) meta.fp = fp; }
           const src = new File([blob], "track.mp3", { type: blob.type || "audio/mpeg" });
           let out: File = src;
@@ -167,6 +181,7 @@ export function CompressAllMusic({ tracks, onDone }: { tracks: MusicTrack[]; onD
           {running
             ? <button className="mx-btn" onClick={() => { stop.current = true; }}>Остановить после текущей</button>
             : <button className="mx-btn flex items-center justify-center gap-2" disabled={!tracks.length} onClick={run}><Zap size={18} />Оптимизировать все песни ({tracks.length})</button>}
+          {!running && dead.length > 0 && <button className="mx-btn" onClick={removeDead}>Удалить нерабочие ({dead.length})</button>}
           {summary && <p className="text-[13.5px]" style={{ color: "var(--mx-accent)" }}>{summary}</p>}
         </div>
         {rows.length > 0 && (

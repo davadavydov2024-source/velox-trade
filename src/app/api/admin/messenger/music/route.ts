@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { requireAdmin, logAdminAccess } from "@/lib/adminGuard";
+import { logAdminAccess } from "@/lib/adminGuard";
+import { requireAdminOrWorker } from "@/lib/messenger/musicWorkers";
 import { isOwnMediaUrl, sendServiceMessage } from "@/lib/messenger/server";
 import type { MusicRequest, MusicTrack } from "@/lib/messenger/music";
 
@@ -22,8 +23,9 @@ const okId = (v: unknown): v is string => typeof v === "string" && v.length > 0 
 
 /** GET — каталог и заявки (новые сверху). */
 export async function GET(req: NextRequest) {
-  const admin = await requireAdmin(req);
+  const admin = await requireAdminOrWorker(req);
   if ("error" in admin) return admin.error;
+  if (admin.role !== "admin") return err("Доступ только для администраторов", 403);
   const db = adminDb();
   const [t, r] = await Promise.all([
     db.collection("messengerMusicTracks").orderBy("createdAt", "desc").limit(500).get(),
@@ -49,10 +51,13 @@ export async function GET(req: NextRequest) {
  * Автору заявки приходит сообщение от «MiliGram Push».
  */
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin(req);
+  const admin = await requireAdminOrWorker(req);
   if ("error" in admin) return admin.error;
   const b = await req.json().catch(() => ({}));
   const db = adminDb();
+  // помощник по музыке может только добавлять песни (без заявок, правок и удаления)
+  if (admin.role === "worker" && b.action !== "add") return err("Помощник может только добавлять песни", 403);
+  if (admin.role === "worker") delete b.requestId;
 
   if (b.action === "add") {
     const title = clean(b.title, 120);
@@ -61,12 +66,21 @@ export async function POST(req: NextRequest) {
     if (!isOwnMediaUrl(b.audioUrl)) return err("Аудиофайл не загружен");
     if (b.coverUrl && !isOwnMediaUrl(b.coverUrl)) return err("Некорректная обложка");
     const duration = typeof b.duration === "number" && b.duration > 0 && b.duration < 6 * 3600 ? Math.round(b.duration) : undefined;
+    // защита от дублей на сервере (по отпечатку файла и по точному названию + исполнителю)
+    if (typeof b.fp === "string" && b.fp) {
+      const d1 = await db.collection("messengerMusicTracks").where("fp", "==", b.fp).limit(1).get();
+      if (!d1.empty) return err("Такая песня уже есть в каталоге", 409);
+    }
+    {
+      const d2 = await db.collection("messengerMusicTracks").where("title", "==", title).limit(20).get();
+      if (d2.docs.some((x) => String(x.data().artist ?? "").toLowerCase() === artist.toLowerCase())) return err("Такая песня уже есть в каталоге", 409);
+    }
     const ref = db.collection("messengerMusicTracks").doc();
     const extra = metaFrom(b);
     if (extra === null) return err("Некорректные данные оптимизации");
-    const track = { ...extra, title, artist, audioUrl: b.audioUrl, ...(b.coverUrl ? { coverUrl: b.coverUrl } : {}), ...(duration ? { duration } : {}), plays: 0, createdAt: Date.now(), addedBy: admin.uid };
+    const track = { ...extra, title, artist, audioUrl: b.audioUrl, ...(b.coverUrl ? { coverUrl: b.coverUrl } : {}), ...(duration ? { duration } : {}), plays: 0, createdAt: Date.now(), addedBy: admin.uid, ...(admin.role === "worker" ? { addedByWorker: true } : {}) };
     await ref.set(track);
-    await logAdminAccess(admin.uid, "messenger_music_add", { trackId: ref.id, title });
+    await logAdminAccess(admin.uid, admin.role === "worker" ? "messenger_music_add_worker" : "messenger_music_add", { trackId: ref.id, title });
     if (okId(b.requestId)) {
       const rr = db.collection("messengerMusicRequests").doc(b.requestId);
       const rd = (await rr.get()).data();

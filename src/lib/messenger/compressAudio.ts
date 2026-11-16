@@ -134,3 +134,23 @@ export async function compressAudio(file: File, kbps = 128, onProgress?: (ratio:
   if (blob.size >= before * 0.95) return { file, before, after: before, compressed: false, norm }; // не выиграли — оставляем оригинал
   return { file: new File([blob], file.name.replace(/\.[^.]+$/, "") + ".mp3", { type: "audio/mpeg" }), before, after: blob.size, compressed: true, norm };
 }
+
+
+/**
+ * Проверка «это правда звук?». Возвращает причину, если в файле нет аудио (например, сохранён HLS-плейлист .m3u8 вместо песни,
+ * HTML-страница или только теги с обложкой), иначе null.
+ */
+export async function checkAudio(blob: Blob): Promise<string | null> {
+  try {
+    const head = new Uint8Array(await blob.slice(0, 10).arrayBuffer());
+    let off = 0;
+    if (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) off = 10 + (((head[6] & 0x7f) << 21) | ((head[7] & 0x7f) << 14) | ((head[8] & 0x7f) << 7) | (head[9] & 0x7f));
+    const body = new Uint8Array(await blob.slice(off, off + 4096).arrayBuffer());
+    const txt = String.fromCharCode(...body.slice(0, 64));
+    if (/^\s*#EXTM3U/i.test(txt)) return "вместо песни сохранён плейлист (.m3u8) — звука в файле нет";
+    if (/^\s*</.test(txt)) return "вместо песни сохранена веб-страница — звука в файле нет";
+    if (/^\s*[{\[]/.test(txt)) return "вместо песни сохранён текст/JSON — звука в файле нет";
+    if (blob.size - off < 20000) return "в файле нет звука (только теги/обложка)";
+    return null;
+  } catch { return null; }
+}
