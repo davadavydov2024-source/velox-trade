@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { Pause, Play } from "lucide-react";
 import { formatDuration } from "./util";
+import { saveVideoNoteToGallery, saveVoiceToGallery } from "./mediaSave";
+import { Spinner } from "./ui";
+import { useToast } from "@/lib/toastContext";
 
 // Одновременно играет только одно голосовое / кружок.
 let currentMedia: HTMLMediaElement | null = null;
@@ -19,6 +23,8 @@ export function VoicePlayer({ url, duration, waveform, mine }: { url: string; du
   const [progress, setProgress] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [total, setTotal] = useState(duration ?? 0);
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
 
   const bars = useMemo(() => {
     const src = waveform && waveform.length > 0 ? waveform : Array.from({ length: 36 }, (_, i) => 0.3 + 0.5 * Math.abs(Math.sin(i * 1.7)));
@@ -67,6 +73,20 @@ export function VoicePlayer({ url, duration, waveform, mine }: { url: string; du
     if (audioRef.current) audioRef.current.playbackRate = next;
   };
 
+  const save = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (saving) return;
+    setSaving(true);
+    try {
+      await saveVoiceToGallery(url, `miligram-voice-${Date.now()}`);
+      toast("success", "Голосовое сохранено на устройство");
+    } catch {
+      toast("error", "Не удалось сохранить голосовое");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = audioRef.current;
     if (!el || !el.duration) return;
@@ -103,6 +123,9 @@ export function VoicePlayer({ url, duration, waveform, mine }: { url: string; du
           <button onClick={cycleSpeed} className="px-1.5 rounded-full" style={{ background: "rgba(127,127,127,0.25)" }}>
             {speed}×
           </button>
+          <button onClick={save} disabled={saving} aria-label="Сохранить в галерею" className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 disabled:opacity-60" style={{ background: "rgba(127,127,127,0.25)" }}>
+            {saving ? <Spinner size={11} /> : <Download size={12} />}
+          </button>
         </div>
       </div>
     </div>
@@ -114,6 +137,8 @@ export function VideoNoteView({ url, size = 240 }: { url: string; size?: number 
   const ref = useRef<HTMLVideoElement>(null);
   const [active, setActive] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const el = ref.current;
@@ -147,8 +172,24 @@ export function VideoNoteView({ url, size = 240 }: { url: string; size?: number 
 
   const r = size / 2 - 3;
   const c = 2 * Math.PI * r;
+
+  const save = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (saving) return;
+    setSaving(true);
+    try {
+      const kind = await saveVideoNoteToGallery(url, `miligram-video-${Date.now()}`);
+      toast("success", kind === "watermarked" ? "Видео сохранено в галерею" : "Видео сохранено (без знака — браузер не разрешил обработку кадров)");
+    } catch {
+      toast("error", "Не удалось сохранить видео");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <button onClick={toggle} className="relative rounded-full overflow-hidden block" style={{ width: `min(${size}px, 62vw)`, aspectRatio: "1 / 1", maxWidth: "100%", background: "var(--mx-surface2)" }}>
+    <div className="relative" style={{ width: `min(${size}px, 62vw)`, aspectRatio: "1 / 1", maxWidth: "100%" }}>
+    <button onClick={toggle} className="relative rounded-full overflow-hidden block w-full h-full" style={{ background: "var(--mx-surface2)" }}>
       <video
         ref={ref}
         src={url}
@@ -174,5 +215,14 @@ export function VideoNoteView({ url, size = 240 }: { url: string; size?: number 
         </svg>
       )}
     </button>
+    <button
+      onClick={save}
+      disabled={saving}
+      aria-label="Сохранить в галерею"
+      className="absolute bottom-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center mx-glass disabled:opacity-70"
+    >
+      {saving ? <Spinner size={14} /> : <Download size={15} />}
+    </button>
+    </div>
   );
 }
