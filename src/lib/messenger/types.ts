@@ -65,6 +65,7 @@ export interface MessengerChat {
   restricted?: Record<string, MemberRestriction>;
   banned?: string[];
   freeFor?: string[]; // кому можно писать бесплатно (владелец платных сообщений сам ответил им)
+  streak?: { count: number; last: number; best: number; days: Record<string, number> }; // серия 🔥 в личном чате (пишет только сервер, см. streak.ts)
   service?: boolean; // служебный чат «MiliGram Push»: только читать, отвечать нельзя
 }
 

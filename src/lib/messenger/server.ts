@@ -1,3 +1,4 @@
+import { advanceStreak } from "@/lib/messenger/streak";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
@@ -210,6 +211,15 @@ export async function postMessage(o: PostOpts): Promise<string> {
   first.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now });
   others.slice(0, 400).forEach((uid) => first.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
   await first.commit();
+  // серия 🔥 в личном чате (сбой не ломает отправку)
+  if (chat.type === "dm" && !chat.service && others.length === 1 && others[0] !== "velox_dating") {
+    try {
+      await db.runTransaction(async (tx) => {
+        const cur = (await tx.get(chatRef)).data()?.streak;
+        tx.update(chatRef, { streak: advanceStreak(cur, sender.uid, others[0], now) });
+      });
+    } catch (e) { console.error("streak update failed:", e); }
+  }
   for (let i = 400; i < others.length; i += 400) {
     const b = db.batch();
     others.slice(i, i + 400).forEach((uid) => b.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
