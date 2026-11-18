@@ -14,6 +14,7 @@ import { GiveawaySheet } from "./Giveaway";
 import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { StreakBadge } from "./StreakBadge";
+import { SponsoredAd } from "./SponsoredAd";
 import { MessageRow } from "./MessageBubble";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
@@ -725,6 +726,7 @@ export function ChatView({
             </div>
           );
         })}
+        {chat.type === "channel" && !chat.service && rows.length > 0 && <SponsoredAd placement="channel" />}
       </div>
 
       {showDown && (
