@@ -229,6 +229,17 @@ export function IconBox({ color, children }: { color: string; children: ReactNod
   );
 }
 
+/** 🔥 Серия дней подряд с взаимной перепиской — как в новом Telegram и в TikTok. */
+export function StreakBadge({ count, size = 14 }: { count: number; size?: number }) {
+  if (!count) return null;
+  return (
+    <span className="mx-streak inline-flex items-center gap-0.5 shrink-0 font-bold" style={{ fontSize: size }}>
+      <span className="mx-streak-flame" style={{ fontSize: size + 1 }}>🔥</span>
+      {count}
+    </span>
+  );
+}
+
 /** Три подпрыгивающие точки «печатает…», как в Telegram — в шапке чата и в списке диалогов. */
 export function TypingDots() {
   return (

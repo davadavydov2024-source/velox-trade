@@ -803,3 +803,9 @@ html:has(.mx), body:has(.mx) { overflow-x: hidden !important; overscroll-behavio
 .mx-gift-tap { transition: transform 0.15s; }
 .mx-gift-tap:active { transform: scale(0.96); }
 @media (prefers-reduced-motion: reduce) { .mx-gift-shake, .mx-gift-pop, .mx-gift-pop-out { animation: none !important; } }
+
+/* — 🔥 огонёк серии дней подряд, как в новом Telegram и в TikTok — */
+.mx-streak { color: #ff8a1f; }
+.mx-streak-flame { display: inline-block; animation: mx-streak-flicker 1.8s ease-in-out infinite; transform-origin: 50% 85%; }
+@keyframes mx-streak-flicker { 0%, 100% { transform: scale(1) rotate(0deg); } 25% { transform: scale(1.08) rotate(-3deg); } 50% { transform: scale(0.96) rotate(2deg); } 75% { transform: scale(1.05) rotate(-1deg); } }
+@media (prefers-reduced-motion: reduce) { .mx-streak-flame { animation: none; } }

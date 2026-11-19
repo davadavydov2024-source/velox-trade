@@ -1,16 +1,17 @@
 "use client";
 
+import { ghostNow } from "./ghost";
+import { useAdv } from "./advPrefs";
 import { useMemo, useState } from "react";
 import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
-import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark } from "./ui";
+import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, TypingDots, StreakBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { StreakBadge } from "./StreakBadge";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
-import { useAccounts, useNow } from "./hooks";
+import { useAccounts, useNow, useTypingMap } from "./hooks";
 import { MAccount, MChat, MFolder, MUserChat } from "./mtypes";
 import { chatPhoto, chatTitle, formatListTime, isChatMuted, isOnline, isSavedMessages, peerUid, previewText } from "./util";
 
@@ -71,6 +72,8 @@ export function ChatListPane({
   const { toast } = useToast();
   const now = useNow(20_000);
   const peerIds = chats.filter((c) => c.type === "dm").map((c) => peerUid(c, me));
+  const hidePreview = useAdv((x) => x.hideChatPreview);
+  const typingMap = useTypingMap(chats.map((c) => c.id), me);
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
 
@@ -118,7 +121,7 @@ export function ChatListPane({
       toast("success", mode === "me" || mode === "both" ? "Чат удалён" : mode === "leave" ? "Вы вышли из чата" : "Чат удалён для всех");
     } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось удалить"); }
   };
-  const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id }).catch(() => {}));
+  const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id, ...(ghostNow().noRead ? { ghost: true } : {}), ...(ghostNow().hideOnline ? { quiet: true } : {}) }).catch(() => {}));
 
   const activeFolder = folders.find((f) => f.id === folderId);
   const unreadByFolder = (f: MFolder | null) =>
@@ -165,12 +168,12 @@ export function ChatListPane({
     const muted = isChatMuted(uc?.muted, uc?.mutedUntil, now);
     const unread = uc?.unread ?? 0;
     const last = c.lastMessage;
-    const typing = false; // «печатает» берётся из подколлекции чата только в открытом чате (см. ChatView)
+    const typing = (typingMap[c.id] ?? []).length > 0;
     const draft = activeId === c.id ? "" : readDraft(c.id);
     const mineLast = last?.from === me;
     const readByPeer = mineLast && last ? (c.type === "dm" ? (c.readBy?.[peerUid(c, me)] ?? 0) >= last.at : c.members.some((u) => u !== me && (c.readBy?.[u] ?? 0) >= last.at)) : false;
     const senderName = last && c.type !== "dm" && !mineLast ? accounts[last.from]?.displayName?.split(" ")[0] : mineLast && c.type !== "dm" ? "Вы" : "";
-    const preview = last ? previewText(last.kind, last.text) : c.type === "channel" ? "Канал создан" : "Нет сообщений";
+    const preview = last && hidePreview ? "Сообщение" : last ? previewText(last.kind, last.text) : c.type === "channel" ? "Канал создан" : "Нет сообщений";
 
     const left: SwipeAction[] = [
       { label: uc?.pinned ? "Открепить" : "Закрепить", icon: uc?.pinned ? <PinOff size={21} /> : <Pin size={21} />, color: "#ff9500", onPress: () => act([c.id], { pinned: !uc?.pinned }) },
@@ -197,8 +200,9 @@ export function ChatListPane({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
-                {title} <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />{c.type === "dm" && !saved && <StreakBadge streak={c.streak} size={14} now={now} />}
+              <p className="mx-chat-name truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
+                {title} <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />
+                {c.type === "dm" && <StreakBadge count={c.streak?.count ?? 0} size={13} />}
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
               <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
@@ -209,7 +213,7 @@ export function ChatListPane({
             <div className="flex items-start gap-2 mt-0.5">
               <p className="text-[15px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
                 {typing ? (
-                  <span style={{ color: "var(--mx-accent)" }}>печатает…</span>
+                  <span className="inline-flex items-center gap-1.5" style={{ color: "var(--mx-accent)" }}><TypingDots />печатает</span>
                 ) : draft ? (
                   <>
                     <span style={{ color: "var(--mx-danger)" }}>Черновик: </span>
