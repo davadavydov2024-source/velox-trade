@@ -48,7 +48,7 @@ export function ContactsPane({ me, chats, onOpenChat, onNewChat }: { me: string;
           {loading && <Spinner size={16} />}
         </div>
       </div>
-      <div className="mx-scroll flex-1 pb-28">
+      <div className="mx-scroll flex-1 pb-4">
         {q.trim().length < 2 && (
           <>
             <button onClick={openDating} className="w-full flex items-center gap-3.5 px-4 py-2.5 text-left"><IconBox color="#ff2d55"><Heart size={17} /></IconBox><span style={{ color: "var(--mx-accent)" }}>💘 Знакомства (бот 18+)</span></button>

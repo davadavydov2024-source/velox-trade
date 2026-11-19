@@ -145,18 +145,18 @@ export function MessengerApp() {
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "contacts", label: "Контакты", icon: <Users size={24} /> },
-    { id: "chats", label: "Чаты", icon: <MessageCircle size={24} /> },
-    { id: "settings", label: "Настройки", icon: <Settings size={24} /> },
+    { id: "contacts", label: "Контакты", icon: <Users size={20} /> },
+    { id: "chats", label: "Чаты", icon: <MessageCircle size={20} /> },
+    { id: "settings", label: "Настройки", icon: <Settings size={20} /> },
   ];
 
   return (
     <MusicProvider>
       <AppLockGate uid={me} />
       <NotificationGate uid={me} />
-    <div className="h-full flex">
+    <div className="mx-workspace h-full flex">
       {/* ---- левая панель ---- */}
-      <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--mx-line)" }}>
+      <aside className={`${chatId ? "max-[899px]:hidden" : ""} mx-sidebar relative w-full min-[900px]:shrink-0 h-full flex flex-col`}>
         {pushHint && tab === "chats" && (
           <div className="absolute z-30 left-3 right-3 mx-glass rounded-2xl px-3 py-2.5 flex items-center gap-3 mx-pop" style={{ top: "calc(env(safe-area-inset-top) + 56px)" }}>
             <Bell size={20} style={{ color: "var(--mx-accent)" }} />
@@ -189,34 +189,32 @@ export function MessengerApp() {
           {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/m")} />}
         </div>
 
-        {/* нижняя плавающая стеклянная панель */}
-        <nav className="mx-nav mx-liquid absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)", ["--i" as string]: Math.max(0, tabs.findIndex((t) => t.id === tab)) }}>
-          <span className="mx-liquid-pill" aria-hidden />
+        <MiniPlayer />
+        <nav className="mx-workspace-nav" aria-label="Разделы MiliGram">
           {tabs.map((t) => {
             const on = tab === t.id;
             return (
               <button
                 key={t.id}
                 onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
-                className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
-                style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: "transparent" }}
+                className="mx-workspace-nav-item"
+                aria-current={on ? "page" : undefined}
               >
                 {t.id === "settings" ? (
-                  <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>
+                  <span className="w-5 h-5 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={20} /></span>
                 ) : (
                   t.icon
                 )}
                 {t.label}
-                {t.id === "chats" && unread > 0 && <span className="mx-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
+                {t.id === "chats" && unread > 0 && <span className="mx-badge mx-nav-count">{unread > 99 ? "99+" : unread}</span>}
               </button>
             );
           })}
         </nav>
-        <MiniPlayer bottom="calc(env(safe-area-inset-bottom) + 64px)" />
       </aside>
 
       {/* ---- правая панель: чат ---- */}
-      <main className={`${chatId ? "" : "max-[899px]:hidden"} flex-1 min-w-0 h-full`}>
+      <main className={`${chatId ? "" : "max-[899px]:hidden"} mx-conversation flex-1 min-w-0 h-full`}>
         {activeChat ? (
           <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} onBack={closeChat} onOpenChat={openChat} />
         ) : chatId ? (
@@ -224,10 +222,12 @@ export function MessengerApp() {
             {chatsLoading ? <Spinner /> : <><MessagesSquare size={40} /><p>Чат не найден или у вас нет доступа</p><button className="mx-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={closeChat}>К чатам</button></>}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-3 mx-muted max-[899px]:hidden">
-            <MessagesSquare size={44} />
-            <p className="text-[15px]">Выбери чат, чтобы начать общение</p>
-          </div>
+          <section className="mx-conversation-placeholder h-full max-[899px]:hidden">
+            <MessagesSquare size={30} strokeWidth={1.5} aria-hidden="true" />
+            <h2>Выберите чат</h2>
+            <p>Или напишите новое сообщение.</p>
+            <button type="button" className="mx-workspace-action" onClick={() => setNewChat(true)}>Новое сообщение</button>
+          </section>
         )}
       </main>
 

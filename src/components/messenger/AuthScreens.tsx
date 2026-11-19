@@ -22,11 +22,11 @@ function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-function Logo({ subtitle = "Быстрый и милый мессенджер Velox Trade" }: { subtitle?: string }) {
+function Logo({ subtitle = "Мессенджер Velox Trade" }: { subtitle?: string }) {
   return (
     <div className="sl-logo">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/miligram/icon-512.png" alt="MiliGram" />
+      <img src="/miligram/icon-512.png" alt="" />
       <h1 className="sl-title">MiliGram</h1>
       <p className="sl-sub">{subtitle}</p>
     </div>
@@ -134,7 +134,7 @@ function PasswordField({ value, onChange, placeholder, autoComplete }: { value: 
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
-      <input type={show ? "text" : "password"} autoComplete={autoComplete} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="input-field pr-12" required />
+      <input type={show ? "text" : "password"} autoComplete={autoComplete} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label="Пароль" className="input-field pr-12" required />
       <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 p-1" aria-label={show ? "Скрыть пароль" : "Показать пароль"}>
         {show ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
@@ -163,7 +163,7 @@ function startTelegramLogin() {
 
 function TelegramButton({ label }: { label: string }) {
   return (
-    <button type="button" onClick={startTelegramLogin} className="w-full flex items-center justify-center gap-2.5 h-[50px] rounded-full font-semibold text-white" style={{ background: "#2AABEE" }}>
+    <button type="button" onClick={startTelegramLogin} className="btn-secondary sl-telegram w-full flex items-center justify-center gap-2.5 font-semibold">
       <Send size={18} /> {label}
     </button>
   );
@@ -223,7 +223,7 @@ export function ResetScreen({ initialEmail, onBack, mode = "login", lockEmail, o
         {step === "email" ? (
           <form noValidate onSubmit={sendCode} className="space-y-3">
             <p className="text-sm text-white/60">{lockEmail ? "Пришлём 6-значный код на твою почту — по нему можно задать новый пароль, текущий знать не нужно." : "Укажи почту аккаунта — пришлём на неё 6-значный код для нового пароля."}</p>
-            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required readOnly={lockEmail} />
+            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" aria-label="Почта" className="input-field" required readOnly={lockEmail} />
             {error && <p className="text-sm text-red-300">{error}</p>}
             <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
               {busy ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />} Отправить код
@@ -321,15 +321,15 @@ export function AuthScreens() {
   const isReg = mode === "register";
   return (
     <Shell>
-      <Logo subtitle={isReg ? "Создай аккаунт за полминуты" : "С возвращением"} />
+      <Logo subtitle={isReg ? "Создайте аккаунт MiliGram" : "Войдите в аккаунт MiliGram"} />
       <div className="sl-tabs">
         {([["register", "Регистрация"], ["login", "Вход"]] as const).map(([m, label]) => (
-          <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} className={`sl-tab ${mode === m ? "sl-tab-on" : ""}`}>{label}</button>
+          <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} aria-pressed={mode === m} className={`sl-tab ${mode === m ? "sl-tab-on" : ""}`}>{label}</button>
         ))}
       </div>
       <form noValidate onSubmit={isReg ? register : login} className="card p-5 space-y-3">
-        {isReg && <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Как тебя зовут?" maxLength={40} className="input-field" required />}
-        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required />
+        {isReg && <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" aria-label="Имя" maxLength={40} className="input-field" required />}
+        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" aria-label="Почта" className="input-field" required />
         <PasswordField value={password} onChange={setPassword} autoComplete={isReg ? "new-password" : "current-password"} placeholder={isReg ? "Пароль (от 8 символов)" : "Пароль"} />
         {!isReg && <button type="button" onClick={() => setResetting(true)} className="block ml-auto -mt-1 text-xs text-accent">Забыли пароль?</button>}
         {isReg && (
@@ -342,7 +342,7 @@ export function AuthScreens() {
         </button>
         {isReg && (
           <label className="flex items-start gap-2.5 text-[12.5px] text-white/55 cursor-pointer select-none">
-            <input type="checkbox" checked={withTelegram} onChange={(e) => setWithTelegram(e.target.checked)} className="mt-0.5 accent-[#126bf7]" />
+            <input type="checkbox" checked={withTelegram} onChange={(e) => setWithTelegram(e.target.checked)} className="mt-0.5 sl-check" />
             <span>Сразу привязать Telegram — придут уведомления о входах и работает вход по коду. Можно и позже в Настройках.</span>
           </label>
         )}
