@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -227,7 +227,7 @@ function MessageRowImpl({
   if (msg.kind === "gift" && msg.gift) {
     return (
       <div data-mid={msg.id}>
-        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
+        <GiftMessageCard msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} onOpen={() => {}} />
       </div>
     );
   }
@@ -577,3 +577,4 @@ export const MessageRow = memo(MessageRowImpl, (a, b) =>
   a.showAuthor === b.showAuthor && a.isLastInGroup === b.isLastInGroup && a.read === b.read && a.selecting === b.selecting &&
   a.selected === b.selected && a.highlight === b.highlight && !!a.onSwipeReply === !!b.onSwipeReply
 );
+
