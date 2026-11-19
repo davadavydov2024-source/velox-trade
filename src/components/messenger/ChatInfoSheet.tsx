@@ -8,6 +8,7 @@ import { mApi } from "./api";
 import { Avatar, Sheet, Spinner, TagChip, VerifiedBadge, VerifyMark } from "./ui";
 import { markKind, verifyMeta } from "@/lib/messenger/marks";
 import { StatusBadge } from "./StatusBadge";
+import { Achievements } from "./Achievements";
 import { BadgeDot, InfoLine, InfoRow, LinkChip, ProfileCard, ProfileHeader, ProfileRoundBtn, ProfileShell, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
 import { PostsTab } from "./Posts";
 import { ProfileMusic } from "./ProfileMusic";
@@ -144,6 +145,7 @@ export function ChatInfoSheet({
         {!isDm && <ProfileTile icon={<LogOut size={22} />} label={chat.type === "channel" ? "Отписаться" : "Выйти"} onClick={() => { onClose(); onLeave(); }} />}
       </div>
 
+      {isDm && !saved && peer && <Achievements acc={peer} />}
       {isDm && !saved && peer?.profileTrack && <ProfileMusic trackId={peer.profileTrack} />}
       {isDm && peer?.channelHandle && <ProfileChannelCard handle={peer.channelHandle} />}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Heart, Music2, Play, Search, Send, Shuffle, X } from "lucide-react";
+import { Check, Clock, Heart, ListPlus, Music2, Play, Search, Send, Shuffle, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { MUSIC_REQUEST_MAX, type MusicRequest, type MusicTrack } from "@/lib/messenger/music";
 import { mApi, MApiError } from "./api";
@@ -10,10 +10,12 @@ import { Equalizer, fmtTime, TrackCover, useMusic } from "./MusicPlayer";
 import { MusicDiagSheet } from "./MusicDiag";
 import { BulkMusicUpload } from "./BulkMusicUpload";
 import { authedFetch } from "@/lib/authedFetch";
+import { AddToPlaylistSheet, PlaylistsTab } from "./PlaylistsTab";
+import { SleepTimerButton } from "./SleepTimer";
 
-type Tab = "all" | "liked" | "requests";
+type Tab = "all" | "liked" | "playlists" | "requests";
 
-function TrackRow({ t, list, i }: { t: MusicTrack; list: MusicTrack[]; i: number }) {
+function TrackRow({ t, list, i, onAdd }: { t: MusicTrack; list: MusicTrack[]; i: number; onAdd?: (t: MusicTrack) => void }) {
   const m = useMusic();
   const on = m.current?.id === t.id;
   const liked = m.likes.has(t.id);
@@ -34,6 +36,7 @@ function TrackRow({ t, list, i }: { t: MusicTrack; list: MusicTrack[]; i: number
         </span>
       </button>
       <span className="text-[12.5px] mx-muted tabular-nums shrink-0">{t.duration ? fmtTime(t.duration) : ""}</span>
+      {onAdd && <button onClick={() => onAdd(t)} className="w-9 h-9 flex items-center justify-center shrink-0 mx-muted" aria-label="В плейлист"><ListPlus size={20} /></button>}
       <button onClick={() => m.toggleLike(t.id)} className="w-9 h-9 flex items-center justify-center shrink-0" aria-label="В любимые" style={{ color: liked ? "#ff2d55" : "var(--mx-muted)" }}>
         <Heart size={20} fill={liked ? "currentColor" : "none"} />
       </button>
@@ -110,7 +113,8 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
     m.playQueue(list, shuffle ? Math.floor(Math.random() * list.length) : 0);
   };
 
-  const tabs: [Tab, string][] = [["all", "Все"], ["liked", "Любимые"], ["requests", "Мои заявки"]];
+  const tabs: [Tab, string][] = [["all", "Все"], ["liked", "Любимые"], ["playlists", "Плейлисты"], ["requests", "Заявки"]];
+  const [plTrack, setPlTrack] = useState<MusicTrack | null>(null);
 
   return (
     <div className="flex flex-col h-full">
@@ -169,9 +173,10 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
               {tab === id && <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full" style={{ background: "var(--mx-accent)" }} />}
             </button>
           ))}
+          <SleepTimerButton />
         </div>
 
-        {tab !== "requests" ? (
+        {tab === "playlists" ? <PlaylistsTab /> : tab !== "requests" ? (
           <>
             {list.length > 0 && (
               <div className="flex items-center gap-3 px-4 py-3">
@@ -189,7 +194,7 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
               </div>
             ) : (
               <div className="pt-1">
-                {list.map((t, i) => <TrackRow key={t.id} t={t} list={list} i={i} />)}
+                {list.map((t, i) => <TrackRow key={t.id} t={t} list={list} i={i} onAdd={setPlTrack} />)}
                 {tab === "all" && !term && m.hasMore && <button onClick={() => m.loadMore()} className="block mx-auto my-4 px-6 h-11 rounded-full font-semibold text-[15px]" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Показать ещё</button>}
               </div>
             )}
@@ -220,6 +225,7 @@ export function MusicPage({ onBack }: { onBack: () => void }) {
 
       <MusicDiagSheet open={diagOpen} onClose={() => setDiagOpen(false)} track={m.current ?? m.tracks[0] ?? null} />
 
+      <AddToPlaylistSheet track={plTrack} onClose={() => setPlTrack(null)} />
       <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Добавить песни">
         <div className="pb-8"><BulkMusicUpload existing={[]} onDone={() => m.reload()} /></div>
       </Sheet>
