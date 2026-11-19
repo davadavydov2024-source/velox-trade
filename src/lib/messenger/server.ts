@@ -1,5 +1,3 @@
-import { advanceStreak } from "@/lib/messenger/streak";
-import { inQuietHours } from "@/lib/messenger/quiet";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
@@ -170,6 +168,28 @@ interface PostOpts {
 
 const PUSH_CAP = 1000; // в больших каналах пушим не больше этого числа подписчиков за пост
 
+interface StreakState { count: number; day: string; senders: string[] }
+
+const dayKey = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const daysBetween = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+
+/**
+ * 🔥 «Огонёк» — серия дней подряд, когда оба собеседника писали друг другу, как в новом Telegram и в TikTok.
+ * Засчитывается день, в который отметились ОБА — тогда счётчик растёт на 1. Пропуск дня или молчание
+ * одного из двоих в предыдущий день сбрасывает серию.
+ */
+function nextStreak(prev: StreakState | undefined, today: string, from: string): StreakState {
+  if (!prev) return { count: 0, day: today, senders: [from] };
+  if (prev.day === today) {
+    const senders = prev.senders.includes(from) ? prev.senders : [...prev.senders, from];
+    const justClosed = senders.length >= 2 && prev.senders.length < 2;
+    return { count: justClosed ? prev.count + 1 : prev.count, day: today, senders };
+  }
+  const gap = daysBetween(prev.day, today);
+  if (gap === 1 && prev.senders.length >= 2) return { count: prev.count, day: today, senders: [from] };
+  return { count: 0, day: today, senders: [from] };
+}
+
 /** Единая точка записи сообщения: сообщение + lastMessage + счётчики непрочитанных/упоминаний + пуши. */
 export async function postMessage(o: PostOpts): Promise<string> {
   const db = adminDb();
@@ -187,6 +207,14 @@ export async function postMessage(o: PostOpts): Promise<string> {
   if (chat.type === "channel") data.views = 0;
   if (chat.autoDeleteSec) data.expireAt = now + chat.autoDeleteSec * 1000;
   const preview = previewOf(o.kind, o.text);
+
+  // 🔥 Огонёк: считаем только для личных переписок (не «избранное» и не служебные чаты) и не для системных сообщений
+  let streakPatch: StreakState | undefined;
+  if (chat.type === "dm" && o.kind !== "system" && !chat.service && new Set(chat.members).size > 1) {
+    const prevSnap = await chatRef.get();
+    const prev = prevSnap.data()?.streak as StreakState | undefined;
+    streakPatch = nextStreak(prev, dayKey(now), sender.uid);
+  }
 
   // @упоминания (только в группах): находим участников по @handle
   const mentionUids: string[] = [];
@@ -209,18 +237,9 @@ export async function postMessage(o: PostOpts): Promise<string> {
   // Первая пачка: сообщение + чат + первые 400 счётчиков; остальное (большие каналы) — следующими пачками (лимит батча Firestore — 500).
   const first = db.batch();
   first.set(msgRef, data);
-  first.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now });
+  first.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now, ...(streakPatch ? { streak: streakPatch } : {}) });
   others.slice(0, 400).forEach((uid) => first.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
   await first.commit();
-  // серия 🔥 в личном чате (сбой не ломает отправку)
-  if (chat.type === "dm" && !chat.service && others.length === 1 && others[0] !== "velox_dating") {
-    try {
-      await db.runTransaction(async (tx) => {
-        const cur = (await tx.get(chatRef)).data()?.streak;
-        tx.update(chatRef, { streak: advanceStreak(cur, sender.uid, others[0], now) });
-      });
-    } catch (e) { console.error("streak update failed:", e); }
-  }
   for (let i = 400; i < others.length; i += 400) {
     const b = db.batch();
     others.slice(i, i + 400).forEach((uid) => b.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
@@ -232,7 +251,6 @@ export async function postMessage(o: PostOpts): Promise<string> {
   try {
     const targets = others.slice(0, PUSH_CAP);
     const settings = await db.getAll(...targets.map(unreadRef));
-    const accs = await db.getAll(...targets.map((u) => db.collection("messengerAccounts").doc(u)));
     const base = chat.type === "dm" ? sender.account.displayName : `${sender.account.displayName} в ${chat.title ?? "чате"}`;
     await Promise.allSettled(
       targets.map((uid, i) => {
@@ -240,7 +258,6 @@ export async function postMessage(o: PostOpts): Promise<string> {
         const mentioned = mentionUids.includes(uid);
         const muted = !!(st?.muted && (!st.mutedUntil || st.mutedUntil > now));
         if (muted && !mentioned) return Promise.resolve();
-        if (!mentioned && inQuietHours(accs[i].data()?.quiet, now)) return Promise.resolve(); // тихие часы
         const title = mentioned ? `${sender.account.displayName} упомянул(а) вас в ${chat.title ?? "чате"}` : base;
         return sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m/app?chat=${chat.id}` }, "messages");
       })
