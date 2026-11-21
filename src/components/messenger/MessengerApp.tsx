@@ -3,6 +3,7 @@
 import { ghostNow } from "./ghost";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { NavigationBar, NavigationBarItem } from "m3you";
 import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
@@ -190,27 +191,14 @@ export function MessengerApp() {
         </div>
 
         <MiniPlayer bottom="calc(80px + env(safe-area-inset-bottom) + 8px)" />
-        <nav className="mx-workspace-nav" aria-label="Разделы MiliGram">
+        <NavigationBar className="mx-m3-nav" aria-label="Разделы MiliGram" value={tab} onValueChange={(v) => { setTab(v as Tab); if (v !== "settings") setSettingsPage(undefined); }}>
           {tabs.map((t) => {
-            const on = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
-                className="mx-workspace-nav-item"
-                aria-current={on ? "page" : undefined}
-              >
-                {t.id === "settings" ? (
-                  <span className="w-5 h-5 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={20} /></span>
-                ) : (
-                  t.icon
-                )}
-                {t.label}
-                {t.id === "chats" && unread > 0 && <span className="mx-badge mx-nav-count">{unread > 99 ? "99+" : unread}</span>}
-              </button>
-            );
+            const icon = t.id === "settings"
+              ? <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>
+              : t.icon;
+            return <NavigationBarItem key={t.id} value={t.id} icon={icon} label={t.label} badge={t.id === "chats" && unread > 0 ? (unread > 99 ? "99+" : unread) : undefined} />;
           })}
-        </nav>
+        </NavigationBar>
       </aside>
 
       {/* ---- правая панель: чат ---- */}

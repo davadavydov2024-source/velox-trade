@@ -8,6 +8,7 @@ import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, TypingDots, StreakBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
+import { FAB } from "m3you";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
@@ -471,7 +472,7 @@ export function ChatListPane({
 
       {/* Material You: плавающая кнопка «Новое сообщение» */}
       {!editMode && (
-        <button onClick={onNewChat} className="mx-m3-fab" aria-label="Новое сообщение"><SquarePen size={24} /></button>
+        <FAB className="mx-m3-fab" onClick={onNewChat} aria-label="Новое сообщение"><SquarePen size={24} /></FAB>
       )}
     </div>
   );

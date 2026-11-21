@@ -44,7 +44,7 @@ function acquire(id: string) { if (playing.has(id)) return true; if (playing.siz
 function release(id: string) { playing.delete(id); }
 
 /** true, пока элемент виден на экране (пауза анимаций вне экрана — экономит батарею, когда в сетке десятки стикеров). */
-function useInView<T extends Element>(): [React.RefObject<T>, boolean] {
+function useInView<T extends Element>(): [React.RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {

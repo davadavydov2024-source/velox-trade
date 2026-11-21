@@ -1,11 +1,14 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { generateM3Theme } from "m3you";
+import "m3you/styles.css";
 import { useViewportHeight } from "./hooks";
 import { FONT_CHOICES, useMxPrefs } from "./prefs";
-import { bgVars, isHex, readableOn } from "./color";
-import { M3_DEFAULT_SEED, m3Vars } from "./m3";
 import "./messenger.css";
+import "./workspace.css";
+import "./chat-polish.css";
+import "./design-m3.css";
 import { applyIcon, getSavedIcon, listenInstall } from "./appIconPref";
 
 /** Единственный «правильный» адрес мессенджера. APK/PWA, собранные на другой домен, перебрасываются сюда. */
@@ -34,8 +37,6 @@ export function MxRoot({ children }: { children: ReactNode }) {
   }, []);
   const theme = useMxPrefs((s) => s.theme);
   const accent = useMxPrefs((s) => s.accent);
-  const bg = useMxPrefs((s) => s.bg);
-  const design = useMxPrefs((s) => s.design);
   const textSize = useMxPrefs((s) => s.textSize);
   const bubbleStyle = useMxPrefs((s) => s.bubbleStyle);
   const fontId = useMxPrefs((s) => s.font);
@@ -52,6 +53,15 @@ export function MxRoot({ children }: { children: ReactNode }) {
     l.href = `https://fonts.googleapis.com/css2?family=${fontDef.google}&subset=cyrillic&display=swap`;
     document.head.appendChild(l);
   }, [fontDef]);
+  // шрифт Material You — Roboto (с кириллицей), грузим один раз
+  useEffect(() => {
+    if (document.getElementById("mx-font-roboto")) return;
+    const l = document.createElement("link");
+    l.id = "mx-font-roboto";
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap";
+    document.head.appendChild(l);
+  }, []);
   const [systemDark, setSystemDark] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -66,6 +76,12 @@ export function MxRoot({ children }: { children: ReactNode }) {
 
   const resolved = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
+  // Material You: полная палитра M3 из одного «seed»-цвета (свой акцент или фиолетовый по умолчанию)
+  const m3Tokens = useMemo(() => {
+    const seed = accent && /^#[0-9a-f]{6}$/i.test(accent) ? accent : "#6750A4";
+    try { return generateM3Theme(seed)[resolved === "dark" ? "dark" : "light"]; } catch { return {}; }
+  }, [accent, resolved]);
+
   // цвет строки состояния iOS/Android под тему
   useEffect(() => {
     let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
@@ -75,21 +91,17 @@ export function MxRoot({ children }: { children: ReactNode }) {
       document.head.appendChild(meta);
     }
     const prev = meta.content;
-    meta.content = isHex(bg) ? bg : design === "m3" ? m3Vars(isHex(accent) ? accent : M3_DEFAULT_SEED, resolved === "dark")["--mx-bg"] : resolved === "dark" ? (accent ? "#0b0b0d" : "#17212b") : (accent ? "#f2f2f6" : "#ffffff");
+    meta.content = m3Tokens["--md-sys-color-surface"] ?? (resolved === "dark" ? "#141218" : "#fef7ff");
     return () => {
       if (meta) meta.content = prev;
     };
-  }, [resolved, accent, bg, design]);
+  }, [resolved, accent, m3Tokens]);
 
-  const style: Record<string, string> = { "--mx-font": `${textSize}px` };
-  if (design === "m3") Object.assign(style, m3Vars(isHex(accent) ? accent : M3_DEFAULT_SEED, resolved === "dark"));
-  else if (isHex(accent)) { style["--mx-accent"] = accent; style["--mx-accent-text"] = readableOn(accent); }
-  else if (accent) style["--mx-accent"] = accent;
-  if (isHex(bg)) Object.assign(style, bgVars(bg));
+  const style: Record<string, string> = { "--mx-font": `${textSize}px`, ...m3Tokens };
   if (fontDef?.css) style.fontFamily = fontDef.css;
 
   return (
-    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-design={design} data-bubble={bubbleStyle} data-accent={accent || design === "m3" ? "custom" : undefined} style={style as React.CSSProperties}>
+    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-design="tg" data-md="3" data-bubble={bubbleStyle} data-accent={accent ? "custom" : undefined} style={style as React.CSSProperties}>
       {children}
     </div>
   );

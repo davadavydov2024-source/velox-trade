@@ -2,46 +2,30 @@
    Цвет акцента пользователя = «seed»: из него подмешиваются тональные поверхности (как динамические цвета Android).
    Все правила идут с повышенной специфичностью и перекрывают прежние стили Telegram/Discord/X. */
 
-/* ---------- тональная палитра: по умолчанию «фиолетовый» seed M3 ---------- */
-.mx[data-design="tg"][data-md][data-theme="dark"] {
-  --mx-bg: #141218; --mx-surface: #211f26; --mx-surface2: #2b2930; --mx-surface3: #36343b;
-  --mx-line: rgba(202, 196, 208, 0.12); --mx-outline: #49454f;
-  --mx-text: #e6e0e9; --mx-muted: #b4adbb;
-  --mx-sec: #4a4458; --mx-on-sec: #e8def8; --mx-pc: #4f378b; --mx-on-pc: #eaddff;
-  --mx-in: #2b2930; --mx-glass: #2b2930; --mx-thread-bg: #141218;
-  --mx-danger: #f2b8b5; --mx-badge: #b3261e;
-}
-.mx[data-design="tg"][data-md][data-theme="light"] {
-  --mx-bg: #fef7ff; --mx-surface: #f3edf7; --mx-surface2: #ece6f0; --mx-surface3: #e6e0e9;
-  --mx-line: rgba(121, 116, 126, 0.18); --mx-outline: #cac4d0;
-  --mx-text: #1d1b20; --mx-muted: #49454f;
-  --mx-sec: #e8def8; --mx-on-sec: #1d192b; --mx-pc: #eaddff; --mx-on-pc: #21005d;
-  --mx-in: #ece6f0; --mx-glass: #ece6f0; --mx-thread-bg: #fef7ff;
-  --mx-danger: #b3261e; --mx-badge: #b3261e;
-}
-.mx[data-design="tg"][data-md][data-theme="dark"]:not([data-accent]) { --mx-accent: #d0bcff; --mx-accent-text: #381e72; --mx-out: #4f378b; --mx-out-text: #eaddff; }
-.mx[data-design="tg"][data-md][data-theme="light"]:not([data-accent]) { --mx-accent: #6750a4; --mx-accent-text: #ffffff; --mx-out: #eaddff; --mx-out-text: #21005d; }
-
-/* свой цвет акцента → тональные поверхности из этого цвета */
-.mx[data-design="tg"][data-md][data-theme="dark"][data-accent] {
-  --mx-bg: color-mix(in srgb, var(--mx-accent) 6%, #121212);
-  --mx-surface: color-mix(in srgb, var(--mx-accent) 10%, #161616);
-  --mx-surface2: color-mix(in srgb, var(--mx-accent) 14%, #1b1b1b);
-  --mx-surface3: color-mix(in srgb, var(--mx-accent) 19%, #202020);
-  --mx-sec: color-mix(in srgb, var(--mx-accent) 24%, #1c1c1c); --mx-on-sec: #f2f2f2;
-  --mx-pc: color-mix(in srgb, var(--mx-accent) 34%, #181818); --mx-on-pc: #ffffff;
-  --mx-in: var(--mx-surface2); --mx-glass: var(--mx-surface2); --mx-thread-bg: var(--mx-bg);
-  --mx-out: var(--mx-pc); --mx-out-text: #ffffff; --mx-text: #ececec; --mx-muted: #b0b0b0; --mx-outline: rgba(255, 255, 255, 0.22);
-}
-.mx[data-design="tg"][data-md][data-theme="light"][data-accent] {
-  --mx-bg: color-mix(in srgb, var(--mx-accent) 4%, #ffffff);
-  --mx-surface: color-mix(in srgb, var(--mx-accent) 8%, #ffffff);
-  --mx-surface2: color-mix(in srgb, var(--mx-accent) 12%, #ffffff);
-  --mx-surface3: color-mix(in srgb, var(--mx-accent) 17%, #ffffff);
-  --mx-sec: color-mix(in srgb, var(--mx-accent) 20%, #ffffff); --mx-on-sec: #1d1b20;
-  --mx-pc: color-mix(in srgb, var(--mx-accent) 26%, #ffffff); --mx-on-pc: #1d1b20;
-  --mx-in: var(--mx-surface2); --mx-glass: var(--mx-surface2); --mx-thread-bg: var(--mx-bg);
-  --mx-out: var(--mx-pc); --mx-out-text: #1d1b20; --mx-text: #1d1b20; --mx-muted: #49454f; --mx-outline: rgba(0, 0, 0, 0.2);
+/* ---------- палитра: токены M3 приходят из m3you (generateM3Theme) как --md-sys-color-* на корне ---------- */
+.mx[data-design="tg"][data-md]:not(.mx-x) {
+  --mx-bg: var(--md-sys-color-surface);
+  --mx-surface: var(--md-sys-color-surface-container);
+  --mx-surface2: var(--md-sys-color-surface-container-high);
+  --mx-surface3: var(--md-sys-color-surface-container-highest);
+  --mx-line: color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent);
+  --mx-outline: var(--md-sys-color-outline-variant);
+  --mx-text: var(--md-sys-color-on-surface);
+  --mx-muted: var(--md-sys-color-on-surface-variant);
+  --mx-accent: var(--md-sys-color-primary);
+  --mx-accent-text: var(--md-sys-color-on-primary);
+  --mx-sec: var(--md-sys-color-secondary-container);
+  --mx-on-sec: var(--md-sys-color-on-secondary-container);
+  --mx-pc: var(--md-sys-color-primary-container);
+  --mx-on-pc: var(--md-sys-color-on-primary-container);
+  --mx-in: var(--md-sys-color-surface-container-high);
+  --mx-glass: var(--md-sys-color-surface-container-high);
+  --mx-out: var(--md-sys-color-primary-container);
+  --mx-out-text: var(--md-sys-color-on-primary-container);
+  --mx-thread-bg: var(--md-sys-color-surface);
+  --mx-danger: var(--md-sys-color-error);
+  --mx-badge: var(--md-sys-color-error);
+  --mx-on-badge: var(--md-sys-color-on-error);
 }
 .mx[data-design="tg"][data-md] { --mx-ease: cubic-bezier(0.2, 0, 0, 1); --mx-elev1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15); --mx-elev3: 0 4px 8px 3px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.3); }
 
@@ -79,6 +63,8 @@
 @media (hover: hover) { .mx[data-design="tg"][data-md] .mx-folder-tab:not([data-on]):hover { background: color-mix(in srgb, var(--mx-text) 8%, transparent); } }
 
 /* ---------- список чатов ---------- */
+/* внешние отступы строки не должны «схлопываться» наружу — иначе из-за них просвечивают цветные кнопки свайпа */
+.mx[data-design="tg"][data-md] .mx-row-inner { display: flow-root; }
 .mx[data-design="tg"][data-md] .mx-inbox .mx-chat-row {
   min-height: 72px; padding: 10px 14px; margin: 2px 8px; border-radius: 20px; border-inline-start: 0;
   background: transparent; transition: background 0.2s var(--mx-ease);
@@ -97,36 +83,12 @@
 .mx[data-design="tg"][data-md] .mx-badge { min-width: 20px; height: 20px; padding: 0 6px; font-size: 11.5px; font-weight: 500; background: var(--mx-accent); color: var(--mx-accent-text); }
 .mx[data-design="tg"][data-md] .mx-badge.muted { background: var(--mx-outline); color: var(--mx-muted); }
 
-/* FAB «Новое сообщение» */
-.mx[data-design="tg"][data-md] .mx-m3-fab {
-  position: absolute; right: 16px; bottom: 16px; z-index: 6; width: 56px; height: 56px; border-radius: 16px;
-  display: flex; align-items: center; justify-content: center; background: var(--mx-pc); color: var(--mx-on-pc);
-  box-shadow: var(--mx-elev3); transition: transform 0.2s var(--mx-ease), box-shadow 0.2s, border-radius 0.2s;
-}
-.mx[data-design="tg"][data-md] .mx-m3-fab:active { transform: scale(0.94); border-radius: 22px; }
-@media (hover: hover) { .mx[data-design="tg"][data-md] .mx-m3-fab:hover { box-shadow: 0 6px 12px 4px rgba(0, 0, 0, 0.18), 0 2px 4px rgba(0, 0, 0, 0.3); } }
+/* FAB «Новое сообщение» (m3you FAB) — только позиция */
+.mx[data-design="tg"][data-md] .mx-m3-fab { position: absolute; right: 16px; bottom: 16px; z-index: 6; }
 
-/* ---------- нижняя навигация M3: «таблетка»-индикатор под иконкой ---------- */
-.mx[data-design="tg"][data-md] .mx-workspace-nav { background: var(--mx-surface); border-top: 0; }
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item {
-  position: relative; isolation: isolate; min-height: 80px; justify-content: flex-start; padding-top: 12px; gap: 4px;
-  font-size: 12px; font-weight: 500; letter-spacing: 0.5px; color: var(--mx-muted); border-top: 0;
-}
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item::before {
-  content: ""; position: absolute; z-index: -1; top: 12px; left: 50%; width: 64px; height: 32px; margin-left: -32px;
-  border-radius: 16px; background: var(--mx-sec); opacity: 0; transform: scaleX(0.35);
-  transition: transform 0.25s var(--mx-ease), opacity 0.2s;
-}
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item > svg, .mx[data-design="tg"][data-md] .mx-workspace-nav-item > span:first-child { margin: 4px 0; flex: none; }
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item[aria-current] { color: var(--mx-text); border-top-color: transparent; font-weight: 600; }
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item[aria-current]::before { opacity: 1; transform: none; }
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item[aria-current] > svg { color: var(--mx-on-sec); }
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item:active::before { opacity: 1; transform: none; background: color-mix(in srgb, var(--mx-accent) 20%, var(--mx-sec)); }
-.mx[data-design="tg"][data-md] .mx-workspace-nav-item .mx-nav-count {
-  top: 8px; left: calc(50% + 6px); z-index: 2; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10.5px;
-  background: var(--mx-badge); color: #fff;
-}
-@media (hover: hover) { .mx[data-design="tg"][data-md] .mx-workspace-nav-item:hover { background: transparent; } }
+/* ---------- нижняя навигация: m3you NavigationBar ---------- */
+/* у m3you NavigationBar по умолчанию position: fixed на весь экран — возвращаем в поток боковой колонки */
+.mx[data-design="tg"][data-md] .mx-m3-nav { position: relative; inset: auto; z-index: 5; flex: none; width: 100%; padding-bottom: env(safe-area-inset-bottom); background: var(--mx-surface); }
 .mx[data-design="tg"][data-md] .mx-sidebar-player { background: var(--mx-surface); }
 
 /* ---------- шапка чата: «Top app bar» M3 ---------- */
