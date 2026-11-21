@@ -7,6 +7,7 @@ import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loa
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftMessageCard } from "./Gifts";
+import { GiftReceiveSheet } from "./GiftReceive";
 import { GiveawayCard } from "./Giveaway";
 import { VoicePlayer, VideoNoteView } from "./MediaPlayers";
 import { MAccount, MChatType, MMessage, MPending } from "./mtypes";
@@ -213,6 +214,7 @@ function MessageRowImpl({
   const lastTap = useRef(0);
   const moved = useRef(false);
   const author = accounts[msg.from];
+  const [giftOpen, setGiftOpen] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
   const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
 
@@ -225,9 +227,12 @@ function MessageRowImpl({
   }
 
   if (msg.kind === "gift" && msg.gift) {
+    const senderName = author?.displayName ?? "Собеседник";
+    const toName = accounts[msg.gift.to]?.displayName ?? "собеседнику";
     return (
       <div data-mid={msg.id}>
-        <GiftMessageCard giftId={msg.gift.giftId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} />
+        <GiftMessageCard msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={senderName} toName={toName} onOpen={() => setGiftOpen(true)} />
+        <GiftReceiveSheet open={giftOpen} onClose={() => setGiftOpen(false)} msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} price={msg.gift.price} text={msg.text} mine={mine} anonymous={msg.gift.anonymous} senderName={senderName} toName={toName} me={me} toUid={msg.gift.to} />
       </div>
     );
   }

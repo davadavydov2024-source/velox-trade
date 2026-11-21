@@ -86,7 +86,7 @@ export function MessengerApp() {
 
   // --- бейдж на иконке PWA и в заголовке вкладки ---
   useEffect(() => {
-    document.title = unread > 0 ? `(${unread}) Velox Chat` : "Velox Chat";
+    document.title = unread > 0 ? `(${unread}) MiliGram` : "MiliGram";
     const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
     if (unread > 0) nav.setAppBadge?.(unread).catch(() => {});
     else nav.clearAppBadge?.().catch(() => {});
@@ -189,7 +189,7 @@ export function MessengerApp() {
           {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/m")} />}
         </div>
 
-        <MiniPlayer />
+        <MiniPlayer bottom="calc(56px + env(safe-area-inset-bottom) + 8px)" />
         <nav className="mx-workspace-nav" aria-label="Разделы MiliGram">
           {tabs.map((t) => {
             const on = tab === t.id;

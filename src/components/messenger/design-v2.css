@@ -1,0 +1,183 @@
+/* MiliGram — единый слой дизайна. Подключается последним.
+   Telegram: пузыри с хвостиками, обои, акцент #3390ec.
+   Discord:  плотный список с скруглённой «плашкой» активного чата, слева индикатор, тёмные ступени фона.
+   Twitter/X: крупные жирные заголовки, вкладки с подчёркиванием, кнопки-пилюли, тонкие разделители. */
+
+/* ---------- палитра: ступени фона как в Discord, текст и линии как в X ---------- */
+.mx[data-design="tg"][data-theme="dark"] {
+  --mx-rail: #0a111a;          /* самый тёмный: нижняя панель */
+  --mx-bg: #0e1621;
+  --mx-surface: #17212b;
+  --mx-surface2: #1f2c3a;
+  --mx-hover: rgba(255, 255, 255, 0.05);
+  --mx-line: rgba(255, 255, 255, 0.08);
+  --mx-text: #e7e9ea;
+  --mx-muted: #7f93a8;
+  --mx-online: #3ba55d;
+}
+.mx[data-design="tg"][data-theme="light"] {
+  --mx-rail: #f7f9f9;
+  --mx-bg: #ffffff;
+  --mx-surface: #eff3f4;
+  --mx-surface2: #e1e8ec;
+  --mx-hover: rgba(15, 20, 25, 0.04);
+  --mx-line: #eff3f4;
+  --mx-text: #0f1419;
+  --mx-muted: #657786;
+  --mx-online: #00a86b;
+}
+.mx[data-design="tg"] { --mx-radius-pill: 999px; --mx-ease: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* ---------- общий каркас ---------- */
+.mx .mx-sidebar { background: var(--mx-bg); }
+.mx .mx-conversation { background: var(--mx-bg); }
+@media (min-width: 900px) {
+  .mx .mx-sidebar { width: clamp(330px, 28vw, 400px); border-right: 1px solid var(--mx-line); }
+}
+
+/* ---------- шапка списка: крупный жирный заголовок (X) ---------- */
+.mx-inbox-titlebar { padding: 14px 16px 6px; align-items: center; }
+.mx-inbox-brand { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; }
+.mx-inbox-titlebar h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.mx-inbox-head { border-bottom: 0; }
+
+/* поиск — пилюля (X / Telegram) */
+.mx[data-design] .mx-inbox .mx-search,
+.mx[data-design="tg"] .mx-search {
+  height: 40px; border-radius: var(--mx-radius-pill); padding: 0 16px;
+  background: var(--mx-surface); border: 1px solid transparent;
+}
+.mx[data-design] .mx-inbox .mx-search:focus-within,
+.mx[data-design="tg"] .mx-search:focus-within { background: var(--mx-bg); border-color: var(--mx-accent); box-shadow: 0 0 0 1px var(--mx-accent); }
+
+/* папки — вкладки с жирным подчёркиванием (X) */
+.mx[data-design="tg"] .mx-chip {
+  height: 46px; padding: 0 16px; font-weight: 600; color: var(--mx-muted);
+  border-bottom: 4px solid transparent; border-radius: 4px 4px 0 0; transition: background 0.15s, color 0.15s;
+}
+.mx[data-design="tg"] .mx-chip.on { color: var(--mx-text); font-weight: 800; border-bottom-color: var(--mx-accent); }
+@media (hover: hover) { .mx[data-design="tg"] .mx-chip:not(.on):hover { background: var(--mx-hover); } }
+
+/* ---------- список чатов: плотные строки, Discord-плашка у активного ---------- */
+.mx .mx-inbox .mx-chat-row {
+  min-height: 68px; padding: 9px 12px 9px 14px; margin: 1px 8px; border-radius: 10px;
+  border-inline-start: 0; background: transparent;
+  transition: background 0.12s, transform 0.12s;
+}
+.mx .mx-inbox .mx-chat-row::after { display: none; }
+.mx .mx-inbox .mx-chat-row::before {
+  content: ""; position: absolute; left: -8px; top: 50%; width: 4px; height: 0; border-radius: 0 4px 4px 0;
+  background: var(--mx-text); transform: translateY(-50%); transition: height 0.18s var(--mx-ease);
+}
+.mx .mx-inbox .mx-chat-row[data-current]::before { height: 60%; background: var(--mx-accent); }
+.mx .mx-inbox .mx-chat-row[data-current] { background: color-mix(in srgb, var(--mx-accent) 16%, transparent); }
+.mx .mx-inbox .mx-chat-row[data-current] .mx-chat-name { color: var(--mx-text); }
+@media (hover: hover) {
+  .mx .mx-inbox .mx-chat-row:hover:not([data-current]) { background: var(--mx-hover); }
+  .mx .mx-inbox .mx-chat-row:not([data-current]):hover::before { height: 18px; }
+}
+.mx-chat-name { font-weight: 700; letter-spacing: -0.005em; }
+.mx-chat-preview { color: var(--mx-muted); }
+.mx .mx-inbox .mx-row { border-radius: 10px; }
+
+/* бейдж непрочитанных — круглая «пилюля» */
+.mx-badge { min-width: 20px; height: 20px; font-size: 11.5px; padding: 0 6px; }
+
+/* ---------- нижняя панель: как в X — иконки без рамок, акцент у активной ---------- */
+.mx-workspace-nav { background: var(--mx-rail); border-top: 1px solid var(--mx-line); }
+.mx-workspace-nav-item { border-top: 0; min-height: 56px; font-size: 11.5px; font-weight: 600; transition: color 0.15s, transform 0.12s; }
+.mx-workspace-nav-item:active { transform: scale(0.94); }
+.mx-workspace-nav-item[aria-current] { color: var(--mx-accent); border-top-color: transparent; }
+.mx-workspace-nav-item[aria-current] svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--mx-accent) 55%, transparent)); }
+.mx-sidebar-player { background: var(--mx-surface); }
+
+/* ---------- шапка чата ---------- */
+.mx[data-design] .mx-workspace .mx-thread-head {
+  background: color-mix(in srgb, var(--mx-bg) 86%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--mx-line) !important;
+}
+.mx-thread-titlebar { min-height: 56px; }
+.mx-thread-profile { border-radius: 10px; }
+@media (hover: hover) { .mx .mx-thread-icon:hover, .mx .mx-thread-profile:hover { background: var(--mx-hover); } }
+
+/* ---------- сообщения: пузыри Telegram, чуть мягче и крупнее шрифт ---------- */
+.mx[data-design="tg"] .mx-bubble { border-radius: 16px; padding: 7px 11px 6px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16); }
+.mx[data-design="tg"] .mx-bubble.in.tail { border-bottom-left-radius: 4px; }
+.mx[data-design="tg"] .mx-bubble.out.tail { border-bottom-right-radius: 4px; }
+.mx[data-design="tg"] .mx-bubble.in { background: var(--mx-in); }
+.mx[data-design="tg"][data-theme="dark"]:not([data-accent]) .mx-bubble.in { background: #182533; }
+.mx[data-design="tg"][data-theme="dark"]:not([data-accent]) .mx-bubble.out { background: #2b5278; }
+.mx[data-design="tg"][data-theme="light"]:not([data-accent]) .mx-bubble.in { box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1); }
+.mx[data-design] .mx-workspace .mx-bubble { line-height: 1.4; }
+.mx[data-design="tg"] .mx-bubble .mx-quote {
+  border-left: 3px solid var(--mx-accent); background: color-mix(in srgb, var(--mx-accent) 12%, transparent);
+  padding: 3px 8px; border-radius: 4px 8px 8px 4px; opacity: 1;
+}
+.mx[data-design="tg"] .mx-reaction { border-radius: var(--mx-radius-pill); padding: 2px 9px; font-weight: 600; }
+.mx[data-design="tg"] .mx-reaction.mine { background: color-mix(in srgb, var(--mx-accent) 30%, transparent); }
+
+/* дата-пилюля: плотная, читаемая на обоях */
+.mx[data-design][data-theme] .mx-workspace .mx-chat-wall .mx-sticky-date-pill {
+  background: rgba(23, 33, 43, 0.62); color: #fff; font-weight: 600; border: 0;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.mx[data-design="tg"][data-theme="light"] .mx-workspace .mx-chat-wall .mx-sticky-date-pill { background: rgba(70, 100, 80, 0.45); }
+
+/* ---------- поле ввода: Telegram-капсула + круглая кнопка отправки ---------- */
+.mx[data-design] .mx-thread-composer { background: transparent; border-top: 0; }
+.mx[data-design="tg"] .mx-thread-compose-row { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+.mx[data-design] .mx-workspace .mx-composer-field {
+  background: var(--mx-surface) !important; border: 1px solid var(--mx-line) !important;
+  border-radius: 22px !important; min-height: 44px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mx[data-design] .mx-workspace .mx-composer-field:focus-within {
+  border-color: var(--mx-accent) !important; box-shadow: 0 0 0 1px var(--mx-accent);
+}
+
+/* ---------- кнопки: пилюли как в X ---------- */
+.mx[data-design="tg"] .mx-btn { border-radius: var(--mx-radius-pill); font-weight: 700; padding: 13px 20px; }
+.mx[data-design="tg"] .mx-btn:not(:disabled):hover { filter: brightness(1.08); }
+.mx[data-design="tg"] .mx-btn-ghost { border: 1px solid var(--mx-line); }
+.mx[data-design="tg"] .mx-btn-ghost:hover { background: var(--mx-hover); }
+.mx-workspace-action { border-radius: var(--mx-radius-pill); padding: 0 22px; font-weight: 700; min-height: 44px; }
+.mx[data-design="tg"] .mx-input { border-radius: 12px; background: var(--mx-surface); }
+.mx[data-design="tg"] .mx-input:focus { border-color: var(--mx-accent); box-shadow: 0 0 0 1px var(--mx-accent); }
+.mx[data-design="tg"] .mx-card { border-radius: 16px; }
+.mx[data-design="tg"] .mx-sheet { border-radius: 20px 20px 0 0; }
+
+/* ---------- пустая правая панель на десктопе ---------- */
+.mx-conversation-placeholder {
+  background:
+    radial-gradient(60% 50% at 50% 38%, color-mix(in srgb, var(--mx-accent) 10%, transparent), transparent 70%),
+    var(--mx-bg);
+}
+.mx-conversation-placeholder h2 { font-weight: 800; letter-spacing: -0.01em; }
+
+/* ---------- истории и профиль ---------- */
+.mx[data-design="tg"] .mx-story-ring:not(.seen) { background: conic-gradient(from 200deg, var(--mx-accent), #6ac4ff, #a855f7, var(--mx-accent)); }
+.mx[data-design="tg"] .mx-hero { border-radius: 18px; }
+.mx[data-design="tg"] .mx-status-chip { font-weight: 700; }
+
+/* ---------- Discord-скроллбар на десктопе ---------- */
+@media (hover: hover) and (min-width: 900px) {
+  .mx .mx-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--mx-muted) 45%, transparent) transparent; }
+  .mx .mx-scroll::-webkit-scrollbar { width: 8px; }
+  .mx .mx-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--mx-muted) 45%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  .mx .mx-scroll::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* ---------- мелочи ---------- */
+.mx ::selection { background: color-mix(in srgb, var(--mx-accent) 35%, transparent); }
+.mx-root :where(button, a, [tabindex]):focus-visible { outline-offset: 2px; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .mx .mx-chat-row, .mx .mx-chat-row::before, .mx-workspace-nav-item, .mx .mx-chip { transition: none !important; }
+}
+
+/* вкладки папок (X): жирное подчёркивание под активной */
+.mx-folder-tab { border-bottom: 4px solid transparent; border-radius: 4px 4px 0 0; transition: background 0.15s, color 0.15s; }
+.mx-folder-tab[data-on] { font-weight: 800; border-bottom-color: var(--mx-accent); }
+@media (hover: hover) { .mx-folder-tab:not([data-on]):hover { background: var(--mx-hover); } }
+/* круглые кнопки шапки */
+.mx[data-design="tg"] .mx-pill-btn { border-radius: var(--mx-radius-pill); font-weight: 700; }

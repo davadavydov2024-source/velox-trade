@@ -1,38 +1,4 @@
 /* MiliGram's everyday workspace. Theme and accent overrides stay under the messenger root. */
-.mx.mx-root[data-design="tg"][data-theme="dark"] {
-  --mx-bg: #171c1b;
-  --mx-surface: #202725;
-  --mx-surface2: #2a3330;
-  --mx-line: #35403c;
-  --mx-text: #e9efec;
-  --mx-muted: #a0b0aa;
-  --mx-in: #222a27;
-  --mx-glass: #202725;
-  --mx-thread-bg: #111614;
-}
-.mx.mx-root[data-design="tg"][data-theme="light"] {
-  --mx-bg: #fbfcfa;
-  --mx-surface: #f0f3ef;
-  --mx-surface2: #e4ebe6;
-  --mx-line: #d7e0da;
-  --mx-text: #1d2b25;
-  --mx-muted: #51645b;
-  --mx-in: #fff;
-  --mx-glass: #fbfcfa;
-  --mx-thread-bg: #edf1ed;
-}
-.mx.mx-root[data-design][data-theme="dark"]:not([data-accent]) {
-  --mx-accent: #8bd1b7;
-  --mx-accent-text: #172922;
-  --mx-out: #28473c;
-  --mx-out-text: #f0fbf5;
-}
-.mx.mx-root[data-design][data-theme="light"]:not([data-accent]) {
-  --mx-accent: #21664e;
-  --mx-accent-text: #fff;
-  --mx-out: #dcece2;
-  --mx-out-text: #19392b;
-}
 .mx-root :where(button, a, [tabindex]):focus-visible {
   outline: 2px solid var(--mx-accent);
   outline-offset: -2px;
@@ -42,7 +8,7 @@
 @media (min-width: 900px) {
   .mx .mx-sidebar { width: clamp(318px, 29vw, 374px); border-right: 1px solid var(--mx-line); }
 }
-.mx .mx-conversation { background: var(--mx-thread-bg); }
+.mx .mx-conversation { background: var(--mx-bg); }
 .mx-conversation-placeholder {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 24px; gap: 8px; text-align: center; color: var(--mx-muted);
@@ -109,7 +75,6 @@
 .mx-thread-profile { display: flex; align-items: center; gap: 10px; padding: 4px; text-align: left; border-radius: 8px; min-height: 44px; }
 .mx-thread-icon { border-radius: 8px; color: var(--mx-muted); place-items: center; }
 .mx-thread-icon svg { display: block; margin: auto; }
-.mx[data-design][data-theme] .mx-workspace .mx-chat-wall:not(.mx-wp) { background: var(--mx-thread-bg); }
 .mx[data-design] .mx-thread-composer { border-top: 1px solid var(--mx-line); background: var(--mx-bg); }
 .mx-thread-compose-row { width: min(100%, 820px); margin-inline: auto; padding: 8px 12px; }
 .mx[data-design] .mx-workspace .mx-composer-field { background: var(--mx-surface) !important; border-radius: 10px !important; min-height: 44px; }
@@ -120,7 +85,6 @@
 .mx[data-design][data-bubble="round"] .mx-workspace .mx-bubble:not(.round):not(.media) { border-radius: 12px; }
 .mx[data-design][data-bubble="round"] .mx-workspace .mx-bubble.in.tail:not(.round):not(.media) { border-bottom-left-radius: 4px; }
 .mx[data-design][data-bubble="round"] .mx-workspace .mx-bubble.out.tail:not(.round):not(.media) { border-bottom-right-radius: 4px; }
-.mx[data-design] .mx-workspace .mx-bubble.tail::before { display: none; }
 .mx[data-design][data-theme]:not([data-accent]):not([data-bubble="glass"]) .mx-workspace .mx-bubble.out .mx-meta { color: currentColor; opacity: .8; }
 .mx[data-design][data-theme] .mx-workspace .mx-chat-wall:not(.mx-wp) .mx-sticky-date-pill { background: var(--mx-surface2); color: var(--mx-muted); }
 @media (hover: hover) {

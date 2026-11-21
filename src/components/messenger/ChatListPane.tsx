@@ -191,7 +191,7 @@ export function ChatListPane({
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
         onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
+        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} data-current={activeId === c.id ? "" : undefined}>
           <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
             {saved ? <span className="rounded-full flex items-center justify-center text-white" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Bookmark size={28} fill="#fff" /></span> : <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={62} online={!editMode && isOnline(peer, now)}>
               {undefined}
@@ -249,7 +249,7 @@ export function ChatListPane({
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
+    <div className="mx-inbox flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка: стеклянные «таблетки» — «Изм.» слева, «Чаты» по центру, действия справа ---- */}
       <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
         <div className="px-4 pt-2 pb-2 flex items-center">
@@ -267,7 +267,7 @@ export function ChatListPane({
         </div>
       </div>
 
-      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 96 }}>
+      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 12 }}>
         <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
 
         {/* поиск */}
@@ -325,7 +325,7 @@ export function ChatListPane({
                   const on = f.id === folderId;
                   const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
                   return (
-                    <button key={f.id} onClick={() => setFolderId(f.id)} className="relative shrink-0 px-3.5 h-10 text-[15px] font-medium whitespace-nowrap flex items-center gap-1.5" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)" }}>
+                    <button key={f.id} onClick={() => setFolderId(f.id)} className="mx-folder-tab relative shrink-0 px-3.5 h-11 text-[15px] font-semibold whitespace-nowrap flex items-center gap-1.5" data-on={on ? "" : undefined} style={{ color: on ? "var(--mx-text)" : "var(--mx-muted)" }}>
                       {f.emoji} {f.name}
                       {count > 0 && <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent)" : "var(--mx-muted)", color: "#fff" }}>{count}</span>}
                       {on && <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full" style={{ background: "var(--mx-accent)" }} />}

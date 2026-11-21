@@ -4,6 +4,9 @@ import { ReactNode, useEffect, useState } from "react";
 import { useViewportHeight } from "./hooks";
 import { FONT_CHOICES, useMxPrefs } from "./prefs";
 import "./messenger.css";
+import "./workspace.css";
+import "./chat-polish.css";
+import "./design-v2.css";
 import { applyIcon, getSavedIcon, listenInstall } from "./appIconPref";
 
 /** Единственный «правильный» адрес мессенджера. APK/PWA, собранные на другой домен, перебрасываются сюда. */

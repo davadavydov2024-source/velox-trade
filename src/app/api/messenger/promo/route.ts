@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const ref = db.collection("messengerPromoCodes").doc(code);
   const accRef = db.collection("messengerAccounts").doc(me.uid);
   try {
-    const days = await db.transaction(async (tx) => {
+    const days = await db.runTransaction(async (tx) => {
       const [snap, use, acc] = await Promise.all([tx.get(ref), tx.get(ref.collection("uses").doc(me.uid)), tx.get(accRef)]);
       const d = snap.data();
       if (!d || d.disabled) throw new Error("Такого промокода нет");
