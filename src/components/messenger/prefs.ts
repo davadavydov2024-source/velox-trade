@@ -26,6 +26,7 @@ export const FONT_CHOICES: { id: string; label: string; css: string; google?: st
 interface MxPrefs {
   theme: MxTheme;
   accent: string; // пусто = акцент сайта (оранжевый Velox); любой цвет #rrggbb
+  design: "m3" | "tg"; // стиль оформления: Material You или как в Telegram
   bg: string; // свой цвет фона (#rrggbb); пусто = как в выбранной теме
   textSize: number; // px, 13–19
   enterToSend: boolean;
@@ -39,6 +40,7 @@ interface MxPrefs {
   setFont: (id: string) => void;
   setAccent: (a: string) => void;
   setBg: (c: string) => void;
+  setDesign: (d: "m3" | "tg") => void;
   setTextSize: (n: number) => void;
   setEnterToSend: (v: boolean) => void;
   setProfileTheme: (v: "auto" | "dark" | "light") => void;
@@ -57,6 +59,7 @@ export const useMxPrefs = create<MxPrefs>()(
       font: "",
       accent: "",
       bg: "",
+      design: "m3",
       textSize: 15,
       enterToSend: true,
       profileTheme: "auto",
@@ -68,6 +71,7 @@ export const useMxPrefs = create<MxPrefs>()(
       setFont: (font) => set({ font }),
       setAccent: (accent) => set({ accent }),
       setBg: (bg) => set({ bg }),
+      setDesign: (design) => set({ design }),
       setTextSize: (textSize) => set({ textSize }),
       setEnterToSend: (enterToSend) => set({ enterToSend }),
       setProfileTheme: (profileTheme) => set({ profileTheme }),

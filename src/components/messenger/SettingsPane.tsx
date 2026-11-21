@@ -671,6 +671,19 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                 </div>
               </div>
               <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Стиль оформления</p>
+                <div className="mx-card p-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {([["m3", "Material You", "Вся палитра из одного цвета, мягкие формы"], ["tg", "Telegram", "Классический вид"]] as const).map(([id, label, hint]) => (
+                      <button key={id} onClick={() => prefs.setDesign(id)} className="text-left rounded-2xl p-3" style={{ background: "var(--mx-surface2)", outline: prefs.design === id ? "2px solid var(--mx-accent)" : "none" }}>
+                        <p className="font-semibold text-[15px]">{label}</p>
+                        <p className="mx-muted text-[12.5px] mt-0.5">{hint}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
                 <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Акцентный цвет</p>
                 <div className="mx-card px-4 py-3.5 flex gap-3 flex-wrap">
                   {ACCENT_CHOICES.map((c) => (
@@ -683,7 +696,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                     <Plus size={18} color="#fff" />
                   </label>
                 </div>
-                <p className="mx-muted text-[12.5px] px-3 mt-1.5">Нажми на радужный круг — можно выбрать любой цвет.</p>
+                <p className="mx-muted text-[12.5px] px-3 mt-1.5">{prefs.design === "m3" ? "Из этого цвета строится вся палитра Material You. Нажми на радужный круг — можно выбрать любой." : "Нажми на радужный круг — можно выбрать любой цвет."}</p>
               </div>
               <div>
                 <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Цвет фона</p>

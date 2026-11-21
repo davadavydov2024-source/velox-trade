@@ -809,3 +809,57 @@ html:has(.mx), body:has(.mx) { overflow-x: hidden !important; overscroll-behavio
 .mx-streak-flame { display: inline-block; animation: mx-streak-flicker 1.8s ease-in-out infinite; transform-origin: 50% 85%; }
 @keyframes mx-streak-flicker { 0%, 100% { transform: scale(1) rotate(0deg); } 25% { transform: scale(1.08) rotate(-3deg); } 50% { transform: scale(0.96) rotate(2deg); } 75% { transform: scale(1.05) rotate(-1deg); } }
 @media (prefers-reduced-motion: reduce) { .mx-streak-flame { animation: none; } }
+
+
+/* ===================================================================
+   ДИЗАЙН «MATERIAL YOU» (data-design="m3").
+   Палитра приходит с корня (components/messenger/m3.ts): всё строится из одного цвета-семени.
+   Здесь — только формы, тональные поверхности и пружинистое движение в духе Material 3 Expressive.
+   =================================================================== */
+.mx[data-design="m3"] { --m3-spring: cubic-bezier(0.34, 1.56, 0.64, 1); letter-spacing: 0.01em; }
+
+/* кнопки, поля, карточки */
+.mx[data-design="m3"] .mx-btn { border-radius: 999px; font-weight: 600; letter-spacing: 0.1px; }
+.mx[data-design="m3"] .mx-btn-ghost { background: transparent; }
+.mx[data-design="m3"] .mx-input { border-radius: 16px; background: var(--mx-surface2); border-color: transparent; }
+.mx[data-design="m3"] .mx-input:focus { border-color: var(--mx-accent); }
+.mx[data-design="m3"] .mx-card { border-radius: 28px; background: var(--mx-surface); }
+.mx[data-design="m3"] .mx-card > * + * { border-top-color: var(--mx-line); }
+.mx[data-design="m3"] .mx-search { border-radius: 999px; height: 48px; background: var(--m3-surface-highest); border-color: transparent; }
+.mx[data-design="m3"] .mx-search:focus-within { border-color: var(--mx-accent); }
+
+/* иконки-кнопки: тональный круг */
+.mx[data-design="m3"] .mx-icon-btn { background: var(--m3-secondary-container); color: var(--m3-on-secondary-container); border-color: transparent; }
+
+/* фильтры-чипсы: контур, выбранный — тональная заливка */
+.mx[data-design="m3"] .mx-chip { height: 34px; border-radius: 10px; background: transparent; border: 1px solid var(--m3-outline); color: var(--mx-text); box-shadow: none; }
+.mx[data-design="m3"] .mx-chip.on { background: var(--m3-secondary-container); color: var(--m3-on-secondary-container); border-color: transparent; box-shadow: none; }
+.mx[data-design="m3"] .mx-btn:active, .mx[data-design="m3"] .mx-chip:active, .mx[data-design="m3"] .mx-icon-btn:active { transform: scale(0.95); transition: transform 0.35s var(--m3-spring); }
+
+/* пузыри: крупные скругления, без хвостиков и теней */
+.mx[data-design="m3"] .mx-bubble { border-radius: 20px; padding: 8px 12px 6px; box-shadow: none; }
+.mx[data-design="m3"] .mx-bubble.in.tail { border-bottom-left-radius: 6px; }
+.mx[data-design="m3"] .mx-bubble.out.tail { border-bottom-right-radius: 6px; }
+.mx[data-design="m3"] .mx-bubble.tail.in::before, .mx[data-design="m3"] .mx-bubble.tail.out::before,
+.mx[data-design="m3"] .mx-bubble.tail.in::after, .mx[data-design="m3"] .mx-bubble.tail.out::after { display: none; }
+.mx[data-design="m3"] .mx-bubble.media { padding: 3px; }
+.mx[data-design="m3"] .mx-bubble.round { padding: 0; }
+.mx[data-design="m3"] .mx-quote { border-radius: 8px; }
+.mx[data-design="m3"] .mx-reaction { background: var(--m3-secondary-container); color: var(--m3-on-secondary-container); }
+
+/* нижняя панель, поле ввода, листы, меню, значки */
+.mx[data-design="m3"] .mx-nav { left: 0 !important; right: 0 !important; bottom: 0 !important; border-radius: 0 !important; border-width: 0 !important; background: var(--mx-surface) !important; padding: 8px 8px calc(env(safe-area-inset-bottom) + 8px) !important; }
+.mx[data-design="m3"] .mx-nav button { background: transparent !important; border-radius: 16px !important; }
+.mx[data-design="m3"] .mx-composer-field { background: var(--m3-surface-highest) !important; border-radius: 28px; }
+.mx[data-design="m3"] .mx-sheet-panel { border-radius: 28px 28px 0 0 !important; }
+.mx[data-design="m3"] .mx-pop { border-radius: 16px; }
+.mx[data-design="m3"] .mx-badge { background: var(--mx-accent); color: var(--mx-accent-text); font-weight: 600; }
+.mx[data-design="m3"] .mx-badge.muted { background: var(--m3-secondary-container); color: var(--m3-on-secondary-container); }
+
+/* список чатов: без разделителей, крупный заголовок */
+.mx[data-design="m3"] .mx-chat-row::after { display: none; }
+.mx[data-design="m3"] .mx-chat-row { transition: background 0.15s; }
+.mx[data-design="m3"] .mx-chat-row:active { background: var(--m3-secondary-container); }
+.mx[data-design="m3"] .mx-list-title { font-size: 28px; font-weight: 500; letter-spacing: 0; }
+.mx[data-design="m3"] .mx-story-ring:not(.seen) { background: conic-gradient(from 200deg, var(--mx-accent), var(--m3-tertiary), var(--mx-accent)); box-shadow: none; }
+.mx[data-design="m3"] .mx-story-ring.seen { background: var(--mx-line); }
