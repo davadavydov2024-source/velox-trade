@@ -7,6 +7,7 @@ import { stickerStill } from "@/lib/messenger/stickers";
 import { isPremium } from "@/lib/messenger/premium";
 import { chargePaidMessage, markFreeReply, refundPaidMessage } from "@/lib/messenger/paid";
 import { DATING_UID, datingHandle, datingPhoto } from "@/lib/messenger/dating";
+import { isBotUid, runBot } from "@/lib/messenger/bots";
 
 export const runtime = "nodejs";
 
@@ -116,6 +117,11 @@ export async function POST(req: NextRequest) {
   // бот знакомств: отвечает на текст пользователя (сбой бота не ломает отправку)
   if (chat.type === "dm" && chat.members.includes(DATING_UID) && me.uid !== DATING_UID && (kind === "text" ? !!text : kind === "image" && !!mediaUrl)) {
     try { if (kind === "image") await datingPhoto(me.uid, mediaUrl!); else await datingHandle(me.uid, text); } catch (e) { console.error("dating bot error:", e); }
+  }
+  // бот из конструктора: отвечает на текст пользователя (сбой бота не ломает отправку)
+  if (chat.type === "dm" && kind === "text" && text) {
+    const botUid = chat.members.find((m) => m !== me.uid && isBotUid(m));
+    if (botUid) { try { await runBot(botUid, me.uid, text); } catch (e) { console.error("custom bot error:", e); } }
   }
   if (quizSecret) await db.collection("messengerChats").doc(chat.id).collection("messages").doc(id).collection("secret").doc("quiz").set(quizSecret);
   return NextResponse.json({ id });

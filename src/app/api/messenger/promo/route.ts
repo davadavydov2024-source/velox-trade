@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger } from "@/lib/messenger/server";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const ref = db.collection("messengerPromoCodes").doc(code);
   const accRef = db.collection("messengerAccounts").doc(me.uid);
   try {
-    const days = await db.runTransaction(async (tx) => {
+    const days = await db.transaction(async (tx) => {
       const [snap, use, acc] = await Promise.all([tx.get(ref), tx.get(ref.collection("uses").doc(me.uid)), tx.get(accRef)]);
       const d = snap.data();
       if (!d || d.disabled) throw new Error("Такого промокода нет");
@@ -36,4 +36,3 @@ export async function POST(req: NextRequest) {
     return fail(e?.message || "Не удалось активировать", 400);
   }
 }
-

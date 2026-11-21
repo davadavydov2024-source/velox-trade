@@ -517,14 +517,14 @@ function PlayGlyph({ playing, buffering, size, offset = 0 }: { playing: boolean;
 }
 
 /** Мини-плеер над нижней панелью (как в Telegram/Spotify): виден на любом экране, пока в очереди есть трек. */
-export function MiniPlayer() {
+export function MiniPlayer({ bottom }: { bottom: string }) {
   const m = useMusic();
   const { time } = useMusicTime();
   const t = m.current;
   if (!t || m.expanded) return null;
   const p = m.duration > 0 ? Math.min(1, time / m.duration) : 0;
   return (
-    <div className="mx-sidebar-player shrink-0 overflow-hidden">
+    <div className="absolute left-3 right-3 z-[19] mx-glass rounded-2xl overflow-hidden mx-pop" style={{ bottom, boxShadow: "0 8px 28px rgba(0,0,0,0.28)" }}>
       <div className="flex items-center gap-2 pl-2 pr-1 py-2">
         <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={() => m.setExpanded(true)} aria-label="Открыть плеер">
           <div className="relative">

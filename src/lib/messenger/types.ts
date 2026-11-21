@@ -34,6 +34,8 @@ export interface MessengerAccount {
   messagePrice?: number; // ⭐ за одно входящее сообщение (только Плюс; 0/нет — бесплатно)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
+  bot?: boolean; // аккаунт бота из конструктора ботов (uid = bot_<id>)
+  ownerUid?: string; // владелец бота
 }
 
 export interface MessengerChat {

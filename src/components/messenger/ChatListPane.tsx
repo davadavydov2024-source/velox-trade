@@ -3,7 +3,7 @@
 import { ghostNow } from "./ghost";
 import { useAdv } from "./advPrefs";
 import { useMemo, useState } from "react";
-import { Bookmark, Archive, Trash2, BellOff, Bell, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Heart, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
+import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, TypingDots, StreakBadge } from "./ui";
@@ -88,6 +88,7 @@ export function ChatListPane({
   };
 
   const [folderId, setFolderId] = useState<string>("all");
+  const [showArchive, setShowArchive] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -143,6 +144,7 @@ export function ChatListPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chats, userChats, activeFolder]);
 
+  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived && !isGone(c) ? 1 : 0), 0);
   const archived = chats.filter((c) => userChats[c.id]?.archived && !isGone(c));
   const archivedUnread = archived.reduce((s, c) => s + (userChats[c.id]?.unread ?? 0), 0);
 
@@ -158,7 +160,6 @@ export function ChatListPane({
       return n;
     });
 
-  const avatarSize = 46;
   const row = (c: MChat) => {
     const uc = userChats[c.id];
     const title = chatTitle(c, me, accounts);
@@ -190,17 +191,17 @@ export function ChatListPane({
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
         onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className={`mx-chat-row ${editMode && selected.has(c.id) ? "sel" : ""}`} data-current={!editMode && activeId === c.id ? "true" : undefined}>
+        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} style={{ background: activeId === c.id ? "var(--mx-surface)" : "var(--mx-bg)" }}>
           <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
-            {saved ? <span className="mx-saved-avatar" style={{ width: avatarSize, height: avatarSize }}><Bookmark size={21} /></span> : <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={avatarSize} online={!editMode && isOnline(peer, now)}>
+            {saved ? <span className="rounded-full flex items-center justify-center text-white" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Bookmark size={28} fill="#fff" /></span> : <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={62} online={!editMode && isOnline(peer, now)}>
               {undefined}
             </Avatar>}
             <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="mx-chat-name min-w-0 flex items-center gap-1">
-                <span className="truncate">{title}</span> <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />
+              <p className="mx-chat-name truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
+                {title} <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />
                 {c.type === "dm" && <StreakBadge count={c.streak?.count ?? 0} size={13} />}
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
@@ -210,7 +211,7 @@ export function ChatListPane({
               </span>
             </div>
             <div className="flex items-start gap-2 mt-0.5">
-              <p className="mx-chat-preview flex-1 min-w-0 truncate" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)" }}>
+              <p className="text-[15px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
                 {typing ? (
                   <span className="inline-flex items-center gap-1.5" style={{ color: "var(--mx-accent)" }}><TypingDots />печатает</span>
                 ) : draft ? (
@@ -248,31 +249,43 @@ export function ChatListPane({
   };
 
   return (
-    <div className="mx-inbox flex flex-col h-full relative">
-      <header className="mx-inbox-head mx-safe-top shrink-0">
-        <div className="mx-inbox-titlebar">
-          <div className="min-w-0">
-            <p className="mx-inbox-brand">MiliGram</p>
-            <h1>{editMode ? "Выбор чатов" : "Чаты"}</h1>
+    <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
+      {/* ---- шапка: стеклянные «таблетки» — «Изм.» слева, «Чаты» по центру, действия справа ---- */}
+      <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
+        <div className="px-4 pt-2 pb-2 flex items-center">
+          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-pill-btn h-11 px-4 text-[17px] font-semibold min-w-[68px]">
+            {editMode ? "Готово" : "Изм."}
+          </button>
+          <div className="flex-1 text-center min-w-0 px-2">
+            <h1 className="text-[18px] font-bold leading-tight truncate">Чаты</h1>
+            {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal % 10 === 1 && unreadTotal % 100 !== 11 ? "ый" : "ых"}</p>}
           </div>
-          <div className="mx-inbox-actions">
-            <button type="button" onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-inbox-edit" aria-pressed={editMode}>
-              {editMode ? "Готово" : "Выбрать"}
-            </button>
-            {!editMode && <button type="button" onClick={onNewChat} className="mx-workspace-action mx-compose-new" aria-label="Новое сообщение" title="Новое сообщение"><SquarePen size={19} /></button>}
-          </div>
-        </div>
-        <div className="mx-inbox-search">
-          <div className="mx-search">
-            <Search size={17} className="mx-muted shrink-0" aria-hidden="true" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Чаты и люди" aria-label="Поиск чатов и людей" className="min-w-0 bg-transparent outline-none flex-1" autoCapitalize="none" />
-            {q && <button type="button" onClick={() => setQ("")} className="mx-muted shrink-0" aria-label="Очистить поиск"><X size={17} /></button>}
+          <div className="flex gap-2">
+            <button onClick={onCreateStory} className="mx-pill-btn w-11 h-11" aria-label="Новая история"><Camera size={21} /></button>
+            <button onClick={onNewChat} className="mx-pill-btn w-11 h-11" aria-label="Новое сообщение"><SquarePen size={21} /></button>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="mx-scroll mx-inbox-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 68 : undefined }}>
-        {!searching && !editMode && <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />}
+      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 96 }}>
+        <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
+
+        {/* поиск */}
+        <div className="px-4 pb-2 pt-1">
+          <div className="mx-search">
+            <Search size={17} className="mx-muted" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск" className="bg-transparent outline-none flex-1 text-[17px]" autoCapitalize="none" />
+            {q && <button onClick={() => setQ("")} className="mx-muted" aria-label="Очистить"><X size={17} /></button>}
+          </div>
+        </div>
+
+        {!searching && !hasDating && !editMode && (
+          <button onClick={openDating} className="mx-4 mb-2 flex items-center gap-3 text-left rounded-2xl px-4 py-3 active:scale-[.98] transition-transform" style={{ margin: "0 16px 8px", width: "calc(100% - 32px)", background: "linear-gradient(135deg, rgba(255,45,85,.22), rgba(175,82,222,.22))", border: "1px solid var(--mx-line)" }}>
+            <span className="text-[26px]">💘</span>
+            <span className="flex-1 min-w-0"><span className="block font-semibold text-[15px]">Velox Знакомства</span><span className="block mx-muted text-[13px]">Найди друзей и отношения · 18+</span></span>
+            <ChevronRight size={18} className="mx-muted" />
+          </button>
+        )}
 
         {searching ? (
           <div>
@@ -312,9 +325,9 @@ export function ChatListPane({
                   const on = f.id === folderId;
                   const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
                   return (
-                    <button key={f.id} onClick={() => setFolderId(f.id)} aria-pressed={on} className="relative shrink-0 px-3.5 h-10 text-[15px] font-medium whitespace-nowrap flex items-center gap-1.5" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)" }}>
+                    <button key={f.id} onClick={() => setFolderId(f.id)} className="relative shrink-0 px-3.5 h-10 text-[15px] font-medium whitespace-nowrap flex items-center gap-1.5" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)" }}>
                       {f.emoji} {f.name}
-                      {count > 0 && <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent)" : "var(--mx-muted)", color: on ? "var(--mx-accent-text)" : "var(--mx-bg)" }}>{count}</span>}
+                      {count > 0 && <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent)" : "var(--mx-muted)", color: "#fff" }}>{count}</span>}
                       {on && <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full" style={{ background: "var(--mx-accent)" }} />}
                     </button>
                   );
@@ -325,11 +338,10 @@ export function ChatListPane({
             {/* архив */}
             {(
               <>
-                <button type="button" onClick={() => setArchiveOpen((v) => !v)} className="mx-inbox-utility" aria-expanded={archiveOpen}>
-                  <Archive size={18} aria-hidden="true" />
-                  <span className="flex-1">Архив</span>
+                <button onClick={() => setArchiveOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
+                  <span className="rounded-full flex items-center justify-center text-white shrink-0" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Archive size={28} /></span>
+                  <span className="flex-1 min-w-0"><span className="block font-bold text-[17px]">Архив чатов</span><span className="block text-[15px] mx-muted truncate">{archived.length ? archived.map((c) => chatTitle(c, me, accounts)).join(", ") : "Пусто"}</span></span>
                   {archivedUnread > 0 && <span className="mx-badge muted">{archivedUnread}</span>}
-                  {archiveOpen ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
                 </button>
                 {archiveOpen && archived.map(row)}
                 {archiveOpen && archived.length === 0 && <p className="mx-muted text-[13.5px] px-6 pb-3">Архив пуст. Смахни чат влево и нажми «Архив» — он спрячется сюда и не будет мешать.</p>}
@@ -340,7 +352,7 @@ export function ChatListPane({
               <div>
                 {Array.from({ length: 7 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ opacity: 1 - i * 0.1 }}>
-                    <div className="mx-skel rounded-full shrink-0" style={{ width: avatarSize, height: avatarSize }} />
+                    <div className="mx-skel rounded-full shrink-0" style={{ width: 56, height: 56 }} />
                     <div className="flex-1 space-y-2">
                       <div className="mx-skel rounded-md" style={{ width: `${40 + (i % 3) * 14}%`, height: 14 }} />
                       <div className="mx-skel rounded-md" style={{ width: `${62 + (i % 4) * 8}%`, height: 12 }} />
@@ -350,18 +362,13 @@ export function ChatListPane({
               </div>
             )}
             {visible.map(row)}
-            {!loading && visible.length === 0 && (activeFolder || archived.length === 0) && (
-              <div className="mx-inbox-empty">
-                <p>{activeFolder ? "В папке пока нет чатов" : "Чатов пока нет"}</p>
-                {!activeFolder && <p>Найдите человека по @username или создайте группу.</p>}
+            {!loading && visible.length === 0 && archived.length === 0 && (
+              <div className="text-center px-10 py-14">
+                <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}><SquarePen size={26} /></div>
+                <p className="text-[18px] font-semibold mb-1.5">Чатов пока нет</p>
+                <p className="mx-muted text-[14px] mb-5">Найди человека по @username или создай группу.</p>
+                <button className="mx-btn" style={{ width: "auto", padding: "12px 24px" }} onClick={onNewChat}>Новое сообщение</button>
               </div>
-            )}
-            {!loading && !hasDating && !editMode && (
-              <button type="button" onClick={openDating} className="mx-inbox-utility mx-dating">
-                <Heart size={18} aria-hidden="true" />
-                <span className="flex-1">Velox Знакомства <small>18+</small></span>
-                <ChevronRight size={16} aria-hidden="true" />
-              </button>
             )}
           </>
         )}

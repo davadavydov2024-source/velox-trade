@@ -618,7 +618,7 @@ export function ChatView({
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="mx-chat-head mx-thread-head mx-safe-top shrink-0 z-10">
+      <div className="mx-chat-head mx-chat-head-tg mx-safe-top shrink-0 z-10">
         {selecting ? (
           <div className="h-14 flex items-center px-3 gap-2">
             <button onClick={() => setSelection(null)} className="p-2" aria-label="Отмена"><X size={22} /></button>
@@ -629,13 +629,12 @@ export function ChatView({
             <button onClick={() => setDeleteMsgs(selectedMsgs)} className="p-2.5" style={{ color: "var(--mx-danger)" }} aria-label="Удалить"><Trash2 size={21} /></button>
           </div>
         ) : (
-          <div className="mx-thread-titlebar">
-            <button onClick={onBack} className="mx-thread-icon min-[900px]:hidden w-11 h-11 shrink-0" aria-label="Назад"><ChevronLeft size={26} /></button>
-            <button onClick={() => setInfo(true)} className="mx-thread-profile flex-1 min-w-0">
-              <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={36} online={online}>{saved ? "🔖" : undefined}</Avatar>
-              <div className="min-w-0">
-                <p className="font-semibold flex items-center gap-1 text-[16px] leading-tight">
-                  <span className="truncate">{title}</span>
+          <div className="flex items-center gap-2 px-3 pt-1 pb-2">
+            <button onClick={onBack} className="min-[900px]:hidden mx-pill-btn w-11 h-11 shrink-0" aria-label="Назад"><ChevronLeft size={26} /></button>
+            <button onClick={() => setInfo(true)} className="mx-pill-btn flex-1 min-w-0 h-12 px-4 mx-auto" style={{ maxWidth: 360, flex: "1 1 auto" }}>
+              <div className="min-w-0 text-center">
+                <p className="font-bold truncate flex items-center justify-center gap-1 text-[16.5px] leading-tight">
+                  {title}
                   <VerifyMark acc={chat.type === "dm" ? peer : chat} size={16} /><TagChip acc={chat.type === "dm" ? peer : chat} />{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {chat.type === "dm" && <StreakBadge count={chat.streak?.count ?? 0} size={14} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
@@ -646,7 +645,10 @@ export function ChatView({
                 </p>
               </div>
             </button>
-            <button onClick={() => setHeaderMenu(true)} className="mx-thread-icon w-11 h-11 shrink-0" aria-label="Меню чата"><MoreVertical size={21} /></button>
+            <button onClick={() => setInfo(true)} className="shrink-0 rounded-full overflow-hidden" aria-label="Профиль" style={{ border: "2px solid rgba(255,255,255,0.18)" }}>
+              <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={44} online={online}>{saved ? "🔖" : undefined}</Avatar>
+            </button>
+            <button onClick={() => setHeaderMenu(true)} className="mx-pill-btn w-11 h-11 shrink-0" aria-label="Меню"><MoreVertical size={21} /></button>
           </div>
         )}
         {pinnedMsg || currentPinId ? (
@@ -766,7 +768,7 @@ export function ChatView({
       )}
       {(() => {
         const last = messages[messages.length - 1];
-        const kb = last && last.from === "velox_dating" ? last.kb : undefined;
+        const kb = last && (last.from === "velox_dating" || last.from.startsWith("bot_")) ? last.kb : undefined;
         if (!kb?.length) return null;
         return (
           <div className="shrink-0 flex flex-wrap gap-2 px-3 pt-2 pb-1 justify-center" style={{ background: "var(--mx-bg)" }}>

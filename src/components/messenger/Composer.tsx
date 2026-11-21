@@ -286,7 +286,7 @@ export function Composer({
   const recordingUi = voice.recording;
 
   return (
-    <div className="mx-thread-composer shrink-0 mx-safe-bottom relative">
+    <div className="shrink-0 mx-safe-bottom relative" style={{ background: "var(--mx-bg)" }}>
       {!editing && onSendSticker && <StickerSuggest text={text} onPick={(slug, i) => { onSendSticker(slug, i); setText(""); }} />}
       {(reply || editing) && (
         <div className="flex items-center gap-3 px-4 py-2 mx-fade" style={{ borderTop: "1px solid var(--mx-line)", background: "var(--mx-surface)" }}>
@@ -316,7 +316,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="mx-thread-compose-row flex items-end gap-2">
+      <div className="flex items-end gap-2 px-2.5 py-2">
         {recordingUi ? (
           <div className="flex-1 flex items-center gap-3 h-11 px-3 rounded-full" style={{ background: "var(--mx-surface)" }}>
             <span className="w-2.5 h-2.5 rounded-full mx-rec-dot" style={{ background: "var(--mx-danger)" }} />
@@ -341,13 +341,12 @@ export function Composer({
             <button onClick={() => setAttachOpen(true)} className="w-11 h-11 rounded-full flex items-center justify-center mx-muted shrink-0" aria-label="Прикрепить">
               <Paperclip size={23} />
             </button>
-            <div className="mx-composer-field flex-1 min-w-0 flex items-end pl-3 pr-1">
+            <div className="mx-composer-field flex-1 flex items-end rounded-[22px] pl-4 pr-1" style={{ background: "var(--mx-surface)", border: "1px solid var(--mx-line)" }}>
               <textarea
                 ref={taRef}
                 value={text}
                 rows={1}
                 placeholder="Сообщение"
-                aria-label="Сообщение"
                 className="mx-composer-input"
                 onChange={(e) => {
                   setText(e.target.value);

@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag } from "lucide-react";
+import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag, Bot } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
@@ -33,10 +33,11 @@ import { AppIconPicker } from "./AppIconPicker";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
+import { BotsPage } from "./Bots";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon" | "bots";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -296,7 +297,7 @@ function FoldersPage({ folders, onBack }: { folders: MFolder[]; onBack: () => vo
   return (
     <>
       <PageHeader title="Папки чатов" onBack={onBack} />
-      <div className="mx-scroll flex-1 pt-3 pb-4">
+      <div className="mx-scroll flex-1 pt-3 pb-24">
         <Section footer="Папки появляются вкладками над списком чатов. Добавить конкретный чат в папку можно долгим нажатием на чат.">
           {folders.map((f) => (
             <div key={f.id} className="flex items-center gap-3 px-4 py-3">
@@ -373,7 +374,7 @@ function DevicesPage({ onBack }: { onBack: () => void }) {
   return (
     <>
       <PageHeader title="Устройства" onBack={onBack} />
-      <div className="mx-scroll flex-1 pt-3 pb-4">
+      <div className="mx-scroll flex-1 pt-3 pb-24">
         <Section title="Это устройство">
           {current ? (
             <div className="flex items-center gap-3 px-4 py-3">
@@ -465,7 +466,7 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
   return (
     <>
       <PageHeader title="Mili Premium" onBack={onBack} />
-      <div className="mx-scroll flex-1 pt-4 pb-4 px-4 space-y-4">
+      <div className="mx-scroll flex-1 pt-4 pb-24 px-4 space-y-4">
         <div className="mx-card"><div className="px-5 py-6 text-center">
           <div className="text-5xl mb-2">⭐</div>
           <p className="text-[19px] font-semibold mb-1">{info?.premium ? "Premium активен" : "Mili Premium"}</p>
@@ -582,7 +583,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     return (
       <div className="flex flex-col h-full">
         <PageHeader title="Документы" onBack={back} />
-        <div className="mx-scroll flex-1 pt-4 pb-4 px-4 space-y-4">
+        <div className="mx-scroll flex-1 pt-4 pb-24 px-4 space-y-4">
           <div className="mx-card">
             {docs.map(([href, title, sub]) => (
               <a key={href} href={href} target="_blank" rel="noreferrer" className="flex items-center gap-3.5 px-4 py-3 active:bg-white/5">
@@ -600,6 +601,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
   if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
   if (page === "usernames") return <div className="flex flex-col h-full"><UsernamesPage onBack={back} /></div>;
+  if (page === "bots") return <div className="flex flex-col h-full"><BotsPage onBack={back} /></div>;
   if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
@@ -610,7 +612,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           onBack={back}
           title={{ notifications: "Уведомления и звуки", data: "Данные и память", privacy: "Конфиденциальность", general: "Общие настройки", stickers: "Стикеры и эмодзи", language: "Язык", hotkeys: "Горячие клавиши", admin: "Админ-панель", docs: "Документы" }[page]}
         />
-        <div className="mx-scroll flex-1 pt-3 pb-4 px-4">
+        <div className="mx-scroll flex-1 pt-3 pb-24 px-4">
           {page === "notifications" && (
             <div className="space-y-3">
               <PushToggleCard />
@@ -763,7 +765,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="Настройки" />
-      <div className="mx-scroll flex-1 pb-4">
+      <div className="mx-scroll flex-1 pb-28">
         <div className="mx-3 mt-1 mb-1 overflow-hidden" style={{ borderRadius: 30 }}>
         <ProfileShell>
         <ProfileHeader
@@ -822,6 +824,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         <Section>
           <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк 🪙" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
           <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
+          <Row icon={<Bot size={17} />} color="#3390ec" label="Боты" onClick={() => setPage("bots")} />
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Ввести промокод" onClick={() => setPromo(true)} />
         </Section>
 
