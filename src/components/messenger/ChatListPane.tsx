@@ -249,7 +249,7 @@ export function ChatListPane({
   };
 
   return (
-    <div className="mx-inbox flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
+    <div className="mx-inbox relative flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка: стеклянные «таблетки» — «Изм.» слева, «Чаты» по центру, действия справа ---- */}
       <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
         <div className="px-4 pt-2 pb-2 flex items-center">
@@ -260,14 +260,13 @@ export function ChatListPane({
             <h1 className="text-[18px] font-bold leading-tight truncate">Чаты</h1>
             {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal % 10 === 1 && unreadTotal % 100 !== 11 ? "ый" : "ых"}</p>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 min-w-[68px] justify-end">
             <button onClick={onCreateStory} className="mx-pill-btn w-11 h-11" aria-label="Новая история"><Camera size={21} /></button>
-            <button onClick={onNewChat} className="mx-pill-btn w-11 h-11" aria-label="Новое сообщение"><SquarePen size={21} /></button>
           </div>
         </div>
       </div>
 
-      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 12 }}>
+      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 92 }}>
         <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
 
         {/* поиск */}
@@ -469,6 +468,11 @@ export function ChatListPane({
           </div>
         )}
       </Sheet>
+
+      {/* Material You: плавающая кнопка «Новое сообщение» */}
+      {!editMode && (
+        <button onClick={onNewChat} className="mx-m3-fab" aria-label="Новое сообщение"><SquarePen size={24} /></button>
+      )}
     </div>
   );
 }

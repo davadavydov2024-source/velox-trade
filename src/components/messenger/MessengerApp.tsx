@@ -189,7 +189,7 @@ export function MessengerApp() {
           {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/m")} />}
         </div>
 
-        <MiniPlayer bottom="calc(56px + env(safe-area-inset-bottom) + 8px)" />
+        <MiniPlayer bottom="calc(80px + env(safe-area-inset-bottom) + 8px)" />
         <nav className="mx-workspace-nav" aria-label="Разделы MiliGram">
           {tabs.map((t) => {
             const on = tab === t.id;
