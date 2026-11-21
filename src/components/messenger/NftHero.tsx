@@ -9,7 +9,7 @@ import { NftFigure, hasNftFigure } from "./NftFigures";
  * Верх страницы коллекционного подарка как в Telegram: фон из радиального градиента цвета подарка,
  * узор из его символа кольцами, крупная фигурка по центру, название и номер. Без свечения, бликов и рамок.
  */
-export function NftHero({ gift, nft }: { gift: GiftDef; nft: GiftNft }) {
+export function NftHero({ gift, nft, footer }: { gift: GiftDef; nft: GiftNft; footer?: ReactNode }) {
   const b = backdropOf(nft.backdrop);
   const m = modelOf(nft.model);
   const ch = NFT_SYMBOL_CHARS[symbolOf(nft.symbol).name] ?? "✦";
@@ -54,6 +54,7 @@ export function NftHero({ gift, nft }: { gift: GiftDef; nft: GiftNft }) {
       <div className="relative text-center px-6 pb-5 -mt-3">
         <p className="text-[24px] font-bold leading-tight">{gift.title}</p>
         <p className="text-[14px] mt-0.5" style={{ color: "rgba(255,255,255,0.78)" }}>{nft.upgraded ? `#${nft.number}` : `Коллекционный подарок · #${nft.number}`}</p>
+        {footer}
       </div>
       <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.22))" }} />
     </div>

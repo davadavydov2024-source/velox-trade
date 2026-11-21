@@ -10,7 +10,7 @@ import { nftValue } from "@/lib/messenger/nft";
 import { mApi, MApiError } from "./api";
 import { Sheet, Spinner } from "./ui";
 import { GiftArt } from "./Gifts";
-import { NftHero } from "./NftHero";
+import { NftDetails, NftHero } from "./NftHero";
 import { Confetti, UpgradeSheet, type UpgradeResult } from "./GiftUpgrade";
 import { RecipientList } from "./Gifts";
 
@@ -44,7 +44,7 @@ function markOpened(msgId: string) {
 }
 
 /** Закрытая коробка подарка с бантом — то, что видно в чате до того, как получатель её открыл. */
-function ClosedBox({ size = 120 }: { size?: number }) {
+export function ClosedBox({ size = 120 }: { size?: number }) {
   return (
     <div className="relative mx-gift-box" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" width={size} height={size} role="img" aria-label="Подарок">
@@ -100,15 +100,18 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
  * «Улучшить до NFT» и «Передать».
  */
 export function GiftReceiveSheet({
-  open, onClose, msgId, giftId, giftDocId, price, text, mine, anonymous, senderName, toName, me, toUid,
+  open, onClose, msgId, giftId, giftDocId, price, text, mine, anonymous, senderName, toName, me, toUid, nft: nftProp, onOpened,
 }: {
   open: boolean; onClose: () => void; msgId: string; giftId: string; giftDocId?: string; price: number; text?: string;
   mine: boolean; anonymous?: boolean; senderName: string; toName: string; me?: string; toUid?: string;
+  nft?: GiftNft; // NFT, который пришёл вместе с сообщением (подарок-NFT или переданный)
+  onOpened?: () => void; // получатель впервые открыл подарок
 }) {
   const { toast } = useToast();
   const def = giftById(giftId);
   const [nft, setNft] = useState<GiftNft | undefined>(undefined);
   const [unwrapping, setUnwrapping] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const [upOpen, setUpOpen] = useState(false);
   const [giveOpen, setGiveOpen] = useState(false);
   const [giving, setGiving] = useState(false);
@@ -128,10 +131,12 @@ export function GiftReceiveSheet({
     markOpened(msgId);
     everOpened.current = true;
     setUnwrapping(false);
+    onOpened?.();
+    if (nft ?? nftProp) { setCelebrate(true); setTimeout(() => setCelebrate(false), 3200); } // как в Telegram: коллекционный подарок раскрывается с конфетти
   };
 
   const who = mine ? `Вы отправили подарок — ${toName}` : anonymous ? "Вам отправили подарок анонимно" : `${senderName} отправил(а) вам подарок`;
-  const curNft = nft ?? undefined;
+  const curNft = nft ?? nftProp;
   const upgradeable = canManage && canUpgradeGift(def) && !curNft;
 
   const send = async (toUidPick: string) => {
@@ -151,7 +156,8 @@ export function GiftReceiveSheet({
 
   return (
     <Sheet open={open} onClose={onClose} full zIndex={82}>
-      <div className="pb-6">
+      <div className="pb-6 relative">
+        {celebrate && <Confetti count={60} />}
         {unwrapping ? (
           <UnwrapAnim onDone={finishUnwrap} />
         ) : curNft ? (
@@ -182,24 +188,22 @@ export function GiftReceiveSheet({
               </div>
             )}
 
-            <div className="mx-card mx-4 mt-3" style={{ margin: "12px 16px 0" }}>
-              {curNft ? (
-                <>
-                  <Row k="Владелец" v={mine ? toName : "Вы"} />
-                  <Row k="Модель" v={curNft.model} />
-                  <Row k="Символ" v={curNft.symbol} />
-                  <Row k="Фон" v={curNft.backdrop} />
-                  <Row k="Ценность" v={`~ ${nftValue(curNft, price)} 🪙`} />
-                </>
-              ) : (
-                <>
-                  <Row k="От кого" v={mine ? "Вы" : anonymous ? "Аноним" : senderName} />
-                  <Row k="Кому" v={mine ? toName : "Вы"} />
-                  <Row k="Цена" v={money(price)} />
-                </>
-              )}
-              {text && <Row k="Подпись" v={text} />}
-            </div>
+            {curNft ? (
+              <div style={{ margin: "12px 16px 0" }}>
+                <NftDetails
+                  nft={curNft}
+                  rows={[["Владелец", mine ? toName : "Вы"], ["От кого", mine ? "Вы" : anonymous ? "Аноним" : senderName], ...(text ? [["Подпись", text] as [string, React.ReactNode]] : [])]}
+                  value={curNft.upgraded ? nftValue(curNft, price) : undefined}
+                />
+              </div>
+            ) : (
+              <div className="mx-card mx-4 mt-3" style={{ margin: "12px 16px 0" }}>
+                <Row k="От кого" v={mine ? "Вы" : anonymous ? "Аноним" : senderName} />
+                <Row k="Кому" v={mine ? toName : "Вы"} />
+                <Row k="Цена" v={money(price)} />
+                {text && <Row k="Подпись" v={text} />}
+              </div>
+            )}
 
             <div className="px-4 mt-4"><button className="mx-btn w-full" onClick={onClose}>Закрыть</button></div>
           </>
