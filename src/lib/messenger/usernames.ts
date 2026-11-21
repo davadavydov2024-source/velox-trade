@@ -73,7 +73,7 @@ export async function buyShop(name: string, uid: string) {
   await db.runTransaction(async (tx) => {
     const d = await load(tx, db, name);
     if (d.ownerUid || !d.shopPrice) throw new UErr("Этот юзернейм уже продан", 409);
-    if ((await getWallet(tx, db, uid)) < d.shopPrice) throw new UErr(`Не хватает звёзд: нужно ${d.shopPrice} ⭐`, 402);
+    if ((await getWallet(tx, db, uid)) < d.shopPrice) throw new UErr(`Не хватает монет: нужно ${d.shopPrice} 🪙`, 402);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-d.shopPrice) }, { merge: true });
     log(db, tx, uid, -d.shopPrice, "username_buy", name);
     tx.update(uref(db, name), { ownerUid: uid, shopPrice: null, boughtAt: Date.now() });
@@ -91,7 +91,7 @@ export async function buyResale(name: string, uid: string) {
     if (rentedNow(d)) throw new UErr("Сейчас сдан в аренду — продать нельзя", 409);
     const owner = d.ownerUid, price = d.salePrice;
     const ownerAcc = d.usedBy === owner ? ((await tx.get(aref(db, owner))).data() as Acc | undefined) : undefined;
-    if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает звёзд: нужно ${price} ⭐`, 402);
+    if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает монет: нужно ${price} 🪙`, 402);
     if (ownerAcc && ownerAcc.premiumHandle === name) writeDeactivate(db, tx, name, ownerAcc, uid);
     const get = price - fee(price);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
@@ -113,7 +113,7 @@ export async function rentName(name: string, uid: string, days: number) {
     const extending = d.renterUid === uid && rentedNow(d);
     if (rentedNow(d) && !extending) throw new UErr("Уже арендован другим человеком", 409);
     const owner = d.ownerUid, price = d.rentPerDay * days;
-    if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает звёзд: нужно ${price} ⭐`, 402);
+    if ((await getWallet(tx, db, uid)) < price) throw new UErr(`Не хватает монет: нужно ${price} 🪙`, 402);
     const get = price - fee(price);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
     tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
@@ -221,7 +221,7 @@ export async function addToShop(items: { name: string; price: number }[]): Promi
     const name = String(it.name ?? "").toLowerCase().replace(/^@/, "");
     const price = Math.floor(Number(it.price));
     if (!validName(name)) { skipped.push(name); reasons.push(`@${name || "?"}: имя должно быть 2–24 символа (a-z, 0-9, _), начинаться с буквы`); continue; }
-    if (!(price >= 1 && price <= PRICE_MAX)) { skipped.push(name); reasons.push(`@${name}: укажи цену от 1 до ${PRICE_MAX} ⭐`); continue; }
+    if (!(price >= 1 && price <= PRICE_MAX)) { skipped.push(name); reasons.push(`@${name}: укажи цену от 1 до ${PRICE_MAX} 🪙`); continue; }
     try {
       await db.runTransaction(async (tx) => {
         if ((await tx.get(href(db, name))).exists) throw new UErr(`@${name}: имя уже занято (его использует кто-то или оно уже в магазине)`, 409);

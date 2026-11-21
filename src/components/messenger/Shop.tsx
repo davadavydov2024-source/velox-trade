@@ -82,7 +82,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
           <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: 190, background: "linear-gradient(180deg, rgba(214,24,34,0.85) 0%, rgba(214,24,34,0.25) 55%, transparent 100%)" }} />
           <div className="relative pt-2 pb-5">
             <p className="text-[26px] font-extrabold leading-tight">Магазин</p>
-            <p className="text-[14px] mt-1" style={{ color: "rgba(255,255,255,0.8)" }}>Рамки для аватарок, мелодии профиля и подарки. Всё покупается за ⭐.</p>
+            <p className="text-[14px] mt-1" style={{ color: "rgba(255,255,255,0.8)" }}>Рамки для аватарок, мелодии профиля и подарки. Всё покупается за 🪙.</p>
           </div>
           {/* вкладки-«таблетки» */}
           <div className="flex p-1 rounded-full mb-4" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -110,6 +110,9 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
                           {FRAME_COLORS.slice(0, 6).map((c) => (
                             <button key={c} onClick={() => setColors((m) => ({ ...m, [f.id]: c }))} aria-label={c} className="w-[18px] h-[18px] rounded-full" style={{ background: c, boxShadow: color === c ? "0 0 0 2px #fff" : "0 0 0 1px rgba(255,255,255,0.2)" }} />
                           ))}
+                          <label className="relative w-[18px] h-[18px] rounded-full overflow-hidden cursor-pointer" style={{ background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)", boxShadow: !FRAME_COLORS.slice(0, 6).includes(color) ? "0 0 0 2px #fff" : "0 0 0 1px rgba(255,255,255,0.2)" }} aria-label="Свой цвет">
+                            <input type="color" value={color} onChange={(e) => setColors((m) => ({ ...m, [f.id]: e.target.value }))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                          </label>
                         </div>
                         {have ? (
                           <>
@@ -120,7 +123,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
                           </>
                         ) : (
                           <button disabled={!!busy} onClick={() => run(`buy${f.id}`, { action: "buy", id: f.id }, `«${f.name}» куплена`)} className="w-full h-9 rounded-full text-[13.5px] font-extrabold flex items-center justify-center gap-1" style={{ background: "#fff", color: "#111" }}>
-                            {busy === `buy${f.id}` ? <Spinner size={15} /> : <>Купить · {f.price} ⭐</>}
+                            {busy === `buy${f.id}` ? <Spinner size={15} /> : <>Купить · {f.price} 🪙</>}
                           </button>
                         )}
                       </div>
@@ -135,7 +138,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
             <>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[18px] font-extrabold">Подарок себе</p>
-                <span className="px-3 py-1 rounded-full text-[13.5px] font-extrabold" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>⭐ {wallet === null ? "…" : wallet.toLocaleString("ru-RU")}</span>
+                <span className="px-3 py-1 rounded-full text-[13.5px] font-extrabold" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>🪙 {wallet === null ? "…" : wallet.toLocaleString("ru-RU")}</span>
               </div>
               <div className="flex items-center gap-2 px-3.5 h-11 rounded-2xl mb-3" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <Search size={17} className="mx-muted shrink-0" />
@@ -153,7 +156,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
                     <div className="flex items-center justify-center" style={{ width: 62, height: 62, marginTop: g.limited ? 9 : 0 }}>
                       {g.nft && hasNftFigure(g.id) ? <svg viewBox="0 0 200 200" width={62} height={62} style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.45))" }}><NftFigure id={g.id} /></svg> : <span style={{ fontSize: 44, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.4))" }}>{g.emoji}</span>}
                     </div>
-                    <span className="mt-1.5"><PricePill>⭐ {g.price}</PricePill></span>
+                    <span className="mt-1.5"><PricePill>🪙 {g.price}</PricePill></span>
                   </button>
                 ))}
               </div>
@@ -208,7 +211,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
               <p className="text-[12.5px] mx-muted self-end mt-1">до 5 за раз</p>
               <div className="flex gap-2.5 w-full mt-4">
                 <button onClick={() => setPicked(null)} className="flex-1 h-12 rounded-full font-extrabold text-[15px]" style={{ background: "rgba(255,255,255,0.12)" }}>Назад</button>
-                <button disabled={buying} onClick={buyForMe} className="flex-[1.6] h-12 rounded-full font-extrabold text-[15px] flex items-center justify-center" style={{ background: "#fff", color: "#111" }}>{buying ? <Spinner size={18} /> : `Купить за ⭐ ${(picked.price * qty).toLocaleString("ru-RU")}`}</button>
+                <button disabled={buying} onClick={buyForMe} className="flex-[1.6] h-12 rounded-full font-extrabold text-[15px] flex items-center justify-center" style={{ background: "#fff", color: "#111" }}>{buying ? <Spinner size={18} /> : `Купить за 🪙 ${(picked.price * qty).toLocaleString("ru-RU")}`}</button>
               </div>
             </div>
           </ProfileShell>

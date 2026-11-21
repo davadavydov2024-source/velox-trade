@@ -1,6 +1,6 @@
 /**
  * Подарки MiliGram — общий каталог для сервера и клиента.
- * Обычные подарки стоят от 5 до 50 ⭐ (кошелёк Velox: users.starsWallet).
+ * Обычные подарки стоят от 5 до 50 🪙 (кошелёк мессенджера: users.miliWallet).
  * `limited` — ограниченный тираж: когда раскуплено, подарок исчезает из магазина.
  * NFT-подарки (уникальные, с номером/моделью/фоном/узором) добавим позже: под них уже есть тип GiftNft и поле `nft` у выданного подарка.
  */
@@ -11,7 +11,7 @@ export interface GiftDef {
   id: string;
   emoji: string;
   title: string;
-  price: number; // ⭐
+  price: number; // 🪙
   category: GiftCategory;
   colors: [string, string]; // градиент плитки
   limited?: number; // тираж; без поля — безлимит
@@ -20,7 +20,7 @@ export interface GiftDef {
 
 export const GIFT_MIN_PRICE = 5;
 export const GIFT_MAX_PRICE = 50;
-export const GIFT_CONVERT_RATE = 0.8; // сколько ⭐ вернётся, если получатель обменяет подарок на звёзды
+export const GIFT_CONVERT_RATE = 0.8; // сколько 🪙 вернётся, если получатель обменяет подарок на монеты
 export const GIFT_MESSAGE_MAX = 120;
 export const GIFT_PIN_MAX = 6; // сколько подарков можно закрепить в профиле (как в Telegram)
 export const GIFT_SALE_FEE = 0.1; // комиссия с продажи другому пользователю
@@ -40,7 +40,7 @@ export const GIFT_CATEGORIES: { id: "all" | GiftCategory; label: string }[] = [
 ];
 
 export const GIFTS: GiftDef[] = [
-  // — обычные, 5 ⭐
+  // — обычные, 5 🪙
   { id: "bear", emoji: "🧸", title: "Мишка", price: 5, category: "bears", colors: ["#3a2a1c", "#1d1610"] },
   { id: "heart", emoji: "💝", title: "Сердце с бантом", price: 5, category: "hearts", colors: ["#4a1c3a", "#1f0e1a"] },
   { id: "rose", emoji: "🌹", title: "Роза", price: 5, category: "roses", colors: ["#3d1418", "#1c0a0c"] },
@@ -56,7 +56,7 @@ export const GIFTS: GiftDef[] = [
   { id: "panda", emoji: "🐼", title: "Панда", price: 25, category: "bears", colors: ["#262a30", "#121417"] },
   { id: "sparkle-heart", emoji: "💖", title: "Сияющее сердце", price: 25, category: "hearts", colors: ["#4a1745", "#210b20"] },
   { id: "trophy", emoji: "🏆", title: "Кубок", price: 25, category: "rare", colors: ["#43361a", "#1e180c"] },
-  // — драгоценности и редкие, до 50 ⭐
+  // — драгоценности и редкие, до 50 🪙
   { id: "diamond", emoji: "💎", title: "Алмаз", price: 50, category: "gems", colors: ["#123a4a", "#0a1a21"] },
   { id: "ring", emoji: "💍", title: "Кольцо", price: 50, category: "gems", colors: ["#2d2a4a", "#14122a"] },
   { id: "rocket", emoji: "🚀", title: "Ракета", price: 25, category: "nft", nft: true, colors: ["#1b2c4a", "#0d1424"], limited: 5000 },
@@ -130,16 +130,16 @@ export interface MessengerGift {
   giftId: string;
   from: string; // uid отправителя
   to: string; // uid получателя
-  price: number; // сколько ⭐ заплатил отправитель
+  price: number; // сколько 🪙 заплатил отправитель
   message?: string;
   anonymous?: boolean; // скрыть отправителя от всех, кроме получателя
   hidden?: boolean; // получатель скрыл подарок из профиля
   pinned?: boolean; // закреплён вверху профиля
   pinnedAt?: number;
-  salePrice?: number; // выставлен на продажу за ⭐ (null/нет — не продаётся)
+  salePrice?: number; // выставлен на продажу за 🪙 (null/нет — не продаётся)
   at: number;
   nft?: GiftNft; // зарезервировано под NFT-подарки
-  byAdmin?: boolean; // выдан администрацией бесплатно (на ⭐ не обменивается)
+  byAdmin?: boolean; // выдан администрацией бесплатно (на 🪙 не обменивается)
 }
 
 /** Задел под NFT: уникальный экземпляр подарка (как в Telegram — номер, модель, фон, узор). Пока не выдаётся. */

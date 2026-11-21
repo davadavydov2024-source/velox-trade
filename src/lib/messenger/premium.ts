@@ -1,5 +1,5 @@
 /** Mili Premium: цена, срок и лимиты — общие для сервера и клиента. */
-export const PREMIUM_PRICE_STARS = 10; // ⭐ за период
+export const PREMIUM_PRICE_STARS = 10; // 🪙 за период
 export const PREMIUM_DAYS = 30;
 
 export const LIMITS = {
@@ -7,9 +7,9 @@ export const LIMITS = {
   premium: { folders: 20, pinnedChats: 10 },
 } as const;
 
-export const PLUS_PRICE_STARS = 49; // ⭐ за период — «Премиум Плюс»
+export const PLUS_PRICE_STARS = 49; // 🪙 за период — «Премиум Плюс»
 export const PLUS_DAYS = 30;
-export const PAID_MESSAGE_MAX = 1000; // максимальная цена одного сообщения, ⭐
+export const PAID_MESSAGE_MAX = 1000; // максимальная цена одного сообщения, 🪙
 export const isPlus = (a: { plusUntil?: number } | null | undefined): boolean => !!a?.plusUntil && a.plusUntil > Date.now();
 /** Премиум Плюс включает всё из Mili Premium. */
 export const isPremium = (a: { premiumUntil?: number; plusUntil?: number } | null | undefined): boolean => (!!a?.premiumUntil && a.premiumUntil > Date.now()) || isPlus(a);

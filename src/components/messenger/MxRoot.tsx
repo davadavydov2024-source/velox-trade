@@ -3,10 +3,8 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useViewportHeight } from "./hooks";
 import { FONT_CHOICES, useMxPrefs } from "./prefs";
+import { bgVars, isHex, readableOn } from "./color";
 import "./messenger.css";
-import "./workspace.css";
-import "./chat-polish.css";
-import "./design-v2.css";
 import { applyIcon, getSavedIcon, listenInstall } from "./appIconPref";
 
 /** Единственный «правильный» адрес мессенджера. APK/PWA, собранные на другой домен, перебрасываются сюда. */
@@ -35,6 +33,7 @@ export function MxRoot({ children }: { children: ReactNode }) {
   }, []);
   const theme = useMxPrefs((s) => s.theme);
   const accent = useMxPrefs((s) => s.accent);
+  const bg = useMxPrefs((s) => s.bg);
   const textSize = useMxPrefs((s) => s.textSize);
   const bubbleStyle = useMxPrefs((s) => s.bubbleStyle);
   const fontId = useMxPrefs((s) => s.font);
@@ -74,14 +73,16 @@ export function MxRoot({ children }: { children: ReactNode }) {
       document.head.appendChild(meta);
     }
     const prev = meta.content;
-    meta.content = resolved === "dark" ? (accent ? "#0b0b0d" : "#17212b") : (accent ? "#f2f2f6" : "#ffffff");
+    meta.content = isHex(bg) ? bg : resolved === "dark" ? (accent ? "#0b0b0d" : "#17212b") : (accent ? "#f2f2f6" : "#ffffff");
     return () => {
       if (meta) meta.content = prev;
     };
-  }, [resolved, accent]);
+  }, [resolved, accent, bg]);
 
   const style: Record<string, string> = { "--mx-font": `${textSize}px` };
-  if (accent) style["--mx-accent"] = accent;
+  if (isHex(accent)) { style["--mx-accent"] = accent; style["--mx-accent-text"] = readableOn(accent); }
+  else if (accent) style["--mx-accent"] = accent;
+  if (isHex(bg)) Object.assign(style, bgVars(bg));
   if (fontDef?.css) style.fontFamily = fontDef.css;
 
   return (

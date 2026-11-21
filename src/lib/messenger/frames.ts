@@ -1,4 +1,4 @@
-/** Рамки аватарок: покупаются за ⭐, надеваются в профиль, цвет рамки выбирается из палитры. */
+/** Рамки аватарок: покупаются за 🪙, надеваются в профиль, цвет рамки — любой. */
 export type FrameDef = { id: string; name: string; price: number; defaultColor: string };
 
 export const FRAMES: FrameDef[] = [

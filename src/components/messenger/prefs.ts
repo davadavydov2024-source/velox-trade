@@ -25,7 +25,8 @@ export const FONT_CHOICES: { id: string; label: string; css: string; google?: st
 
 interface MxPrefs {
   theme: MxTheme;
-  accent: string; // пусто = акцент сайта (оранжевый Velox)
+  accent: string; // пусто = акцент сайта (оранжевый Velox); любой цвет #rrggbb
+  bg: string; // свой цвет фона (#rrggbb); пусто = как в выбранной теме
   textSize: number; // px, 13–19
   enterToSend: boolean;
   bubbleStyle: "round" | "classic" | "compact" | "outline" | "glass"; // форма пузырей сообщений
@@ -37,6 +38,7 @@ interface MxPrefs {
   setTheme: (t: MxTheme) => void;
   setFont: (id: string) => void;
   setAccent: (a: string) => void;
+  setBg: (c: string) => void;
   setTextSize: (n: number) => void;
   setEnterToSend: (v: boolean) => void;
   setProfileTheme: (v: "auto" | "dark" | "light") => void;
@@ -54,6 +56,7 @@ export const useMxPrefs = create<MxPrefs>()(
       theme: "dark",
       font: "",
       accent: "",
+      bg: "",
       textSize: 15,
       enterToSend: true,
       profileTheme: "auto",
@@ -64,6 +67,7 @@ export const useMxPrefs = create<MxPrefs>()(
       setTheme: (theme) => set({ theme }),
       setFont: (font) => set({ font }),
       setAccent: (accent) => set({ accent }),
+      setBg: (bg) => set({ bg }),
       setTextSize: (textSize) => set({ textSize }),
       setEnterToSend: (enterToSend) => set({ enterToSend }),
       setProfileTheme: (profileTheme) => set({ profileTheme }),

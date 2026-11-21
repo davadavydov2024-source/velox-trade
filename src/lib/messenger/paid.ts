@@ -6,8 +6,8 @@ import type { MessengerAccount, MessengerChat } from "./types";
 import type { MessengerAuth } from "./server";
 
 /**
- * Платные сообщения («Премиум Плюс»): владелец ставит цену в ⭐ за входящее сообщение.
- * Звёзды переходят с кошелька отправителя на кошелёк получателя (users.miliWallet), обе операции пишутся в miliWalletLog.
+ * Платные сообщения («Премиум Плюс»): владелец ставит цену в 🪙 за входящее сообщение.
+ * Монеты 🪙 переходят с кошелька отправителя на кошелёк получателя (users.miliWallet), обе операции пишутся в miliWalletLog.
  * Бесплатно: если получатель сам уже писал отправителю в этом чате (chat.freeFor), и если цена не задана.
  */
 export interface PaidCharge { price: number; peer: string }
@@ -41,7 +41,7 @@ export async function chargePaidMessage(chat: MessengerChat, me: MessengerAuth):
     });
   } catch (e) {
     if ((e as Error)?.message === "not-enough") {
-      return { error: NextResponse.json({ error: `Этому человеку можно написать за ${c.price} ⭐ — пополни кошелёк`, needTopup: true, price: c.price }, { status: 402 }) };
+      return { error: NextResponse.json({ error: `Этому человеку можно написать за ${c.price} 🪙 — пополни кошелёк`, needTopup: true, price: c.price }, { status: 402 }) };
     }
     throw e;
   }

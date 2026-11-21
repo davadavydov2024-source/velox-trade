@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger } from "@/lib/messenger/server";
-import { FRAME_COLORS, frameById } from "@/lib/messenger/frames";
+import { frameById } from "@/lib/messenger/frames";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST { action: "buy", id }                    — купить рамку за ⭐ (списывается с кошелька).
+ * POST { action: "buy", id }                    — купить рамку за 🪙 (списывается с кошелька).
  * POST { action: "equip", id | null, color? }   — надеть купленную рамку (id: null — снять).
  */
 export async function POST(req: NextRequest) {
@@ -35,15 +35,15 @@ export async function POST(req: NextRequest) {
       await db.runTransaction(async (tx) => {
         const [o, u] = await Promise.all([tx.get(ownedRef), tx.get(db.collection("users").doc(me.uid))]);
         if (((o.data()?.owned as string[] | undefined) ?? []).includes(f.id)) throw new Error("already");
-        const have = (u.data()?.starsWallet as number | undefined) ?? 0;
+        const have = (u.data()?.miliWallet as number | undefined) ?? 0;
         if (have < f.price) throw new Error("not-enough");
-        tx.set(db.collection("users").doc(me.uid), { starsWallet: FieldValue.increment(-f.price) }, { merge: true });
-        tx.set(db.collection("starsWalletLog").doc(), { uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, at: Date.now() });
+        tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(-f.price) }, { merge: true });
+        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, name: f.name, at: Date.now() });
         tx.set(ownedRef, { owned: FieldValue.arrayUnion(f.id) }, { merge: true });
       });
     } catch (e: any) {
       if (e?.message === "already") return fail("Эта рамка у вас уже есть");
-      if (e?.message === "not-enough") return NextResponse.json({ error: "Не хватает ⭐ на балансе", needTopup: true }, { status: 402 });
+      if (e?.message === "not-enough") return NextResponse.json({ error: "Не хватает 🪙 на балансе", needTopup: true }, { status: 402 });
       console.error("frame buy error:", e);
       return fail("Не удалось купить рамку", 500);
     }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (!f) return fail("Такой рамки нет", 404);
     const owned = (((await ownedRef.get()).data()?.owned as string[] | undefined) ?? []).includes(f.id);
     if (!owned) return fail("Сначала купите эту рамку", 403);
-    const color = typeof b.color === "string" && FRAME_COLORS.includes(b.color) ? b.color : f.defaultColor;
+    const color = typeof b.color === "string" && /^#[0-9a-fA-F]{6}$/.test(b.color) ? b.color.toLowerCase() : f.defaultColor;
     await accRef.update({ frame: { id: f.id, color } });
     return NextResponse.json({ ok: true });
   }

@@ -27,7 +27,7 @@ async function dmChat(a: string, b: string, service: boolean): Promise<Messenger
 }
 
 /**
- * GET ?uid= — что сейчас у человека: Premium, ⭐ кошелёк, подарки (для вкладки «Выдать» в админ-панели мессенджера).
+ * GET ?uid= — что сейчас у человека: Premium, 🪙 кошелёк, подарки (для вкладки «Выдать» в админ-панели мессенджера).
  */
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
  * POST { uid, action, ... } — выдать человеку что-нибудь от имени администрации:
  *  premium        { days }                         — добавить Mili Premium (1–3650 дн.)
  *  premiumRevoke                                   — снять Mili Premium
- *  stars          { amount }                       — начислить ⭐ в кошелёк MiliGram
+ *  stars          { amount }                       — начислить 🪙 в кошелёк MiliGram
  *  gift           { giftId, count?, message?, from?: "service"|"me", nft?: { model?, backdrop?, symbol? } }
  *                                                  — подарить любой подарок из каталога (в т.ч. NFT, можно выбрать признаки); бесплатно для админа
  *  revokeGift     { giftDocId }                    — забрать подарок
@@ -92,13 +92,13 @@ export async function POST(req: NextRequest) {
 
     if (b.action === "stars") {
       const amount = Math.round(Number(b.amount));
-      if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма ⭐: от 1 до 1 000 000");
+      if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма 🪙: от 1 до 1 000 000");
       await db.runTransaction(async (tx) => {
         tx.set(db.collection("users").doc(uid), { miliWallet: FieldValue.increment(amount) }, { merge: true });
         tx.set(db.collection("miliWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
       });
       await logAdminAccess(admin.uid, "messenger_grant_stars", { targetUid: uid, amount });
-      sendServiceMessage(uid, `⭐ Администрация начислила вам ${amount} ⭐ — они уже в кошельке MiliGram.`).catch(() => {});
+      sendServiceMessage(uid, `🪙 Администрация начислила вам ${amount} 🪙 — они уже в кошельке MiliGram.`).catch(() => {});
       return NextResponse.json({ ok: true });
     }
 

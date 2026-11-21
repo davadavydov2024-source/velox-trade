@@ -52,7 +52,7 @@ export function GiftTile({ g, mine, onClick, extra }: { g: GiftView; mine: boole
       ) : g.pinned ? (
         <span className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}><Pin size={12} fill="currentColor" /></span>
       ) : null}
-      {g.salePrice ? <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold bg-black/60 text-white">{g.salePrice} ⭐</span> : null}
+      {g.salePrice ? <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold bg-black/60 text-white">{g.salePrice} 🪙</span> : null}
       {extra}
     </button>
   );

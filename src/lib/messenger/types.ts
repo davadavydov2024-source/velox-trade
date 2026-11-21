@@ -31,7 +31,7 @@ export interface MessengerAccount {
   views?: number; // сколько раз смотрели профиль
   profileTrack?: string | null; // трек из «Музыки» как мелодия профиля
   number?: string | null; // красивый номер «+888 …» в профиле (8 цифр после +888); владельца проверяет сервер
-  messagePrice?: number; // ⭐ за одно входящее сообщение (только Плюс; 0/нет — бесплатно)
+  messagePrice?: number; // 🪙 за одно входящее сообщение (только Плюс; 0/нет — бесплатно)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
   bot?: boolean; // аккаунт бота из конструктора ботов (uid = bot_<id>)

@@ -35,6 +35,7 @@ import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
 import { BotsPage } from "./Bots";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
+import { isHex } from "./color";
 import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
 export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon" | "bots";
@@ -677,6 +678,21 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                       {prefs.accent === c && <Check size={18} color="#fff" />}
                     </button>
                   ))}
+                  <label className="relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer overflow-hidden" style={{ background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)", outline: isHex(prefs.accent) && !ACCENT_CHOICES.includes(prefs.accent) ? "3px solid var(--mx-text)" : "none", outlineOffset: 2 }} aria-label="Свой цвет">
+                    <input type="color" value={isHex(prefs.accent) ? prefs.accent : "#3390ec"} onChange={(e) => prefs.setAccent(e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    <Plus size={18} color="#fff" />
+                  </label>
+                </div>
+                <p className="mx-muted text-[12.5px] px-3 mt-1.5">Нажми на радужный круг — можно выбрать любой цвет.</p>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Цвет фона</p>
+                <div className="mx-card px-4 py-3.5 flex items-center gap-3">
+                  <label className="relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer overflow-hidden shrink-0" style={{ background: isHex(prefs.bg) ? prefs.bg : "var(--mx-bg)", border: "2px solid var(--mx-line)" }} aria-label="Цвет фона">
+                    <input type="color" value={isHex(prefs.bg) ? prefs.bg : "#0e1621"} onChange={(e) => prefs.setBg(e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  </label>
+                  <p className="mx-muted text-[13.5px] flex-1">{isHex(prefs.bg) ? "Свой цвет фона. Текст и панели подстроятся сами." : "Как в выбранной теме. Нажми на круг, чтобы выбрать свой."}</p>
+                  {isHex(prefs.bg) && <button className="text-[14px] font-semibold" style={{ color: "var(--mx-accent)" }} onClick={() => prefs.setBg("")}>Сбросить</button>}
                 </div>
               </div>
               <div>
