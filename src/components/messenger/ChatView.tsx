@@ -15,6 +15,7 @@ import { GiveawaySheet } from "./Giveaway";
 import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner, TypingDots, StreakBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
+import { EmptyChatGreeting } from "./EmptyChatGreeting";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
@@ -322,6 +323,18 @@ export function ChatView({
     send(tempId, payload);
   };
 
+  /** Нажатие на @юзернейм в сообщении: открываем (или создаём) личный чат с этим человеком. */
+  const openHandle = async (handle: string) => {
+    if (handle.toLowerCase() === myAccount.handle.toLowerCase()) return;
+    try {
+      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [handle] });
+      const id = res.chatId ?? res.id;
+      if (id && id !== chat.id) onOpenChat(id);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось открыть чат");
+    }
+  };
+
   const sendSticker = async (pack: string, index: number) => {
     try {
       await mApi("send", { chatId: chat.id, kind: "sticker", stickerPack: pack, stickerIndex: index, replyTo: replyPayload() });
@@ -614,7 +627,7 @@ export function ChatView({
 
   // актуальные обработчики для мемоизированных строк (см. MessageRow): строки зовут их через ref и не устаревают
   const H = useRef<any>({});
-  H.current = { react, startReply, setMenuMsg, toggleSelect, jumpTo, openMedia, setStickerPack,  };
+  H.current = { react, startReply, setMenuMsg, toggleSelect, jumpTo, openMedia, setStickerPack, openHandle };
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
@@ -687,9 +700,13 @@ export function ChatView({
           </div>
         )}
         {!loading && rows.length === 0 && (
-          <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
-            {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
-          </div>
+          chat.type === "dm" && !saved ? (
+            <EmptyChatGreeting canSend={canPost} onSend={sendSticker} />
+          ) : (
+            <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
+              {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
+            </div>
+          )
         )}
         {(() => {
           type RowMeta = { msg: MMessage; pend?: MPending; sameAsPrev: boolean; sameAsNext: boolean; rowKey: string; isNewRow: boolean; newDay: boolean };
@@ -735,6 +752,7 @@ export function ChatView({
                     highlight={highlightId === r.msg.id}
                     onOpenMedia={(u) => H.current.openMedia(u)}
                     onOpenStickerPack={(s) => H.current.setStickerPack(s)}
+                    onOpenHandle={(h) => H.current.openHandle(h)}
                     onSwipeReply={canPost && !r.pend && !r.msg.deletedForAll && r.msg.kind !== "system" ? () => H.current.startReply(r.msg) : undefined}
                     onJumpTo={(id) => H.current.jumpTo(id)}
                     onReact={(e) => H.current.react(r.msg, e)}

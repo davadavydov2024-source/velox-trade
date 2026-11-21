@@ -18,21 +18,32 @@ import { useToast } from "@/lib/toastContext";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
 
-function Linkified({ text }: { text: string }) {
-  const parts = text.split(URL_RE);
-  return (
-    <>
-      {parts.map((p, i) =>
-        i % 2 === 1 ? (
-          <a key={i} href={p} target="_blank" rel="noopener noreferrer nofollow" className="underline" onClick={(e) => e.stopPropagation()}>
-            {p}
-          </a>
-        ) : (
-          <span key={i}>{p}</span>
-        )
-      )}
-    </>
-  );
+/** Текст сообщения: ссылки и @юзернеймы. Нажатие на @юзернейм открывает чат с этим человеком. */
+const TOKEN_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])|@([A-Za-z][A-Za-z0-9_]{3,23})(?![A-Za-z0-9_@])/g;
+
+function Linkified({ text, onHandle, own }: { text: string; onHandle?: (handle: string) => void; own?: boolean }) {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let k = 0;
+  for (const m of Array.from(text.matchAll(TOKEN_RE))) {
+    const at = m.index ?? 0;
+    if (m[2] && /[\w@/.]/.test(text[at - 1] ?? "")) continue; // «почта@сайт», «a@b» — не юзернейм
+    if (at > last) out.push(<span key={k++}>{text.slice(last, at)}</span>);
+    if (m[1]) {
+      out.push(<a key={k++} href={m[1]} target="_blank" rel="noopener noreferrer nofollow" className="underline" onClick={(e) => e.stopPropagation()}>{m[1]}</a>);
+    } else if (onHandle) {
+      const h = m[2];
+      out.push(
+        <button key={k++} type="button" className="font-medium" style={{ color: own ? "inherit" : "var(--mx-accent)", textDecoration: own ? "underline" : "none" }}
+          onClick={(e) => { e.stopPropagation(); onHandle(h); }}>@{h}</button>
+      );
+    } else {
+      out.push(<span key={k++}>{m[0]}</span>);
+    }
+    last = at + m[0].length;
+  }
+  if (last < text.length) out.push(<span key={k++}>{text.slice(last)}</span>);
+  return <>{out}</>;
 }
 
 function MediaGrid({ urls, w, h, onOpen }: { urls: string[]; w?: number; h?: number; onOpen: (url: string) => void }) {
@@ -179,6 +190,7 @@ function MessageRowImpl({
   highlight,
   onOpenMedia,
   onOpenStickerPack,
+  onOpenHandle,
   onSwipeReply,
   onJumpTo,
   onReact,
@@ -200,6 +212,8 @@ function MessageRowImpl({
   highlight: boolean;
   onOpenMedia: (url: string) => void;
   onOpenStickerPack?: (slug: string) => void;
+  /** нажатие на @юзернейм в тексте — открыть чат с человеком */
+  onOpenHandle?: (handle: string) => void;
   /** свайп сообщения влево — ответить (как в Telegram) */
   onSwipeReply?: () => void;
   onJumpTo: (msgId: string) => void;
@@ -417,7 +431,7 @@ function MessageRowImpl({
         <MediaGrid urls={urls} w={msg.width} h={msg.height} onOpen={onOpenMedia} />
         {msg.text && (
           <p className="px-2 pt-1.5 pb-0.5 whitespace-pre-wrap">
-            <Linkified text={msg.text} />
+            <Linkified text={msg.text} onHandle={onOpenHandle} own={mine} />
             {meta}
           </p>
         )}
@@ -462,7 +476,7 @@ function MessageRowImpl({
     content = (
       <>
         <span className="whitespace-pre-wrap">
-          <Linkified text={msg.text ?? ""} />
+          <Linkified text={msg.text ?? ""} onHandle={onOpenHandle} own={mine} />
         </span>
         {msg.kind === "text" && !msg.deletedForAll && msg.text && <LinkPreview text={msg.text} />}
         {meta}
