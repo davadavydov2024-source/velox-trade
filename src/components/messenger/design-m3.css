@@ -178,3 +178,37 @@
 @media (prefers-reduced-motion: reduce) {
   .mx[data-design="tg"][data-md] .mx-workspace-nav-item::before, .mx[data-design="tg"][data-md] .mx-m3-fab, .mx[data-design="tg"][data-md] .mx-chat-row, .mx[data-design="tg"][data-md] .mx-folder-tab, .mx[data-design="tg"][data-md] .mx-btn { transition: none !important; }
 }
+
+/* =====================================================================
+   Свободнее и живее: больше воздуха и мягкие анимации
+   ===================================================================== */
+.mx[data-design="tg"][data-md] .mx-inbox h1 { font-size: 24px; }
+.mx[data-design="tg"][data-md] .mx-inbox .mx-search { height: 56px; padding: 0 20px; }
+.mx[data-design="tg"][data-md] .mx-folder-tab { height: 52px; padding: 0 18px; }
+
+/* строки чатов: крупнее, с воздухом */
+.mx[data-design="tg"][data-md] .mx-inbox .mx-chat-row { min-height: 82px; padding: 12px 16px; margin: 3px 10px; gap: 14px; border-radius: 24px; }
+.mx[data-design="tg"][data-md] .mx-inbox .mx-chat-row p { line-height: 1.38; }
+.mx[data-design="tg"][data-md] .mx-inbox .mx-chat-row:active { transform: scale(0.985); }
+.mx[data-design="tg"][data-md] .mx-inbox .mx-chat-row { transition: background 0.2s var(--mx-ease), transform 0.15s var(--mx-ease); }
+
+/* шапка чата */
+.mx[data-design="tg"][data-md] .mx-chat-head, .mx[data-design="tg"][data-md] .mx-chat-head.mx-chat-head-tg { min-height: 64px; }
+
+/* сообщения: просторнее и мягче */
+.mx[data-design="tg"][data-md] [data-mid] { padding-inline: 14px; margin-top: 3px !important; }
+.mx[data-design="tg"][data-md] [data-mid]:has(.mx-bubble.tail) { margin-bottom: 14px !important; }
+.mx[data-design="tg"][data-md] .mx-chat-wall:not(.mx-wp) { padding-block: 14px; }
+.mx[data-design="tg"][data-md] .mx-bubble:not(.media):not(.round) { padding: 10px 14px 8px; border-radius: 22px; }
+.mx[data-design="tg"][data-md] .mx-bubble.in.tail:not(.media):not(.round) { border-bottom-left-radius: 8px; }
+.mx[data-design="tg"][data-md] .mx-bubble.out.tail:not(.media):not(.round) { border-bottom-right-radius: 8px; }
+.mx[data-design="tg"][data-md] .mx-bubble.in { transform-origin: left bottom; }
+.mx[data-design="tg"][data-md] .mx-bubble.out { transform-origin: right bottom; }
+@keyframes mx-m3-pop { from { opacity: 0; transform: translateY(10px) scale(0.95); } to { opacity: 1; transform: none; } }
+.mx[data-design="tg"][data-md] .mx-bubble { animation: mx-m3-pop 0.28s var(--mx-ease) both; }
+
+/* поле ввода: выше и свободнее */
+.mx[data-design="tg"][data-md] .mx-workspace .mx-composer-field, .mx[data-design="tg"][data-md] .mx-composer-field { min-height: 54px; padding-left: 20px !important; margin: 4px 0; }
+.mx[data-design="tg"][data-md] .mx-thread-composer { padding-top: 4px; }
+
+@media (prefers-reduced-motion: reduce) { .mx[data-design="tg"][data-md] .mx-bubble { animation: none; } }
