@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
+import { randomToken as secureRandomToken } from "@/lib/secureRandom";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { sendWebPush } from "@/lib/webPushServer";
@@ -442,7 +443,7 @@ export const TG_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot"
 
 /** Заявка на привязку Telegram (её понимает существующий вебхук бота: t.me/<бот>?start=<код> -> telegramLinks/{uid}). */
 export async function createLinkRequest(uid: string): Promise<{ code: string; botUrl: string }> {
-  const code = randomBytes(18).toString("base64url");
+  const code = secureRandomToken(10); // короткий код только из букв и цифр: ссылка t.me/…?start=<код> открывается без сюрпризов
   await adminDb().collection("telegramLinkRequests").doc(code).set({ uid, createdAt: Date.now(), source: "miligram" });
   return { code, botUrl: `https://t.me/${TG_BOT}?start=${code}` };
 }

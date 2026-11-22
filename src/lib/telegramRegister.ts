@@ -3,7 +3,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
 function randomCode(): string {
-  return secureRandomToken(20);
+  return secureRandomToken(10);
 }
 
 /** Создаёт заявку на регистрацию нового аккаунта через Telegram и возвращает код для deep-ссылки на бота. */

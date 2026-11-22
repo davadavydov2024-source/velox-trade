@@ -8,6 +8,7 @@ import { isPremium } from "@/lib/messenger/premium";
 import { chargePaidMessage, markFreeReply, refundPaidMessage } from "@/lib/messenger/paid";
 import { DATING_UID, datingHandle, datingPhoto } from "@/lib/messenger/dating";
 import { isBotUid, runBot } from "@/lib/messenger/bots";
+import { SUPPORT_UID, onSupportMessage } from "@/lib/messenger/support";
 
 export const runtime = "nodejs";
 
@@ -117,6 +118,10 @@ export async function POST(req: NextRequest) {
   // бот знакомств: отвечает на текст пользователя (сбой бота не ломает отправку)
   if (chat.type === "dm" && chat.members.includes(DATING_UID) && me.uid !== DATING_UID && (kind === "text" ? !!text : kind === "image" && !!mediaUrl)) {
     try { if (kind === "image") await datingPhoto(me.uid, mediaUrl!); else await datingHandle(me.uid, text); } catch (e) { console.error("dating bot error:", e); }
+  }
+  // чат поддержки: сообщение уходит админу в Telegram, ответ вернётся сюда (сбой не ломает отправку)
+  if (chat.type === "dm" && chat.members.includes(SUPPORT_UID) && me.uid !== SUPPORT_UID) {
+    try { await onSupportMessage(me, text || `[${kind}]`); } catch (e) { console.error("support forward error:", e); }
   }
   // бот из конструктора: отвечает на текст пользователя (сбой бота не ломает отправку)
   if (chat.type === "dm" && kind === "text" && text) {
