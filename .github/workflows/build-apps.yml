@@ -64,7 +64,7 @@ jobs:
             cp ../app-icon.png assets/icon-only.png
             cp ../app-icon.png assets/icon-foreground.png
             npm i -D @capacitor/assets@3
-            npx capacitor-assets generate --android --iconBackgroundColor '#141218' --iconBackgroundColorDark '#141218' || echo "icon step skipped"
+            npx capacitor-assets generate --android --iconBackgroundColor '#0B0B0D' --iconBackgroundColorDark '#0B0B0D' || echo "icon step skipped"
           else
             echo "app-icon.png not found - using default icon"
           fi
@@ -149,7 +149,7 @@ jobs:
               height: 800,
               minWidth: 380,
               minHeight: 560,
-              backgroundColor: "#141218",
+              backgroundColor: "#0B0B0D",
               autoHideMenuBar: true,
               title: "MiliGram",
               webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
