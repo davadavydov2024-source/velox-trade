@@ -34,11 +34,12 @@ import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
 import { BotsPage } from "./Bots";
+import { UsernamePage } from "./UsernamePage";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
 import { isHex } from "./color";
 import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon" | "bots";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon" | "bots" | "username";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
@@ -86,10 +87,9 @@ async function squareAvatar(file: File): Promise<Blob> {
   }
 }
 
-function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; onClose: () => void; account: MAccount; onLogout: () => void }) {
+function ProfileEditor({ open, onClose, account, onLogout, onUsername }: { open: boolean; onClose: () => void; account: MAccount; onLogout: () => void; onUsername?: () => void }) {
   const { toast } = useToast();
   const [name, setName] = useState(account.displayName);
-  const [handle, setHandle] = useState(account.handle);
   const [bio, setBio] = useState(account.bio ?? "");
   const [birthday, setBirthday] = useState(account.birthday ?? "");
   const [channel, setChannel] = useState(account.channelHandle ?? "");
@@ -100,7 +100,6 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
   useEffect(() => {
     if (open) {
       setName(account.displayName);
-      setHandle(account.handle);
       setBio(account.bio ?? "");
       setBirthday(account.birthday ?? "");
       setChannel(account.channelHandle ?? "");
@@ -110,7 +109,7 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
   const save = async (extra: Record<string, unknown> = {}) => {
     setBusy(true);
     try {
-      await mApi("profile", { displayName: name.trim(), handle: handle.trim().replace(/^@/, ""), bio: bio.trim(), birthday: birthday || undefined, channelHandle: channel.trim().replace(/^@/, ""), ...extra });
+      await mApi("profile", { displayName: name.trim(), bio: bio.trim(), birthday: birthday || undefined, channelHandle: channel.trim().replace(/^@/, ""), ...extra });
       toast("success", "Профиль сохранён");
       onClose();
     } catch (err) {
@@ -161,8 +160,8 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
   };
 
   const inputCls = "bg-transparent outline-none w-full px-4 py-3.5 text-[17px]";
-  const canSave = !busy && name.trim().length >= 2 && handle.replace("@", "").length >= 4;
-  const dirty = name.trim() !== account.displayName || handle.replace("@", "") !== account.handle || bio.trim() !== (account.bio ?? "") || (birthday || "") !== (account.birthday ?? "") || channel.replace("@", "") !== (account.channelHandle ?? "");
+  const canSave = !busy && name.trim().length >= 2;
+  const dirty = name.trim() !== account.displayName || bio.trim() !== (account.bio ?? "") || (birthday || "") !== (account.birthday ?? "") || channel.replace("@", "") !== (account.channelHandle ?? "");
   const cardCls = "overflow-hidden";
   const cardSt = { margin: "0 16px", borderRadius: 22, background: "var(--mx-surface)" } as const;
   const hint = "mx-muted text-[13.5px] px-8 mt-2";
@@ -176,7 +175,6 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
             disabled={busy}
             onClick={() => {
               if (name.trim().length < 2) { toast("error", "Имя — минимум 2 символа"); return; }
-              if (handle.replace("@", "").length < 4) { toast("error", "Ник — минимум 4 символа: латиница, цифры и _"); return; }
               if (!dirty) { onClose(); return; }
               save();
             }}
@@ -221,7 +219,8 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
           <label className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--mx-line)" }}>
             <Ic c="#6c63ff"><AtSign size={18} /></Ic>
             <span className="text-[17px] shrink-0">Имя пользователя</span>
-            <input className="bg-transparent outline-none flex-1 min-w-0 text-right text-[16px] mx-muted" placeholder="username" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+            <button type="button" className="flex-1 min-w-0 text-right text-[16px] mx-muted truncate" onClick={() => { onClose(); onUsername?.(); }}>@{account.handle}</button>
+            <ChevronRight size={18} className="mx-muted shrink-0" />
           </label>
           <label className="flex items-center gap-3 px-4 py-3">
             <Ic c="#ff9f0a"><Megaphone size={18} /></Ic>
@@ -229,7 +228,7 @@ function ProfileEditor({ open, onClose, account, onLogout }: { open: boolean; on
             <input className="bg-transparent outline-none flex-1 min-w-0 text-right text-[16px] mx-muted" value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
           </label>
         </div>
-        <p className={hint}>Ник: латиница, цифры и _, от 4 символов — по нему вас находят. Канал показывается в профиле.</p>
+        <p className={hint}>Нажмите на имя пользователя, чтобы изменить его. Канал показывается в профиле.</p>
 
         <div className="relative mt-6 overflow-hidden" style={{ ...cardSt, aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 62%, #000))" }}>
           {account.bannerURL && (
@@ -602,6 +601,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
   if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
   if (page === "usernames") return <div className="flex flex-col h-full"><UsernamesPage onBack={back} /></div>;
+  if (page === "username") return <div className="flex flex-col h-full"><UsernamePage onBack={back} onCollectibles={() => setPage("usernames")} /></div>;
   if (page === "bots") return <div className="flex flex-col h-full"><BotsPage onBack={back} /></div>;
   if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
@@ -828,6 +828,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
           <Row icon={<MessageSquare size={17} />} color="#0a84ff" label="Мои посты" onClick={() => setMyPosts(true)} />
           <Row icon={<Hash size={17} />} color="#5856d6" label="Мои номера" value={account.number ? formatNumber(account.number) : undefined} onClick={() => setMyNumbers(true)} />
+          <Row icon={<AtSign size={17} />} color="#6c63ff" label="Имя пользователя" onClick={() => setPage("username")} />
           <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
           <Row icon={<Music2 size={17} />} color="#1db954" label="Мелодия профиля" value={account.profileTrack ? "Выбрана" : "Не выбрана"} onClick={() => setTrackPicker(true)} />
           <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
@@ -884,7 +885,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         </button>
         <div className="pb-4" />
       </div>
-      <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} onLogout={async () => {
+      <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} onUsername={() => setPage("username")} account={account} onLogout={async () => {
         if (!confirm("Выйти из аккаунта? Вы выйдете и с сайта Velox Trade.")) return;
         await logout();
         onLoggedOut();
