@@ -7,7 +7,8 @@ export const revalidate = 60;
 export async function generateMetadata(): Promise<Metadata> {
   const p = iconPaths(await getAppIconStyle());
   return {
-    title: "MiliGram",
+    title: "Mili Gram",
+    applicationName: "Mili Gram",
     description: "MiliGram — мессенджер Velox Trade",
     manifest: "/api/miligram/manifest",
     robots: { index: false, follow: false },
@@ -15,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
       icon: [{ url: p.i192, sizes: "192x192", type: "image/png" }],
       apple: [{ url: p.i180, sizes: "180x180" }],
     },
-    appleWebApp: { capable: true, title: "MiliGram", statusBarStyle: "black-translucent" },
+    appleWebApp: { capable: true, title: "Mili Gram", statusBarStyle: "black-translucent" },
     other: { "mobile-web-app-capable": "yes" },
   };
 }

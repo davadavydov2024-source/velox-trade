@@ -18,9 +18,12 @@ export async function GET(req: NextRequest) {
     const r = await fetch(new URL("/miligram/manifest.webmanifest", req.url), { cache: "no-store" });
     if (r.ok) base = await r.json();
   } catch {}
-  if (!base.name) base = { name: "MiliGram", short_name: "MiliGram", id: "/m", start_url: "/m", scope: "/m/", display: "standalone", background_color: "#0b0b0d", theme_color: "#0b0b0d", lang: "ru" };
+  if (!base.name) base = { name: "Mili Gram", short_name: "Mili Gram", id: "/m", start_url: "/m", scope: "/m/", display: "standalone", background_color: "#0b0b0d", theme_color: "#0b0b0d", lang: "ru" };
   const manifest = {
     ...base,
+    // Название под иконкой на экране «Домой» (iOS/Android) — всегда «Mili Gram»
+    name: "Mili Gram",
+    short_name: "Mili Gram",
     // Всегда /m — чтобы APK (PWABuilder/Bubblewrap) и установка открывали мессенджер, а не главную сайта
     id: "/m",
     start_url: "/m",

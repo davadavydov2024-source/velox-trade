@@ -21,7 +21,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Velox Trade — Лучший магазин игровых предметов",
   description: "Маркетплейс игровых предметов для Roblox: Grow a Garden, Adopt Me, Blox Fruits, MM2, Blade Ball и другие.",
-  manifest: "/manifest.json",
+  applicationName: "Mili Gram",
+  manifest: "/api/site-manifest",
   icons: {
     icon: [
       { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Velox Trade",
+    title: "Mili Gram",
   },
 };
 

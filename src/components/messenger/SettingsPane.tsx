@@ -618,7 +618,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
             <div className="space-y-3">
               <PushToggleCard />
               <QuietHoursCard />
-              <p className="mx-muted text-[13px] px-2">Уведомления о сообщениях мессенджера приходят в категории «Сообщения». На iPhone и iPad они работают только если добавить Velox Chat на экран «Домой» (iOS 16.4 и новее).</p>
+              <p className="mx-muted text-[13px] px-2">Уведомления о сообщениях мессенджера приходят в категории «Сообщения». На iPhone и iPad они работают только если добавить Mili Gram на экран «Домой» (iOS 16.4 и новее).</p>
               <button className="mx-btn" style={{ background: "var(--mx-surface)", color: "var(--mx-text)" }} onClick={() => setInstallHelp(true)}>Как добавить на экран «Домой»</button>
             </div>
           )}

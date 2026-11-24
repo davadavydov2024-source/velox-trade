@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-static";
 
-/** Манифест отдельного PWA «Velox Chat»: на iOS/Android ставится как самостоятельное приложение, открывается на /m. */
+/** Манифест отдельного PWA «Mili Gram»: на iOS/Android ставится как самостоятельное приложение, открывается на /m. */
 export function GET() {
   const manifest = {
     name: "Velox Chat",
