@@ -17,6 +17,7 @@ import { AdminUsernames } from "./AdminUsernames";
 import { AdminNumbers } from "./AdminNumbers";
 import { AdminAppIcon } from "./AdminAppIcon";
 import { AdminMarks } from "./AdminMarks";
+import { AdminBots } from "./AdminBots";
 import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, type NftTrait } from "@/lib/messenger/nft";
 
 type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number; newToday: number; nft: number; stories: number };
@@ -43,7 +44,7 @@ type ReadResult = { chat: { id: string; type: string; title: string | null }; me
 type GrantInfo = { account: { uid: string; handle: string; displayName: string; premiumUntil: number; verified: boolean; banned: boolean }; wallet: number; gifts: { id: string; giftId: string; at: number; nft: { number: number; supply: number; model: string; backdrop: string; symbol: string } | null; byAdmin: boolean }[] };
 type Past = { id: string; text: string; target: string; sent: number; createdAt: number; done: boolean };
 const TARGETS: [string, string][] = [["all", "Всем"], ["premium", "Только Mili Premium"], ["verified", "Только с галочкой"]];
-const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["ads", "Реклама"], ["promo", "Промокоды"], ["growth", "Рост"], ["usernames", "Юзернеймы"], ["numbers", "Номера"], ["appicon", "Иконка"], ["marks", "Метки"], ["audit", "Журнал"]] as const;
+const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["ads", "Реклама"], ["promo", "Промокоды"], ["growth", "Рост"], ["usernames", "Юзернеймы"], ["numbers", "Номера"], ["appicon", "Иконка"], ["marks", "Метки"], ["bots", "Боты"], ["audit", "Журнал"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 async function call<T = any>(url: string, body?: unknown): Promise<T> {
@@ -440,6 +441,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
         {tab === "numbers" && <AdminNumbers />}
         {tab === "appicon" && <AdminAppIcon />}
         {tab === "marks" && <AdminMarks />}
+        {tab === "bots" && <AdminBots />}
 
         {tab === "audit" && (
           <div className="mx-card">

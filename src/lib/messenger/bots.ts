@@ -85,13 +85,26 @@ export async function createBot(ownerUid: string, nameRaw: unknown, handleRaw: u
   return doc;
 }
 
+/** Команды, которые показываем в чате с ботом: /help и все свои команды (кроме /start — его даёт кнопка «Начать»). */
+export function commandsOf(rules: BotRule[]): string[] {
+  const out = ["/help"];
+  for (const r of rules) if (r.trigger.startsWith("/") && r.trigger !== "/start" && !out.includes(r.trigger)) out.push(r.trigger);
+  return out.slice(0, 12);
+}
+
+/** Публичный аккаунт бота. Создателя (ownerUid) сюда НЕ кладём — его видят только админы через messengerBots. */
 function accountOf(b: BotDoc): MessengerAccount {
   return {
     uid: b.uid, handle: b.handle, displayName: b.name, photoURL: null, bio: b.description,
     createdAt: b.createdAt, lastSeenAt: Date.now(), showLastSeen: false, banned: false,
-    bot: true, ownerUid: b.ownerUid, tag: "BOT",
+    bot: true, botCommands: commandsOf(b.rules), tag: "BOT",
     privacy: { whoCanMessage: "everyone", whoCanAddToGroups: "nobody" },
   };
+}
+
+/** Подтягивает публичный аккаунт бота к актуальному виду: команды и удаление устаревшего публичного ownerUid. */
+export async function syncBotAccount(b: BotDoc): Promise<void> {
+  await adminDb().collection("messengerAccounts").doc(b.uid).set({ botCommands: commandsOf(b.rules), ownerUid: FieldValue.delete() }, { merge: true });
 }
 
 export async function updateBot(ownerUid: string, id: string, p: any): Promise<void> {
@@ -106,10 +119,11 @@ export async function updateBot(ownerUid: string, id: string, p: any): Promise<v
   if (p.fallback !== undefined) upd.fallback = cleanReply(p.fallback, cur.fallback.text);
   if (p.rules !== undefined) upd.rules = cleanRules(p.rules);
   await ref.update(upd as Record<string, unknown>);
-  const acc: Record<string, unknown> = {};
+  const acc: Record<string, unknown> = { ownerUid: FieldValue.delete() }; // заодно убираем устаревшее публичное поле
   if (upd.name) acc.displayName = upd.name;
   if (upd.description !== undefined) acc.bio = upd.description;
-  if (Object.keys(acc).length) await db.collection("messengerAccounts").doc(cur.uid).update(acc);
+  if (upd.rules !== undefined) acc.botCommands = commandsOf(upd.rules);
+  await db.collection("messengerAccounts").doc(cur.uid).set(acc, { merge: true });
 }
 
 /** Запуск на хостинге: 20 🪙 с кошелька на 30 дней (повторная оплата продлевает). Списание и срок — одна транзакция. */
@@ -201,4 +215,34 @@ export async function runBot(botUid: string, userUid: string, text: string): Pro
     firstTime ? uRef.set({ at: Date.now() }) : Promise.resolve(),
     bSnap.ref.update({ messagesCount: FieldValue.increment(1), ...(firstTime ? { usersCount: FieldValue.increment(1) } : {}) }),
   ]);
+}
+
+// ---- Для админов: кто создал бота ----
+
+export interface AdminBotView {
+  id: string; uid: string; handle: string; name: string; description: string;
+  owner: { uid: string; handle: string; displayName: string; photoURL: string | null } | null;
+  running: boolean; hostedUntil: number; usersCount: number; messagesCount: number; createdAt: number;
+}
+
+/** Все боты (или один по uid бота) вместе с создателем. Вызывать только после requireAdmin. */
+export async function adminListBots(botUid?: string): Promise<AdminBotView[]> {
+  const db = adminDb();
+  const col = db.collection("messengerBots");
+  const docs = botUid ? [await col.doc(botIdOf(botUid)).get()].filter((d) => d.exists) : (await col.orderBy("createdAt", "desc").limit(300).get()).docs;
+  const bots = docs.map((d) => d.data() as BotDoc);
+  const ownerIds = Array.from(new Set(bots.map((b) => b.ownerUid)));
+  const owners = new Map<string, { uid: string; handle: string; displayName: string; photoURL: string | null }>();
+  if (ownerIds.length) {
+    const snaps = await db.getAll(...ownerIds.map((u) => db.collection("messengerAccounts").doc(u)));
+    for (const s of snaps) {
+      const a = s.data();
+      if (a) owners.set(s.id, { uid: s.id, handle: a.handle ?? "", displayName: a.displayName ?? "", photoURL: a.photoURL ?? null });
+    }
+  }
+  return bots.map((b) => ({
+    id: b.id, uid: b.uid, handle: b.handle, name: b.name, description: b.description,
+    owner: owners.get(b.ownerUid) ?? { uid: b.ownerUid, handle: "", displayName: "(аккаунт мессенджера не найден)", photoURL: null },
+    running: isHosted(b), hostedUntil: b.hostedUntil, usersCount: b.usersCount ?? 0, messagesCount: b.messagesCount ?? 0, createdAt: b.createdAt,
+  }));
 }

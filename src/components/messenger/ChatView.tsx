@@ -16,6 +16,7 @@ import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner, T
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { EmptyChatGreeting } from "./EmptyChatGreeting";
+import { BotCommandsRow, BotIntro, BotStartBar } from "./BotStart";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
@@ -122,6 +123,12 @@ export function ChatView({
   const perms = { ...DEFAULT_PERMISSIONS, ...(chat.permissions ?? {}) };
   const restriction = chat.restricted?.[me];
   const restrictedNow = !!restriction && restriction.until > now && restriction.sendMessages === false;
+  // чат с ботом из конструктора ботов (uid = bot_…): «Начать» вместо поля ввода, пока человек ни разу не писал
+  const botUid = chat.type === "dm" && !saved ? peerUid(chat, me) : "";
+  const isBotChat = botUid.startsWith("bot_");
+  const botFresh = isBotChat && !loading && messages.length === 0 && pending.length === 0;
+  const lastMsg = messages[messages.length - 1];
+  const botKbShown = !!(lastMsg && lastMsg.from.startsWith("bot_") && lastMsg.kb?.length);
   const blockedReason = chat.service
     ? "Это служебный чат — отвечать в нём нельзя"
     : chat.banned?.includes(me)
@@ -700,7 +707,9 @@ export function ChatView({
           </div>
         )}
         {!loading && rows.length === 0 && (
-          chat.type === "dm" && !saved ? (
+          isBotChat ? (
+            <BotIntro bot={peer} name={peer?.displayName ?? chatTitle(chat, me, accountsAll)} uid={botUid} />
+          ) : chat.type === "dm" && !saved ? (
             <EmptyChatGreeting canSend={canPost} onSend={sendSticker} />
           ) : (
             <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
@@ -797,7 +806,13 @@ export function ChatView({
         );
       })()}
 
-      {chat.type === "channel" && !isAdmin && !chat.service && !chat.banned?.includes(me) ? (
+      {isBotChat && !botFresh && canPost && !botKbShown && !!peer?.botCommands?.length && (
+        <BotCommandsRow commands={peer.botCommands} onPick={(c) => sendText(c)} />
+      )}
+
+      {botFresh && canPost ? (
+        <BotStartBar onStart={() => sendText("/start")} />
+      ) : chat.type === "channel" && !isAdmin && !chat.service && !chat.banned?.includes(me) ? (
         <div className="mx-safe-bottom shrink-0" style={{ background: "var(--mx-bg)", borderTop: "1px solid var(--mx-line)" }}>
           <button onClick={() => (muted ? chatSetting({ muted: false, mutedUntil: 0 }) : setMuteMenu(true))} className="w-full h-12 text-[16px] font-medium flex items-center justify-center gap-2" style={{ color: "var(--mx-accent)" }}>
             {muted ? <Bell size={19} /> : <BellOff size={19} />}{muted ? "Включить звук" : "Отключить звук"}

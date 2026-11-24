@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger } from "@/lib/messenger/server";
-import { BOT_HOST_DAYS, BOT_HOST_PRICE, BOT_LIMIT, BotError, MAX_RULES, createBot, deleteBot, hostBot, isHosted, updateBot, type BotDoc } from "@/lib/messenger/bots";
+import { BOT_HOST_DAYS, BOT_HOST_PRICE, BOT_LIMIT, BotError, MAX_RULES, createBot, deleteBot, hostBot, isHosted, syncBotAccount, updateBot, type BotDoc } from "@/lib/messenger/bots";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
   if ("error" in me) return me.error;
   const db = adminDb();
   const [snap, user] = await Promise.all([db.collection("messengerBots").where("ownerUid", "==", me.uid).get(), db.collection("users").doc(me.uid).get()]);
-  const bots = snap.docs.map((d) => d.data() as BotDoc).sort((a, b) => a.createdAt - b.createdAt).map(view);
+  const docs = snap.docs.map((d) => d.data() as BotDoc).sort((a, b) => a.createdAt - b.createdAt);
+  // подтягиваем публичные аккаунты ботов (команды для чата, убрать устаревший публичный ownerUid); сбой не мешает списку
+  await Promise.all(docs.map((b) => syncBotAccount(b).catch(() => {})));
+  const bots = docs.map(view);
   return NextResponse.json({ bots, wallet: (user.data()?.miliWallet as number | undefined) ?? 0, limit: BOT_LIMIT, hostPrice: BOT_HOST_PRICE, hostDays: BOT_HOST_DAYS, maxRules: MAX_RULES });
 }
 

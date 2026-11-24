@@ -35,7 +35,8 @@ export interface MessengerAccount {
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
   bot?: boolean; // аккаунт бота из конструктора ботов (uid = bot_<id>)
-  ownerUid?: string; // владелец бота
+  ownerUid?: string; // УСТАРЕЛО: раньше лежало в публичном аккаунте бота; теперь создателя видит только админ (messengerBots.ownerUid)
+  botCommands?: string[]; // команды бота (/help, /price…) — для строки команд в чате
 }
 
 export interface MessengerChat {

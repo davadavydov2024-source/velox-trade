@@ -16,6 +16,8 @@ import { NumberTierChip } from "./Numbers";
 import { formatNumber, numberTier } from "@/lib/messenger/numbers";
 import { GiftShopSheet, GiftsProfileTab } from "./Gifts";
 import { ChannelSettingsSheet, ContactEditSheet, PeopleListSheet } from "./ChannelAdmin";
+import { BotCreatorRow } from "./AdminBots";
+import { isAdminUid } from "@/lib/isAdmin";
 import { MAccount, MChat, MMessage } from "./mtypes";
 import { birthdayText, chatPhoto, chatTitle, formatTime, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural } from "./util";
 
@@ -151,6 +153,7 @@ export function ChatInfoSheet({
 
       {((isDm && !saved && peer) || peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
         <ProfileCard title="Информация">
+          {isDm && !saved && peer?.bot && peerId && isAdminUid(me) && <BotCreatorRow botUid={peerId} onCopy={copy} />}
           {peer?.number && <InfoRow icon={<Hash size={19} />} value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
           {peer?.handle && peerId && <UsernameRow uid={peerId} handle={peer.handle} onCopy={(t) => copy(t, "Скопировано")} />}
           {link && <InfoRow icon={<Link2 size={19} />} value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} />}
