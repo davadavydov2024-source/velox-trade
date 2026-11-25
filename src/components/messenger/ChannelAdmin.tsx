@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Copy, Crown, Link2, RefreshCw, Share2, ShieldOff, UserMinus, UserPlus } from "lucide-react";
+import { Camera, Crown, ShieldOff, UserMinus, UserPlus } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
 import { useAccounts } from "./hooks";
@@ -99,29 +99,6 @@ export function ChannelSettingsSheet({ open, onClose, chat, me, onCounts }: { op
   const pickPhoto = (f?: File) => f && run(async () => { const up = await mUpload(f, "avatar", { fileName: "chat.jpg" }); await mApi("chat-info", { chatId: chat.id, photoURL: up.url }); }, "Фото обновлено");
 
   const link = chat.handle ? `${typeof location !== "undefined" ? location.origin : ""}/m?join=@${chat.handle}` : chat.inviteCode ? `${typeof location !== "undefined" ? location.origin : ""}/m?join=${chat.inviteCode}` : "";
-  const origin = typeof location !== "undefined" ? location.origin : "";
-  const publicLink = chat.handle ? `${origin}/m?join=@${chat.handle}` : "";
-  const codeLink = chat.inviteCode ? `${origin}/m?join=${chat.inviteCode}` : "";
-  const copy = async (url: string) => { try { await navigator.clipboard.writeText(url); toast("success", "Ссылка скопирована"); } catch { toast("error", "Не удалось скопировать"); } };
-  const share = async (url: string) => {
-    if (typeof navigator !== "undefined" && navigator.share) { try { await navigator.share({ title: chat.title ?? "MiliGram", url }); return; } catch { /* отменили */ } }
-    copy(url);
-  };
-  const makeLink = (fresh: boolean) => run(async () => {
-    if (fresh) await mApi("invite", { chatId: chat.id, action: "revoke" });
-    const r = await mApi<{ link: string }>("invite", { chatId: chat.id, action: "create" });
-    await copy(origin + r.link);
-  });
-  const LinkRow = ({ url, label }: { url: string; label: string }) => (
-    <div className="px-4 py-3">
-      <p className="mx-muted text-[12.5px] mb-1">{label}</p>
-      <p className="break-all text-[14.5px]" style={{ color: "var(--mx-accent)" }}>{url}</p>
-      <div className="flex gap-2 mt-2.5">
-        <button onClick={() => copy(url)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[14px] font-medium" style={{ background: "var(--mx-surface2)" }}><Copy size={15} /> Копировать</button>
-        <button onClick={() => share(url)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[14px] font-medium" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }}><Share2 size={15} /> Поделиться</button>
-      </div>
-    </div>
-  );
   return (
     <Sheet open={open} onClose={onClose} title="Настройки" full zIndex={60}>
       <div className="pb-10">
@@ -145,18 +122,6 @@ export function ChannelSettingsSheet({ open, onClose, chat, me, onCounts }: { op
           <div className="flex items-center justify-between px-4 py-3"><span>Вступление по заявке</span><Switch on={!!chat.joinByRequest} onChange={(v) => perms({ joinByRequest: v })} disabled={busy} /></div>
           <div className="flex items-center justify-between px-4 py-3"><span>Защищённый контент</span><Switch on={!!chat.noForwards} onChange={(v) => perms({ noForwards: v })} disabled={busy} /></div>
         </Section>
-        <Section title="Пригласительная ссылка" footer={chat.type === "channel" ? "Любой, у кого есть ссылка, сможет подписаться на канал" + (chat.joinByRequest ? " (после одобрения заявки)." : ".") : "Любой, у кого есть ссылка, сможет вступить в группу" + (chat.joinByRequest ? " (после одобрения заявки)." : ".")}>
-          {publicLink && <LinkRow url={publicLink} label="Публичная ссылка" />}
-          {codeLink ? (
-            <>
-              <LinkRow url={codeLink} label={publicLink ? "Приватная ссылка" : "Ссылка-приглашение"} />
-              <button className="w-full flex items-center gap-2 px-4 py-3 text-left" disabled={busy} onClick={() => makeLink(true)}><RefreshCw size={16} /> Создать новую (старая перестанет работать)</button>
-              <button className="w-full px-4 py-3 text-left" style={{ color: "var(--mx-danger)" }} disabled={busy} onClick={() => confirm("Отозвать ссылку? Она перестанет работать.") && run(() => mApi("invite", { chatId: chat.id, action: "revoke" }), "Ссылка отозвана")}>Отозвать ссылку</button>
-            </>
-          ) : (
-            <button className="w-full flex items-center gap-2 px-4 py-3 text-left" style={{ color: "var(--mx-accent)" }} disabled={busy} onClick={() => makeLink(false)}><Link2 size={17} /> {publicLink ? "Создать приватную ссылку" : "Создать ссылку-приглашение"}</button>
-          )}
-        </Section>
         <Section title="Автоудаление сообщений">
           <div className="flex flex-wrap gap-2 p-3">
             {AUTODELETE.map(([label, sec]) => (
@@ -171,7 +136,7 @@ export function ChannelSettingsSheet({ open, onClose, chat, me, onCounts }: { op
         </Section>
         {chat.createdBy === me && (
           <Section>
-            <button className="w-full px-4 py-3 text-left" style={{ color: "var(--mx-danger)" }} onClick={() => confirm(`Удалить ${kind} «${chat.title}» навсегда? Это нельзя отменить.`) && run(async () => { await mApi("members", { chatId: chat.id, action: "deleteChat" }); location.href = "/m/app"; })}>Удалить {kind}</button>
+            <button className="w-full px-4 py-3 text-left" style={{ color: "var(--mx-danger)" }} onClick={() => confirm(`Удалить ${kind} «${chat.title}» навсегда? Это нельзя отменить.`) && run(async () => { await mApi("members", { chatId: chat.id, action: "deleteChat" }); location.href = "/m"; })}>Удалить {kind}</button>
           </Section>
         )}
       </div>

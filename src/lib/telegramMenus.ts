@@ -4,37 +4,17 @@ const SITE_NAME = "Velox Trade";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://velox-trade-zeta.vercel.app";
 const CHANNEL_URL = process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL;
 
-export const MESSENGER_URL = `${SITE_URL}/m`;
-
 export function mainMenuText(firstName: string, username: string | null): string {
   const uname = username ? `@${username}` : "без юзернейма";
   return (
     `👋 Привет, ${firstName} (${uname})!\n\n` +
-    `Это бот MiliGram — мессенджера на ${SITE_NAME}. Отсюда можно открыть мессенджер, следить за непрочитанными и кошельком 🪙, ` +
-    `получать коды входа и писать в поддержку.\n\n` +
-    `Чтобы бот показывал твои сообщения и баланс, подключи Telegram в мессенджере: Настройки → Безопасность.`
+    `Это бот ${SITE_NAME} — отсюда удобно следить за балансом, заказами и получать уведомления, ` +
+    `не заходя каждый раз на сайт. А сам каталог, кейсы и покупки — на сайте, кнопка ниже 👇`
   );
 }
 
 export function mainMenuButtons(isAdmin: boolean = false): InlineButton[][] {
   const rows: InlineButton[][] = [
-    [{ text: "💬 Открыть MiliGram", url: MESSENGER_URL }],
-    [
-      { text: "🔔 Непрочитанные", callback_data: "cmd_mili_unread" },
-      { text: "🪙 Кошелёк", callback_data: "cmd_mili_wallet" },
-    ],
-    [{ text: "🆘 Поддержка", callback_data: "menu_support" }],
-    [{ text: "🛒 Магазин Velox", callback_data: "menu_shop" }],
-  ];
-  if (CHANNEL_URL) rows.push([{ text: "📢 Наш канал", url: CHANNEL_URL }]);
-  if (isAdmin) rows.push([{ text: "🛠 Админка", callback_data: "admin_menu" }]);
-  return rows;
-}
-
-export const SHOP_MENU_TEXT = `🛒 ${SITE_NAME} — магазин. Баланс, заказы и Stars-баланс — здесь, а каталог и покупки — на сайте.`;
-
-export function shopMenuButtons(): InlineButton[][] {
-  return [
     [{ text: "🌐 Перейти на сайт", url: SITE_URL }],
     [
       { text: "💰 Баланс", callback_data: "cmd_balance" },
@@ -44,8 +24,10 @@ export function shopMenuButtons(): InlineButton[][] {
     [{ text: "💬 Обратная связь", callback_data: "menu_feedback" }],
     [{ text: "🤝 Сотрудничество", callback_data: "menu_partnership" }],
     [{ text: "💫 Поддержать проект", callback_data: "menu_donate" }],
-    [{ text: "⬅️ Назад", callback_data: "menu_back" }],
   ];
+  if (CHANNEL_URL) rows.push([{ text: "📢 Наш канал", url: CHANNEL_URL }]);
+  if (isAdmin) rows.push([{ text: "🛠 Админка", callback_data: "admin_menu" }]);
+  return rows;
 }
 
 export const DONATE_MIN = 10;
@@ -71,7 +53,7 @@ export const TOPUP_INSTRUCTIONS =
   "Напишите сообщение прямо сюда — оно уйдёт администратору.";
 
 export const SUPPORT_INSTRUCTIONS =
-  "1. Опишите свою проблему.\n2. В скором времени ожидайте ответ от администратора — он придёт сюда и в чат «Поддержка» в MiliGram.\n\nНапишите сообщение прямо сюда.";
+  "1. Опишите свою проблему.\n2. В скором времени ожидайте ответ от администратора.\n\nНапишите сообщение прямо сюда.";
 
 export const PARTNERSHIP_INSTRUCTIONS =
   `Для сотрудничества напишите "хочу сотрудничать с ${SITE_NAME}", после этого ожидайте ответа администратора и следуйте инструкции, которую он укажет.`;

@@ -719,15 +719,9 @@ function RegisterInner() {
                     >
                       Открыть Telegram-бота <ExternalLink size={14} />
                     </a>
-                    <div>
-                      <a href={`tg://resolve?domain=${TELEGRAM_BOT}&start=${tgCode}`} className="text-xs text-accent underline">Открыть сразу в приложении Telegram</a>
-                    </div>
                     <p className="text-xs text-white/40">
                       Нажми «Start» в боте — аккаунт создастся автоматически, и мы пришлём код для входа прямо туда.
                       Эта страница обновится сама.
-                    </p>
-                    <p className="text-[11px] text-white/35">
-                      Ссылка не открылась? Найди @{TELEGRAM_BOT} в Telegram и отправь ему: <span className="text-white/60 select-all">/start {tgCode}</span>
                     </p>
                     <div className="flex items-center justify-center gap-2 text-xs text-white/30 pt-2">
                       <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> Ждём подтверждения...

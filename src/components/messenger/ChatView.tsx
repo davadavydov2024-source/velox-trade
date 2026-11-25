@@ -1,27 +1,19 @@
 "use client";
 
-import { ghostNow } from "./ghost";
-import { wallpaperClass } from "./Wallpaper";
-import { useMxPrefs } from "./prefs";
-import { StickerPackSheet } from "./StickersUI";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, Phone, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark, Gift,
+  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark,
 } from "lucide-react";
-import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
 import { mApi, mUpload, MApiError } from "./api";
-import { GiveawaySheet } from "./Giveaway";
-import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner, TypingDots, StreakBadge } from "./ui";
+import { Avatar, MenuList, Sheet, VerifiedBadge, Spinner } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
-import { EmptyChatGreeting } from "./EmptyChatGreeting";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
 import { ChatInfoSheet } from "./ChatInfoSheet";
 import { useAccounts, useLiveAccount, useMessages, useNow, useTyping } from "./hooks";
-import { useCall } from "./CallProvider";
 import { MAccount, MChat, MMessage, MPending, MUserChat } from "./mtypes";
 import { formatTime, chatPhoto, chatTitle, dayLabel, DOUBLE_TAP_REACTION, extFromMime, isChatMuted, isOnline, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural, previewText, QUICK_REACTIONS, sameDay, shortCount } from "./util";
 import type { RecordedAudio, RecordedVideo } from "./Recorders";
@@ -70,9 +62,8 @@ export function ChatView({
   onOpenChat: (id: string) => void;
 }) {
   const { toast } = useToast();
-  const wallpaper = useMxPrefs((s) => s.wallpaper);
   const now = useNow(15_000);
-  const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id, 60, me);
+  const { messages: allMessages, loading, hasMore, loadMore } = useMessages(chat.id);
   // сервер сам помечает «удалить у меня» (hiddenFor), автоудаление (expireAt) и «очистить историю» (clearedAt)
   const clearedAt = userChat?.clearedAt ?? 0;
   const messages = useMemo(
@@ -91,11 +82,8 @@ export function ChatView({
   const [deleteMsgs, setDeleteMsgs] = useState<MMessage[] | null>(null);
   const [selection, setSelection] = useState<Set<string> | null>(null);
   const [forwardIds, setForwardIds] = useState<string[] | null>(null);
-  const [stickerPack, setStickerPack] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
-  const [gwOpen, setGwOpen] = useState(false);
-  const [giftOpen, setGiftOpen] = useState(false);
   const [muteMenu, setMuteMenu] = useState(false);
   const [info, setInfo] = useState(false);
   const [pinIndex, setPinIndex] = useState(0);
@@ -119,8 +107,6 @@ export function ChatView({
   const title = chatTitle(chat, me, accountsAll);
   const photo = chatPhoto(chat, me, accountsAll);
   const saved = isSavedMessages(chat, me);
-  const call = useCall();
-  const canCall = chat.type === "dm" && !saved && !chat.service && !!peer && !peer.bot && peer.uid !== "velox_dating" && call.available;
   const isAdmin = chat.admins?.includes(me) || chat.createdBy === me;
   const perms = { ...DEFAULT_PERMISSIONS, ...(chat.permissions ?? {}) };
   const restriction = chat.restricted?.[me];
@@ -155,9 +141,6 @@ export function ChatView({
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
   }, []);
 
-  // «липкая» дата сверху при прокрутке, как в Telegram: видна только пока скроллишь, гаснет через ~0.9с после остановки
-  const [scrolling, setScrolling] = useState(false);
-  const scrollingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -169,9 +152,6 @@ export function ChatView({
       prevHeight.current = el.scrollHeight;
       loadMore();
     }
-    setScrolling(true);
-    if (scrollingTimer.current) clearTimeout(scrollingTimer.current);
-    scrollingTimer.current = setTimeout(() => setScrolling(false), 900);
   };
 
   // разделитель «Новые сообщения»: ставим один раз при открытии чата перед первым непрочитанным
@@ -250,50 +230,24 @@ export function ChatView({
 
   // ---- «прочитано» ----
   const lastIncoming = [...messages].reverse().find((m) => m.from !== me);
-  // Просмотры постов канала: засчитываем то, что реально видно на экране (один человек = один просмотр поста).
-  useEffect(() => {
-    if (chat.type !== "channel") return;
-    const seen = new Set<string>();
-    const tick = () => {
-      if (document.visibilityState !== "visible") return;
-      const ids: string[] = [];
-      scrollRef.current?.querySelectorAll<HTMLElement>("[data-mid]").forEach((el) => {
-        const id = el.dataset.mid;
-        if (!id || seen.has(id)) return;
-        const r = el.getBoundingClientRect();
-        if (r.height > 0 && r.bottom > 70 && r.top < window.innerHeight - 70) ids.push(id);
-      });
-      if (!ids.length) return;
-      const batch = ids.slice(0, 30);
-      batch.forEach((id) => seen.add(id));
-      mApi("channel-view", { chatId: chat.id, msgIds: batch }).catch(() => batch.forEach((id) => seen.delete(id)));
-    };
-    const t = setInterval(tick, 1500);
-    tick();
-    return () => clearInterval(t);
-  }, [chat.id, chat.type]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     if (!lastIncoming || document.visibilityState !== "visible") return;
     const readAt = chat.readBy?.[me] ?? 0;
-    const g = ghostNow();
-    if (g.noRead && (userChat?.unread ?? 0) === 0) return;
     if (readAt >= lastIncoming.createdAt && (userChat?.unread ?? 0) === 0) return;
-    const t = setTimeout(() => mApi("read", { chatId: chat.id, ...(g.noRead ? { ghost: true } : {}), ...(g.hideOnline ? { quiet: true } : {}) }).catch(() => {}), 400);
+    const t = setTimeout(() => mApi("read", { chatId: chat.id }).catch(() => {}), 400);
     return () => clearTimeout(t);
   }, [lastIncoming?.id, chat.id, me, userChat?.unread, chat.readBy, lastIncoming]);
 
   // ---- «печатает…» ----
   const sendTyping = () => {
     const t = Date.now();
-    if (ghostNow().noTyping) return;
     if (t - lastTypingSent.current < 3000) return;
     lastTypingSent.current = t;
     mApi("typing", { chatId: chat.id }).catch(() => {});
   };
 
   // ---- отправка ----
-  const replyPayload = () => (reply ? reply.msgId : undefined);
+  const replyPayload = () => (reply ? { msgId: reply.msgId } : undefined);
 
   const send = useCallback(
     async (tempId: string, payload: Record<string, unknown>) => {
@@ -324,18 +278,6 @@ export function ChatView({
     const tempId = addPending({ kind: "text", text });
     setReply(null);
     send(tempId, payload);
-  };
-
-  /** Нажатие на @юзернейм в сообщении: открываем (или создаём) личный чат с этим человеком. */
-  const openHandle = async (handle: string) => {
-    if (handle.toLowerCase() === myAccount.handle.toLowerCase()) return;
-    try {
-      const res = await mApi<{ chatId?: string; id?: string }>("chats", { type: "dm", memberHandles: [handle] });
-      const id = res.chatId ?? res.id;
-      if (id && id !== chat.id) onOpenChat(id);
-    } catch (err) {
-      toast("error", err instanceof MApiError ? err.message : "Не удалось открыть чат");
-    }
   };
 
   const sendSticker = async (pack: string, index: number) => {
@@ -476,36 +418,22 @@ export function ChatView({
 
   const startReply = (m: MMessage) => {
     setEditing(null);
-    const photo = m.kind === "image" ? (m.mediaUrls?.[0] ?? m.mediaUrl) : undefined;
-    const thumb = m.kind === "sticker" ? m.sticker?.preview : photo && !isVideoUrl(photo) ? photo : undefined;
-    setReply({
-      msgId: m.id, from: m.from, name: m.from === me ? "Вы" : accountsAll[m.from]?.displayName ?? "Сообщение",
-      preview: m.kind === "sticker" ? `${m.sticker?.emoji ?? "🖼"} Стикер` : previewText(m.kind, m.text) || "Сообщение", thumb,
-    });
+    setReply({ msgId: m.id, from: m.from, name: m.from === me ? "Вы" : accountsAll[m.from]?.displayName ?? "Сообщение", preview: previewText(m.kind, m.text) || "Сообщение" });
   };
 
-  // переход к сообщению из цитаты: если оно выше загруженной истории — подгружаем страницы, пока не найдём (до 15 раз)
-  const hasMoreRef = useRef(hasMore);
-  hasMoreRef.current = hasMore;
   const jumpTo = useCallback(
-    async (msgId: string) => {
-      const find = () => scrollRef.current?.querySelector(`[data-mid="${CSS.escape(msgId)}"]`) ?? null;
-      let el = find();
-      let tries = 0;
-      if (!el && hasMoreRef.current) toast("info", "Ищу сообщение…");
-      while (!el && hasMoreRef.current && tries < 15) {
-        await loadMore();
-        await new Promise((r) => setTimeout(r, 160));
-        el = find();
-        tries++;
-      }
+    (msgId: string) => {
+      const el = scrollRef.current?.querySelector(`[data-mid="${CSS.escape(msgId)}"]`);
       if (el) {
         el.scrollIntoView({ block: "center", behavior: "smooth" });
         setHighlightId(msgId);
         setTimeout(() => setHighlightId(null), 1400);
-      } else toast("info", "Сообщение не найдено — возможно, оно удалено");
+      } else if (hasMore) {
+        loadMore();
+        toast("info", "Загружаю историю…");
+      } else toast("info", "Сообщение не найдено");
     },
-    [loadMore, toast]
+    [hasMore, loadMore, toast]
   );
 
   const chatSetting = async (patch: Record<string, unknown>) => {
@@ -628,13 +556,10 @@ export function ChatView({
     { label: "Навсегда", ms: 0 },
   ];
 
-  // актуальные обработчики для мемоизированных строк (см. MessageRow): строки зовут их через ref и не устаревают
-  const H = useRef<any>({});
-  H.current = { react, startReply, setMenuMsg, toggleSelect, jumpTo, openMedia, setStickerPack, openHandle };
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--mx-bg)" }}>
       {/* ---- шапка ---- */}
-      <div className="mx-chat-head mx-chat-head-tg mx-safe-top shrink-0 z-10">
+      <div className="mx-glass mx-safe-top shrink-0 z-10" style={{ borderWidth: "0 0 1px" }}>
         {selecting ? (
           <div className="h-14 flex items-center px-3 gap-2">
             <button onClick={() => setSelection(null)} className="p-2" aria-label="Отмена"><X size={22} /></button>
@@ -645,29 +570,24 @@ export function ChatView({
             <button onClick={() => setDeleteMsgs(selectedMsgs)} className="p-2.5" style={{ color: "var(--mx-danger)" }} aria-label="Удалить"><Trash2 size={21} /></button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-3 pt-1 pb-2">
-            <button onClick={onBack} className="min-[900px]:hidden mx-pill-btn w-11 h-11 shrink-0" aria-label="Назад"><ChevronLeft size={26} /></button>
-            <button onClick={() => setInfo(true)} className="mx-pill-btn flex-1 min-w-0 h-12 px-4 mx-auto" style={{ maxWidth: 360, flex: "1 1 auto" }}>
-              <div className="min-w-0 text-center">
-                <p className="font-bold truncate flex items-center justify-center gap-1 text-[16.5px] leading-tight">
+          <div className="h-14 flex items-center gap-1 px-1">
+            <button onClick={onBack} className="min-[900px]:hidden flex items-center p-2" style={{ color: "var(--mx-accent)" }} aria-label="Назад">
+              <ChevronLeft size={28} />
+            </button>
+            <button onClick={() => setInfo(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left pl-1 min-[900px]:pl-3">
+              <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={40} online={online}>
+                {saved ? "🔖" : undefined}
+              </Avatar>
+              <div className="min-w-0">
+                <p className="font-semibold truncate flex items-center gap-1 text-[16px]">
                   {title}
-                  <VerifyMark acc={chat.type === "dm" ? peer : chat} size={16} /><TagChip acc={chat.type === "dm" ? peer : chat} />{chat.type === "dm" && <StatusBadge acc={peer} />}
-                  {chat.type === "dm" && <StreakBadge count={chat.streak?.count ?? 0} size={14} />}
+                  {chat.type === "dm" && peer?.verified && <VerifiedBadge />}{chat.type === "dm" && <StatusBadge acc={peer} />}
                   {muted && <BellOff size={13} className="mx-muted shrink-0" />}
                 </p>
-                <p className="text-[12.5px] truncate leading-tight flex items-center gap-1.5" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>
-                  {typingNames.length > 0 && <TypingDots />}
-                  <span className="truncate">{typingNames.length > 0 ? status.replace("…", "") : status}</span>
-                </p>
+                <p className="text-[13px] truncate" style={{ color: typingNames.length || online ? "var(--mx-accent)" : "var(--mx-muted)" }}>{status}</p>
               </div>
             </button>
-            <button onClick={() => setInfo(true)} className="shrink-0 rounded-full overflow-hidden" aria-label="Профиль" style={{ border: "2px solid rgba(255,255,255,0.18)" }}>
-              <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={44} online={online}>{saved ? "🔖" : undefined}</Avatar>
-            </button>
-            {canCall && (
-              <button onClick={() => call.start(chat.id)} disabled={call.busy} className="mx-pill-btn w-11 h-11 shrink-0 disabled:opacity-50" aria-label="Позвонить"><Phone size={20} /></button>
-            )}
-            <button onClick={() => setHeaderMenu(true)} className="mx-pill-btn w-11 h-11 shrink-0" aria-label="Меню"><MoreVertical size={21} /></button>
+            <button onClick={() => setHeaderMenu(true)} className="p-2.5 mx-muted" aria-label="Меню"><MoreVertical size={22} /></button>
           </div>
         )}
         {pinnedMsg || currentPinId ? (
@@ -694,7 +614,7 @@ export function ChatView({
       </div>
 
       {/* ---- сообщения ---- */}
-      <div ref={scrollRef} onScroll={onScroll} className={`mx-scroll mx-chat-wall flex-1 min-h-0 py-2 relative ${wallpaperClass(wallpaper)} ${scrolling ? "mx-scrolling" : ""}`}>
+      <div ref={scrollRef} onScroll={onScroll} className="mx-scroll mx-wallpaper flex-1 min-h-0 py-2 relative">
         {hasMore && <div className="flex justify-center py-3"><Spinner size={18} /></div>}
         {loading && messages.length === 0 && (
           <div className="px-3 pt-4 space-y-2.5">
@@ -706,71 +626,54 @@ export function ChatView({
           </div>
         )}
         {!loading && rows.length === 0 && (
-          chat.type === "dm" && !saved ? (
-            <EmptyChatGreeting canSend={canPost} onSend={sendSticker} />
-          ) : (
-            <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
-              {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
-            </div>
-          )
+          <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
+            {chat.type === "channel" ? "В канале пока нет публикаций." : "Сообщений пока нет. Напиши первым."}
+          </div>
         )}
-        {(() => {
-          type RowMeta = { msg: MMessage; pend?: MPending; sameAsPrev: boolean; sameAsNext: boolean; rowKey: string; isNewRow: boolean; newDay: boolean };
-          const rowMeta: RowMeta[] = rows.map(({ msg, pending: pend }, i) => {
-            const prev = rows[i - 1]?.msg;
-            const next = rows[i + 1]?.msg;
-            const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
-            const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
-            const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
-            const rowKey = serverToTemp.get(msg.id) ?? msg.id;
-            const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
-            return { msg, pend, sameAsPrev, sameAsNext, rowKey, isNewRow, newDay };
-          });
-          const dayGroups: { key: string; label: string; items: RowMeta[] }[] = [];
-          rowMeta.forEach((r) => {
-            if (r.newDay || dayGroups.length === 0) dayGroups.push({ key: `day-${r.rowKey}`, label: dayLabel(r.msg.createdAt, now), items: [] });
-            dayGroups[dayGroups.length - 1].items.push(r);
-          });
-          return dayGroups.map((g) => (
-            <div key={g.key}>
-              <div className="mx-sticky-date"><span className="mx-sticky-date-pill text-[12.5px] px-3 py-1 rounded-full mx-glass font-medium">{g.label}</span></div>
-              {g.items.map((r) => (
-                <div key={r.rowKey} className={r.isNewRow ? "mx-msg-in" : undefined}>
-                  {dividerId === r.msg.id && (
-                    <div className="flex items-center gap-3 px-4 my-2">
-                      <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
-                      <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Новые сообщения</span>
-                      <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
-                    </div>
-                  )}
-                  <MessageRow
-                    msg={r.msg}
-                    pending={r.pend}
-                    me={me}
-                    chatType={chat.type}
-                    accounts={accountsAll}
-                    chatId={chat.id}
-                    showAuthor={!r.sameAsPrev}
-                    isLastInGroup={!r.sameAsNext}
-                    read={isRead(r.msg)}
-                    selecting={selecting}
-                    selected={!!selection?.has(r.msg.id)}
-                    highlight={highlightId === r.msg.id}
-                    onOpenMedia={(u) => H.current.openMedia(u)}
-                    onOpenStickerPack={(s) => H.current.setStickerPack(s)}
-                    onOpenHandle={(h) => H.current.openHandle(h)}
-                    onSwipeReply={canPost && !r.pend && !r.msg.deletedForAll && r.msg.kind !== "system" ? () => H.current.startReply(r.msg) : undefined}
-                    onJumpTo={(id) => H.current.jumpTo(id)}
-                    onReact={(e) => H.current.react(r.msg, e)}
-                    onMenu={() => !r.pend && H.current.setMenuMsg(r.msg)}
-                    onToggleSelect={() => H.current.toggleSelect(r.msg.id)}
-                    onDoubleTap={() => !r.pend && !r.msg.deletedForAll && H.current.react(r.msg, DOUBLE_TAP_REACTION)}
-                  />
+        {rows.map(({ msg, pending: pend }, i) => {
+          const prev = rows[i - 1]?.msg;
+          const next = rows[i + 1]?.msg;
+          const newDay = !prev || !sameDay(prev.createdAt, msg.createdAt);
+          const sameAsPrev = !!prev && prev.from === msg.from && !newDay && prev.kind !== "system" && msg.createdAt - prev.createdAt < 5 * 60_000;
+          const sameAsNext = !!next && next.from === msg.from && sameDay(next.createdAt, msg.createdAt) && next.kind !== "system" && next.createdAt - msg.createdAt < 5 * 60_000;
+          const rowKey = serverToTemp.get(msg.id) ?? msg.id;
+          const isNewRow = rowsReady.current && !knownRows.current.has(msg.id) && !knownRows.current.has(rowKey);
+          return (
+            <div key={rowKey} className={isNewRow ? "mx-msg-in" : undefined}>
+              {newDay && (
+                <div className="flex justify-center my-2.5">
+                  <span className="text-[12.5px] px-3 py-1 rounded-full mx-glass font-medium">{dayLabel(msg.createdAt, now)}</span>
                 </div>
-              ))}
+              )}
+              {dividerId === msg.id && (
+                <div className="flex items-center gap-3 px-4 my-2">
+                  <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
+                  <span className="text-[12.5px] font-medium px-3 py-1 rounded-full" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>Новые сообщения</span>
+                  <span className="flex-1 h-px" style={{ background: "var(--mx-accent)", opacity: 0.4 }} />
+                </div>
+              )}
+              <MessageRow
+                msg={msg}
+                pending={pend}
+                me={me}
+                chatType={chat.type}
+                accounts={accountsAll}
+                showAuthor={!sameAsPrev}
+                isLastInGroup={!sameAsNext}
+                read={isRead(msg)}
+                selecting={selecting}
+                selected={!!selection?.has(msg.id)}
+                highlight={highlightId === msg.id}
+                onOpenMedia={openMedia}
+                onJumpTo={jumpTo}
+                onReact={(e) => react(msg, e)}
+                onMenu={() => !pend && setMenuMsg(msg)}
+                onToggleSelect={() => toggleSelect(msg.id)}
+                onDoubleTap={() => !pend && !msg.deletedForAll && react(msg, DOUBLE_TAP_REACTION)}
+              />
             </div>
-          ));
-        })()}
+          );
+        })}
       </div>
 
       {showDown && (
@@ -785,38 +688,12 @@ export function ChatView({
         </button>
       )}
 
-      {chat.type === "dm" && peer && (peer.plusUntil ?? 0) > Date.now() && (peer.messagePrice ?? 0) > 0 && !chat.freeFor?.includes(me) && (
-        <div className="shrink-0 text-center text-[13px] px-4 py-1.5" style={{ background: "var(--mx-bg)", color: "#ffb400", borderTop: "1px solid var(--mx-line)" }}>
-          💫 Сообщение этому человеку стоит {peer.messagePrice} 🪙 — они уйдут на его баланс
-        </div>
-      )}
-      {(() => {
-        const last = messages[messages.length - 1];
-        const kb = last && (last.from === "velox_dating" || last.from.startsWith("bot_")) ? last.kb : undefined;
-        if (!kb?.length) return null;
-        return (
-          <div className="shrink-0 flex flex-wrap gap-2 px-3 pt-2 pb-1 justify-center" style={{ background: "var(--mx-bg)" }}>
-            {kb.map((label) => (
-              <button key={label} onClick={() => sendText(label)} className="mx-chip" style={{ height: 40, padding: "0 16px", background: "var(--mx-surface)", border: "1px solid var(--mx-line)", borderRadius: 999, color: "var(--mx-text)", fontSize: 15 }}>{label}</button>
-            ))}
-          </div>
-        );
-      })()}
-
-      {chat.type === "channel" && !isAdmin && !chat.service && !chat.banned?.includes(me) ? (
-        <div className="mx-safe-bottom shrink-0" style={{ background: "var(--mx-bg)", borderTop: "1px solid var(--mx-line)" }}>
-          <button onClick={() => (muted ? chatSetting({ muted: false, mutedUntil: 0 }) : setMuteMenu(true))} className="w-full h-12 text-[16px] font-medium flex items-center justify-center gap-2" style={{ color: "var(--mx-accent)" }}>
-            {muted ? <Bell size={19} /> : <BellOff size={19} />}{muted ? "Включить звук" : "Отключить звук"}
-          </button>
-        </div>
-      ) : (
       <Composer
         chatId={chat.id}
         disabledReason={blockedReason}
         reply={reply}
         editing={editing}
         onCancelReply={() => setReply(null)}
-        onJumpReply={() => reply && jumpTo(reply.msgId)}
         onCancelEdit={() => setEditing(null)}
         onSendText={sendText}
         onSendSticker={sendSticker}
@@ -828,7 +705,6 @@ export function ChatView({
         onSendVideoNote={sendVideoNote}
         onTyping={sendTyping}
       />
-      )}
 
       {/* ---- меню сообщения ---- */}
       <Sheet open={!!menuMsg} onClose={() => setMenuMsg(null)}>
@@ -863,14 +739,11 @@ export function ChatView({
       </Sheet>
 
       {/* ---- меню чата ---- */}
-      {chat.type === "dm" && peer && <GiftShopSheet open={giftOpen} onClose={() => setGiftOpen(false)} toUid={peer.uid} toName={peer.displayName} me={me} />}
       <Sheet open={headerMenu} onClose={() => setHeaderMenu(false)}>
         <MenuList
           onDone={() => setHeaderMenu(false)}
           items={[
             { label: "Информация", icon: <Info size={20} />, onPress: () => setInfo(true) },
-            { label: "Подарить подарок", icon: <Gift size={20} />, hidden: chat.type !== "dm" || saved || peer?.uid === "velox_dating", onPress: () => setGiftOpen(true) },
-            { label: "Запустить розыгрыш", icon: <Gift size={20} />, hidden: chat.type === "dm" || !isAdmin || !!chat.service, onPress: () => setGwOpen(true) },
             { label: "Поиск по сообщениям", icon: <Search size={20} />, onPress: () => { setSearchQ(""); setSearchOpen(true); } },
             { label: userChat?.pinned ? "Открепить чат" : "Закрепить чат", icon: userChat?.pinned ? <PinOff size={20} /> : <Pin size={20} />, onPress: () => chatSetting({ pinned: !userChat?.pinned }) },
             muted
@@ -881,7 +754,6 @@ export function ChatView({
           ]}
         />
       </Sheet>
-      {chat.type !== "dm" && isAdmin && <GiveawaySheet open={gwOpen} onClose={() => setGwOpen(false)} chatId={chat.id} me={me} />}
       <Sheet open={muteMenu} onClose={() => setMuteMenu(false)} title="Отключить уведомления">
         <MenuList
           onDone={() => setMuteMenu(false)}
@@ -907,8 +779,6 @@ export function ChatView({
           ))}
         </div>
       </Sheet>
-
-      <StickerPackSheet slug={stickerPack} onClose={() => setStickerPack(null)} />
 
       <ForwardSheet
         open={!!forwardIds}

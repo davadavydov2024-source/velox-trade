@@ -24,9 +24,6 @@ import {
   DONATE_MIN,
   DONATE_MAX,
   DONATE_PROMPT_TEXT,
-  SHOP_MENU_TEXT,
-  shopMenuButtons,
-  MESSENGER_URL,
 } from "@/lib/telegramMenus";
 import {
   adminMenuButtons,
@@ -55,8 +52,6 @@ import {
 } from "@/lib/telegramAdminModeration";
 import { rememberForwardedMessage, findForwardedMessage, ForwardKind } from "@/lib/telegramAdminReplies";
 import { findUidByChatId, getBalanceMessage, getRecentOrdersMessage } from "@/lib/telegramUserInfo";
-import { NOT_LINKED_MILI, getMiliWalletMessage, getUnreadMessage } from "@/lib/telegramMessenger";
-import { deliverSupportReply, mirrorTelegramSupport } from "@/lib/messenger/support";
 import { fulfillStarsInvoice, validateStarsPreCheckout, logStarsIssue } from "@/lib/starsOrders";
 import { getStarsBalanceMessage, requestStarsWithdrawal, MIN_STARS_WITHDRAWAL } from "@/lib/telegramStarsWithdrawals";
 import {
@@ -114,12 +109,12 @@ async function sendMainMenu(chatId: number, firstName: string, username: string 
   await sendTelegramMessage(chatId, text, buttons);
 }
 
-async function forwardToAdmin(kind: ForwardKind, chatId: number, firstName: string, userTag: string, text: string, messengerUid?: string) {
+async function forwardToAdmin(kind: ForwardKind, chatId: number, firstName: string, userTag: string, text: string) {
   if (!ADMIN_CHAT_ID) return;
   const body = `${KIND_ICON[kind]} ${KIND_LABEL[kind]} от ${firstName} (${userTag}):\n\n${text}\n\n↩️ Чтобы ответить человеку — сделай Reply прямо на это сообщение.`;
   const messageId = await sendTelegramMessage(ADMIN_CHAT_ID, body);
   if (messageId) {
-    await rememberForwardedMessage(messageId, { chatId, firstName, userTag, kind, createdAt: Date.now(), ...(messengerUid ? { messengerUid } : {}) });
+    await rememberForwardedMessage(messageId, { chatId, firstName, userTag, kind, createdAt: Date.now() });
   }
 }
 
@@ -129,9 +124,8 @@ async function handleAccountLinking(code: string, chatId: number, telegramUserna
   // Подтверждение регистрации по паролю через бота (см. api/auth/tg-verify/*): человек открыл
   // ссылку start=verify_<token> — запоминаем его chatId в заявке и присылаем 6-значный код сюда,
   // в Telegram (раньше код уходил на почту). Дальше он вводит его на странице регистрации.
-  const verifyPrefix = code.startsWith("verify_") ? "verify_" : code.startsWith("v_") ? "v_" : null; // v_ — короткая ссылка, verify_ — старые
-  if (verifyPrefix) {
-    const verifyRef = db.collection("tgVerifyRequests").doc(code.slice(verifyPrefix.length));
+  if (code.startsWith("verify_")) {
+    const verifyRef = db.collection("tgVerifyRequests").doc(code.slice("verify_".length));
     const verifySnap = await verifyRef.get();
     if (!verifySnap.exists) {
       await sendTelegramMessage(chatId, "Эта ссылка уже не действует. Вернись на сайт и начни регистрацию заново.");
@@ -292,15 +286,6 @@ export async function POST(req: NextRequest) {
       if (data === "menu_back") {
         await setBotState(chatId, null);
         await editTelegramMessage(chatId, messageId, mainMenuText(firstName, username), mainMenuButtons(isAdminChat(chatId)));
-      } else if (data === "menu_shop") {
-        await setBotState(chatId, null);
-        await editTelegramMessage(chatId, messageId, SHOP_MENU_TEXT, shopMenuButtons());
-      } else if (data === "cmd_mili_wallet") {
-        const uid = await findUidByChatId(chatId);
-        await sendTelegramMessage(chatId, uid ? await getMiliWalletMessage(uid) : NOT_LINKED_MILI, backOnlyButtons("menu_back"));
-      } else if (data === "cmd_mili_unread") {
-        const uid = await findUidByChatId(chatId);
-        await sendTelegramMessage(chatId, uid ? await getUnreadMessage(uid) : NOT_LINKED_MILI, backOnlyButtons("menu_back"));
       } else if (data === "menu_feedback") {
         await setBotState(chatId, null);
         await editTelegramMessage(chatId, messageId, FEEDBACK_MENU_TEXT, feedbackMenuButtons());
@@ -494,8 +479,7 @@ export async function POST(req: NextRequest) {
     if (isAdminChat(chatId) && message.reply_to_message) {
       const mapping = await findForwardedMessage(message.reply_to_message.message_id);
       if (mapping) {
-        if (mapping.kind === "support" && (mapping.messengerUid || !mapping.chatId)) await deliverSupportReply(mapping, text);
-        else await sendTelegramMessage(mapping.chatId, `💬 Ответ от ${SITE_NAME}:\n\n${text}`);
+        await sendTelegramMessage(mapping.chatId, `💬 Ответ от ${SITE_NAME}:\n\n${text}`);
         await sendTelegramMessage(chatId, `✅ Отправлено пользователю ${mapping.userTag}`);
         return NextResponse.json({ ok: true });
       }
@@ -543,22 +527,6 @@ export async function POST(req: NextRequest) {
       if (!isAdminChat(chatId)) return NextResponse.json({ ok: true });
       await setBotState(chatId, null);
       await sendTelegramMessage(chatId, ADMIN_MENU_TEXT, adminMenuButtons());
-      return NextResponse.json({ ok: true });
-    }
-
-    if (text.startsWith("/wallet") || text.startsWith("/unread") || text.startsWith("/messenger")) {
-      if (text.startsWith("/messenger")) {
-        await sendTelegramMessage(chatId, "💬 MiliGram — открывай мессенджер по кнопке ниже.", [[{ text: "💬 Открыть MiliGram", url: MESSENGER_URL }]]);
-      } else {
-        const uid = await findUidByChatId(chatId);
-        await sendTelegramMessage(chatId, !uid ? NOT_LINKED_MILI : text.startsWith("/wallet") ? await getMiliWalletMessage(uid) : await getUnreadMessage(uid));
-      }
-      return NextResponse.json({ ok: true });
-    }
-
-    if (text.startsWith("/support") || text.startsWith("/help")) {
-      await setBotState(chatId, "awaiting_support");
-      await sendTelegramMessage(chatId, SUPPORT_INSTRUCTIONS, backOnlyButtons("menu_back"));
       return NextResponse.json({ ok: true });
     }
 
@@ -618,9 +586,7 @@ export async function POST(req: NextRequest) {
       await sendTelegramMessage(chatId, "Спасибо! Администратор скоро свяжется с тобой.", backOnlyButtons("menu_back"));
       await setBotState(chatId, null);
     } else if (mode === "awaiting_support") {
-      const supportUid = await findUidByChatId(chatId);
-      if (supportUid) await mirrorTelegramSupport(supportUid, text).catch((e) => console.error("mirror support error:", e));
-      await forwardToAdmin("support", chatId, firstName, userTag, text, supportUid ?? undefined);
+      await forwardToAdmin("support", chatId, firstName, userTag, text);
       await sendTelegramMessage(chatId, "Обращение принято, администратор скоро ответит.", backOnlyButtons("menu_back"));
       await setBotState(chatId, null);
     } else if (mode === "awaiting_partnership" || text.trim().toLowerCase().includes(PARTNERSHIP_TRIGGER)) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-static";
 
-/** Манифест отдельного PWA «Mili Gram»: на iOS/Android ставится как самостоятельное приложение, открывается на /m. */
+/** Манифест отдельного PWA «Velox Chat»: на iOS/Android ставится как самостоятельное приложение, открывается на /m. */
 export function GET() {
   const manifest = {
     name: "Velox Chat",
@@ -17,9 +17,9 @@ export function GET() {
     theme_color: "#0b0b0d",
     lang: "ru",
     icons: [
-      { src: "/m/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/m/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/m/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/miligram/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/miligram/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/miligram/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
   return new NextResponse(JSON.stringify(manifest), {

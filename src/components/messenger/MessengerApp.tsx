@@ -1,14 +1,10 @@
 "use client";
 
-import { ghostNow } from "./ghost";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { NavigationBar, NavigationBarItem } from "m3you";
 import { Bell, MessageCircle, MessagesSquare, Settings, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { isPushSupported } from "@/lib/webPush";
-import { AppLockGate } from "./AppLockGate";
-import { NotificationGate } from "./NotificationGate";
 import { mApi, MApiError } from "./api";
 import { useToast } from "@/lib/toastContext";
 import { Avatar, Spinner } from "./ui";
@@ -19,12 +15,9 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AuthScreens, JoinScreen } from "./AuthScreens";
 import { ContactsPane } from "./ContactsPane";
-import { MiniPlayer, MusicProvider } from "./MusicPlayer";
-import { MessageBanner } from "./MessageBanner";
-import { CallProvider } from "./CallProvider";
 import { NewChatSheet } from "./NewChatSheet";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
-import { useAccounts, useContactNames, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
+import { useAccounts, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
 
 type Tab = "contacts" | "chats" | "settings";
 
@@ -38,7 +31,6 @@ export function MessengerApp() {
   const userChats = useUserChats(account && !account.banned ? me : null);
   const folders = useFolders(account && !account.banned ? me : null);
   const { stories, reload: reloadStories } = useStories(!!account && !account.banned);
-  useContactNames(!!account && !account.banned);
 
   const [tab, setTab] = useState<Tab>("chats");
   const [newChat, setNewChat] = useState(false);
@@ -56,7 +48,7 @@ export function MessengerApp() {
   // --- присутствие: «в сети» (нужна поддержка на сервере — см. NOTES-B.md) ---
   useEffect(() => {
     if (!account || account.banned) return;
-    const ping = () => document.visibilityState === "visible" && !ghostNow().hideOnline && mApi("presence", {}).catch(() => {});
+    const ping = () => document.visibilityState === "visible" && mApi("presence", {}).catch(() => {});
     ping();
     const t = setInterval(ping, 60_000);
     document.addEventListener("visibilitychange", ping);
@@ -89,7 +81,7 @@ export function MessengerApp() {
 
   // --- бейдж на иконке PWA и в заголовке вкладки ---
   useEffect(() => {
-    document.title = unread > 0 ? `(${unread}) MiliGram` : "MiliGram";
+    document.title = unread > 0 ? `(${unread}) Velox Chat` : "Velox Chat";
     const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
     if (unread > 0) nav.setAppBadge?.(unread).catch(() => {});
     else nav.clearAppBadge?.().catch(() => {});
@@ -108,16 +100,6 @@ export function MessengerApp() {
       router.push(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
     },
     [router]
-  );
-  // тап по шторке «новое сообщение»: из списка — обычный переход, из другого открытого чата — подмена записи истории,
-  // чтобы «назад» вёл в список, а не гонял по цепочке чатов
-  const openFromBanner = useCallback(
-    (id: string) => {
-      setTab("chats");
-      if (sp.get("chat")) router.replace(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
-      else openChat(id);
-    },
-    [router, sp, openChat]
   );
   const closeChat = useCallback(() => {
     if (openedFromList.current) {
@@ -158,19 +140,15 @@ export function MessengerApp() {
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "contacts", label: "Контакты", icon: <Users size={20} /> },
-    { id: "chats", label: "Чаты", icon: <MessageCircle size={20} /> },
-    { id: "settings", label: "Настройки", icon: <Settings size={20} /> },
+    { id: "contacts", label: "Контакты", icon: <Users size={24} /> },
+    { id: "chats", label: "Чаты", icon: <MessageCircle size={24} /> },
+    { id: "settings", label: "Настройки", icon: <Settings size={24} /> },
   ];
 
   return (
-    <MusicProvider>
-    <CallProvider me={me} chats={chats} onOpenChat={openFromBanner}>
-      <AppLockGate uid={me} />
-      <NotificationGate uid={me} />
-    <div className="mx-workspace h-full flex">
+    <div className="h-full flex">
       {/* ---- левая панель ---- */}
-      <aside className={`${chatId ? "max-[899px]:hidden" : ""} mx-sidebar relative w-full min-[900px]:shrink-0 h-full flex flex-col`}>
+      <aside className={`${chatId ? "max-[899px]:hidden" : ""} relative w-full min-[900px]:w-[390px] min-[900px]:shrink-0 h-full flex flex-col`} style={{ borderRight: "1px solid var(--mx-line)" }}>
         {pushHint && tab === "chats" && (
           <div className="absolute z-30 left-3 right-3 mx-glass rounded-2xl px-3 py-2.5 flex items-center gap-3 mx-pop" style={{ top: "calc(env(safe-area-inset-top) + 56px)" }}>
             <Bell size={20} style={{ color: "var(--mx-accent)" }} />
@@ -203,19 +181,32 @@ export function MessengerApp() {
           {tab === "settings" && <SettingsPane key={settingsPage ?? "root"} me={me} account={account} folders={folders} initialPage={settingsPage} onLoggedOut={() => router.replace("/m")} />}
         </div>
 
-        <MiniPlayer bottom="calc(80px + env(safe-area-inset-bottom) + 8px)" />
-        <NavigationBar className="mx-m3-nav" aria-label="Разделы MiliGram" value={tab} onValueChange={(v) => { setTab(v as Tab); if (v !== "settings") setSettingsPage(undefined); }}>
+        {/* нижняя плавающая стеклянная панель */}
+        <nav className="absolute left-4 right-4 z-20 mx-glass rounded-[28px] flex p-1.5" style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
           {tabs.map((t) => {
-            const icon = t.id === "settings"
-              ? <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>
-              : t.icon;
-            return <NavigationBarItem key={t.id} value={t.id} icon={icon} label={t.label} badge={t.id === "chats" && unread > 0 ? (unread > 99 ? "99+" : unread) : undefined} />;
+            const on = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { setTab(t.id); if (t.id !== "settings") setSettingsPage(undefined); }}
+                className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-[22px] text-[11px] font-medium relative"
+                style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", background: on ? "var(--mx-surface2)" : "transparent" }}
+              >
+                {t.id === "settings" ? (
+                  <span className="w-6 h-6 inline-flex"><Avatar src={account.photoURL} name={account.displayName} seed={me} size={24} /></span>
+                ) : (
+                  t.icon
+                )}
+                {t.label}
+                {t.id === "chats" && unread > 0 && <span className="mx-badge absolute top-0 right-[22%]" style={{ minWidth: 18, height: 18, fontSize: 11 }}>{unread > 99 ? "99+" : unread}</span>}
+              </button>
+            );
           })}
-        </NavigationBar>
+        </nav>
       </aside>
 
       {/* ---- правая панель: чат ---- */}
-      <main className={`${chatId ? "" : "max-[899px]:hidden"} mx-conversation flex-1 min-w-0 h-full`}>
+      <main className={`${chatId ? "" : "max-[899px]:hidden"} flex-1 min-w-0 h-full`}>
         {activeChat ? (
           <ChatView key={activeChat.id} chat={activeChat} me={me} myAccount={account} userChat={userChats[activeChat.id]} allChats={chats} onBack={closeChat} onOpenChat={openChat} />
         ) : chatId ? (
@@ -223,23 +214,18 @@ export function MessengerApp() {
             {chatsLoading ? <Spinner /> : <><MessagesSquare size={40} /><p>Чат не найден или у вас нет доступа</p><button className="mx-btn" style={{ width: "auto", padding: "10px 22px" }} onClick={closeChat}>К чатам</button></>}
           </div>
         ) : (
-          <section className="mx-conversation-placeholder h-full max-[899px]:hidden">
-            <MessagesSquare size={30} strokeWidth={1.5} aria-hidden="true" />
-            <h2>Выберите чат</h2>
-            <p>Или напишите новое сообщение.</p>
-            <button type="button" className="mx-workspace-action" onClick={() => setNewChat(true)}>Новое сообщение</button>
-          </section>
+          <div className="h-full flex flex-col items-center justify-center gap-3 mx-muted max-[899px]:hidden">
+            <MessagesSquare size={44} />
+            <p className="text-[15px]">Выбери чат, чтобы начать общение</p>
+          </div>
         )}
       </main>
 
-      <MessageBanner me={me} chats={chats} userChats={userChats} loading={chatsLoading} activeChatId={chatId} onOpen={openFromBanner} />
       <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} myHandle={account.handle} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
       <StoryCreator open={creator} onClose={() => setCreator(false)} onCreated={reloadStories} />
       {storyUid && groups.length > 0 && (
         <StoryViewer groups={groups} startUid={storyUid} me={me} onClose={() => setStoryUid(null)} onChanged={reloadStories} onOpenChat={openChat} />
       )}
     </div>
-    </CallProvider>
-    </MusicProvider>
   );
 }

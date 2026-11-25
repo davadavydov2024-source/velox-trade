@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
-import { randomToken as secureRandomToken } from "@/lib/secureRandom";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { sendWebPush } from "@/lib/webPushServer";
@@ -29,7 +28,7 @@ export async function requireFirebaseUid(req: NextRequest): Promise<string | nul
 }
 
 /** Вошедший пользователь С аккаунтом мессенджера и без бана. */
-export async function requireMessenger(req: NextRequest, opts: { allowPending?: boolean } = {}): Promise<MessengerAuth | { error: NextResponse }> {
+export async function requireMessenger(req: NextRequest): Promise<MessengerAuth | { error: NextResponse }> {
   const uid = await requireFirebaseUid(req);
   if (!uid) return { error: fail("Нужно войти в аккаунт", 401) };
   const snap = await adminDb().collection("messengerAccounts").doc(uid).get();
@@ -38,11 +37,7 @@ export async function requireMessenger(req: NextRequest, opts: { allowPending?: 
   if (account.banned) return { error: fail("Доступ к мессенджеру закрыт", 403) };
   // Если клиент прислал id своего устройства (заголовок X-Miligram-Device) — завершённый сеанс больше не пускаем
   const dev = req.headers.get("x-miligram-device");
-  if (dev && DEVICE_RE.test(dev)) {
-    const fl = await sessionFlags(uid, dev);
-    if (fl.revoked) return { error: NextResponse.json({ error: "Сеанс завершён. Войди заново.", revoked: true }, { status: 401 }) };
-    if (fl.pending && !opts.allowPending) return { error: NextResponse.json({ error: "Подтверди вход кодом", needCode: true }, { status: 403 }) };
-  }
+  if (dev && DEVICE_RE.test(dev) && (await isSessionRevoked(uid, dev))) return { error: NextResponse.json({ error: "Сеанс завершён. Войди заново.", revoked: true }, { status: 401 }) };
   return { uid, account };
 }
 
@@ -161,35 +156,13 @@ interface PostOpts {
   kind: MessageKind;
   text?: string;
   mediaUrl?: string;
-  replyTo?: { msgId: string; from: string; preview: string; thumb?: string };
+  replyTo?: { msgId: string; from: string; preview: string };
   forwardedFrom?: { name: string; uid?: string };
   extra?: Record<string, unknown>; // duration, waveform, width, height, sticker, poll
   silent?: boolean; // отправить без уведомления
 }
 
 const PUSH_CAP = 1000; // в больших каналах пушим не больше этого числа подписчиков за пост
-
-interface StreakState { count: number; day: string; senders: string[] }
-
-const dayKey = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-const daysBetween = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
-
-/**
- * 🔥 «Огонёк» — серия дней подряд, когда оба собеседника писали друг другу, как в новом Telegram и в TikTok.
- * Засчитывается день, в который отметились ОБА — тогда счётчик растёт на 1. Пропуск дня или молчание
- * одного из двоих в предыдущий день сбрасывает серию.
- */
-function nextStreak(prev: StreakState | undefined, today: string, from: string): StreakState {
-  if (!prev) return { count: 0, day: today, senders: [from] };
-  if (prev.day === today) {
-    const senders = prev.senders.includes(from) ? prev.senders : [...prev.senders, from];
-    const justClosed = senders.length >= 2 && prev.senders.length < 2;
-    return { count: justClosed ? prev.count + 1 : prev.count, day: today, senders };
-  }
-  const gap = daysBetween(prev.day, today);
-  if (gap === 1 && prev.senders.length >= 2) return { count: prev.count, day: today, senders: [from] };
-  return { count: 0, day: today, senders: [from] };
-}
 
 /** Единая точка записи сообщения: сообщение + lastMessage + счётчики непрочитанных/упоминаний + пуши. */
 export async function postMessage(o: PostOpts): Promise<string> {
@@ -208,14 +181,6 @@ export async function postMessage(o: PostOpts): Promise<string> {
   if (chat.type === "channel") data.views = 0;
   if (chat.autoDeleteSec) data.expireAt = now + chat.autoDeleteSec * 1000;
   const preview = previewOf(o.kind, o.text);
-
-  // 🔥 Огонёк: считаем только для личных переписок (не «избранное» и не служебные чаты) и не для системных сообщений
-  let streakPatch: StreakState | undefined;
-  if (chat.type === "dm" && o.kind !== "system" && !chat.service && new Set(chat.members).size > 1) {
-    const prevSnap = await chatRef.get();
-    const prev = prevSnap.data()?.streak as StreakState | undefined;
-    streakPatch = nextStreak(prev, dayKey(now), sender.uid);
-  }
 
   // @упоминания (только в группах): находим участников по @handle
   const mentionUids: string[] = [];
@@ -238,7 +203,7 @@ export async function postMessage(o: PostOpts): Promise<string> {
   // Первая пачка: сообщение + чат + первые 400 счётчиков; остальное (большие каналы) — следующими пачками (лимит батча Firestore — 500).
   const first = db.batch();
   first.set(msgRef, data);
-  first.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now, ...(streakPatch ? { streak: streakPatch } : {}) });
+  first.update(chatRef, { lastMessage: { text: preview, kind: o.kind, from: sender.uid, at: now }, updatedAt: now, [`readBy.${sender.uid}`]: now });
   others.slice(0, 400).forEach((uid) => first.set(unreadRef(uid), unreadPatch(uid), { merge: true }));
   await first.commit();
   for (let i = 400; i < others.length; i += 400) {
@@ -260,7 +225,7 @@ export async function postMessage(o: PostOpts): Promise<string> {
         const muted = !!(st?.muted && (!st.mutedUntil || st.mutedUntil > now));
         if (muted && !mentioned) return Promise.resolve();
         const title = mentioned ? `${sender.account.displayName} упомянул(а) вас в ${chat.title ?? "чате"}` : base;
-        return sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m/app?chat=${chat.id}` }, "messages");
+        return sendWebPush(uid, { title: title.slice(0, 120), body: preview, url: `/m?chat=${chat.id}` }, "messages");
       })
     );
   } catch (err) {
@@ -347,7 +312,7 @@ export const isChatAdmin = (chat: MessengerChat, uid: string) => chat.createdBy 
 // ---- Служебный аккаунт «MiliGram Push» (как чат «Telegram» с уведомлениями о входе и рассылками) ----
 
 export const SERVICE_UID = "miligram";
-export const RESERVED_HANDLES = new Set(["miligram", "miligrampush", "admin", "support", "velox", "moderator", "telegram", "official", "velox_dating", "dating"]);
+export const RESERVED_HANDLES = new Set(["miligram", "miligrampush", "admin", "support", "velox", "moderator", "telegram", "official"]);
 export const DEVICE_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
 let svcCache: MessengerAuth | null = null;
@@ -368,7 +333,7 @@ export async function ensureServiceAccount(): Promise<MessengerAuth> {
 }
 
 /** Служебное сообщение пользователю от «MiliGram Push»: создаёт закреплённый служебный чат (если его нет), пушит, считает непрочитанное. */
-export async function sendServiceMessage(uid: string, text: string, opts: { silent?: boolean; extra?: Record<string, unknown> } = {}): Promise<{ chatId: string; msgId: string }> {
+export async function sendServiceMessage(uid: string, text: string, opts: { silent?: boolean } = {}): Promise<void> {
   const svc = await ensureServiceAccount();
   const ref = adminDb().collection("messengerChats").doc(dmChatId(SERVICE_UID, uid));
   let snap = await ref.get();
@@ -377,57 +342,19 @@ export async function sendServiceMessage(uid: string, text: string, opts: { sile
     snap = await ref.get();
   }
   const chat = { id: ref.id, ...snap.data() } as MessengerChat;
-  const msgId = await postMessage({ chat, sender: svc, kind: "text", text: text.slice(0, 3900), silent: opts.silent, extra: opts.extra });
-  return { chatId: ref.id, msgId };
+  await postMessage({ chat, sender: svc, kind: "text", text: text.slice(0, 3900), silent: opts.silent });
 }
 
 // ---- Сеансы (устройства) ----
 
-const flagsCache = new Map<string, { revoked: boolean; at: number }>();
-/** Состояние сеанса устройства: завершён / ждёт подтверждения кодом (новое устройство при уже существующих сеансах). */
-export async function sessionFlags(uid: string, deviceId: string): Promise<{ revoked: boolean; pending: boolean }> {
-  const key = `${uid}/${deviceId}`;
-  const hit = flagsCache.get(key);
-  if (hit && Date.now() - hit.at < 20_000) return { revoked: hit.revoked, pending: false };
-  const d = (await adminDb().collection("messengerSessions").doc(uid).collection("list").doc(deviceId).get()).data();
-  const revoked = d?.revoked === true;
-  const pending = d?.pending === true;
-  if (!pending) flagsCache.set(key, { revoked, at: Date.now() });
-  return { revoked, pending };
-}
+const revokedCache = new Map<string, { v: boolean; at: number }>();
 export async function isSessionRevoked(uid: string, deviceId: string): Promise<boolean> {
-  return (await sessionFlags(uid, deviceId)).revoked;
-}
-
-/** Маркер сообщения с кодом входа: клиент рисует его карточкой с кнопкой «Копировать». */
-export const LOGIN_CODE_MARK = "🔑 Код входа";
-
-/** Выдаёт новый 6-значный код для устройства (хранится только хэш), шлёт его в MiliGram («MiliGram Push») и в Telegram-бота. */
-export async function issueLoginCode(uid: string, deviceId: string, info: { deviceName: string; place: string; ip: string }): Promise<void> {
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-  const codeHash = createHash("sha256").update(`${uid}:${deviceId}:${code}`).digest("hex");
-  await adminDb().collection("messengerSessions").doc(uid).collection("list").doc(deviceId).set({ codeHash, codeExp: Date.now() + 10 * 60_000, tries: 0 }, { merge: true });
-  const text = `${LOGIN_CODE_MARK}\n${code}\nУстройство: ${info.deviceName}${info.place ? `\nМесто: ${info.place}` : ""}\nIP: ${info.ip}\n\nНикому не говорите этот код — даже если просят от имени MiliGram. Код действует 10 минут. Если это не вы, откройте Настройки → Устройства и завершите сеанс.`;
-  await Promise.allSettled([
-    sendServiceMessage(uid, text),
-    (async () => {
-      const { notifyTelegramServerButtons } = await import("@/lib/telegramNotifyServer");
-      await notifyTelegramServerButtons(uid, `🔑 <b>MiliGram — код входа</b>\n\n<code>${code}</code>\n\nУстройство: ${info.deviceName}${info.place ? `\nМесто: ${info.place}` : ""}\n\n⚠️ Никому не сообщайте этот код. Действует 10 минут.`, [[{ text: "📋 Копировать код", copy_text: { text: code } }]]);
-    })(),
-  ]);
-}
-
-/** Проверка кода: true — устройство подтверждено. 5 попыток на код. */
-export async function checkLoginCode(uid: string, deviceId: string, code: string): Promise<"ok" | "bad" | "expired" | "locked"> {
-  const ref = adminDb().collection("messengerSessions").doc(uid).collection("list").doc(deviceId);
-  const d = (await ref.get()).data();
-  if (!d?.codeHash || !d.codeExp || d.codeExp < Date.now()) return "expired";
-  if ((d.tries ?? 0) >= 5) return "locked";
-  const h = createHash("sha256").update(`${uid}:${deviceId}:${code}`).digest("hex");
-  if (h !== d.codeHash) { await ref.update({ tries: (d.tries ?? 0) + 1 }); return "bad"; }
-  await ref.update({ pending: false, codeHash: FieldValue.delete(), codeExp: FieldValue.delete(), tries: FieldValue.delete() });
-  flagsCache.delete(`${uid}/${deviceId}`);
-  return "ok";
+  const key = `${uid}/${deviceId}`;
+  const hit = revokedCache.get(key);
+  if (hit && Date.now() - hit.at < 20_000) return hit.v;
+  const v = (await adminDb().collection("messengerSessions").doc(uid).collection("list").doc(deviceId).get()).data()?.revoked === true;
+  revokedCache.set(key, { v, at: Date.now() });
+  return v;
 }
 
 /** Короткое описание устройства из User-Agent: «iPhone · Safari», «Windows · Chrome». */
@@ -443,7 +370,7 @@ export const TG_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot"
 
 /** Заявка на привязку Telegram (её понимает существующий вебхук бота: t.me/<бот>?start=<код> -> telegramLinks/{uid}). */
 export async function createLinkRequest(uid: string): Promise<{ code: string; botUrl: string }> {
-  const code = secureRandomToken(10); // короткий код только из букв и цифр: ссылка t.me/…?start=<код> открывается без сюрпризов
+  const code = randomBytes(18).toString("base64url");
   await adminDb().collection("telegramLinkRequests").doc(code).set({ uid, createdAt: Date.now(), source: "miligram" });
   return { code, botUrl: `https://t.me/${TG_BOT}?start=${code}` };
 }

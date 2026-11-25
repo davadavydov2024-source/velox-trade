@@ -1,26 +1,9 @@
-﻿/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
+/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
-/** Голосовой звонок в личном чате. Живёт в документе чата (messengerChats/{id}.call), пишет только сервер (/api/messenger/call). */
-export interface ChatCall {
-  id: string;
-  from: string; // кто звонит
-  to: string;
-  status: "ringing" | "active" | "ended";
-  startedAt: number;
-  answeredAt?: number;
-  endedAt?: number;
-  endReason?: "hangup" | "declined" | "missed" | "busy" | "failed" | "cancelled";
-  offer?: string; // SDP звонящего (после завершения удаляется)
-  answer?: string; // SDP ответившего
-  beat?: Record<string, number>; // «я на линии» от каждой стороны, раз в ~20 с
-}
-
-export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
+export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift";
 
 export interface MessengerAccount {
-  socials?: { kind: string; value: string }[];
-  profileChannel?: string | null;
   uid: string;
   handle: string; // lowercase, 4–24 символа: a-z, 0-9, _
   displayName: string;
@@ -32,31 +15,16 @@ export interface MessengerAccount {
   showLastSeen: boolean;
   banned: boolean;
   verified?: boolean;
-  aliases?: string[]; // дополнительные юзернеймы
-  verifyKind?: "verified" | "official" | "major" | "trusted" | null; // вид галочки (выдаёт админ)
-  verifyText?: string | null; // подпись под профилем: «подтверждён как …»
-  tag?: string | null; // метка рядом с именем: CEO, DEV и т.п. (выдаёт админ)
-  tagText?: string | null; // что значит метка (по нажатию)
   bannerURL?: string | null; // баннер профиля (обложка)
   status?: { kind: "emoji"; emoji: string } | { kind: "nft"; giftId: string; giftDocId: string; nft: import("./gifts").GiftNft } | null; // статус рядом с ником (Premium)
   channelHandle?: string | null; // @адрес личного канала (показывается карточкой «Канал» в профиле)
-  plusUntil?: number; // «Премиум Плюс» активен, пока plusUntil > Date.now()
-  frame?: { id: string; color: string } | null; // надетая рамка аватарки
-  numId?: number; // числовой ID аккаунта (с 100000)
-  views?: number; // сколько раз смотрели профиль
-  profileTrack?: string | null; // трек из «Музыки» как мелодия профиля
-  number?: string | null; // красивый номер «+888 …» в профиле (8 цифр после +888); владельца проверяет сервер
-  messagePrice?: number; // 🪙 за одно входящее сообщение (только Плюс; 0/нет — бесплатно)
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
-  bot?: boolean; // аккаунт бота из конструктора ботов (uid = bot_<id>)
-  ownerUid?: string; // владелец бота
 }
 
 export interface MessengerChat {
   id: string;
   type: ChatType;
-  call?: ChatCall; // текущий/последний голосовой звонок (только личные чаты)
   members: string[];
   admins: string[];
   title?: string;
@@ -67,10 +35,6 @@ export interface MessengerChat {
   updatedAt: number;
   readBy: Record<string, number>;
   pinnedMessageIds: string[];
-  verifyKind?: "verified" | "official" | "major" | "trusted" | null; // галочка канала/группы
-  verifyText?: string | null;
-  tag?: string | null;
-  tagText?: string | null; // что значит метка (по нажатию)
   handle?: string; // публичный @канал (поиск, вступление по ссылке /m?join=@handle)
   inviteCode?: string; // пригласительная ссылка /m?join=<код>
   permissions?: Partial<ChatPermissions>; // права участников по умолчанию (группа)
@@ -82,30 +46,10 @@ export interface MessengerChat {
   adminTitles?: Record<string, string>; // подпись админа («Модератор»)
   restricted?: Record<string, MemberRestriction>;
   banned?: string[];
-  freeFor?: string[]; // кому можно писать бесплатно (владелец платных сообщений сам ответил им)
   service?: boolean; // служебный чат «MiliGram Push»: только читать, отвечать нельзя
-  streak?: { count: number; day: string; senders: string[] }; // 🔥 серия дней подряд с взаимной перепиской (как в Telegram/TikTok), только для dm
-}
-
-export interface MessengerGiveaway {
-  title: string;
-  desc?: string;
-  prize: string;
-  buttonText: string;
-  buttonColor: string;
-  endsAt?: number; // конец по времени
-  maxParticipants?: number; // конец по числу участников
-  winnersCount: number;
-  premiumOnly?: boolean;
-  count: number;
-  status: "active" | "ended";
-  recent?: { uid: string; name: string; photoURL?: string | null }[];
-  winners?: { uid: string; name: string; handle?: string; photoURL?: string | null }[];
-  endedAt?: number;
 }
 
 export interface MessengerMessage {
-  joinRequest?: any; // заявка на вступление (временно, уточнить тип)
   id: string;
   from: string; // ставит сервер по токену, клиенту доверять нельзя
   kind: MessageKind;
@@ -116,22 +60,19 @@ export interface MessengerMessage {
   waveform?: number[];
   width?: number;
   height?: number;
-  replyTo?: { msgId: string; from: string; preview: string; thumb?: string };
+  replyTo?: { msgId: string; from: string; preview: string };
   forwardedFrom?: { name: string; uid?: string };
   reactions: Record<string, string[]>; // эмодзи -> uid поставивших
   createdAt: number;
   editedAt?: number;
   deletedForAll?: boolean;
   views?: number; // просмотры поста в канале
-  sticker?: { pack: string; index: number; emoji?: string; preview?: string };
+  sticker?: { pack: string; index: number };
   gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
   poll?: MessengerPoll;
-  giveaway?: MessengerGiveaway; // kind: "giveaway", картинка — mediaUrl
   mentions?: string[]; // uid упомянутых через @handle
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
-  kb?: string[]; // быстрые ответы бота (кнопки под последним сообщением)
   hiddenFor?: string[]; // «удалить у себя»: этим пользователям сообщение не показывать
-  call?: { from: string; reason: NonNullable<ChatCall["endReason"]>; duration?: number }; // kind: "system" — запись о звонке
 }
 
 /** Личные настройки чата: messengerUserChats/{uid}/chats/{chatId} */
@@ -146,7 +87,6 @@ export interface MessengerUserChat {
   mentions?: number; // непрочитанные упоминания (значок @)
   markedUnread?: boolean; // «отметить непрочитанным»
   clearedAt?: number; // «очистить историю у себя»: сообщения старше не показывать
-  hiddenAt?: number; // чат удалён у себя: скрыт, пока нет новых сообщений
 }
 
 export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"] as const;
@@ -185,18 +125,13 @@ export interface MessengerReport {
   status: "open" | "resolved";
 }
 
-export type StickerKind = "image" | "video" | "lottie";
-/** Один стикер набора. image — картинка (в т.ч. GIF/анимированный WEBP), video — .webm, lottie — .json (из .tgs Telegram). preview — статичная картинка-заглушка. */
-export interface MessengerSticker { url: string; emoji: string; kind?: StickerKind; preview?: string }
-
 export interface MessengerStickerPack {
   slug: string; // ссылка: /m?stickers=<slug>
   title: string;
   premium: boolean; // добавить и отправлять могут только с Mili Premium
   published: boolean;
-  stickers: MessengerSticker[];
+  stickers: { url: string; emoji: string; thumb?: string }[]; // url: .webp/.png, .webm (видео) или .json (Lottie); thumb — статичное превью анимации
   createdBy?: string; // кто привёз набор
-  unlisted?: boolean; // набор привёз обычный пользователь: доступен по ссылке, но не показывается в общем каталоге
   tgName?: string; // имя набора в Telegram (t.me/addstickers/<tgName>), если импортирован
   createdAt: number;
   updatedAt: number;

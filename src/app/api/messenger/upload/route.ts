@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         if (!t) throw new Error("Нет прав на загрузку");
         if (!pathname.startsWith(`messenger/${t.uid}/`) || pathname.includes("..")) throw new Error("Неверный путь загрузки");
         const cfg = UPLOAD_KINDS[t.kind];
-        return { allowedContentTypes: cfg.types, maximumSizeInBytes: cfg.max, addRandomSuffix: true, cacheControlMaxAge: 31536000, tokenPayload: JSON.stringify({ uid: t.uid }) };
+        return { allowedContentTypes: cfg.types, maximumSizeInBytes: cfg.max, addRandomSuffix: true, tokenPayload: JSON.stringify({ uid: t.uid }) };
       },
       onUploadCompleted: async () => {},
     });

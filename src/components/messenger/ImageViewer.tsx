@@ -4,9 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
-import { SponsoredAd } from "./SponsoredAd";
-
-let viewerOpens = 0; // реклама при просмотре фото — при каждом третьем открытии
 
 export interface ViewerItem {
   url: string;
@@ -18,7 +15,6 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
   const ref = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(start);
   const [target, setTarget] = useState<HTMLElement | null>(null);
-  const [showAd] = useState(() => ++viewerOpens % 3 === 0);
 
   useEffect(() => setTarget(document.getElementById("mx-root")), []);
 
@@ -69,11 +65,6 @@ export function ImageViewer({ items, start, onClose }: { items: ViewerItem[]; st
           </div>
         ))}
       </div>
-      {showAd && !items[index]?.video && (
-        <div className="absolute inset-x-0 bottom-0 px-3 pb-3 pointer-events-none" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-          <div className="pointer-events-auto mx-auto" style={{ maxWidth: 480 }}><SponsoredAd placement="viewer" compact /></div>
-        </div>
-      )}
       <button onClick={onClose} className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center text-white mx-safe-top" style={{ background: "rgba(255,255,255,0.14)", marginTop: "env(safe-area-inset-top)" }} aria-label="Закрыть">
         <X size={22} />
       </button>

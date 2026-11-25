@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { requireAdmin, logAdminAccess } from "@/lib/adminGuard";
 import { dmChatId, ensureServiceAccount, postMessage, sendServiceMessage, SERVICE_UID, type MessengerAuth } from "@/lib/messenger/server";
 import { giftById, GIFT_MESSAGE_MAX, type GiftNft, type MessengerGift } from "@/lib/messenger/gifts";
-import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, rollNft, type NftTrait } from "@/lib/messenger/nft";
+import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, rollNft } from "@/lib/messenger/nft";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
@@ -27,7 +27,7 @@ async function dmChat(a: string, b: string, service: boolean): Promise<Messenger
 }
 
 /**
- * GET ?uid= — что сейчас у человека: Premium, 🪙 кошелёк, подарки (для вкладки «Выдать» в админ-панели мессенджера).
+ * GET ?uid= — что сейчас у человека: Premium, ⭐ кошелёк, подарки (для вкладки «Выдать» в админ-панели мессенджера).
  */
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     .map((g) => ({ id: g.id, giftId: g.giftId, at: g.at, nft: g.nft ?? null, byAdmin: !!(g as any).byAdmin }));
   return NextResponse.json({
     account: { uid, handle: a.handle, displayName: a.displayName, premiumUntil: a.premiumUntil ?? 0, verified: !!a.verified, banned: !!a.banned },
-    wallet: (user.data()?.miliWallet as number | undefined) ?? 0,
+    wallet: (user.data()?.starsWallet as number | undefined) ?? 0,
     gifts: rows,
   });
 }
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
  * POST { uid, action, ... } — выдать человеку что-нибудь от имени администрации:
  *  premium        { days }                         — добавить Mili Premium (1–3650 дн.)
  *  premiumRevoke                                   — снять Mili Premium
- *  stars          { amount }                       — начислить 🪙 в кошелёк MiliGram
+ *  stars          { amount }                       — начислить ⭐ в кошелёк Velox
  *  gift           { giftId, count?, message?, from?: "service"|"me", nft?: { model?, backdrop?, symbol? } }
  *                                                  — подарить любой подарок из каталога (в т.ч. NFT, можно выбрать признаки); бесплатно для админа
  *  revokeGift     { giftDocId }                    — забрать подарок
@@ -92,13 +92,13 @@ export async function POST(req: NextRequest) {
 
     if (b.action === "stars") {
       const amount = Math.round(Number(b.amount));
-      if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма 🪙: от 1 до 1 000 000");
+      if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма ⭐: от 1 до 1 000 000");
       await db.runTransaction(async (tx) => {
-        tx.set(db.collection("users").doc(uid), { miliWallet: FieldValue.increment(amount) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
+        tx.set(db.collection("users").doc(uid), { starsWallet: FieldValue.increment(amount) }, { merge: true });
+        tx.set(db.collection("starsWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
       });
       await logAdminAccess(admin.uid, "messenger_grant_stars", { targetUid: uid, amount });
-      sendServiceMessage(uid, `🪙 Администрация начислила вам ${amount} 🪙 — они уже в кошельке MiliGram.`).catch(() => {});
+      sendServiceMessage(uid, `⭐ Администрация начислила вам ${amount} ⭐ — они уже в кошельке Velox.`).catch(() => {});
       return NextResponse.json({ ok: true });
     }
 
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         for (const [key, list] of [["model", NFT_MODELS], ["backdrop", NFT_BACKDROPS], ["symbol", NFT_SYMBOLS]] as const) {
           const v = b.nft[key];
           if (typeof v === "string" && v) {
-            if (!(list as readonly NftTrait[]).some((t) => t.name === v)) return err(`Неизвестный признак NFT: ${v}`);
+            if (!list.some((t) => t.name === v)) return err(`Неизвестный признак NFT: ${v}`);
             want[key] = v;
           }
         }
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         }
         refs.forEach((r, i) => {
           let nft: GiftNft | undefined;
-          if (gift.nft) nft = { ...rollNft(sold + i + 1, gift.limited ?? sold + i + 1, rnd, gift.category === "halloween"), ...want };
+          if (gift.nft) nft = { ...rollNft(sold + i + 1, gift.limited ?? sold + i + 1, rnd), ...want };
           minted.push(nft);
           tx.set(r, {
             giftId: gift.id, from: sender.uid, to: uid, price: gift.price, at: now, hidden: false, anonymous: false, byAdmin: true,

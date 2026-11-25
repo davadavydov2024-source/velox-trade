@@ -18,10 +18,10 @@ function auditLabel(a: AuditItem): string {
   const i = a.info;
   switch (a.action) {
     case "messenger_grant_premium": return `Выдан Premium на ${i.days} дн.`;
-    case "messenger_revoke_premium": return "Снят Premium";
+    case "messenger_revoke_premium": return "Снят Premium😂";
     case "messenger_grant_stars": return `Начислено ${i.amount} ⭐`;
     case "messenger_grant_gift": return `Подарок «${giftById(String(i.giftId))?.title ?? i.giftId}» × ${i.count ?? 1}`;
-    case "messenger_revoke_gift": return "Подарок отобран";
+    case "messenger_revoke_gift": return "Подарок отобран😂";
     case "messenger_sticker_pack_save": return `Набор стикеров сохранён: ${i.slug} (${i.count} шт)`;
     case "messenger_sticker_pack_delete": return `Набор стикеров удалён: ${i.slug}`;
     case "read_chat": return "Открыта переписка (по жалобе)";

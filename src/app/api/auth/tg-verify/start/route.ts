@@ -9,13 +9,13 @@ export const dynamic = "force-dynamic";
 const BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT || "veloxtrade_robot";
 
 function randomToken(): string {
-  return secureToken(10);
+  return secureToken(20);
 }
 
 /**
  * Шаг 1 регистрации по паролю: вместо кода на почту (требовал настроенной отправки писем) человек
  * обязательно подключает Telegram-бота. Создаём заявку с 6-значным кодом и отдаём ссылку на бота
- * (start=v_<token>) — вебхук бота, получив /start, пришлёт этот код прямо в Telegram (см.
+ * (start=verify_<token>) — вебхук бота, получив /start, пришлёт этот код прямо в Telegram (см.
  * handleAccountLinking в api/telegram/webhook). Без открытого бота код просто нигде не появится.
  */
 export async function POST(req: NextRequest) {
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       attempts: 0,
       createdAt: Date.now(),
     });
-    return NextResponse.json({ ok: true, token, botUrl: `https://t.me/${BOT}?start=v_${token}` });
+    return NextResponse.json({ ok: true, token, botUrl: `https://t.me/${BOT}?start=verify_${token}` });
   } catch (err) {
     console.error("tg-verify/start error:", err);
     return NextResponse.json({ error: "Не удалось начать подтверждение" }, { status: 500 });
