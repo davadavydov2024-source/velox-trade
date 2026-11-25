@@ -6,6 +6,7 @@ import { LyricsView } from "./LyricsView";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { cacheTrack, getCachedBlobUrl, isSlowNet } from "@/lib/messenger/musicCache";
+import { isProxyOn, proxied, setProxyOn } from "@/lib/messenger/musicProxy";
 import { gradientFor } from "./util";
 import type { MusicRequest, MusicTrack } from "@/lib/messenger/music";
 
@@ -52,7 +53,10 @@ type Ctl = {
 
 // время — в отдельном контексте: оно меняется ~4 раза в секунду, и перерисовываться должны только полосы прогресса, а не весь список треков
 /** Какой файл играть: на медленной сети или при экономии трафика — лёгкая копия (если она есть). */
-const pickSrc = (t: MusicTrack) => (t.liteUrl && isSlowNet() ? t.liteUrl : t.audioUrl);
+const pickSrc = (t: MusicTrack) => {
+  const u = t.liteUrl && isSlowNet() ? t.liteUrl : t.audioUrl;
+  return isProxyOn() ? proxied(u) : u; // домен хранилища не открывается — идём через наш сайт
+};
 
 const Ctx = createContext<Ctl | null>(null);
 const TimeCtx = createContext<{ time: number; buffered: number }>({ time: 0, buffered: 0 });
@@ -265,6 +269,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       }, 8000);
       return true;
     } catch (e: any) {
+      // «Failed to fetch» на нашем хранилище — домен недоступен из этой сети: пробуем через сайт
+      if (e instanceof TypeError && !isProxyOn() && /\.public\.blob\.vercel-storage\.com\//.test(pickSrc(t))) {
+        setProxyOn();
+        fb.current.id = null;
+        setLoadPct(null);
+        return tryFb.current(t);
+      }
       setLoadPct(null);
       setBuffering(false);
       toast("error", e?.name === "AbortError" ? "Трек грузится слишком долго — проверь интернет" : `Не удалось загрузить файл (${e?.message ?? "сеть"})`);
@@ -382,6 +393,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const cur = st.current.queue[st.current.index];
       if (cur && cacheObj.current && a.src === cacheObj.current) { cacheObj.current = null; a.src = pickSrc(cur); safePlay(a); return; } // битый кэш — играем из сети
       if (cur?.liteUrl && a.src === cur.liteUrl) { a.src = cur.audioUrl; safePlay(a); return; } // лёгкая копия не открылась — основной файл
+      // прямая ссылка на хранилище не открывается (блокировка домена у провайдера) — включаем обход через наш сайт и запоминаем это
+      if (cur && !isProxyOn() && !a.src.startsWith("blob:") && /\.public\.blob\.vercel-storage\.com\//.test(a.src)) { setProxyOn(); fb.current.id = null; a.src = pickSrc(cur); safePlay(a); return; }
       if (cur && fb.current.id !== cur.id && !a.src.startsWith("blob:")) { tryFb.current(cur); return; } // сначала пробуем запасной путь
       setPlaying(false);
       setBuffering(false);

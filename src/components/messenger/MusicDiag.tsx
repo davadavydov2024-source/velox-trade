@@ -5,6 +5,7 @@ import { Copy } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import type { MusicTrack } from "@/lib/messenger/music";
 import { Sheet, Spinner } from "./ui";
+import { proxied, setProxyOn } from "@/lib/messenger/musicProxy";
 
 const hex = (u8: Uint8Array) => Array.from(u8.slice(0, 8)).map((b) => b.toString(16).padStart(2, "0")).join(" ");
 
@@ -70,6 +71,7 @@ export async function runMusicDiagnostics(t: MusicTrack): Promise<string> {
   L.push(`Плеер по ссылке: ${await audioTest(t.audioUrl)}`);
 
   // 3) целиком скачать и проиграть из памяти
+  let directOk = true;
   try {
     const res = await fetch(t.audioUrl);
     const blob = await res.blob();
@@ -79,7 +81,22 @@ export async function runMusicDiagnostics(t: MusicTrack): Promise<string> {
     L.push(`Плеер из памяти: ${await audioTest(url)}`);
     URL.revokeObjectURL(url);
   } catch (e: any) {
+    directOk = false;
     L.push(`❌ Не удалось скачать целиком: ${e?.message ?? e}`);
+  }
+
+  // 4) обход через наш сайт: если напрямую не открывается, а так играет — включаем его насовсем
+  if (!directOk) {
+    L.push("");
+    const px = proxied(t.audioUrl);
+    const r = await audioTest(px);
+    L.push(`Через наш сайт: ${r}`);
+    if (r.startsWith("✅")) {
+      setProxyOn();
+      L.push("➡ Домен хранилища у тебя не открывается, а через сайт песня играет. Обходной путь включён — попробуй воспроизвести трек ещё раз.");
+    } else {
+      L.push("➡ Не играет и через сайт: проблема в самом файле или на сервере — пришли этот отчёт разработчику.");
+    }
   }
   return L.join("\n");
 }
