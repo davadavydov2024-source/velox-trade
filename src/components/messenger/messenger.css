@@ -863,3 +863,35 @@ html:has(.mx), body:has(.mx) { overflow-x: hidden !important; overscroll-behavio
 .mx[data-design="m3"] .mx-list-title { font-size: 28px; font-weight: 500; letter-spacing: 0; }
 .mx[data-design="m3"] .mx-story-ring:not(.seen) { background: conic-gradient(from 200deg, var(--mx-accent), var(--m3-tertiary), var(--mx-accent)); box-shadow: none; }
 .mx[data-design="m3"] .mx-story-ring.seen { background: var(--mx-line); }
+
+
+/* ===================================================================
+   Анимированные NFT (новая коллекция): части тела двигаются, как в Telegram.
+   Слои — SVG-<image>; transform-box: fill-box, точка вращения задана в % прямо в разметке.
+   =================================================================== */
+.mx-nf { transform-box: fill-box; }
+@keyframes mx-nf-breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.014); } }
+@keyframes mx-nf-tail { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+@keyframes mx-nf-ear { 0%, 78%, 100% { transform: rotate(0); } 82% { transform: rotate(-7deg); } 86% { transform: rotate(2deg); } 90% { transform: rotate(-5deg); } 94% { transform: rotate(0); } }
+@keyframes mx-nf-look { 0%, 15%, 100% { transform: translateX(0); } 25%, 45% { transform: translateX(0.8px); } 55%, 75% { transform: translateX(-0.8px); } 85% { transform: translateX(0); } }
+@keyframes mx-nf-blink { 0%, 90%, 100% { transform: scaleY(0); } 93%, 96% { transform: scaleY(1); } }
+@keyframes mx-nf-bow { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+@keyframes mx-nf-leg { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-9deg); } }
+@keyframes mx-nf-heart { 0%, 60%, 100% { transform: scale(1); } 12% { transform: scale(1.07); } 24% { transform: scale(1); } 36% { transform: scale(1.05); } }
+@keyframes mx-nf-jelly { 0%, 100% { transform: scale(1, 1) skewX(0); } 25% { transform: scale(1.03, 0.965) skewX(2deg); } 50% { transform: scale(0.985, 1.025) skewX(0); } 75% { transform: scale(1.03, 0.965) skewX(-2deg); } }
+@keyframes mx-nf-ring { from { transform: translate(0, 0.4px) rotate(-1deg); } to { transform: translate(0, -1.2px) rotate(1.2deg); } }
+@keyframes mx-nf-twinkle { 0%, 70%, 100% { transform: scale(0) rotate(0); opacity: 0; } 80% { transform: scale(1) rotate(45deg); opacity: 1; } 90% { transform: scale(0.2) rotate(90deg); opacity: 0.4; } }
+.mx-nf-breathe { animation: mx-nf-breathe 3.2s ease-in-out infinite; }
+.mx-nf-tail { animation: mx-nf-tail 2.4s ease-in-out infinite alternate; }
+.mx-nf-ear { animation: mx-nf-ear 5s ease-in-out infinite; }
+.mx-nf-look { animation: mx-nf-look 6s ease-in-out infinite; }
+.mx-nf-blink { transform-origin: 50% 0%; transform: scaleY(0); animation: mx-nf-blink 4.6s ease-in-out infinite; }
+.mx-nf-bow { animation: mx-nf-bow 1.8s ease-in-out infinite alternate; }
+.mx-nf-leg { animation: mx-nf-leg 2.4s ease-in-out infinite; }
+.mx-nf-heart { animation: mx-nf-heart 1.4s ease-in-out infinite; }
+.mx-nf-jelly { animation: mx-nf-jelly 2.6s ease-in-out infinite; }
+.mx-nf-ring { animation: mx-nf-ring 2.8s ease-in-out infinite alternate; }
+.mx-nf-twinkle { transform-origin: 50% 50%; animation: mx-nf-twinkle 2.4s ease-in-out infinite; transform: scale(0); }
+@media (prefers-reduced-motion: reduce) {
+  .mx-nf-breathe, .mx-nf-tail, .mx-nf-ear, .mx-nf-look, .mx-nf-blink, .mx-nf-bow, .mx-nf-leg, .mx-nf-heart, .mx-nf-jelly, .mx-nf-ring, .mx-nf-twinkle { animation: none !important; }
+}

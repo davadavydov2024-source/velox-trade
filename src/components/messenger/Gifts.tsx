@@ -181,7 +181,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
     mApi<{ wallet: number; stock: Record<string, number> }>("gifts").then((d) => { setWallet(d.wallet); setStock(d.stock ?? {}); }).catch(() => {});
   }, [open, toUid, toName]);
 
-  const list = useMemo(() => GIFTS.filter((g) => (cat === "all" || g.category === cat) && !(g.limited && (stock[g.id] ?? 0) >= g.limited)), [cat, stock]);
+  const list = useMemo(() => GIFTS.filter((g) => !g.retired && (cat === "all" || g.category === cat) && !(g.limited && (stock[g.id] ?? 0) >= g.limited)), [cat, stock]);
 
   const send = async () => {
     if (!picked || !target || busy) return;

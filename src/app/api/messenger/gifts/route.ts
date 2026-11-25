@@ -305,6 +305,7 @@ export async function POST(req: NextRequest) {
   if (!(await rateLimit(`msgr_gift_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
   const gift = giftById(String(b.giftId ?? ""));
   if (!gift) return fail("Такого подарка нет", 404);
+  if (gift.retired) return fail("Этот подарок снят с продажи", 410);
   const toUid = typeof b.toUid === "string" && b.toUid && !b.toUid.includes("/") ? b.toUid : "";
   if (!toUid || toUid === SERVICE_UID) return fail("Выбери получателя");
   const message = typeof b.message === "string" ? b.message.trim().slice(0, GIFT_MESSAGE_MAX) : "";

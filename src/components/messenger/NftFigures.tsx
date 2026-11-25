@@ -563,6 +563,64 @@ Object.assign(NFT_FIGURES, {
   ),
 });
 
+// ——— Новая коллекция: растровые персонажи, разрезанные на слои, чтобы части тела двигались (как в Telegram).
+// Слои лежат в public/nft/<папка>/*.webp, холст 320×320 → здесь 100×100. Движение — в messenger.css (mx-nf-*).
+const nfImg = (dir: string, part: string) => <image href={`/nft/${dir}/${part}.webp`} x="0" y="0" width="100" height="100" />;
+const nfPart = (dir: string, part: string, cls: string, origin: string) => (
+  <g className={`mx-nf ${cls}`} style={{ transformOrigin: origin }}>{nfImg(dir, part)}</g>
+);
+const nfLid = (cx: number, cy: number, rx: number, ry: number, fill: string, delay: number) => (
+  <ellipse className="mx-nf mx-nf-blink" cx={cx} cy={cy} rx={rx} ry={ry} fill={fill} style={{ animationDelay: `${delay}s` }} />
+);
+const nfStar = (x: number, y: number, size: number, delay: number) => (
+  <g transform={`translate(${x} ${y}) scale(${size})`}>
+    <path className="mx-nf mx-nf-twinkle" d="M0 -5L1.3 -1.3L5 0L1.3 1.3L0 5L-1.3 1.3L-5 0L-1.3 -1.3Z" fill="#fff" style={{ animationDelay: `${delay}s` }} />
+  </g>
+);
+
+NFT_FIGURES["nft-blackcat"] = (
+  <g className="mx-nf mx-nf-breathe" style={{ transformOrigin: "50% 81%" }}>
+    {nfImg("cat", "base")}
+    {nfPart("cat", "tail", "mx-nf-tail", "76.9% 41.3%")}
+    {nfPart("cat", "ear", "mx-nf-ear", "26.9% 40.3%")}
+    {nfPart("cat", "pupils", "mx-nf-look", "50% 50%")}
+    {nfLid(28.4, 54.7, 4.3, 4.7, "#0e0e0f", 0)}
+    {nfLid(43.4, 55.9, 3.9, 4.3, "#0e0e0f", 0.04)}
+  </g>
+);
+
+NFT_FIGURES["nft-jelly"] = (
+  <>
+    {nfImg("jelly", "plate")}
+    <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "52.5% 73.4%" }}>
+      {nfImg("jelly", "body")}
+      {nfLid(33.4, 43.8, 3.4, 4.4, "#dc8cf7", 0.3)}
+      {nfLid(51.9, 46.3, 3.4, 4.5, "#dc8cf7", 0.34)}
+    </g>
+  </>
+);
+
+NFT_FIGURES["nft-plush"] = (
+  <g className="mx-nf mx-nf-breathe" style={{ transformOrigin: "50% 92%" }}>
+    {nfImg("plush", "base")}
+    {nfPart("plush", "leg", "mx-nf-leg", "70.6% 72.5%")}
+    {nfPart("plush", "heart", "mx-nf-heart", "49.1% 64.1%")}
+    {nfPart("plush", "bow", "mx-nf-bow", "48.8% 11.9%")}
+    {nfLid(31.9, 23.4, 9.2, 9.2, "#efe7d8", 0.6)}
+    {nfLid(55.9, 19.4, 8.3, 8.3, "#efe7d8", 0.64)}
+  </g>
+);
+
+NFT_FIGURES["nft-ringbox"] = (
+  <>
+    {nfImg("ring", "base")}
+    {nfPart("ring", "ring", "mx-nf-ring", "48.4% 62.5%")}
+    {nfStar(41.3, 32.8, 1.5, 0)}
+    {nfStar(52.2, 35.9, 1.0, 0.8)}
+    {nfStar(33.4, 51.6, 1.1, 1.5)}
+  </>
+);
+
 export function NftFigure({ id }: { id: string }) {
   const fig = NFT_FIGURES[id];
   if (!fig) return null;

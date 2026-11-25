@@ -61,6 +61,7 @@ export function ShopSheet({ open, onClose, me, account }: { open: boolean; onClo
     } finally { setBuying(false); loadWallet(); }
   };
   const gifts = GIFTS.filter((g) => {
+    if (g.retired) return false;
     if (giftCat === "plain" && g.nft) return false;
     if (giftCat === "nft" && !g.nft) return false;
     if (giftCat === "rare" && g.category !== "rare") return false;
