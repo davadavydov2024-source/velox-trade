@@ -1,6 +1,21 @@
 ﻿/** Типы мессенджера — единственный источник правды для бэкенда (сессия A) и интерфейса (сессия B). */
 
 export type ChatType = "dm" | "group" | "channel";
+/** Голосовой звонок в личном чате. Живёт в документе чата (messengerChats/{id}.call), пишет только сервер (/api/messenger/call). */
+export interface ChatCall {
+  id: string;
+  from: string; // кто звонит
+  to: string;
+  status: "ringing" | "active" | "ended";
+  startedAt: number;
+  answeredAt?: number;
+  endedAt?: number;
+  endReason?: "hangup" | "declined" | "missed" | "busy" | "failed" | "cancelled";
+  offer?: string; // SDP звонящего (после завершения удаляется)
+  answer?: string; // SDP ответившего
+  beat?: Record<string, number>; // «я на линии» от каждой стороны, раз в ~20 с
+}
+
 export type MessageKind = "text" | "image" | "voice" | "videoNote" | "file" | "sticker" | "poll" | "system" | "gift" | "giveaway";
 
 export interface MessengerAccount {
@@ -35,13 +50,13 @@ export interface MessengerAccount {
   premiumUntil?: number; // Mili Premium активен, пока premiumUntil > Date.now()
   privacy?: { whoCanMessage: "everyone" | "nobody"; whoCanAddToGroups: "everyone" | "nobody" };
   bot?: boolean; // аккаунт бота из конструктора ботов (uid = bot_<id>)
-  ownerUid?: string; // УСТАРЕЛО: раньше лежало в публичном аккаунте бота; теперь создателя видит только админ (messengerBots.ownerUid)
-  botCommands?: string[]; // команды бота (/help, /price…) — для строки команд в чате
+  ownerUid?: string; // владелец бота
 }
 
 export interface MessengerChat {
   id: string;
   type: ChatType;
+  call?: ChatCall; // текущий/последний голосовой звонок (только личные чаты)
   members: string[];
   admins: string[];
   title?: string;
@@ -116,6 +131,7 @@ export interface MessengerMessage {
   expireAt?: number; // автоудаление: после этого времени сообщение скрыть
   kb?: string[]; // быстрые ответы бота (кнопки под последним сообщением)
   hiddenFor?: string[]; // «удалить у себя»: этим пользователям сообщение не показывать
+  call?: { from: string; reason: NonNullable<ChatCall["endReason"]>; duration?: number }; // kind: "system" — запись о звонке
 }
 
 /** Личные настройки чата: messengerUserChats/{uid}/chats/{chatId} */
