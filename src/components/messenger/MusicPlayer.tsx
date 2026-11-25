@@ -79,6 +79,19 @@ const MUSIC_CSS = `
 .mx-vol { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; outline: none; background: color-mix(in srgb, var(--mx-text) 25%, transparent); }
 .mx-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--mx-text); }
 .mx-vol::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--mx-text); }
+@keyframes mx-mini-in { from { transform: translateY(24px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.mx-mini { animation: mx-mini-in 0.28s cubic-bezier(0.2, 0.9, 0.25, 1) both; background: color-mix(in srgb, var(--mx-pc, var(--mx-surface2)) 94%, transparent); color: var(--mx-on-pc, var(--mx-text)); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3), inset 0 0 0 1px color-mix(in srgb, currentColor 9%, transparent); }
+.mx-mini .mx-muted { color: color-mix(in srgb, var(--mx-on-pc, var(--mx-text)) 68%, transparent); }
+.mx-mini-play { background: var(--mx-accent); color: var(--mx-accent-text); transition: transform 0.12s, border-radius 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.mx-mini-play:active { transform: scale(0.92); }
+.mx-fp-play { background: var(--mx-accent); color: var(--mx-accent-text); transition: transform 0.12s, border-radius 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 14px 34px color-mix(in srgb, var(--mx-accent) 42%, transparent); }
+.mx-fp-play:active { transform: scale(0.94); }
+.mx-fp-tonal { transition: background 0.2s, color 0.2s, transform 0.12s; border-radius: 50%; }
+.mx-fp-tonal:active { transform: scale(0.9); }
+.mx-fp-tonal.on { background: color-mix(in srgb, var(--mx-accent) 20%, transparent); color: var(--mx-accent); }
+.mx-fp-next { background: color-mix(in srgb, var(--mx-text) 7%, transparent); border-radius: 18px; }
+.mx-wave-thumb { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--mx-accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 4px color-mix(in srgb, var(--mx-accent) 25%, transparent); pointer-events: none; transition: transform 0.15s; }
+@media (prefers-reduced-motion: reduce) { .mx-mini { animation: none; } }
 `;
 
 /** Обложка трека: картинка или градиент из названия + нота (когда обложки нет). */
@@ -524,25 +537,27 @@ export function MiniPlayer({ bottom }: { bottom: string }) {
   if (!t || m.expanded) return null;
   const p = m.duration > 0 ? Math.min(1, time / m.duration) : 0;
   return (
-    <div className="absolute left-3 right-3 z-[19] mx-glass rounded-2xl overflow-hidden mx-pop" style={{ bottom, boxShadow: "0 8px 28px rgba(0,0,0,0.28)" }}>
-      <div className="flex items-center gap-2 pl-2 pr-1 py-2">
+    <div className="mx-mini absolute left-3 right-3 z-[19] rounded-[24px] overflow-hidden" style={{ bottom }}>
+      <div className="flex items-center gap-2.5 pl-2.5 pr-1.5 pt-2.5 pb-3">
         <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={() => m.setExpanded(true)} aria-label="Открыть плеер">
           <div className="relative">
-            <TrackCover track={t} size={42} radius={9} />
-            {m.playing && !m.buffering && <span className="absolute inset-0 rounded-[9px] flex items-end justify-center pb-1" style={{ background: "rgba(0,0,0,0.28)" }}><Equalizer active /></span>}
+            <TrackCover track={t} size={46} radius={14} />
+            {m.playing && !m.buffering && <span className="absolute inset-0 rounded-[14px] flex items-end justify-center pb-1.5" style={{ background: "rgba(0,0,0,0.3)" }}><Equalizer active /></span>}
           </div>
           <span className="min-w-0 flex-1">
-            <span className="block text-[14.5px] font-semibold truncate">{t.title}</span>
+            <span className="block text-[15px] font-semibold truncate">{t.title}</span>
             <span className="block text-[12.5px] mx-muted truncate" style={m.status ? { color: "var(--mx-accent)" } : undefined}>{m.status || t.artist}</span>
           </span>
         </button>
-        <button onClick={m.toggle} className="w-10 h-10 flex items-center justify-center rounded-full active:scale-90 transition-transform" aria-label={m.playing ? "Пауза" : "Играть"}>
-          <PlayGlyph playing={m.playing} buffering={m.buffering} size={22} />
+        <button onClick={m.toggle} className="mx-mini-play w-11 h-11 flex items-center justify-center" style={{ borderRadius: m.playing ? 16 : 22 }} aria-label={m.playing ? "Пауза" : "Играть"}>
+          <PlayGlyph playing={m.playing} buffering={m.buffering} size={22} offset={2} />
         </button>
-        <button onClick={m.next} className="w-9 h-10 flex items-center justify-center active:scale-90 transition-transform" aria-label="Следующий"><SkipForward size={20} fill="currentColor" /></button>
-        <button onClick={m.stop} className="w-8 h-10 flex items-center justify-center mx-muted" aria-label="Закрыть"><X size={18} /></button>
+        <button onClick={m.next} className="w-9 h-11 flex items-center justify-center active:scale-90 transition-transform" aria-label="Следующий"><SkipForward size={21} fill="currentColor" /></button>
+        <button onClick={m.stop} className="w-8 h-11 flex items-center justify-center mx-muted" aria-label="Закрыть"><X size={18} /></button>
       </div>
-      <div className="h-[3px]" style={{ background: "var(--mx-line)" }}><div className="h-full" style={{ width: `${p * 100}%`, background: "var(--mx-accent)", transition: "width 0.25s linear" }} /></div>
+      <div className="absolute left-3 right-3 bottom-[5px] h-[3px] rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, currentColor 16%, transparent)" }}>
+        <div className="h-full rounded-full" style={{ width: `${p * 100}%`, background: "var(--mx-accent)", transition: "width 0.25s linear" }} />
+      </div>
     </div>
   );
 }
@@ -593,7 +608,7 @@ function Waveform({ id, progress, buffered, onSeek, onDrag }: { id: string; prog
   return (
     <div
       ref={ref}
-      className="flex items-center gap-[2px] h-14 w-full select-none cursor-pointer"
+      className="relative flex items-center gap-[2px] h-14 w-full select-none cursor-pointer"
       style={{ touchAction: "none" }}
       onPointerDown={(e) => { ref.current?.setPointerCapture?.(e.pointerId); setDrag(ratioFrom(e)); }}
       onPointerMove={(e) => { if (drag !== null) setDrag(ratioFrom(e)); }}
@@ -601,15 +616,19 @@ function Waveform({ id, progress, buffered, onSeek, onDrag }: { id: string; prog
       onPointerCancel={() => setDrag(null)}
       role="slider"
       aria-label="Перемотка"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(shown * 100)}
     >
       {bars.map((h, i) => {
-        const pos = i / BARS;
-        const played = pos < shown;
+        const pos = (i + 0.5) / BARS;
+        const played = pos <= shown;
         const loadedBar = pos < buffered;
         return (
-          <span key={i} className="flex-1 rounded-full" style={{ height: `${h * 100}%`, transform: drag !== null && Math.abs(pos - shown) < 0.03 ? "scaleY(1.12)" : undefined, background: played ? "var(--mx-accent)" : `color-mix(in srgb, var(--mx-text) ${loadedBar ? 30 : 16}%, transparent)`, transition: drag === null ? "background 0.2s" : "none" }} />
+          <span key={i} className="flex-1 rounded-full" style={{ height: `${h * 100}%`, transform: drag !== null && Math.abs(pos - shown) < 0.03 ? "scaleY(1.14)" : undefined, background: played ? "var(--mx-accent)" : `color-mix(in srgb, var(--mx-text) ${loadedBar ? 30 : 16}%, transparent)`, transition: drag === null ? "background 0.2s" : "none" }} />
         );
       })}
+      <span className="mx-wave-thumb" style={{ left: `${shown * 100}%`, transform: drag !== null ? "scale(1.25)" : undefined }} />
     </div>
   );
 }
@@ -675,11 +694,11 @@ function FullPlayer() {
               </div>
             </div>
           </div>
-          <div className="flex justify-center pt-2 pb-6">
+          <div className="flex justify-center pt-1 pb-5">
             {(() => {
               const coverEl = (
-                <div style={{ width: cover, height: cover, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", borderRadius: 20, transform: m.playing ? "scale(1)" : "scale(0.9)", transition: "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)" }}>
-                  <TrackCover track={t} size={cover} radius={20} />
+                <div style={{ width: cover, height: cover, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", borderRadius: 28, transform: m.playing ? "scale(1)" : "scale(0.9)", transition: "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)" }}>
+                  <TrackCover track={t} size={cover} radius={28} />
                 </div>
               );
               if (!lyricsOn) return coverEl;
@@ -697,7 +716,7 @@ function FullPlayer() {
           <div className="w-full max-w-[420px] mx-auto">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <Marquee text={t.title} className="text-[22px] font-bold leading-tight" />
+                <Marquee text={t.title} className="text-[24px] font-bold leading-tight" />
                 <p className="text-[16px] mx-muted truncate" style={m.status ? { color: "var(--mx-accent)" } : undefined}>{m.status || t.artist}</p>
               </div>
               <button key={String(liked)} onClick={() => m.toggleLike(t.id)} className={`w-11 h-11 flex items-center justify-center rounded-full ${liked ? "mx-heart-pop" : ""}`} aria-label="В любимые" style={{ color: liked ? "#ff2d55" : "var(--mx-muted)" }}>
@@ -710,14 +729,14 @@ function FullPlayer() {
               <div className="flex justify-between text-[12.5px] mx-muted mt-1 tabular-nums"><span style={{ color: dragR !== null ? "var(--mx-text)" : undefined }}>{fmtTime(shownTime)}</span><span>{m.duration > 0 ? `−${fmtTime(Math.max(0, m.duration - shownTime))}` : "--:--"}</span></div>
             </div>
 
-            <div className="flex items-center justify-between mt-2">
-              <button onClick={m.toggleShuffle} className="w-11 h-11 flex items-center justify-center" style={{ color: m.shuffle ? "var(--mx-accent)" : "var(--mx-muted)" }} aria-label="Вперемешку"><Shuffle size={22} /></button>
-              <button onClick={m.prev} className="w-12 h-12 flex items-center justify-center active:scale-90 transition-transform" aria-label="Предыдущий"><SkipBack size={28} fill="currentColor" /></button>
-              <button onClick={m.toggle} className="w-[70px] h-[70px] rounded-full flex items-center justify-center active:scale-95 transition-transform" style={{ background: "var(--mx-text)", color: "var(--mx-bg)", boxShadow: "0 10px 30px color-mix(in srgb, var(--mx-accent) 45%, transparent)" }} aria-label={m.playing ? "Пауза" : "Играть"}>
-                <PlayGlyph playing={m.playing} buffering={m.buffering} size={30} offset={3} />
+            <div className="flex items-center justify-between mt-3">
+              <button onClick={m.toggleShuffle} className={`mx-fp-tonal w-11 h-11 flex items-center justify-center${m.shuffle ? " on" : ""}`} style={{ color: m.shuffle ? undefined : "var(--mx-muted)" }} aria-label="Вперемешку"><Shuffle size={21} /></button>
+              <button onClick={m.prev} className="w-12 h-12 flex items-center justify-center active:scale-90 transition-transform" aria-label="Предыдущий"><SkipBack size={29} fill="currentColor" /></button>
+              <button onClick={m.toggle} className="mx-fp-play w-[76px] h-[76px] flex items-center justify-center" style={{ borderRadius: m.playing ? 26 : 38 }} aria-label={m.playing ? "Пауза" : "Играть"}>
+                <PlayGlyph playing={m.playing} buffering={m.buffering} size={32} offset={3} />
               </button>
-              <button onClick={m.next} className="w-12 h-12 flex items-center justify-center active:scale-90 transition-transform" aria-label="Следующий"><SkipForward size={28} fill="currentColor" /></button>
-              <button onClick={m.cycleRepeat} className="w-11 h-11 flex items-center justify-center" style={{ color: m.repeat !== "off" ? "var(--mx-accent)" : "var(--mx-muted)" }} aria-label="Повтор">{m.repeat === "one" ? <Repeat1 size={22} /> : <Repeat size={22} />}</button>
+              <button onClick={m.next} className="w-12 h-12 flex items-center justify-center active:scale-90 transition-transform" aria-label="Следующий"><SkipForward size={29} fill="currentColor" /></button>
+              <button onClick={m.cycleRepeat} className={`mx-fp-tonal w-11 h-11 flex items-center justify-center${m.repeat !== "off" ? " on" : ""}`} style={{ color: m.repeat !== "off" ? undefined : "var(--mx-muted)" }} aria-label="Повтор">{m.repeat === "one" ? <Repeat1 size={21} /> : <Repeat size={21} />}</button>
             </div>
 
             {/* громкость — на компьютере (на телефоне есть кнопки громкости) */}
@@ -727,7 +746,7 @@ function FullPlayer() {
             </div>
 
             {upNext && (
-              <button onClick={() => setShowQueue(true)} className="mt-5 w-full mx-card px-3 py-2.5 flex items-center gap-3 text-left">
+              <button onClick={() => setShowQueue(true)} className="mx-fp-next mt-5 w-full px-3 py-2.5 flex items-center gap-3 text-left active:opacity-80">
                 <TrackCover track={upNext} size={36} radius={8} />
                 <div className="min-w-0 flex-1"><p className="text-[11.5px] uppercase tracking-wide mx-muted">Далее</p><p className="text-[14px] truncate">{upNext.title} · <span className="mx-muted">{upNext.artist}</span></p></div>
                 <ListMusic size={18} className="mx-muted shrink-0" />

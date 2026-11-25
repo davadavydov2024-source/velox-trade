@@ -20,6 +20,7 @@ import { auth } from "@/lib/firebase";
 import { AuthScreens, JoinScreen } from "./AuthScreens";
 import { ContactsPane } from "./ContactsPane";
 import { MiniPlayer, MusicProvider } from "./MusicPlayer";
+import { MessageBanner } from "./MessageBanner";
 import { NewChatSheet } from "./NewChatSheet";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
 import { useAccounts, useContactNames, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
@@ -106,6 +107,16 @@ export function MessengerApp() {
       router.push(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
     },
     [router]
+  );
+  // тап по шторке «новое сообщение»: из списка — обычный переход, из другого открытого чата — подмена записи истории,
+  // чтобы «назад» вёл в список, а не гонял по цепочке чатов
+  const openFromBanner = useCallback(
+    (id: string) => {
+      setTab("chats");
+      if (sp.get("chat")) router.replace(`/m?chat=${encodeURIComponent(id)}`, { scroll: false });
+      else openChat(id);
+    },
+    [router, sp, openChat]
   );
   const closeChat = useCallback(() => {
     if (openedFromList.current) {
@@ -219,6 +230,7 @@ export function MessengerApp() {
         )}
       </main>
 
+      <MessageBanner me={me} chats={chats} userChats={userChats} loading={chatsLoading} activeChatId={chatId} onOpen={openFromBanner} />
       <NewChatSheet open={newChat} onClose={() => setNewChat(false)} me={me} myHandle={account.handle} onOpenChat={(id) => { setTab("chats"); openChat(id); }} />
       <StoryCreator open={creator} onClose={() => setCreator(false)} onCreated={reloadStories} />
       {storyUid && groups.length > 0 && (

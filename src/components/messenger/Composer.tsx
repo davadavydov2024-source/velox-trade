@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellOff, Camera, Check, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2, Zap } from "lucide-react";
+import { BellOff, Camera, Check, ChevronLeft, ChevronUp, File as FileIcon, ImageIcon, Lock, Mic, Paperclip, Send, Smile, Video, X, Keyboard, Trash2, Zap } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { EmojiPanel } from "./EmojiPanel";
 import { StickerSuggest } from "./StickersUI";
 import { safeImageSrc } from "@/lib/safeImage";
 import { MenuList, Sheet } from "./ui";
-import { RecordedAudio, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } from "./Recorders";
+import { RecordedAudio, REC_CSS, useVoiceRecorder, VideoNoteRecorder, RecordedVideo } from "./Recorders";
 import { useMxPrefs } from "./prefs";
 import { MX_FEATURES } from "./features";
 import { formatDuration } from "./util";
@@ -68,13 +68,25 @@ export function Composer({
   const [attachOpen, setAttachOpen] = useState(false);
   const [mode, setMode] = useState<"voice" | "video">("voice");
   const [videoOpen, setVideoOpen] = useState(false);
+  const [videoAuto, setVideoAuto] = useState(false);
   const [locked, setLocked] = useState(false);
   const [dragX, setDragX] = useState(0);
+  const [dragY, setDragY] = useState(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const mediaInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const voice = useVoiceRecorder();
+  // лимит длины голосового достигнут — запись останавливается сама и сразу уходит
+  const autoSend = useRef<(a: RecordedAudio) => void>(() => {});
+  const voice = useVoiceRecorder((a) => autoSend.current(a));
+  autoSend.current = (a) => {
+    hold.current.locked = false;
+    hold.current.starting = null;
+    setLocked(false);
+    setDragX(0);
+    setDragY(0);
+    onSendVoice(a);
+  };
 
   const draftKey = `mx-draft-${chatId}`;
 
@@ -198,8 +210,11 @@ export function Composer({
     }
   };
 
-  // ---- удержание микрофона ----
-  const hold = useRef({ x: 0, y: 0, timer: 0 as any, started: false, cancelled: false, locked: false, starting: null as Promise<string | null> | null });
+  // ---- кнопка микрофона/кружка (как в Telegram) ----
+  // короткое нажатие — переключить «голосовое ⇄ видеокружок»; удержание — записывать в выбранном режиме
+  // (голос: отпустил — отправилось, влево — отмена, вверх — зафиксировать; кружок: открывается запись и стартует сразу)
+  const hold = useRef({ x: 0, y: 0, timer: 0 as any, started: false, cancelled: false, locked: false, long: false, starting: null as Promise<string | null> | null });
+  const modeHinted = useRef(false);
 
   const onMicDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -209,16 +224,25 @@ export function Composer({
     h.started = false;
     h.cancelled = false;
     h.locked = false;
+    h.long = false;
+    h.starting = null;
     setLocked(false);
     setDragX(0);
-    if (mode === "video") return;
+    setDragY(0);
     h.timer = setTimeout(() => {
+      h.long = true;
+      if (mode === "video") {
+        navigator.vibrate?.(10);
+        setVideoAuto(true);
+        setVideoOpen(true);
+        return;
+      }
       h.starting = voice.start().then((err) => {
         if (err) toast("error", err);
         else h.started = true;
         return err;
       });
-    }, 180);
+    }, mode === "video" ? 260 : 180);
   };
 
   const onMicMove = (e: React.PointerEvent) => {
@@ -227,14 +251,19 @@ export function Composer({
     const dx = e.clientX - h.x;
     const dy = e.clientY - h.y;
     setDragX(Math.min(0, dx));
+    setDragY(Math.min(0, dy));
     if (dx < -90 && !h.cancelled) {
       h.cancelled = true;
       voice.cancel();
       h.started = false;
+      setDragX(0);
+      setDragY(0);
       navigator.vibrate?.(12);
     } else if (dy < -70) {
       h.locked = true;
       setLocked(true);
+      setDragX(0);
+      setDragY(0);
       navigator.vibrate?.(12);
     }
   };
@@ -243,21 +272,37 @@ export function Composer({
     const h = hold.current;
     clearTimeout(h.timer);
     setDragX(0);
-    if (mode === "video") {
-      setVideoOpen(true);
+    setDragY(0);
+    if (!h.long) {
+      // короткое нажатие — переключаем голос ⇄ видеокружок
+      const next = mode === "voice" ? "video" : "voice";
+      setMode(next);
+      if (!modeHinted.current) {
+        modeHinted.current = true;
+        toast("info", next === "video" ? "Видеосообщение: удерживай кнопку, чтобы записать. Нажми ещё раз — вернуться к голосовому" : "Голосовое: удерживай кнопку, чтобы записать");
+      }
       return;
     }
-    if (!h.starting) {
-      // короткое нажатие — переключаем голос ⇄ видеокружок (как в Telegram)
-      setMode("video");
-      return;
-    }
+    if (mode === "video") return; // запись кружка уже открыта
     await h.starting;
     h.starting = null;
     if (h.locked || h.cancelled || !h.started) return;
     h.started = false;
     const audio = await voice.stop();
     if (audio) onSendVoice(audio);
+    else toast("info", "Слишком коротко — удерживай кнопку, чтобы записать");
+  };
+
+  // палец «потерялся» (системный жест, звонок…): запись не должна остаться висеть
+  const onMicCancel = () => {
+    const h = hold.current;
+    clearTimeout(h.timer);
+    setDragX(0);
+    setDragY(0);
+    if (h.locked) return;
+    h.cancelled = true;
+    if (h.starting) h.starting.then(() => voice.cancel());
+    else voice.cancel();
   };
 
   const sendLocked = async () => {
@@ -318,21 +363,23 @@ export function Composer({
 
       <div className="flex items-end gap-2 px-2.5 py-2">
         {recordingUi ? (
-          <div className="flex-1 flex items-center gap-3 h-11 px-3 rounded-full" style={{ background: "var(--mx-surface)" }}>
-            <span className="w-2.5 h-2.5 rounded-full mx-rec-dot" style={{ background: "var(--mx-danger)" }} />
-            <span className="tabular-nums w-11">{formatDuration(voice.seconds)}</span>
-            <div className="flex-1 flex items-center gap-[2px] h-6 overflow-hidden">
-              {voice.levels.map((l, i) => (
-                <span key={i} className="w-[3px] rounded-full shrink-0" style={{ height: `${Math.max(12, l * 100)}%`, background: "var(--mx-accent)" }} />
-              ))}
-            </div>
+          <div className="mx-rec-bar flex-1 min-w-0 flex items-center gap-3 h-[52px] pl-4 pr-3 rounded-full" style={{ background: "var(--mx-surface2)" }}>
             {locked ? (
-              <button onClick={cancelLocked} className="p-1" style={{ color: "var(--mx-danger)" }} aria-label="Отменить запись">
-                <Trash2 size={20} />
+              <button onClick={cancelLocked} className="w-8 h-8 -ml-2 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition-transform" style={{ color: "var(--mx-danger)" }} aria-label="Отменить запись">
+                <Trash2 size={21} />
               </button>
             ) : (
-              <span className="mx-muted text-[13px] whitespace-nowrap" style={{ transform: `translateX(${dragX / 3}px)`, opacity: 1 - Math.min(1, Math.abs(dragX) / 120) }}>
-                ‹ Свайп — отмена
+              <span className="mx-rec-dot2" />
+            )}
+            <span className="tabular-nums text-[16px] w-[44px] shrink-0">{formatDuration(voice.seconds)}</span>
+            <div className="mx-rec-wave" aria-hidden>
+              {voice.levels.map((l, i) => (
+                <span key={i} style={{ height: `${Math.max(12, l * 100)}%` }} />
+              ))}
+            </div>
+            {!locked && (
+              <span className="mx-muted text-[13.5px] whitespace-nowrap shrink-0 select-none" style={{ transform: `translateX(${dragX / 3}px)`, opacity: Math.max(0.15, 1 - Math.abs(dragX) / 110) }}>
+                <span className="mx-rec-nudge"><ChevronLeft size={16} />Отмена</span>
               </span>
             )}
           </div>
@@ -389,28 +436,38 @@ export function Composer({
             <Send size={20} className="ml-0.5" />
           </button>
         ) : (
-          <button
-            onPointerDown={onMicDown}
-            onPointerMove={onMicMove}
-            onPointerUp={onMicUp}
-            onPointerCancel={() => {
-              clearTimeout(hold.current.timer);
-              if (voice.recording && !hold.current.locked) voice.cancel();
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 touch-none select-none"
-            style={{ background: recordingUi ? "var(--mx-accent)" : "transparent", color: recordingUi ? "var(--mx-accent-text)" : "var(--mx-muted)", transform: recordingUi ? "scale(1.5)" : undefined, transition: "transform 0.15s" }}
-            aria-label={mode === "voice" ? "Голосовое сообщение (удерживай)" : "Видеосообщение"}
-          >
-            {recordingUi && !locked ? <Lock size={0} /> : null}
-            {mode === "voice" ? <Mic size={24} /> : <Video size={24} />}
-          </button>
+          <div className="relative w-11 h-11 shrink-0">
+            {recordingUi && !locked && <span className="mx-rec-halo" style={{ transform: `scale(${1.8 + voice.level * 1.4})` }} />}
+            {recordingUi && !locked && (
+              <div className="mx-rec-lock" style={{ height: 108 - Math.min(1, Math.abs(dragY) / 70) * 34, color: Math.abs(dragY) > 40 ? "var(--mx-accent)" : undefined }}>
+                <Lock size={18} />
+                <ChevronUp className="up" size={16} />
+              </div>
+            )}
+            <button
+              onPointerDown={onMicDown}
+              onPointerMove={onMicMove}
+              onPointerUp={onMicUp}
+              onPointerCancel={onMicCancel}
+              onContextMenu={(e) => e.preventDefault()}
+              className="relative w-11 h-11 rounded-full flex items-center justify-center touch-none select-none"
+              style={{
+                background: recordingUi ? "var(--mx-accent)" : "transparent",
+                color: recordingUi ? "var(--mx-accent-text)" : "var(--mx-muted)",
+                transform: recordingUi ? `translate(${dragX / 2.5}px, ${dragY / 2.5}px) scale(1.22)` : undefined,
+                transition: recordingUi ? "transform 0.08s linear" : "transform 0.2s var(--mx-ease, ease)",
+                WebkitTouchCallout: "none",
+                zIndex: 2,
+              }}
+              aria-label={mode === "voice" ? "Голосовое сообщение (удерживай). Нажми — переключить на видео" : "Видеосообщение (удерживай). Нажми — переключить на голос"}
+            >
+              {mode === "voice" ? <Mic size={24} /> : <Video size={24} />}
+            </button>
+          </div>
         )}
       </div>
 
-      {recordingUi && !locked && (
-        <p className="text-center text-[12px] mx-muted pb-1">Потяни вверх — зафиксировать, влево — отменить</p>
-      )}
+      <style>{REC_CSS}</style>
 
       {mentionList.length > 0 && (
         <div className="mx-glass mx-pop absolute left-2 right-2 bottom-[calc(100%-4px)] rounded-2xl overflow-hidden" style={{ zIndex: 30 }}>
@@ -462,9 +519,11 @@ export function Composer({
 
       {videoOpen && (
         <VideoNoteRecorder
-          onCancel={() => setVideoOpen(false)}
+          autoStart={videoAuto}
+          onCancel={() => { setVideoOpen(false); setVideoAuto(false); }}
           onSend={(v) => {
             setVideoOpen(false);
+            setVideoAuto(false);
             onSendVideoNote(v);
           }}
         />
