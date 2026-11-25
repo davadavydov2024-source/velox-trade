@@ -122,8 +122,11 @@ const CATALOG: GiftDef[] = [
   { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
-/** Новая коллекция NFT, которая продаётся сейчас. Все прежние NFT-подарки сняты с продажи, но у тех, кому они уже подарены, остаются. */
-const CURRENT_NFT = new Set(["nft-blackcat", "nft-ringbox", "nft-jelly", "nft-plush"]);
+/** NFT, которые продаются сейчас: 4 новых анимированных + 11 из прежней коллекции = 15. Остальные старые NFT сняты с продажи, но у тех, кому они уже подарены, остаются. Обычные подарки не затрагиваются. */
+const CURRENT_NFT = new Set([
+  "nft-blackcat", "nft-ringbox", "nft-jelly", "nft-plush",
+  "crown", "dragon", "nft-unicorn", "nft-phoenix", "nft-fox", "nft-wolf", "nft-whale", "nft-ufo", "nft-robot", "nft-butterfly", "rocket",
+]);
 export const GIFTS: GiftDef[] = CATALOG.map((g) => (g.nft && !CURRENT_NFT.has(g.id) ? { ...g, retired: true } : g));
 
 export const GIFT_UPGRADE_MIN = 15;
