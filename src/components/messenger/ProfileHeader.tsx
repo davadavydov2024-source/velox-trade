@@ -85,8 +85,8 @@ export function ProfileShell({ children }: { children: ReactNode }) {
 /** Блок-карточка профиля («Информация») с заголовком цвета акцента — как в Telegram. */
 export function ProfileCard({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div style={{ margin: "0 16px 12px", borderRadius: 18, background: "var(--mx-surface)", padding: "4px 0 6px" }}>
-      {title && <p className="px-5 pt-3 pb-1 text-[14px] font-semibold" style={{ color: "var(--mx-accent)" }}>{title}</p>}
+    <div style={{ margin: "0 16px 16px", borderRadius: 24, background: "var(--mx-surface)", padding: "6px 0 10px" }}>
+      {title && <p className="px-5 pt-4 pb-1.5 text-[14px] font-semibold" style={{ color: "var(--mx-accent)" }}>{title}</p>}
       {children}
     </div>
   );
@@ -135,11 +135,21 @@ export function ProfileHeader({
   const onColor = !banner; // без баннера шапка — цветной градиент с белым текстом, как в Telegram
   const av = <AvatarFrame frame={account?.frame} size={avatarSize}><span className="block rounded-full" style={{ boxShadow: account?.frame ? undefined : `0 0 0 3px rgba(255,255,255,${onColor ? 0.38 : 0.14}), 0 10px 32px rgba(0,0,0,0.28)` }}><Avatar src={photo ?? null} name={name} seed={seed} size={avatarSize}>{avatarFallback}</Avatar></span></AvatarFrame>;
   const items = (orbit ?? []).slice(0, 6);
-  const box = avatarSize + 110; // размер «поля» вокруг аватарки под подарки-спутники
-  const R = avatarSize / 2 + 36;
+  const box = avatarSize + 132; // размер «поля» вокруг аватарки под подарки-спутники
+  const R = avatarSize / 2 + 38;
   return (
     <div className="relative overflow-hidden" style={onColor ? { background: `linear-gradient(180deg, ${glow} 0%, ${c2} 100%)`, borderRadius: "0 0 28px 28px" } : undefined}>
-      <style>{"@keyframes mx-orbit-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}.mx-orbit-float{animation:mx-orbit-float 3.4s ease-in-out infinite}"}</style>
+      <style>{`
+@keyframes mx-orbit-fly{from{opacity:0;transform:translate(-50%,-50%) scale(.15)}to{opacity:1;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1)}}
+@keyframes mx-orbit-spin{to{transform:rotate(360deg)}}
+@keyframes mx-orbit-unspin{to{transform:rotate(-360deg)}}
+@keyframes mx-orbit-bob{0%,100%{transform:translate(0,0) rotate(-5deg)}25%{transform:translate(3px,-7px) rotate(2deg)}50%{transform:translate(0,-11px) rotate(6deg)}75%{transform:translate(-3px,-5px) rotate(0deg)}}
+.mx-orbit-item{animation:mx-orbit-fly .85s cubic-bezier(.2,.9,.25,1.25) both}
+.mx-orbit-ring{animation:mx-orbit-spin 70s linear infinite}
+.mx-orbit-unspin{animation:mx-orbit-unspin 70s linear infinite}
+.mx-orbit-bob{animation:mx-orbit-bob 4.2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.mx-orbit-ring,.mx-orbit-unspin,.mx-orbit-bob{animation:none}}
+`}</style>
       {banner ? (
         <div className="relative" style={{ height: 176 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -151,18 +161,25 @@ export function ProfileHeader({
       )}
       {topLeft && <div className="absolute left-3 top-3 z-10">{topLeft}</div>}
       {topRight && <div className="absolute right-3 top-3 z-10 flex gap-2">{topRight}</div>}
-      <div className="relative z-[1] flex flex-col items-center px-5 pb-6" style={{ marginTop: banner ? -(avatarSize / 2 + 42) : 52 }}>
+      <div className="relative z-[1] flex flex-col items-center px-6 pb-8" style={{ marginTop: banner ? -(avatarSize / 2 + 42) : 56 }}>
         <div className="relative flex items-center justify-center" style={{ width: box, height: box }}>
-          {items.map((g, i) => {
-            const ang = (-90 + (i * 360) / items.length + (items.length < 4 ? 20 : 0)) * (Math.PI / 180);
-            const x = Math.cos(ang) * R;
-            const y = Math.sin(ang) * R;
-            return (
-              <span key={g.id} className="absolute left-1/2 top-1/2" style={{ transform: `translate(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px)) rotate(${((i * 37) % 30) - 15}deg)` }}>
-                <span className="mx-orbit-float block" style={{ animationDelay: `${i * 0.45}s` }}><OrbitGift g={g} size={44} /></span>
-              </span>
-            );
-          })}
+          {items.length > 0 && (
+            <div className="mx-orbit-ring absolute inset-0 pointer-events-none" aria-hidden>
+              {items.map((g, i) => {
+                const ang = (-90 + (i * 360) / items.length + (items.length < 4 ? 20 : 0)) * (Math.PI / 180);
+                const r = R + (i % 2 ? 9 : -3); // разная высота полёта — подарки не выстраиваются в идеальное кольцо
+                const x = Math.cos(ang) * r;
+                const y = Math.sin(ang) * r;
+                return (
+                  <span key={g.id} className="mx-orbit-item absolute left-1/2 top-1/2" style={{ "--x": `${x.toFixed(1)}px`, "--y": `${y.toFixed(1)}px`, transform: `translate(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px))`, animationDelay: `${i * 110}ms` } as React.CSSProperties}>
+                    <span className="mx-orbit-unspin block">
+                      <span className="mx-orbit-bob block" style={{ animationDuration: `${3.4 + (i % 3) * 0.7}s`, animationDelay: `${-i * 0.9}s` }}><OrbitGift g={g} size={46} /></span>
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {onAvatarClick ? (
             <button onClick={onAvatarClick} disabled={avatarBusy} className="relative rounded-full" aria-label="Сменить фото">{av}{avatarOverlay}</button>
           ) : (
@@ -191,14 +208,14 @@ export function InfoRow({ value, label, onClick, accent, right, icon }: { value:
       {right}
     </>
   );
-  const cls = "w-full flex items-center gap-3 px-5 py-2 text-left";
+  const cls = "w-full flex items-center gap-3.5 px-5 py-3 text-left";
   return onClick ? <button onClick={onClick} className={cls}>{inner}</button> : <div className={cls}>{inner}</div>;
 }
 
 /** Плитка действия под шапкой профиля: тёмное стекло, иконка и подпись. */
 export function ProfileTile({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex-1 min-w-0 flex flex-col items-center gap-1.5 rounded-2xl py-3 active:opacity-70 transition-opacity" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>
+    <button onClick={onClick} className="flex-1 min-w-0 flex flex-col items-center gap-2 rounded-3xl py-4 active:opacity-70 transition-opacity" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)" }}>
       {icon}
       <span className="text-[12.5px] font-medium truncate max-w-full px-1">{label}</span>
     </button>
@@ -213,7 +230,7 @@ export function ProfileTabs<T extends string>({ tabs, value, onChange, labels, r
         {tabs.map((t) => {
           const on = value === t;
           return (
-            <button key={t} onClick={() => onChange(t)} className="relative flex-1 shrink-0 px-4 h-12 text-[15px] font-semibold whitespace-nowrap" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", minWidth: 96 }}>
+            <button key={t} onClick={() => onChange(t)} className="relative flex-1 shrink-0 px-4 h-14 text-[15px] font-semibold whitespace-nowrap" style={{ color: on ? "var(--mx-accent)" : "var(--mx-muted)", minWidth: 96 }}>
               {labels[t]}
               {on && <span className="absolute left-0 right-0 bottom-0 h-[3px] rounded-t-full" style={{ background: "var(--mx-accent)" }} />}
             </button>

@@ -33,6 +33,7 @@ import { AppIconPicker } from "./AppIconPicker";
 import { NumbersSheet, NumberTierChip } from "./Numbers";
 import { formatNumber } from "@/lib/messenger/numbers";
 import { WalletPage, startTopup } from "./Wallet";
+import { BalanceCard } from "./BalanceCard";
 import { BotsPage } from "./Bots";
 import { UsernamePage } from "./UsernamePage";
 import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
@@ -43,7 +44,7 @@ export type Page = null | "notifications" | "data" | "privacy" | "general" | "fo
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-3.5 px-4 py-3 text-left active:bg-white/5">
+    <button onClick={onClick} className="w-full flex items-center gap-4 px-5 py-3.5 text-left active:bg-white/5">
       <IconBox color={color}>{icon}</IconBox>
       <span className="flex-1 text-[16px]">{label}</span>
       {value && <span className="mx-muted text-[15px]">{value}</span>}
@@ -804,6 +805,7 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           account={account}
           badges={<><VerifyMark acc={account} size={20} /><TagChip acc={account} light /><StatusBadge acc={account} size={20} /></>}
           statusPill={status}
+          orbit={orbitGifts}
           subtitle={<>{account.number ? `${formatNumber(account.number)} · ` : ""}@{account.handle}{isPremium(account) ? " · Premium" : ""}</>}
           onAvatarClick={() => fileRef.current?.click()}
           avatarBusy={avatarBusy}
@@ -813,7 +815,9 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
         </ProfileShell>
         </div>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
-        <div style={{ height: 12 }} />
+        <div style={{ height: 16 }} />
+
+        <div className="px-4 mb-6"><BalanceCard onOpen={() => setPage("wallet")} /></div>
 
         <Section>
           {account.numId ? <div className="w-full px-4 py-3 text-left"><span className="block mx-muted text-[12.5px]">Идентификатор</span><span className="block tabular-nums">ID: {account.numId}</span></div> : null}

@@ -280,8 +280,8 @@ export function PageHeader({ title, onBack, right }: { title: string; onBack?: (
 
 export function Section({ children, title, footer }: { children: ReactNode; title?: string; footer?: string }) {
   return (
-    <div className="px-4 mb-5">
-      {title && <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">{title}</p>}
+    <div className="px-4 mb-6">
+      {title && <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-2">{title}</p>}
       <div className="mx-card">{children}</div>
       {footer && <p className="mx-muted text-[13px] px-3 mt-1.5">{footer}</p>}
     </div>
