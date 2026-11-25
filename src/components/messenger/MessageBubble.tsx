@@ -3,7 +3,7 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftChatCard } from "./GiftChatCard";
@@ -229,6 +229,30 @@ function MessageRowImpl({
   const author = accounts[msg.from];
   const rowRef = useRef<HTMLDivElement>(null);
   const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
+
+  if (msg.kind === "system" && msg.call) {
+    // запись о голосовом звонке: «Исходящий звонок · 2:13», «Пропущенный звонок» и т.п. — с точки зрения того, кто смотрит
+    const c = msg.call;
+    const out = c.from === me;
+    const dur = c.duration ? ` · ${formatDuration(c.duration)}` : "";
+    const missedIn = !out && (c.reason === "missed" || c.reason === "cancelled");
+    const label =
+      c.reason === "hangup" ? `${out ? "Исходящий" : "Входящий"} звонок${dur}`
+      : c.reason === "failed" ? `Звонок прервался${dur}`
+      : c.reason === "declined" ? (out ? "Звонок отклонён" : "Вы отклонили звонок")
+      : c.reason === "busy" ? (out ? "Абонент занят" : "Пропущенный звонок")
+      : c.reason === "cancelled" ? (out ? "Отменённый звонок" : "Пропущенный звонок")
+      : out ? "Нет ответа" : "Пропущенный звонок";
+    const bad = missedIn || (!out && c.reason === "busy");
+    return (
+      <div className="flex justify-center my-2" data-mid={msg.id}>
+        <span className="text-[13px] pl-2.5 pr-3.5 py-1.5 rounded-full mx-glass inline-flex items-center gap-1.5" style={{ color: bad ? "var(--mx-danger)" : undefined }}>
+          {out ? <PhoneOutgoing size={15} /> : bad ? <PhoneMissed size={15} /> : <PhoneIncoming size={15} />}
+          {label}
+        </span>
+      </div>
+    );
+  }
 
   if (msg.kind === "system") {
     return (

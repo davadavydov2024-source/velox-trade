@@ -6,7 +6,7 @@ import { useMxPrefs } from "./prefs";
 import { StickerPackSheet } from "./StickersUI";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive, BellOff, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark, Gift,
+  Archive, BellOff, Phone, ChevronDown, Search, ChevronLeft, Copy, CornerUpLeft, Forward, Info, MoreVertical, Pencil, Pin, PinOff, Trash2, X, CheckSquare, Bell, LogOut, Bookmark, Gift,
 } from "lucide-react";
 import { GiftShopSheet } from "./Gifts";
 import { useToast } from "@/lib/toastContext";
@@ -16,12 +16,12 @@ import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, Spinner, T
 import { StatusBadge } from "./StatusBadge";
 import { MessageRow } from "./MessageBubble";
 import { EmptyChatGreeting } from "./EmptyChatGreeting";
-import { BotCommandsRow, BotIntro, BotStartBar } from "./BotStart";
 import { Composer, ComposerReply } from "./Composer";
 import { ImageViewer, ViewerItem } from "./ImageViewer";
 import { ForwardSheet } from "./ForwardSheet";
 import { ChatInfoSheet } from "./ChatInfoSheet";
 import { useAccounts, useLiveAccount, useMessages, useNow, useTyping } from "./hooks";
+import { useCall } from "./CallProvider";
 import { MAccount, MChat, MMessage, MPending, MUserChat } from "./mtypes";
 import { formatTime, chatPhoto, chatTitle, dayLabel, DOUBLE_TAP_REACTION, extFromMime, isChatMuted, isOnline, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural, previewText, QUICK_REACTIONS, sameDay, shortCount } from "./util";
 import type { RecordedAudio, RecordedVideo } from "./Recorders";
@@ -119,16 +119,12 @@ export function ChatView({
   const title = chatTitle(chat, me, accountsAll);
   const photo = chatPhoto(chat, me, accountsAll);
   const saved = isSavedMessages(chat, me);
+  const call = useCall();
+  const canCall = chat.type === "dm" && !saved && !chat.service && !!peer && !peer.bot && peer.uid !== "velox_dating" && call.available;
   const isAdmin = chat.admins?.includes(me) || chat.createdBy === me;
   const perms = { ...DEFAULT_PERMISSIONS, ...(chat.permissions ?? {}) };
   const restriction = chat.restricted?.[me];
   const restrictedNow = !!restriction && restriction.until > now && restriction.sendMessages === false;
-  // чат с ботом из конструктора ботов (uid = bot_…): «Начать» вместо поля ввода, пока человек ни разу не писал
-  const botUid = chat.type === "dm" && !saved ? peerUid(chat, me) : "";
-  const isBotChat = botUid.startsWith("bot_");
-  const botFresh = isBotChat && !loading && messages.length === 0 && pending.length === 0;
-  const lastMsg = messages[messages.length - 1];
-  const botKbShown = !!(lastMsg && lastMsg.from.startsWith("bot_") && lastMsg.kb?.length);
   const blockedReason = chat.service
     ? "Это служебный чат — отвечать в нём нельзя"
     : chat.banned?.includes(me)
@@ -668,6 +664,9 @@ export function ChatView({
             <button onClick={() => setInfo(true)} className="shrink-0 rounded-full overflow-hidden" aria-label="Профиль" style={{ border: "2px solid rgba(255,255,255,0.18)" }}>
               <Avatar src={photo} name={title} seed={chat.type === "dm" ? peerUid(chat, me) : chat.id} size={44} online={online}>{saved ? "🔖" : undefined}</Avatar>
             </button>
+            {canCall && (
+              <button onClick={() => call.start(chat.id)} disabled={call.busy} className="mx-pill-btn w-11 h-11 shrink-0 disabled:opacity-50" aria-label="Позвонить"><Phone size={20} /></button>
+            )}
             <button onClick={() => setHeaderMenu(true)} className="mx-pill-btn w-11 h-11 shrink-0" aria-label="Меню"><MoreVertical size={21} /></button>
           </div>
         )}
@@ -707,9 +706,7 @@ export function ChatView({
           </div>
         )}
         {!loading && rows.length === 0 && (
-          isBotChat ? (
-            <BotIntro bot={peer} name={peer?.displayName ?? chatTitle(chat, me, accountsAll)} uid={botUid} />
-          ) : chat.type === "dm" && !saved ? (
+          chat.type === "dm" && !saved ? (
             <EmptyChatGreeting canSend={canPost} onSend={sendSticker} />
           ) : (
             <div className="h-full flex items-center justify-center px-8 text-center mx-muted text-[14px]">
@@ -806,13 +803,7 @@ export function ChatView({
         );
       })()}
 
-      {isBotChat && !botFresh && canPost && !botKbShown && !!peer?.botCommands?.length && (
-        <BotCommandsRow commands={peer.botCommands} onPick={(c) => sendText(c)} />
-      )}
-
-      {botFresh && canPost ? (
-        <BotStartBar onStart={() => sendText("/start")} />
-      ) : chat.type === "channel" && !isAdmin && !chat.service && !chat.banned?.includes(me) ? (
+      {chat.type === "channel" && !isAdmin && !chat.service && !chat.banned?.includes(me) ? (
         <div className="mx-safe-bottom shrink-0" style={{ background: "var(--mx-bg)", borderTop: "1px solid var(--mx-line)" }}>
           <button onClick={() => (muted ? chatSetting({ muted: false, mutedUntil: 0 }) : setMuteMenu(true))} className="w-full h-12 text-[16px] font-medium flex items-center justify-center gap-2" style={{ color: "var(--mx-accent)" }}>
             {muted ? <Bell size={19} /> : <BellOff size={19} />}{muted ? "Включить звук" : "Отключить звук"}

@@ -21,6 +21,7 @@ import { AuthScreens, JoinScreen } from "./AuthScreens";
 import { ContactsPane } from "./ContactsPane";
 import { MiniPlayer, MusicProvider } from "./MusicPlayer";
 import { MessageBanner } from "./MessageBanner";
+import { CallProvider } from "./CallProvider";
 import { NewChatSheet } from "./NewChatSheet";
 import { groupStories, StoryCreator, StoryViewer } from "./Stories";
 import { useAccounts, useContactNames, useFolders, useMyAccount, useMyChats, useStories, useUserChats } from "./hooks";
@@ -164,6 +165,7 @@ export function MessengerApp() {
 
   return (
     <MusicProvider>
+    <CallProvider me={me} chats={chats} onOpenChat={openFromBanner}>
       <AppLockGate uid={me} />
       <NotificationGate uid={me} />
     <div className="mx-workspace h-full flex">
@@ -237,6 +239,7 @@ export function MessengerApp() {
         <StoryViewer groups={groups} startUid={storyUid} me={me} onClose={() => setStoryUid(null)} onChanged={reloadStories} onOpenChat={openChat} />
       )}
     </div>
+    </CallProvider>
     </MusicProvider>
   );
 }
