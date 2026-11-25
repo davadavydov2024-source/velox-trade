@@ -15,6 +15,7 @@ import { StickerMedia } from "./StickerMedia";
 import { LinkPreview } from "./LinkPreview";
 import { mApi, MApiError } from "./api";
 import { useToast } from "@/lib/toastContext";
+import { callLogOf } from "@/lib/messenger/callTypes";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
 
@@ -230,9 +231,10 @@ function MessageRowImpl({
   const rowRef = useRef<HTMLDivElement>(null);
   const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
 
-  if (msg.kind === "system" && msg.call) {
+  const callLog = msg.kind === "system" ? callLogOf(msg) : undefined;
+  if (callLog) {
     // запись о голосовом звонке: «Исходящий звонок · 2:13», «Пропущенный звонок» и т.п. — с точки зрения того, кто смотрит
-    const c = msg.call;
+    const c = callLog;
     const out = c.from === me;
     const dur = c.duration ? ` · ${formatDuration(c.duration)}` : "";
     const missedIn = !out && (c.reason === "missed" || c.reason === "cancelled");

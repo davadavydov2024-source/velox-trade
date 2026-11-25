@@ -5,7 +5,8 @@ import { rateLimit } from "@/lib/apiRateLimit";
 import { sendWebPush } from "@/lib/webPushServer";
 import { fail, isDmBlocked, loadChat, postMessage, requireMessenger } from "@/lib/messenger/server";
 import { buildIceServers } from "@/lib/messenger/callIce";
-import type { ChatCall, MessengerAccount, MessengerChat } from "@/lib/messenger/types";
+import { callOf, type ChatCall } from "@/lib/messenger/callTypes";
+import type { MessengerAccount } from "@/lib/messenger/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     const callId = db.collection("_").doc().id;
     const res = await db.runTransaction(async (tx) => {
-      const cur = ((await tx.get(chatRef)).data() as MessengerChat | undefined)?.call;
+      const cur = callOf((await tx.get(chatRef)).data());
       if (isLive(cur, now)) return "busy" as const;
       const call: ChatCall = { id: callId, from: me.uid, to: peerUid, status: "ringing", startedAt: now, offer };
       tx.update(chatRef, { call });
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     const answer = b.answer;
     if (typeof answer !== "string" || !answer.startsWith("v=0") || answer.length > MAX_SDP) return fail("Некорректный ответ на звонок");
     const ok = await db.runTransaction(async (tx) => {
-      const c = ((await tx.get(chatRef)).data() as MessengerChat | undefined)?.call;
+      const c = callOf((await tx.get(chatRef)).data());
       if (!c || c.id !== callId || c.to !== me.uid || c.status !== "ringing" || now - c.startedAt > RING_MS + 15_000) return false;
       tx.update(chatRef, { "call.status": "active", "call.answer": answer, "call.answeredAt": now, [`call.beat.${me.uid}`]: now });
       return true;
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
 
   if (action === "beat") {
     const ok = await db.runTransaction(async (tx) => {
-      const c = ((await tx.get(chatRef)).data() as MessengerChat | undefined)?.call;
+      const c = callOf((await tx.get(chatRef)).data());
       if (!c || c.id !== callId || c.status !== "active") return false;
       tx.update(chatRef, { [`call.beat.${me.uid}`]: now });
       return true;
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
     const asked = String(b.reason ?? "hangup");
     type Done = { call: ChatCall; reason: NonNullable<ChatCall["endReason"]>; duration?: number } | null;
     const done: Done = await db.runTransaction(async (tx) => {
-      const c = ((await tx.get(chatRef)).data() as MessengerChat | undefined)?.call;
+      const c = callOf((await tx.get(chatRef)).data());
       if (!c || c.id !== callId || c.status === "ended") return null;
       let reason: NonNullable<ChatCall["endReason"]>;
       if (c.status === "active") reason = asked === "failed" ? "failed" : "hangup";

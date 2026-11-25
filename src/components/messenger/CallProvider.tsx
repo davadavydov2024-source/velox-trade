@@ -8,6 +8,7 @@ import { getDeviceId } from "@/lib/messenger/client";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
 import { useLiveAccount } from "./hooks";
+import { callOf } from "@/lib/messenger/callTypes";
 import { MChat } from "./mtypes";
 import { useMusic } from "./MusicPlayer";
 import { Avatar } from "./ui";
@@ -335,7 +336,7 @@ export function CallProvider({ me, chats, onOpenChat, children }: { me: string; 
   const accept = useCallback(async () => {
     const v = viewRef.current;
     if (!v || v.phase !== "incoming" || !v.callId) return;
-    const call = chatsRef.current.find((c) => c.id === v.chatId)?.call;
+    const call = callOf(chatsRef.current.find((c) => c.id === v.chatId));
     if (!call || call.id !== v.callId || call.status !== "ringing" || !call.offer) { finish("Звонок уже завершён"); return; }
     clearTimeout(timers.current.ring);
     tones.stop();
@@ -381,7 +382,7 @@ export function CallProvider({ me, chats, onOpenChat, children }: { me: string; 
     chatsRef.current = chats;
     const v = viewRef.current;
     if (v?.callId) {
-      const call = chats.find((c) => c.id === v.chatId)?.call;
+      const call = callOf(chats.find((c) => c.id === v.chatId));
       if (call && call.id === v.callId && v.phase !== "ended") {
         if (call.status === "ended") {
           if (v.phase === "incoming") finish(call.endReason === "missed" || call.endReason === "cancelled" ? "Пропущенный звонок" : "", { silent: true });
@@ -400,7 +401,7 @@ export function CallProvider({ me, chats, onOpenChat, children }: { me: string; 
     }
     // новые входящие
     for (const chat of chats) {
-      const c = chat.call;
+      const c = callOf(chat);
       if (!c || c.to !== me || c.status !== "ringing" || seen.current.has(c.id)) continue;
       if (Math.abs(Date.now() - c.startedAt) > FRESH_MS) { seen.current.add(c.id); continue; }
       seen.current.add(c.id);
