@@ -4,7 +4,6 @@ import { sendTelegramMessage, sendInvoice } from "./telegramBot";
 import { sendWebPush } from "./webPushServer";
 import { fulfillStarsInvoice } from "./starsOrders";
 import { getPaymentMode } from "@/types";
-import { recordOp } from "@/lib/messenger/ops";
 
 /**
  * Кошелёк Telegram Stars для ПОКУПОК на сайте (users.starsWallet). Отдельно от starsBalance — это
@@ -89,8 +88,7 @@ export async function fulfillStarsTopup(
     tx.update(topupRef, { status: "paid", paidAt: Date.now(), paidStars: paidAmount, telegramChargeId: payment.chargeId ?? null, payerTgId: payment.payerTgId ?? null });
     const mili = t.target === "mili";
     tx.set(db.collection("users").doc(t.uid), { [mili ? "miliWallet" : "starsWallet"]: FieldValue.increment(paidAmount) }, { merge: true });
-    const code = recordOp(db, tx, { type: "topup", from: null, to: t.uid, amount: paidAmount, ref: topupId, extra: { wallet: mili ? "mili" : "stars", payerTgId: payment.payerTgId ?? null, telegramChargeId: payment.chargeId ?? null } });
-    tx.set(db.collection(mili ? "miliWalletLog" : "starsWalletLog").doc(), { uid: t.uid, delta: paidAmount, type: "topup", ref: topupId, code, at: Date.now() });
+    tx.set(db.collection(mili ? "miliWalletLog" : "starsWalletLog").doc(), { uid: t.uid, delta: paidAmount, type: "topup", ref: topupId, at: Date.now() });
     return { already: false as const, uid: t.uid, amount: paidAmount, mili };
   });
 

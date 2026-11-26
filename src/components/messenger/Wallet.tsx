@@ -5,7 +5,7 @@ import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
 import { PageHeader, Spinner } from "./ui";
 
-type Row = { id: string; delta: number; type: string; name: string; code?: string | null; at: number };
+type Row = { id: string; delta: number; type: string; name: string; at: number };
 type WalletInfo = { wallet: number; plus: boolean; plusUntil: number | null; messagePrice: number; maxPrice: number; earned: number; log: Row[] };
 
 const LABEL: Record<string, string> = {
@@ -92,7 +92,6 @@ export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOp
 
             <div className="mx-card">
               <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Операции</p>
-              <p className="px-4 pb-2 text-[12.5px] mx-muted">У каждой операции есть код. Если вас обманули или что-то пошло не так, нажмите на код и отправьте его администратору: он увидит время, отправителя и получателя.</p>
               {info.log.length === 0 && <p className="mx-muted px-4 py-4 text-[14px]">Пока ничего нет</p>}
               {info.log.map((r) => (
                 <div key={r.id} className="px-4 py-2.5 flex items-center gap-3">
@@ -100,16 +99,6 @@ export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOp
                   <div className="min-w-0 flex-1">
                     <p className="text-[14.5px] truncate">{LABEL[r.type] ?? r.type}{r.name ? ` · ${r.name}` : ""}</p>
                     <p className="mx-muted text-[12px]">{new Date(r.at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}</p>
-                    {r.code && (
-                      <button
-                        onClick={() => { navigator.clipboard?.writeText(r.code!).then(() => toast("success", "Код скопирован")).catch(() => {}); }}
-                        className="mt-0.5 text-[12px] font-semibold tracking-wide active:opacity-60"
-                        style={{ color: "var(--mx-accent)" }}
-                        aria-label={`Скопировать код операции ${r.code}`}
-                      >
-                        {r.code} · копировать
-                      </button>
-                    )}
                   </div>
                   <span className="font-semibold shrink-0" style={{ color: r.delta >= 0 ? "#34c759" : "var(--mx-text)" }}>{r.delta > 0 ? "+" : ""}{r.delta} 🪙</span>
                 </div>

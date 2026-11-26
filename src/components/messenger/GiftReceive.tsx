@@ -100,9 +100,9 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
  * «Улучшить до NFT» и «Передать».
  */
 export function GiftReceiveSheet({
-  open, onClose, msgId, giftId, giftDocId, code, price, text, mine, anonymous, senderName, toName, me, toUid, nft: nftProp, onOpened,
+  open, onClose, msgId, giftId, giftDocId, price, text, mine, anonymous, senderName, toName, me, toUid, nft: nftProp, onOpened,
 }: {
-  open: boolean; onClose: () => void; msgId: string; giftId: string; giftDocId?: string; code?: string; price: number; text?: string;
+  open: boolean; onClose: () => void; msgId: string; giftId: string; giftDocId?: string; price: number; text?: string;
   mine: boolean; anonymous?: boolean; senderName: string; toName: string; me?: string; toUid?: string;
   nft?: GiftNft; // NFT, который пришёл вместе с сообщением (подарок-NFT или переданный)
   onOpened?: () => void; // получатель впервые открыл подарок
@@ -192,7 +192,7 @@ export function GiftReceiveSheet({
               <div style={{ margin: "12px 16px 0" }}>
                 <NftDetails
                   nft={curNft}
-                  rows={[["Владелец", mine ? toName : "Вы"], ["От кого", mine ? "Вы" : anonymous ? "Аноним" : senderName], ...(text ? [["Подпись", text] as [string, React.ReactNode]] : []), ...(code ? [["Код операции", code] as [string, React.ReactNode]] : [])]}
+                  rows={[["Владелец", mine ? toName : "Вы"], ["От кого", mine ? "Вы" : anonymous ? "Аноним" : senderName], ...(text ? [["Подпись", text] as [string, React.ReactNode]] : [])]}
                   value={curNft.upgraded ? nftValue(curNft, price) : undefined}
                 />
               </div>
@@ -202,7 +202,6 @@ export function GiftReceiveSheet({
                 <Row k="Кому" v={mine ? toName : "Вы"} />
                 <Row k="Цена" v={money(price)} />
                 {text && <Row k="Подпись" v={text} />}
-                {code && <Row k="Код операции" v={code} />}
               </div>
             )}
 

@@ -3,7 +3,7 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy } from "lucide-react";
+import { Check, CheckCheck, Clock, Eye, FileText, Play, Share2, AlertCircle, Loader2, CornerUpLeft, Copy, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { safeImageSrc } from "@/lib/safeImage";
 import { Avatar } from "./ui";
 import { GiftChatCard } from "./GiftChatCard";
@@ -15,6 +15,7 @@ import { StickerMedia } from "./StickerMedia";
 import { LinkPreview } from "./LinkPreview";
 import { mApi, MApiError } from "./api";
 import { useToast } from "@/lib/toastContext";
+import { callLogOf } from "@/lib/messenger/callTypes";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g;
 
@@ -230,6 +231,31 @@ function MessageRowImpl({
   const rowRef = useRef<HTMLDivElement>(null);
   const sw = useRef({ x: 0, y: 0, dx: 0, axis: "" as "" | "h" | "v", fired: false });
 
+  const callLog = msg.kind === "system" ? callLogOf(msg) : undefined;
+  if (callLog) {
+    // запись о голосовом звонке: «Исходящий звонок · 2:13», «Пропущенный звонок» и т.п. — с точки зрения того, кто смотрит
+    const c = callLog;
+    const out = c.from === me;
+    const dur = c.duration ? ` · ${formatDuration(c.duration)}` : "";
+    const missedIn = !out && (c.reason === "missed" || c.reason === "cancelled");
+    const label =
+      c.reason === "hangup" ? `${out ? "Исходящий" : "Входящий"} звонок${dur}`
+      : c.reason === "failed" ? `Звонок прервался${dur}`
+      : c.reason === "declined" ? (out ? "Звонок отклонён" : "Вы отклонили звонок")
+      : c.reason === "busy" ? (out ? "Абонент занят" : "Пропущенный звонок")
+      : c.reason === "cancelled" ? (out ? "Отменённый звонок" : "Пропущенный звонок")
+      : out ? "Нет ответа" : "Пропущенный звонок";
+    const bad = missedIn || (!out && c.reason === "busy");
+    return (
+      <div className="flex justify-center my-2" data-mid={msg.id}>
+        <span className="text-[13px] pl-2.5 pr-3.5 py-1.5 rounded-full mx-glass inline-flex items-center gap-1.5" style={{ color: bad ? "var(--mx-danger)" : undefined }}>
+          {out ? <PhoneOutgoing size={15} /> : bad ? <PhoneMissed size={15} /> : <PhoneIncoming size={15} />}
+          {label}
+        </span>
+      </div>
+    );
+  }
+
   if (msg.kind === "system") {
     return (
       <div className="flex justify-center my-2" data-mid={msg.id}>
@@ -241,7 +267,7 @@ function MessageRowImpl({
   if (msg.kind === "gift" && msg.gift) {
     return (
       <div data-mid={msg.id}>
-        <GiftChatCard msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} code={msg.gift.code} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} me={me} toUid={msg.gift.to} />
+        <GiftChatCard msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} me={me} toUid={msg.gift.to} />
       </div>
     );
   }

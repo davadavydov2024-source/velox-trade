@@ -4,7 +4,6 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { isPlus } from "./premium";
 import type { MessengerAccount, MessengerChat } from "./types";
 import type { MessengerAuth } from "./server";
-import { ledger } from "@/lib/messenger/ops";
 
 /**
  * Платные сообщения («Премиум Плюс»): владелец ставит цену в 🪙 за входящее сообщение.
@@ -37,10 +36,8 @@ export async function chargePaidMessage(chat: MessengerChat, me: MessengerAuth):
       if (have < c.price) throw new Error("not-enough");
       tx.set(from, { miliWallet: FieldValue.increment(-c.price) }, { merge: true });
       tx.set(to, { miliWallet: FieldValue.increment(c.price) }, { merge: true });
-      ledger(db, tx, { type: "paid_message", from: me.uid, to: c.peer, amount: c.price, ref: chat.id, at: now }, [
-        { uid: me.uid, delta: -c.price, type: "paid_message_out", ref: c.peer, name: peerName, at: now },
-        { uid: c.peer, delta: c.price, type: "paid_message_in", ref: me.uid, name: me.account.displayName, at: now },
-      ]);
+      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -c.price, type: "paid_message_out", ref: c.peer, name: peerName, at: now });
+      tx.set(db.collection("miliWalletLog").doc(), { uid: c.peer, delta: c.price, type: "paid_message_in", ref: me.uid, name: me.account.displayName, at: now });
     });
   } catch (e) {
     if ((e as Error)?.message === "not-enough") {
@@ -58,10 +55,8 @@ export async function refundPaidMessage(meUid: string, c: PaidCharge): Promise<v
   await db.runTransaction(async (tx) => {
     tx.set(db.collection("users").doc(meUid), { miliWallet: FieldValue.increment(c.price) }, { merge: true });
     tx.set(db.collection("users").doc(c.peer), { miliWallet: FieldValue.increment(-c.price) }, { merge: true });
-    ledger(db, tx, { type: "paid_message_refund", from: c.peer, to: meUid, amount: c.price, at: now }, [
-      { uid: meUid, delta: c.price, type: "paid_message_refund", ref: c.peer, at: now },
-      { uid: c.peer, delta: -c.price, type: "paid_message_refund", ref: meUid, at: now },
-    ]);
+    tx.set(db.collection("miliWalletLog").doc(), { uid: meUid, delta: c.price, type: "paid_message_refund", ref: c.peer, at: now });
+    tx.set(db.collection("miliWalletLog").doc(), { uid: c.peer, delta: -c.price, type: "paid_message_refund", ref: meUid, at: now });
   });
 }
 

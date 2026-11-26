@@ -2,7 +2,6 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { HANDLE_RE, RESERVED_HANDLES, dmChatId, postMessage, type MessengerAuth } from "./server";
 import type { MessengerAccount, MessengerChat } from "./types";
-import { ledger } from "@/lib/messenger/ops";
 
 /**
  * Конструктор ботов (как @BotFather в Telegram, но без кода): человек задаёт имя, @юзернейм (на «bot»),
@@ -142,7 +141,7 @@ export async function hostBot(ownerUid: string, id: string): Promise<number> {
     until = Math.max(Date.now(), b.hostedUntil) + BOT_HOST_DAYS * DAY;
     tx.set(uRef, { miliWallet: FieldValue.increment(-BOT_HOST_PRICE) }, { merge: true });
     tx.update(bRef, { hostedUntil: until, updatedAt: Date.now() });
-    ledger(db, tx, { type: "bot_host", from: ownerUid, to: null, amount: BOT_HOST_PRICE, ref: id, name: `@${b.handle}` }, [{ uid: ownerUid, delta: -BOT_HOST_PRICE, type: "bot_host", ref: id, name: `@${b.handle}` }]);
+    tx.set(db.collection("miliWalletLog").doc(), { uid: ownerUid, delta: -BOT_HOST_PRICE, type: "bot_host", ref: id, name: `@${b.handle}`, at: Date.now() });
   });
   return until;
 }

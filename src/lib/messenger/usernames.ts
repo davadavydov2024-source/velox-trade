@@ -1,7 +1,6 @@
 import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { RESERVED_HANDLES } from "./server";
-import { recordOp } from "@/lib/messenger/ops";
 
 /**
  * Премиум-юзернеймы («коллекционные @имена»): 2–24 символа, a-z/0-9/_, первая — буква.
@@ -29,8 +28,8 @@ const uref = (db: Firestore, n: string) => db.collection("messengerUsernames").d
 const href = (db: Firestore, n: string) => db.collection("messengerHandles").doc(n);
 const aref = (db: Firestore, u: string) => db.collection("messengerAccounts").doc(u);
 const wref = (db: Firestore, u: string) => db.collection("users").doc(u);
-const log = (db: Firestore, tx: Transaction, uid: string, delta: number, type: string, name: string, code?: string) =>
-  tx.set(db.collection("miliWalletLog").doc(), { uid, delta, type, ref: name, name: `@${name}`, ...(code ? { code } : {}), at: Date.now() });
+const log = (db: Firestore, tx: Transaction, uid: string, delta: number, type: string, name: string) =>
+  tx.set(db.collection("miliWalletLog").doc(), { uid, delta, type, ref: name, name: `@${name}`, at: Date.now() });
 
 export const validName = (n: unknown): n is string => typeof n === "string" && PREMIUM_RE.test(n) && !RESERVED_HANDLES.has(n);
 const rentedNow = (d: UsernameDoc) => !!d.renterUid && (d.rentUntil ?? 0) > Date.now();
@@ -76,8 +75,7 @@ export async function buyShop(name: string, uid: string) {
     if (d.ownerUid || !d.shopPrice) throw new UErr("Этот юзернейм уже продан", 409);
     if ((await getWallet(tx, db, uid)) < d.shopPrice) throw new UErr(`Не хватает монет: нужно ${d.shopPrice} 🪙`, 402);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-d.shopPrice) }, { merge: true });
-    const code = recordOp(db, tx, { type: "username_buy", from: uid, to: null, amount: d.shopPrice, ref: name, name: `@${name}` });
-    log(db, tx, uid, -d.shopPrice, "username_buy", name, code);
+    log(db, tx, uid, -d.shopPrice, "username_buy", name);
     tx.update(uref(db, name), { ownerUid: uid, shopPrice: null, boughtAt: Date.now() });
     tx.set(href(db, name), { premium: true, uid }); // @имя ведёт на владельца, даже если он не сделал его основным
   });
@@ -98,9 +96,8 @@ export async function buyResale(name: string, uid: string) {
     const get = price - fee(price);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
     tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
-    const code = recordOp(db, tx, { type: "username_sale", from: uid, to: owner, amount: price, ref: name, name: `@${name}`, extra: { payout: get, fee: price - get } });
-    log(db, tx, uid, -price, "username_buy", name, code);
-    log(db, tx, owner, get, "username_sale", name, code);
+    log(db, tx, uid, -price, "username_buy", name);
+    log(db, tx, owner, get, "username_sale", name);
     tx.update(uref(db, name), { ownerUid: uid, salePrice: null, rentPerDay: null, usedBy: null });
     tx.set(href(db, name), { premium: true, uid });
   });
@@ -120,9 +117,8 @@ export async function rentName(name: string, uid: string, days: number) {
     const get = price - fee(price);
     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
     tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
-    const code = recordOp(db, tx, { type: "username_rent", from: uid, to: owner, amount: price, ref: name, name: `@${name}`, extra: { days, payout: get, fee: price - get } });
-    log(db, tx, uid, -price, "username_rent_out", name, code);
-    log(db, tx, owner, get, "username_rent_in", name, code);
+    log(db, tx, uid, -price, "username_rent_out", name);
+    log(db, tx, owner, get, "username_rent_in", name);
     tx.update(uref(db, name), { renterUid: uid, rentUntil: (extending ? (d.rentUntil as number) : Date.now()) + days * DAY });
   });
 }
