@@ -1,18 +1,28 @@
 "use client";
 
+import { UsernameRow } from "./Usernames";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, ChevronRight, Copy, FileText, Gift, LogOut, MessageCircle, Search, Settings, Shield, Users, Pencil } from "lucide-react";
+import { Bell, BellOff, BadgeCheck, Bookmark, Calendar, ChevronRight, Copy, Crown, Eye, FileText, Gem, Gift, Hash, Link2, LogOut, MessageCircle, Pencil, Search, Settings, Shield, Sparkles, Star, Users, X } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi } from "./api";
-import { Avatar, Sheet, Spinner, VerifiedBadge } from "./ui";
+import { Avatar, Sheet, Spinner, TagChip, VerifiedBadge, VerifyMark } from "./ui";
+import { markKind, verifyMeta } from "@/lib/messenger/marks";
 import { StatusBadge } from "./StatusBadge";
+import { Achievements } from "./Achievements";
+import { BadgeDot, InfoLine, InfoRow, LinkChip, ProfileCard, ProfileHeader, ProfileRoundBtn, ProfileShell, ProfileTabs, ProfileTile, fmtCount, profileBadges, useProfileGifts } from "./ProfileHeader";
+import { PostsTab } from "./Posts";
+import { ProfileMusic } from "./ProfileMusic";
+import { NumberTierChip } from "./Numbers";
+import { formatNumber, numberTier } from "@/lib/messenger/numbers";
 import { GiftShopSheet, GiftsProfileTab } from "./Gifts";
 import { ChannelSettingsSheet, ContactEditSheet, PeopleListSheet } from "./ChannelAdmin";
+import { BotCreatorRow } from "./AdminBots";
+import { isAdminUid } from "@/lib/isAdmin";
 import { MAccount, MChat, MMessage } from "./mtypes";
 import { birthdayText, chatPhoto, chatTitle, formatTime, isSavedMessages, isVideoUrl, lastSeenText, peerUid, plural } from "./util";
 
-type Tab = "stories" | "gifts" | "media" | "files" | "links" | "polls";
-const TAB_LABEL: Record<Tab, string> = { stories: "Публикации", gifts: "Подарки 🎁", media: "Медиа", files: "Файлы", links: "Ссылки", polls: "Опросы" };
+type Tab = "stories" | "gifts" | "posts" | "media" | "files" | "links" | "polls";
+const TAB_LABEL: Record<Tab, string> = { stories: "Истории", gifts: "Подарки", posts: "Посты", media: "Медиа", files: "Файлы", links: "Ссылки", polls: "Опросы" };
 const URL_RE = /https?:\/\/[^\s<]+[^\s<.,;:!?)"']/g;
 
 function Tile({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
@@ -43,14 +53,14 @@ function ProfileChannelCard({ handle }: { handle: string }) {
   if (!c) return null;
   const last = c.posts[c.posts.length - 1];
   return (
-    <div className="px-4 mb-4">
-      <div className="flex justify-between px-3 mb-1.5 text-[13px] uppercase tracking-wide mx-muted"><span>Канал</span><span className="normal-case">{c.subscribers} {plural(c.subscribers, "подписчик", "подписчика", "подписчиков")}</span></div>
-      <a href={`/m?join=@${handle}`} className="mx-card flex items-center gap-3 px-4 py-3">
-        <Avatar src={c.photoURL} name={c.title} seed={handle} size={52} />
+    <div className="px-4 mb-3">
+      <a href={`/m?join=@${handle}`} className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 24, background: "var(--mx-surface)" }}>
+        <Avatar src={c.photoURL} name={c.title} seed={handle} size={46} />
         <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-2"><p className="font-semibold truncate">{c.title}</p>{last && <span className="mx-muted text-[12.5px] shrink-0">{formatTime(last.createdAt)}</span>}</div>
-          <p className="mx-muted text-[14px] line-clamp-2">{last ? last.text || (last.kind === "image" ? "📷 Фото" : "Публикация") : "Пока нет публикаций"}</p>
+          <p className="font-extrabold truncate text-[16px]">{c.title}</p>
+          <p className="mx-muted text-[13.5px] truncate">{last ? last.text || (last.kind === "image" ? "Фото" : "Публикация") : "Пока нет публикаций"}</p>
         </div>
+        <span className="shrink-0 px-3 py-1 rounded-full text-[12px] font-bold" style={{ background: "var(--mx-surface2)" }}>{c.subscribers} {plural(c.subscribers, "подписчик", "подписчика", "подписчиков")}</span>
       </a>
     </div>
   );
@@ -59,10 +69,12 @@ function ProfileChannelCard({ handle }: { handle: string }) {
 type StoryThumb = { id: string; kind: "image" | "video"; mediaUrl: string; createdAt: number };
 
 export function ChatInfoSheet({
-  open, onClose, chat, me, accounts, peer, isAdmin, onLeave, messages = [], muted = false, onToggleMute, onSearch,
+  open, onClose, chat, me, accounts, peer, isAdmin, onLeave, messages = [], muted = false, onToggleMute, onSearch, preview = false,
 }: {
   open: boolean; onClose: () => void; chat: MChat; me: string; accounts: Record<string, MAccount | null | undefined>; peer: MAccount | null; isAdmin: boolean; onLeave: () => void;
   messages?: MMessage[]; muted?: boolean; onToggleMute?: () => void; onSearch?: () => void;
+  /** «Как видят другие»: профиль без кнопок редактирования, без счётчика просмотров и личных заметок */
+  preview?: boolean;
 }) {
   const { toast } = useToast();
   const isDm = chat.type === "dm";
@@ -70,8 +82,15 @@ export function ChatInfoSheet({
   const baseTitle = chatTitle(chat, me, accounts);
   const photo = chatPhoto(chat, me, accounts);
   const peerId = isDm ? peerUid(chat, me) : "";
+  const profileGifts = useProfileGifts(isDm && !saved ? peerId : null);
+  const orbit = profileGifts?.filter((g) => g.pinned && !g.hidden) ?? [];
+  const nftCount = profileGifts?.filter((g) => g.nft).length ?? 0;
+  const badgeList = isDm && !saved ? profileBadges(peer, nftCount, !!peer?.number && numberTier(peer.number) !== "common") : [];
+  const BADGE_ICON = { check: <BadgeCheck size={17} />, star: <Star size={16} fill="currentColor" />, crown: <Crown size={16} />, spark: <Sparkles size={16} />, hash: <Hash size={16} />, gem: <Gem size={16} /> };
+  // «посмотрел профиль» — счётчик просмотров (свои и частые повторы сервер не считает)
+  useEffect(() => { if (open && isDm && !saved && peerId && !preview) mApi("profile-view", { uid: peerId }).catch(() => {}); }, [open, isDm, saved, peerId]);
 
-  const tabs: Tab[] = isDm ? (saved ? ["media", "files", "links"] : ["stories", "gifts", "media", "files", "links"]) : ["media", "files", "links", "polls"];
+  const tabs: Tab[] = isDm ? (saved ? ["media", "files", "links"] : ["gifts", "posts", "stories", "media", "files", "links"]) : ["media", "files", "links", "polls"];
   const [tab, setTab] = useState<Tab>(tabs[0]);
   const [shop, setShop] = useState(false);
   const [edit, setEdit] = useState(false);
@@ -82,7 +101,7 @@ export function ChatInfoSheet({
 
   useEffect(() => { if (open) setTab(tabs[0]); }, [open, chat.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!open || !isDm || saved) return;
+    if (!open || !isDm || saved || preview) return;
     mApi<typeof contact>(`contact?uid=${encodeURIComponent(peerId)}`).then(setContact).catch(() => {});
     mApi<{ stories: StoryThumb[] }>(`stories?uid=${encodeURIComponent(peerId)}`).then((d) => setStories(d.stories ?? [])).catch(() => setStories([]));
   }, [open, isDm, saved, peerId]);
@@ -99,54 +118,66 @@ export function ChatInfoSheet({
   const link = !isDm && chat.handle ? `${typeof location !== "undefined" ? location.origin : ""}/m?join=@${chat.handle}` : "";
   const copy = (text: string, ok: string) => navigator.clipboard?.writeText(text).then(() => toast("success", ok)).catch(() => {});
   const bday = birthdayText(peer?.birthday);
+  const bioLinks = Array.from(new Set((peer?.bio?.match(URL_RE) ?? []).slice(0, 3)));
+  const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 
   const empty = (t: string) => <p className="mx-muted text-center text-[14px] py-8 px-6">{t}</p>;
 
   return (
     <Sheet open={open} onClose={() => { onClose(); }} full>
-      <div className="relative">
-        {isDm && peer?.bannerURL && (
-          <div className="mx-4 mt-2 h-28 rounded-2xl overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={peer.bannerURL} alt="" className="w-full h-full object-cover" />
-          </div>
-        )}
-        {((isDm && !saved) || (!isDm && isAdmin)) && (
-          <button onClick={() => (isDm ? setEdit(true) : setSettings(true))} className="absolute right-4 top-1 h-9 px-4 rounded-full text-[15px] font-semibold flex items-center gap-1.5" style={{ background: "var(--mx-surface2)", color: "var(--mx-accent)" }}>
-            <Pencil size={14} /> Изм.
-          </button>
-        )}
-      </div>
-      <div className={`flex flex-col items-center ${isDm && peer?.bannerURL ? "-mt-10" : "pt-3"} pb-4 px-6`}>
-        <Avatar src={photo} name={title} seed={isDm ? peerId : chat.id} size={100}>{saved ? "🔖" : undefined}</Avatar>
-        <p className="text-[22px] font-semibold mt-3 flex items-center gap-1.5">{title} {isDm && peer?.verified && <VerifiedBadge size={18} />}{isDm && <StatusBadge acc={peer} size={20} />}</p>
-        {isDm && !saved && <p className="mx-muted text-[14px]">{lastSeenText(peer)}</p>}
-        {!isDm && <p className="mx-muted text-[14px]">{chat.members.length} {chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}</p>}
+      <ProfileShell>
+      <ProfileHeader
+        seed={isDm ? peerId : chat.id}
+        name={title}
+        photo={photo}
+        account={isDm ? peer : null}
+        avatarFallback={saved ? <Bookmark size={44} /> : undefined}
+        badges={<><VerifyMark acc={isDm ? peer : chat} size={20} /><TagChip acc={isDm ? peer : chat} light />{isDm && <StatusBadge acc={peer} size={20} />}</>}
+        orbit={orbit}
+        statusPill={isDm && !saved ? lastSeenText(peer) : undefined}
+        subtitle={isDm ? undefined : `${chat.members.length} ${chat.type === "channel" ? plural(chat.members.length, "подписчик", "подписчика", "подписчиков") : plural(chat.members.length, "участник", "участника", "участников")}`}
+        topRight={<>{!preview && ((isDm && !saved) || (!isDm && isAdmin)) && <ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => (isDm ? setEdit(true) : setSettings(true))} />}<ProfileRoundBtn icon={<X size={19} />} label="Закрыть" onClick={onClose} /></>}
+      />
+
+      <div className="flex gap-2 px-4 py-3">
+        {isDm && !saved && <ProfileTile icon={<MessageCircle size={22} />} label="Чат" onClick={onClose} />}
+        {isDm && !saved && <ProfileTile icon={<Gift size={22} />} label="Подарок" onClick={() => setShop(true)} />}
+        <ProfileTile icon={muted ? <BellOff size={22} /> : <Bell size={22} />} label={muted ? "Включить" : "Звук"} onClick={() => { onToggleMute?.(); onClose(); }} />
+        <ProfileTile icon={<Search size={22} />} label="Поиск" onClick={() => { onClose(); onSearch?.(); }} />
+        {!isDm && <ProfileTile icon={<LogOut size={22} />} label={chat.type === "channel" ? "Отписаться" : "Выйти"} onClick={() => { onClose(); onLeave(); }} />}
       </div>
 
-      <div className="flex gap-2 px-4 mb-4">
-        {isDm && !saved && <Tile icon={<MessageCircle size={22} />} label="чат" onClick={onClose} />}
-        {isDm && !saved && <Tile icon={<Gift size={22} />} label="подарок" onClick={() => setShop(true)} />}
-        <Tile icon={muted ? <BellOff size={22} /> : <Bell size={22} />} label={muted ? "вкл. звук" : "звук"} onClick={() => { onToggleMute?.(); onClose(); }} />
-        <Tile icon={<Search size={22} />} label="поиск" onClick={() => { onClose(); onSearch?.(); }} />
-        {!isDm && <Tile icon={<LogOut size={22} />} label={chat.type === "channel" ? "отписаться" : "выйти"} onClick={() => { onClose(); onLeave(); }} />}
-      </div>
-
+      {isDm && !saved && peer && <Achievements acc={peer} />}
+      {isDm && !saved && peer?.profileTrack && <ProfileMusic trackId={peer.profileTrack} />}
       {isDm && peer?.channelHandle && <ProfileChannelCard handle={peer.channelHandle} />}
 
-      {(peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
-        <div className="mx-card" style={{ margin: "0 16px 16px" }}>
-          {link && <button className="w-full px-4 py-3 text-left" onClick={() => copy(link, "Ссылка скопирована")}><p className="mx-muted text-[12.5px]">ссылка</p><p className="truncate" style={{ color: "var(--mx-accent)" }}>{link}</p></button>}
-          {peer?.handle && (
-            <button className="w-full px-4 py-3 text-left flex items-center justify-between" onClick={() => copy(`@${peer.handle}`, "Скопировано")}>
-              <span><span className="mx-muted text-[12.5px] block">имя пользователя</span><span style={{ color: "var(--mx-accent)" }}>@{peer.handle}</span></span><Copy size={16} className="mx-muted" />
-            </button>
+      {((isDm && !saved && peer) || peer?.number || peer?.handle || peer?.bio || chat.description || bday || link || contact?.note) && (
+        <ProfileCard title="Информация">
+          {isDm && !saved && peer?.bot && peerId && isAdminUid(me) && <BotCreatorRow botUid={peerId} onCopy={copy} />}
+          {peer?.number && <InfoRow icon={<Hash size={19} />} value={formatNumber(peer.number)} label="Номер" onClick={() => copy(formatNumber(peer.number as string), "Номер скопирован")} right={<NumberTierChip digits={peer.number} />} />}
+          {peer?.handle && peerId && <UsernameRow uid={peerId} handle={peer.handle} onCopy={(t) => copy(t, "Скопировано")} />}
+          {link && <InfoRow icon={<Link2 size={19} />} value={link} label="Ссылка" accent onClick={() => copy(link, "Ссылка скопирована")} />}
+          {peer?.bio && <InfoRow icon={<FileText size={19} />} value={peer.bio} label="О себе" />}
+          {bday && <InfoRow icon={<Calendar size={19} />} value={bday} label="День рождения" />}
+          {chat.description && <InfoRow icon={<FileText size={19} />} value={chat.description} label="Описание" />}
+          {contact?.note && <InfoRow icon={<Pencil size={18} />} value={contact.note} label="Заметка (видите только вы)" />}
+          {badgeList.length > 0 && (
+            <div className="px-5 py-2">
+              <div className="flex gap-2 flex-wrap">
+                {badgeList.map((bd) => <BadgeDot key={bd.key} color={bd.color} title={bd.label}>{BADGE_ICON[bd.icon]}</BadgeDot>)}
+              </div>
+              <span className="block text-[13px] mx-muted mt-1.5">Значки</span>
+            </div>
           )}
-          {bday && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">день рождения</p><p>{bday}</p></div>}
-          {peer?.bio && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">о себе</p><p className="whitespace-pre-wrap">{peer.bio}</p></div>}
-          {chat.description && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">описание</p><p className="whitespace-pre-wrap">{chat.description}</p></div>}
-          {contact?.note && <div className="px-4 py-3"><p className="mx-muted text-[12.5px]">заметка (видите только вы)</p><p className="whitespace-pre-wrap">{contact.note}</p></div>}
-        </div>
+          {bioLinks.length > 0 && (
+            <div className="px-5 py-1.5 flex flex-wrap gap-2">
+              {bioLinks.map((u) => <LinkChip key={u} href={u} label={hostOf(u)} icon={<Link2 size={15} />} />)}
+            </div>
+          )}
+          {isDm && !saved && peer?.createdAt ? <InfoLine icon={<Calendar size={15} />}>{`На MiliGram с ${new Date(peer.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })} г.`}</InfoLine> : null}
+          {isDm && !saved && peer?.numId ? <InfoRow value={`ID: ${peer.numId}`} label="Идентификатор" /> : null}
+          {isDm && !saved && typeof peer?.views === "number" && peer.views > 0 ? <InfoLine icon={<Eye size={16} />}>{fmtCount(peer.views)}</InfoLine> : null}
+        </ProfileCard>
       )}
 
       {!isDm && (
@@ -158,16 +189,18 @@ export function ChatInfoSheet({
         </div>
       )}
 
-      <div className="px-4 mb-3">
-        <div className="flex gap-1 p-1 rounded-full overflow-x-auto mx-noscrollbar" style={{ background: "var(--mx-surface2)" }}>
-          {tabs.map((t) => (
-            <button key={t} onClick={() => setTab(t)} className="flex-1 shrink-0 px-4 py-2 rounded-full text-[14.5px] font-semibold whitespace-nowrap" style={{ background: tab === t ? "var(--mx-surface)" : "transparent", color: tab === t ? "var(--mx-text)" : "var(--mx-muted)" }}>{TAB_LABEL[t]}</button>
-          ))}
-        </div>
-      </div>
+      {(() => {
+        const o = isDm ? peer : chat;
+        const k = markKind(o);
+        if (!k) return null;
+        return <p className="px-5 pb-3 text-[13px] mx-muted flex gap-2 items-start"><VerifiedBadge size={16} kind={k} /><span>{o?.verifyText || verifyMeta(k).desc}</span></p>;
+      })()}
+
+      <ProfileTabs tabs={tabs} value={tab} onChange={setTab} labels={TAB_LABEL} />
 
       <div className="pb-24">
         {tab === "gifts" && isDm && !saved && <GiftsProfileTab uid={peerId} mine={false} name={title} />}
+        {tab === "posts" && isDm && !saved && <PostsTab uid={peerId} mine={false} />}
         {tab === "stories" && (stories === null ? <div className="flex justify-center py-8"><Spinner /></div> : stories.length === 0 ? empty("Нет публикаций") : (
           <div className="grid grid-cols-3 gap-1 px-4">
             {stories.map((s) => (
@@ -200,7 +233,7 @@ export function ChatInfoSheet({
         ))}
         {tab === "polls" && (polls.length === 0 ? empty("Опросов пока нет") : (
           <div className="mx-card" style={{ margin: "0 16px" }}>
-            {polls.map((m) => <div key={m.id} className="px-4 py-3"><p>📊 {m.poll?.question ?? m.text}</p><p className="mx-muted text-[12.5px]">{m.poll?.total ?? 0} {plural(m.poll?.total ?? 0, "голос", "голоса", "голосов")} · {formatTime(m.createdAt)}</p></div>)}
+            {polls.map((m) => <div key={m.id} className="px-4 py-3"><p>{m.poll?.question ?? m.text}</p><p className="mx-muted text-[12.5px]">{m.poll?.total ?? 0} {plural(m.poll?.total ?? 0, "голос", "голоса", "голосов")} · {formatTime(m.createdAt)}</p></div>)}
           </div>
         ))}
       </div>
@@ -209,6 +242,7 @@ export function ChatInfoSheet({
       {isDm && !saved && <ContactEditSheet open={edit} onClose={() => setEdit(false)} uid={peerId} account={peer} onSaved={(c) => setContact(c)} />}
       {!isDm && <PeopleListSheet open={!!list} onClose={() => setList(null)} chat={chat} me={me} mode={list ?? "members"} canManage={isAdmin} />}
       {!isDm && isAdmin && <ChannelSettingsSheet open={settings} onClose={() => setSettings(false)} chat={chat} me={me} onCounts={(k) => setList(k)} />}
+      </ProfileShell>
     </Sheet>
   );
 }

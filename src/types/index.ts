@@ -395,6 +395,7 @@ export interface UserProfile {
   // Кошелёк ⭐ для ПОКУПОК на сайте: пополняется оплатой счёта в боте (lib/starsWallet.ts), тратится на
   // товары за Stars. Не выводится (в отличие от starsBalance — заработка с продаж).
   starsWallet?: number;
+  miliWallet?: number; // отдельный кошелёк ⭐ мессенджера MiliGram (подарки, Премиум, юзернеймы, платные сообщения)
   // Баннер (обложка) профиля — может ставить ТОЛЬКО администратор и только себе
   // (см. api/profile/banner, components/ProfileBanner). Видно всем на публичной странице профиля.
   bannerURL?: string | null;

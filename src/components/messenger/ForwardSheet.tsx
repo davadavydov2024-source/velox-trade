@@ -32,7 +32,7 @@ export function ForwardSheet({
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   return (
-    <Sheet open={open} onClose={() => { onClose(); setPicked([]); setQ(""); }} title={picked.length ? `Переслать · выбрано ${picked.length}` : "Переслать"} full>
+    <Sheet open={open} onClose={() => { onClose(); setPicked([]); setQ(""); }} title="Переслать" full>
       <div className="px-4 pb-2">
         <div className="flex items-center gap-2 rounded-xl px-3 h-10" style={{ background: "var(--mx-surface2)" }}>
           <Search size={17} className="mx-muted" />
@@ -44,14 +44,14 @@ export function ForwardSheet({
           const on = picked.includes(c.id);
           const title = chatTitle(c, me, accounts);
           return (
-            <button key={c.id} onClick={() => toggle(c.id)} className={`mx-chat-row w-full flex items-center gap-3 px-4 py-2.5 text-left ${on ? "sel" : ""}`}>
-              <div className={`mx-av-sel ${on ? "on" : ""}`}>
-                <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={48}>
-                  {isSavedMessages(c, me) ? "🔖" : undefined}
-                </Avatar>
-                <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
-              </div>
-              <span className="flex-1 truncate text-[16px]" style={{ fontWeight: on ? 600 : 500 }}>{title}{c.id === currentChatId ? " (этот чат)" : ""}</span>
+            <button key={c.id} onClick={() => toggle(c.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-white/5">
+              <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={44}>
+                {isSavedMessages(c, me) ? "🔖" : undefined}
+              </Avatar>
+              <span className="flex-1 truncate">{title}{c.id === currentChatId ? " (этот чат)" : ""}</span>
+              <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center" style={{ borderColor: on ? "var(--mx-accent)" : "var(--mx-muted)", background: on ? "var(--mx-accent)" : "transparent" }}>
+                {on && <Check size={14} color="var(--mx-accent-text)" />}
+              </span>
             </button>
           );
         })}

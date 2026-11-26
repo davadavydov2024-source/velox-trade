@@ -13,7 +13,7 @@ const NEAR_BOTTOM_PX = 120;
  *  - кнопка "вниз" видна, пока чат прокручен вверх.
  * Использование: const s = useChatScroll(ref, messages.length, extraDep); <div ref={ref} onScroll={s.onScroll}> ... <ScrollToBottomButton {...s.button} />
  */
-export function useChatScroll(ref: RefObject<HTMLDivElement>, messagesLength: number, extraDep?: unknown) {
+export function useChatScroll(ref: RefObject<HTMLDivElement | null>, messagesLength: number, extraDep?: unknown) {
   const [atBottom, setAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
   const atBottomRef = useRef(true);

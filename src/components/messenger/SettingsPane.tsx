@@ -1,28 +1,50 @@
-﻿"use client";
+"use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText } from "lucide-react";
+import { Eye, AtSign, Cake, Megaphone, Phone, X, Bell, Camera, Check, ChevronRight, Database, Folder, Keyboard, Languages, LockKeyhole, LogOut, Settings, Smartphone, Sticker, Trash2, Plus, Laptop, Download, Star, Gift, Shield, FileText, Music2, Hash, Pencil, MessageSquare, ShoppingBag, Bot } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toastContext";
 import { PushToggleCard } from "@/components/PushToggleCard";
 import { getDeviceId } from "@/lib/messenger/client";
 import { isPremium } from "@/lib/messenger/premium";
+import { PAY_DOCS, PLUS_PRICE_RUB, PREMIUM_PRICE_RUB } from "@/lib/messenger/pricing";
 import { mApi, mUpload, MApiError } from "./api";
 import { GiftsProfileTab } from "./Gifts";
 import { PerksList, StatusPicker } from "./PremiumExtras";
 import { StickersSettings } from "./StickersUI";
 import { AdminPanel } from "./AdminPanel";
+import { MusicPage } from "./MusicPage";
 import { isAdminUid } from "@/lib/isAdmin";
-import { Avatar, IconBox, PageHeader, Section, Sheet, Switch, VerifiedBadge } from "./ui";
+import { Avatar, IconBox, PageHeader, Section, Sheet, Spinner, Switch, TagChip, VerifiedBadge, VerifyMark } from "./ui";
 import { StatusBadge } from "./StatusBadge";
-import { ACCENT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
-import { MAccount, MFolder, MFolderType } from "./mtypes";
+import { UsernameRow, UsernamesPage } from "./Usernames";
+import { ProfileHeader, ProfileRoundBtn, ProfileShell, useProfileGifts } from "./ProfileHeader";
+import { PostsTab } from "./Posts";
+import { ShopSheet } from "./Shop";
+import { ProfileTrackPicker } from "./ProfileMusic";
+import { ChatInfoSheet } from "./ChatInfoSheet";
+import { AppLockSettings } from "./AppLockSettings";
+import { QuietHoursCard } from "./QuietHours";
+import { PromoSheet } from "./PromoSheet";
+import { Achievements } from "./Achievements";
+import { AccountSecurity } from "./AccountSecurity";
+import { AppDownloads } from "./AppDownloads";
+import { AppIconPicker } from "./AppIconPicker";
+import { NumbersSheet, NumberTierChip } from "./Numbers";
+import { formatNumber } from "@/lib/messenger/numbers";
+import { WalletPage, startTopup } from "./Wallet";
+import { BalanceCard } from "./BalanceCard";
+import { BotsPage } from "./Bots";
+import { UsernamePage } from "./UsernamePage";
+import { ACCENT_CHOICES, FONT_CHOICES, MxTheme, useMxPrefs } from "./prefs";
+import { isHex } from "./color";
+import { MAccount, MChat, MFolder, MFolderType } from "./mtypes";
 
-export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs";
+export type Page = null | "notifications" | "data" | "privacy" | "general" | "folders" | "stickers" | "devices" | "language" | "hotkeys" | "premium" | "admin" | "docs" | "wallet" | "music" | "usernames" | "appicon" | "bots" | "username";
 
 function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; color: string; label: string; value?: string; onClick?: () => void; right?: ReactNode }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-3.5 px-4 py-3 text-left active:bg-white/5">
+    <button onClick={onClick} className="w-full flex items-center gap-4 px-5 py-3.5 text-left active:bg-white/5">
       <IconBox color={color}>{icon}</IconBox>
       <span className="flex-1 text-[16px]">{label}</span>
       {value && <span className="mx-muted text-[15px]">{value}</span>}
@@ -32,6 +54,7 @@ function Row({ icon, color, label, value, onClick, right }: { icon: ReactNode; c
   );
 }
 
+/** Квадратная обрезка по центру до 512 px — аватарка без отдельного окна обрезки. */
 /** Обрезка по центру под баннер 3:1 (1200×400). */
 async function bannerCrop(file: File): Promise<Blob> {
   const bmp = await createImageBitmap(file);
@@ -46,7 +69,6 @@ async function bannerCrop(file: File): Promise<Blob> {
   return await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("Не удалось обработать картинку"))), "image/jpeg", 0.88));
 }
 
-/** Квадратная обрезка по центру до 512 px — аватарка без отдельного окна обрезки. */
 async function squareAvatar(file: File): Promise<Blob> {
   const url = URL.createObjectURL(file);
   try {
@@ -66,10 +88,9 @@ async function squareAvatar(file: File): Promise<Blob> {
   }
 }
 
-function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () => void; account: MAccount }) {
+function ProfileEditor({ open, onClose, account, onLogout, onUsername }: { open: boolean; onClose: () => void; account: MAccount; onLogout: () => void; onUsername?: () => void }) {
   const { toast } = useToast();
   const [name, setName] = useState(account.displayName);
-  const [handle, setHandle] = useState(account.handle);
   const [bio, setBio] = useState(account.bio ?? "");
   const [birthday, setBirthday] = useState(account.birthday ?? "");
   const [channel, setChannel] = useState(account.channelHandle ?? "");
@@ -80,7 +101,6 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
   useEffect(() => {
     if (open) {
       setName(account.displayName);
-      setHandle(account.handle);
       setBio(account.bio ?? "");
       setBirthday(account.birthday ?? "");
       setChannel(account.channelHandle ?? "");
@@ -90,7 +110,7 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
   const save = async (extra: Record<string, unknown> = {}) => {
     setBusy(true);
     try {
-      await mApi("profile", { displayName: name.trim(), handle: handle.trim().replace(/^@/, ""), bio: bio.trim(), birthday: birthday || undefined, channelHandle: channel.trim().replace(/^@/, ""), ...extra });
+      await mApi("profile", { displayName: name.trim(), bio: bio.trim(), birthday: birthday || undefined, channelHandle: channel.trim().replace(/^@/, ""), ...extra });
       toast("success", "Профиль сохранён");
       onClose();
     } catch (err) {
@@ -140,10 +160,78 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
     }
   };
 
+  const inputCls = "bg-transparent outline-none w-full px-4 py-3.5 text-[17px]";
+  const canSave = !busy && name.trim().length >= 2;
+  const dirty = name.trim() !== account.displayName || bio.trim() !== (account.bio ?? "") || (birthday || "") !== (account.birthday ?? "") || channel.replace("@", "") !== (account.channelHandle ?? "");
+  const cardCls = "overflow-hidden";
+  const cardSt = { margin: "0 16px", borderRadius: 22, background: "var(--mx-surface)" } as const;
+  const hint = "mx-muted text-[13.5px] px-8 mt-2";
+  const Ic = ({ c, children }: { c: string; children: ReactNode }) => <span className="w-[30px] h-[30px] rounded-[8px] flex items-center justify-center shrink-0 text-white" style={{ background: c }}>{children}</span>;
   return (
-    <Sheet open={open} onClose={onClose} title="Профиль" full>
-      <div className="p-4 space-y-3 pb-10">
-        <div className="relative rounded-2xl overflow-hidden" style={{ aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), #e879f9 55%, #4a6cf7)" }}>
+    <Sheet open={open} onClose={onClose} full>
+      <div className="pb-10">
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+          <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70" style={{ background: "var(--mx-surface2)" }}><X size={22} /></button>
+          <button
+            disabled={busy}
+            onClick={() => {
+              if (name.trim().length < 2) { toast("error", "Имя — минимум 2 символа"); return; }
+              if (!dirty) { onClose(); return; }
+              save();
+            }}
+            aria-label="Готово"
+            className="w-11 h-11 rounded-full flex items-center justify-center active:opacity-70 transition-colors"
+            style={dirty && canSave ? { background: "var(--mx-accent)", color: "var(--mx-accent-text, #fff)" } : { background: "var(--mx-surface2)" }}
+          >{busy ? "…" : <Check size={24} />}</button>
+        </div>
+
+        <div className="flex flex-col items-center -mt-6 pb-5">
+          <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy} aria-label="Сменить фото">
+            <Avatar src={account.photoURL} name={account.displayName} seed={account.uid} size={112} />
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatar(e.target.files?.[0]); e.target.value = ""; }} />
+          <button onClick={() => fileRef.current?.click()} disabled={busy} className="mt-3 text-[19px] font-medium mx-muted">Изменить фотографию</button>
+        </div>
+
+        <div className={cardCls} style={cardSt}>
+          <input className={inputCls} placeholder="Имя" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <p className={hint}>Укажите имя и, если хотите, добавьте фотографию для вашего профиля.</p>
+
+        <div className="relative mt-6" style={cardSt}>
+          <textarea className={inputCls + " resize-none pr-12"} rows={3} placeholder="О себе" maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} />
+          <span className="absolute right-4 bottom-3 text-[14px] mx-muted">{140 - bio.length}</span>
+        </div>
+        <p className={hint}>Раздел «О себе» виден всем.</p>
+
+        <label className="flex items-center gap-3 px-4 py-3 mt-6 relative" style={cardSt}>
+          <Ic c="#3b9bff"><Cake size={18} /></Ic>
+          <span className="flex-1 text-[17px]">День рождения</span>
+          <input type="date" className="bg-transparent outline-none text-[16px] mx-muted text-right" value={birthday} onChange={(e) => setBirthday(e.target.value)} />
+        </label>
+        <p className={hint}>Ваш день рождения виден всем.</p>
+
+        <div className={cardCls + " mt-6"} style={cardSt}>
+          <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--mx-line)" }}>
+            <Ic c="#34c759"><Phone size={18} /></Ic>
+            <span className="flex-1 text-[17px]">Номер</span>
+            <span className="text-[16px] mx-muted tabular-nums">{account.number ? formatNumber(account.number) : "нет"}</span>
+          </div>
+          <label className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--mx-line)" }}>
+            <Ic c="#6c63ff"><AtSign size={18} /></Ic>
+            <span className="text-[17px] shrink-0">Имя пользователя</span>
+            <button type="button" className="flex-1 min-w-0 text-right text-[16px] mx-muted truncate" onClick={() => { onClose(); onUsername?.(); }}>@{account.handle}</button>
+            <ChevronRight size={18} className="mx-muted shrink-0" />
+          </label>
+          <label className="flex items-center gap-3 px-4 py-3">
+            <Ic c="#ff9f0a"><Megaphone size={18} /></Ic>
+            <span className="text-[17px] shrink-0">Канал</span>
+            <input className="bg-transparent outline-none flex-1 min-w-0 text-right text-[16px] mx-muted" value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} />
+          </label>
+        </div>
+        <p className={hint}>Нажмите на имя пользователя, чтобы изменить его. Канал показывается в профиле.</p>
+
+        <div className="relative mt-6 overflow-hidden" style={{ ...cardSt, aspectRatio: "3 / 1", background: "linear-gradient(135deg, var(--mx-accent), color-mix(in srgb, var(--mx-accent) 62%, #000))" }}>
           {account.bannerURL && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={account.bannerURL} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -158,20 +246,9 @@ function ProfileEditor({ open, onClose, account }: { open: boolean; onClose: () 
           </div>
           <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { pickBanner(e.target.files?.[0]); e.target.value = ""; }} />
         </div>
-        <div className="flex flex-col items-center gap-2 pb-2">
-          <button onClick={() => fileRef.current?.click()} className="relative" disabled={busy}>
-            <Avatar src={account.photoURL} name={account.displayName} seed={account.uid} size={96} />
-            <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "3px solid var(--mx-surface)" }}><Camera size={15} /></span>
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatar(e.target.files?.[0]); e.target.value = ""; }} />
-          <p className="mx-muted text-[13px]">Нажми, чтобы сменить фото</p>
-        </div>
-        <label className="block"><span className="mx-muted text-[13px] px-1">Имя</span><input className="mx-input mt-1" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="block"><span className="mx-muted text-[13px] px-1">Имя пользователя</span><input className="mx-input mt-1" value={handle} maxLength={25} autoCapitalize="none" autoCorrect="off" onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
-        <label className="block"><span className="mx-muted text-[13px] px-1">О себе</span><textarea className="mx-input mt-1" rows={3} maxLength={140} value={bio} onChange={(e) => setBio(e.target.value)} /></label>
-        <label className="block"><span className="mx-muted text-[13px] px-1">День рождения</span><input type="date" className="mx-input mt-1" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></label>
-        <label className="block"><span className="mx-muted text-[13px] px-1">Мой канал (@адрес, показывается в профиле)</span><input className="mx-input mt-1" value={channel} maxLength={25} placeholder="@mychannel" autoCapitalize="none" autoCorrect="off" onChange={(e) => setChannel(e.target.value.toLowerCase().replace(/[^a-z0-9_@]/g, ""))} /></label>
-        <button className="mx-btn" disabled={busy || name.trim().length < 2 || handle.replace("@", "").length < 4} onClick={() => save()}>{busy ? "Сохраняю…" : "Сохранить"}</button>
+        <p className={hint}>Баннер показывается в шапке вашего профиля.</p>
+
+        <button onClick={onLogout} className="mt-8 w-full h-14 text-[18px] font-semibold" style={{ ...cardSt, width: "calc(100% - 32px)", color: "var(--mx-danger)" }}>Выйти</button>
       </div>
     </Sheet>
   );
@@ -332,20 +409,56 @@ function DevicesPage({ onBack }: { onBack: () => void }) {
   );
 }
 
-type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number };
+type PremiumInfo = { premium: boolean; premiumUntil: number | null; priceStars: number; days: number; wallet: number; plus?: boolean; plusUntil?: number | null; plusPriceStars?: number; plusDays?: number };
 
 function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccount }) {
   const { toast } = useToast();
   const [info, setInfo] = useState<PremiumInfo | null>(null);
   const load = () => mApi<PremiumInfo>("premium").then(setInfo).catch(() => {});
+  const [agree, setAgree] = useState(false);
+  const [payBusy, setPayBusy] = useState<string | null>(null);
+  const [orders, setOrders] = useState<{ orderId: string; plan: string; amount: number; status: string; createdAt: number }[]>([]);
+  /** Сверяет оплату с платёжной системой и включает подписку, если счёт оплачен. */
+  const sync = () => mApi<{ credited: number; orders: typeof orders }>("premium/pay").then((d) => { setOrders(d.orders); if (d.credited > 0) { toast("success", "Оплата получена — подписка активна ✨"); load(); } }).catch(() => {});
   useEffect(() => {
     load();
+    sync();
+    const on = () => { if (document.visibilityState === "visible") sync(); };
+    document.addEventListener("visibilitychange", on);
+    window.addEventListener("focus", on);
+    const t = setInterval(on, 15000);
+    return () => { document.removeEventListener("visibilitychange", on); window.removeEventListener("focus", on); clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const pay = async (plan: "premium" | "plus") => {
+    if (!agree) { toast("error", "Отметь, что согласен с условиями и документами"); return; }
+    setPayBusy(plan);
+    try {
+      const r = await mApi<{ url: string }>("premium/pay", { plan, accept: true });
+      window.open(r.url, "_blank");
+      toast("info", "Оплати счёт и вернись сюда — подписка включится сама");
+      sync();
+    } catch (err: any) {
+      toast("error", err?.message || "Не удалось создать платёж");
+    } finally {
+      setPayBusy(null);
+    }
+  };
   const buy = async () => {
-    if (!info || !confirm(`Купить Mili Premium на ${info.days} дн. за ${info.priceStars} ⭐?`)) return;
+    if (!info || !confirm(`Купить Mili Premium на ${info.days} дн. за ${info.priceStars} 🪙?`)) return;
     try {
       await mApi("premium", { action: "buy" });
-      toast("success", "Mili Premium активен ⭐");
+      toast("success", "Mili Premium активен ✨");
+      load();
+    } catch (err: any) {
+      toast("error", err?.message || "Не получилось");
+    }
+  };
+  const buyPlus = async () => {
+    if (!info || !confirm(`Подключить Премиум Плюс на ${info.plusDays ?? 30} дн. за ${info.plusPriceStars ?? 49} 🪙?`)) return;
+    try {
+      await mApi("premium", { action: "buy-plus" });
+      toast("success", "Премиум Плюс активен 💫");
       load();
     } catch (err: any) {
       toast("error", err?.message || "Не получилось");
@@ -360,11 +473,44 @@ function PremiumPage({ onBack, account }: { onBack: () => void; account: MAccoun
           <p className="text-[19px] font-semibold mb-1">{info?.premium ? "Premium активен" : "Mili Premium"}</p>
           <p className="mx-muted text-[14px]">{info?.premium && info.premiumUntil ? `До ${new Date(info.premiumUntil).toLocaleDateString("ru-RU")}` : "Статус рядом с ником, премиум-стикеры, больше папок и закреплённых чатов."}</p>
         </div></div>
+        {info && (
+          <div className="mx-card p-4 space-y-2" style={{ outline: info.plus ? "2px solid #ffb400" : "none" }}>
+            <div className="flex items-center justify-between"><p className="text-[17px] font-semibold">💫 Премиум Плюс</p><span className="font-semibold" style={{ color: "#ffb400" }}>{info.plusPriceStars ?? 49} 🪙 / {info.plusDays ?? 30} дн.</span></div>
+            <p className="mx-muted text-[13.5px]">Всё из Premium + платные сообщения: назначьте цену в 🪙, и каждое сообщение от новых людей будет приносить вам монеты на баланс. Операции — на странице «Кошелёк 🪙».</p>
+            {info.plus && info.plusUntil && <p className="text-[13px]" style={{ color: "#ffb400" }}>Активен до {new Date(info.plusUntil).toLocaleDateString("ru-RU")}</p>}
+            <button className="mx-btn" onClick={buyPlus}>{info.plus ? "Продлить Плюс" : "Подключить Плюс"}</button>
+          </div>
+        )}
+        <div className="mx-card p-4 space-y-3">
+          <div>
+            <p className="text-[17px] font-semibold">💳 Оплата картой, СБП, криптой</p>
+            <p className="mx-muted text-[13.5px]">Разовый платёж на 30 дней, без автопродления. Подписка включится сама сразу после оплаты.</p>
+          </div>
+          <label className="flex items-start gap-2.5 text-[13.5px] cursor-pointer">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 w-[18px] h-[18px] shrink-0" style={{ accentColor: "var(--mx-accent)" }} />
+            <span>Я ознакомился и принимаю {PAY_DOCS.map((d, i) => <span key={d.href}>{i > 0 ? (i === PAY_DOCS.length - 1 ? " и " : ", ") : ""}<a href={d.href} target="_blank" rel="noreferrer" className="underline" style={{ color: "var(--mx-accent)" }} onClick={(e) => e.stopPropagation()}>{d.title}</a></span>)}</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button className="mx-btn" disabled={!!payBusy} style={{ opacity: agree ? 1 : 0.55 }} onClick={() => pay("premium")}>{payBusy === "premium" ? <Spinner size={18} /> : `Premium · ${PREMIUM_PRICE_RUB} ₽`}</button>
+            <button className="mx-btn" disabled={!!payBusy} style={{ opacity: agree ? 1 : 0.55, background: "#ffb400", color: "#1a1300" }} onClick={() => pay("plus")}>{payBusy === "plus" ? <Spinner size={18} /> : `Плюс · ${PLUS_PRICE_RUB} ₽`}</button>
+          </div>
+          {orders.length > 0 && (
+            <div className="pt-1 space-y-1.5">
+              {orders.slice(0, 3).map((o) => (
+                <div key={o.orderId} className="flex items-center justify-between text-[13px]">
+                  <span className="mx-muted">{o.plan === "plus" ? "Плюс" : "Premium"} · {o.amount} ₽ · {new Date(o.createdAt).toLocaleDateString("ru-RU")}</span>
+                  <span style={{ color: o.status === "paid" ? "#34c759" : o.status === "pending" ? "#ffb400" : "var(--mx-muted)" }}>{o.status === "paid" ? "оплачено" : o.status === "pending" ? "ждём оплату" : "отменён"}</span>
+                </div>
+              ))}
+              {orders.some((o) => o.status === "pending") && <button className="mx-btn-ghost w-full py-2" onClick={sync}>Проверить оплату</button>}
+            </div>
+          )}
+        </div>
         <PerksList />
         <StatusPicker account={account} premium={!!info?.premium} />
         {info ? (
           <>
-            <p className="mx-muted text-[13px] text-center">{info.priceStars} ⭐ за {info.days} дн. · на кошельке: {info.wallet} ⭐ · <a href="/profile/stars" className="underline" style={{ color: "var(--mx-accent)" }}>пополнить</a></p>
+            <p className="mx-muted text-[13px] text-center">{info.priceStars} 🪙 за {info.days} дн. · на кошельке: {info.wallet} 🪙 · <button className="underline" style={{ color: "var(--mx-accent)" }} onClick={() => startTopup(Math.max(10, info.priceStars - info.wallet)).then(() => toast("info", "Оплати счёт в Telegram и вернись сюда")).catch((e) => toast("error", e instanceof MApiError ? e.message : "Не удалось создать счёт"))}>пополнить</button></p>
             <button className="mx-btn" onClick={buy}>{info.premium ? "Продлить" : "Купить Premium"}</button>
           </>
         ) : (
@@ -382,6 +528,14 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const [page, setPage] = useState<Page>(initialPage ?? null);
   const [editProfile, setEditProfile] = useState(false);
   const [myGifts, setMyGifts] = useState(false);
+  const [myNumbers, setMyNumbers] = useState(false);
+  const [trackPicker, setTrackPicker] = useState(false);
+  const [myPosts, setMyPosts] = useState(false);
+  const [shop, setShop] = useState(false);
+  const [promo, setPromo] = useState(false);
+  const [viewAs, setViewAs] = useState(false);
+  const profileGifts = useProfileGifts(me);
+  const orbitGifts = profileGifts?.filter((g) => g.pinned && !g.hidden) ?? [];
   const [installHelp, setInstallHelp] = useState(false);
   const [sessionCount, setSessionCount] = useState<number | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -423,9 +577,10 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
   const back = () => setPage(null);
 
   if (page === "folders") return <div className="flex flex-col h-full"><FoldersPage folders={folders} onBack={back} /></div>;
+  if (page === "appicon") return <AppIconPicker onBack={back} />;
   if (page === "devices") return <div className="flex flex-col h-full"><DevicesPage onBack={back} /></div>;
   if (page === "docs") {
-    const docs: [string, string, string][] = [["/rules", "Правила платформы", "Что можно и нельзя в Velox Trade и MiliGram"], ["/privacy", "Политика конфиденциальности", "Какие данные мы храним и как защищаем"], ["/terms", "Пользовательское соглашение", "Условия использования сервиса"]];
+    const docs: [string, string, string][] = [["/rules", "Правила платформы", "Что можно и нельзя в Velox Trade и MiliGram"], ["/privacy", "Политика конфиденциальности", "Какие данные мы храним и как защищаем"], ["/terms", "Пользовательское соглашение", "Условия использования сервиса"], ["/premium-terms", "Условия подписки Mili Premium", "Оплата, срок действия и возврат"]];
     return (
       <div className="flex flex-col h-full">
         <PageHeader title="Документы" onBack={back} />
@@ -445,6 +600,11 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     );
   }
   if (page === "admin" && isAdminUid(me)) return <div className="flex flex-col h-full"><AdminPanel onBack={back} /></div>;
+  if (page === "music") return <div className="flex flex-col h-full"><MusicPage onBack={back} /></div>;
+  if (page === "usernames") return <div className="flex flex-col h-full"><UsernamesPage onBack={back} /></div>;
+  if (page === "username") return <div className="flex flex-col h-full"><UsernamePage onBack={back} onCollectibles={() => setPage("usernames")} /></div>;
+  if (page === "bots") return <div className="flex flex-col h-full"><BotsPage onBack={back} /></div>;
+  if (page === "wallet") return <div className="flex flex-col h-full"><WalletPage onBack={back} onOpenPremium={() => setPage("premium")} /></div>;
   if (page === "premium") return <div className="flex flex-col h-full"><PremiumPage onBack={back} account={account} /></div>;
 
   if (page) {
@@ -458,7 +618,8 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
           {page === "notifications" && (
             <div className="space-y-3">
               <PushToggleCard />
-              <p className="mx-muted text-[13px] px-2">Уведомления о сообщениях мессенджера приходят в категории «Сообщения». На iPhone и iPad они работают только если добавить Velox Chat на экран «Домой» (iOS 16.4 и новее).</p>
+              <QuietHoursCard />
+              <p className="mx-muted text-[13px] px-2">Уведомления о сообщениях мессенджера приходят в категории «Сообщения». На iPhone и iPad они работают только если добавить Mili Gram на экран «Домой» (iOS 16.4 и новее).</p>
               <button className="mx-btn" style={{ background: "var(--mx-surface)", color: "var(--mx-text)" }} onClick={() => setInstallHelp(true)}>Как добавить на экран «Домой»</button>
             </div>
           )}
@@ -511,11 +672,74 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                 </div>
               </div>
               <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Стиль оформления</p>
+                <div className="mx-card p-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {([["m3", "Material You", "Вся палитра из одного цвета, мягкие формы"], ["tg", "Telegram", "Классический вид"]] as const).map(([id, label, hint]) => (
+                      <button key={id} onClick={() => prefs.setDesign(id)} className="text-left rounded-2xl p-3" style={{ background: "var(--mx-surface2)", outline: prefs.design === id ? "2px solid var(--mx-accent)" : "none" }}>
+                        <p className="font-semibold text-[15px]">{label}</p>
+                        <p className="mx-muted text-[12.5px] mt-0.5">{hint}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
                 <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Акцентный цвет</p>
                 <div className="mx-card px-4 py-3.5 flex gap-3 flex-wrap">
                   {ACCENT_CHOICES.map((c) => (
-                    <button key={c || "default"} onClick={() => prefs.setAccent(c)} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: c || "var(--color-accent, #ff9800)", outline: prefs.accent === c ? "3px solid var(--mx-text)" : "none", outlineOffset: 2 }} aria-label="Цвет">
+                    <button key={c || "default"} onClick={() => prefs.setAccent(c)} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: c || "#3390ec", outline: prefs.accent === c ? "3px solid var(--mx-text)" : "none", outlineOffset: 2 }} aria-label="Цвет">
                       {prefs.accent === c && <Check size={18} color="#fff" />}
+                    </button>
+                  ))}
+                  <label className="relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer overflow-hidden" style={{ background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)", outline: isHex(prefs.accent) && !ACCENT_CHOICES.includes(prefs.accent) ? "3px solid var(--mx-text)" : "none", outlineOffset: 2 }} aria-label="Свой цвет">
+                    <input type="color" value={isHex(prefs.accent) ? prefs.accent : "#3390ec"} onChange={(e) => prefs.setAccent(e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    <Plus size={18} color="#fff" />
+                  </label>
+                </div>
+                <p className="mx-muted text-[12.5px] px-3 mt-1.5">{prefs.design === "m3" ? "Из этого цвета строится вся палитра Material You. Нажми на радужный круг — можно выбрать любой." : "Нажми на радужный круг — можно выбрать любой цвет."}</p>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Цвет фона</p>
+                <div className="mx-card px-4 py-3.5 flex items-center gap-3">
+                  <label className="relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer overflow-hidden shrink-0" style={{ background: isHex(prefs.bg) ? prefs.bg : "var(--mx-bg)", border: "2px solid var(--mx-line)" }} aria-label="Цвет фона">
+                    <input type="color" value={isHex(prefs.bg) ? prefs.bg : "#0e1621"} onChange={(e) => prefs.setBg(e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  </label>
+                  <p className="mx-muted text-[13.5px] flex-1">{isHex(prefs.bg) ? "Свой цвет фона. Текст и панели подстроятся сами." : "Как в выбранной теме. Нажми на круг, чтобы выбрать свой."}</p>
+                  {isHex(prefs.bg) && <button className="text-[14px] font-semibold" style={{ color: "var(--mx-accent)" }} onClick={() => prefs.setBg("")}>Сбросить</button>}
+                </div>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Тема чатов</p>
+                <div className="mx-card p-3">
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {([["Классика", "none", "round", false], ["Контур", "noir", "outline", false], ["Аврора", "aurora", "round", false], ["Закат", "sunset", "round", false], ["Океан", "ocean", "round", false], ["Лес", "forest", "round", false], ["Полночь", "midnight", "round", false], ["Сладкая вата", "candy", "round", false], ["Хеллоуин 🎃", "halloween", "classic", false], ["💫 Живой поток", "flow", "glass", true], ["⚡ Неон", "neon", "glass", true], ["👑 Золото", "gold", "outline", true], ["🌌 Космос", "space", "glass", true]] as const).map(([label, wp, bs, pro]) => {
+                      const on = prefs.wallpaper === wp && prefs.bubbleStyle === bs;
+                      const locked = pro && !isPremium(account);
+                      return (
+                        <button key={label} onClick={() => { if (locked) { toast("error", "Эта тема — только для Premium"); setPage("premium"); return; } prefs.setWallpaper(wp); prefs.setBubbleStyle(bs); }} className="text-center" aria-label={label}>
+                          <span className={`block h-[118px] rounded-2xl relative overflow-hidden mx-chat-wall ${wp !== "none" ? `mx-wp mx-wp-${wp}` : ""}`} style={{ ["--mx-in" as string]: "#1f2126", ["--mx-text" as string]: "#f4f4f5", background: wp === "none" ? "#17212b" : undefined, outline: on ? "3px solid var(--mx-accent)" : "1px solid var(--mx-line)", outlineOffset: on ? 2 : -1 }}>
+                            <span className="absolute left-2 right-2 top-3 flex flex-col gap-1.5">
+                              <span className="mx-bubble in self-start" data-bubble={bs} style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Привет!</span>
+                              <span className="mx-bubble out self-end" data-bubble={bs} style={{ fontSize: 9, padding: "4px 7px", borderRadius: 10 }}>Как дела?</span>
+                            </span>
+                            {pro && <span className="absolute top-1.5 left-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,.55)", color: "#ffd56a" }}>{locked ? "🔒 PRO" : "PRO"}</span>}
+                            {on && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)" }}><Check size={13} color="#fff" /></span>}
+                          </span>
+                          <span className="block text-[12.5px] mt-1.5">{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="mx-muted text-[13px] uppercase tracking-wide px-3 mb-1.5">Шрифт</p>
+                <div className="mx-card">
+                  {FONT_CHOICES.map((f) => (
+                    <button key={f.id || "default"} onClick={() => prefs.setFont(f.id)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <span className="text-[16px]" style={f.css ? { fontFamily: f.css } : undefined}>{f.label}<span className="block text-[13px] mx-muted" style={f.css ? { fontFamily: f.css } : undefined}>Привет! Как дела? 123</span></span>
+                      {prefs.font === f.id && <Check size={18} style={{ color: "var(--mx-accent)" }} />}
                     </button>
                   ))}
                 </div>
@@ -532,6 +756,18 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
                 <div className="flex items-center justify-between px-4 py-3.5 gap-4">
                   <div><p>Enter — отправить</p><p className="text-[13px] mx-muted">На компьютере. Shift+Enter — перенос строки.</p></div>
                   <Switch on={prefs.enterToSend} onChange={prefs.setEnterToSend} />
+                </div>
+                <div className="flex items-center justify-between px-4 py-3.5 gap-4" style={{ borderTop: "1px solid var(--mx-line)" }}>
+                  <div><p>Превью ссылок</p><p className="text-[13px] mx-muted">Карточка с заголовком и картинкой под сообщением со ссылкой.</p></div>
+                  <Switch on={prefs.linkPreviews} onChange={prefs.setLinkPreviews} />
+                </div>
+                <div className="px-4 py-3.5" style={{ borderTop: "1px solid var(--mx-line)" }}>
+                  <p>Тема профиля</p>
+                  <div className="flex gap-2 mt-2">
+                    {([["auto", "Как в приложении"], ["light", "Светлая"], ["dark", "Тёмная"]] as const).map(([v, l]) => (
+                      <button key={v} onClick={() => prefs.setProfileTheme(v)} className="flex-1 rounded-xl py-2 text-[14px]" style={{ background: prefs.profileTheme === v ? "var(--mx-accent)" : "var(--mx-surface2)", color: prefs.profileTheme === v ? "var(--mx-accent-text)" : "var(--mx-text)" }}>{l}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -560,60 +796,75 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
     <div className="flex flex-col h-full">
       <PageHeader title="Настройки" />
       <div className="mx-scroll flex-1 pb-28">
-        <div className="mx-hero">
-          <div className="mx-hero-banner">
-            {account.bannerURL && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={account.bannerURL} alt="" />
-            )}
-          </div>
-          <div className="mx-hero-body">
-            <button onClick={() => fileRef.current?.click()} className="relative rounded-full" disabled={avatarBusy} aria-label="Сменить фото" style={{ border: "4px solid var(--mx-surface)" }}>
-              <Avatar src={account.photoURL} name={account.displayName} seed={me} size={96} />
-              <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "3px solid var(--mx-surface)" }}>
-                <Camera size={15} />
-              </span>
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
-            <p className="text-[23px] font-bold mt-3 flex items-center gap-1.5 justify-center">
-              {account.displayName} {account.verified && <VerifiedBadge size={18} />}<StatusBadge acc={account} size={20} />
-            </p>
-            <p className="mx-muted text-[14.5px] mt-0.5">@{account.handle}</p>
-            <div className="flex items-center gap-2 mt-2.5 flex-wrap justify-center">
-              <span className="mx-status-chip"><span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--mx-accent)" }} />{status}</span>
-              {isPremium(account) && <span className="mx-status-chip" style={{ background: "rgba(255,180,0,0.16)", color: "#ffb400" }}><Star size={12} /> Premium</span>}
-            </div>
-            {account.bio && <p className="text-[14.5px] mt-3 leading-snug" style={{ color: "var(--mx-text)", opacity: 0.85 }}>{account.bio}</p>}
-            <button onClick={() => setEditProfile(true)} className="mt-4 w-full max-w-[260px] h-11 rounded-full text-[15px] font-semibold" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)" }}>
-              Изменить профиль
-            </button>
-          </div>
+        <div className="mx-3 mt-1 mb-1 overflow-hidden" style={{ borderRadius: 30 }}>
+        <ProfileShell>
+        <ProfileHeader
+          seed={me}
+          name={account.displayName}
+          photo={account.photoURL}
+          account={account}
+          badges={<><VerifyMark acc={account} size={20} /><TagChip acc={account} light /><StatusBadge acc={account} size={20} /></>}
+          statusPill={status}
+          orbit={orbitGifts}
+          subtitle={<>{account.number ? `${formatNumber(account.number)} · ` : ""}@{account.handle}{isPremium(account) ? " · Premium" : ""}</>}
+          onAvatarClick={() => fileRef.current?.click()}
+          avatarBusy={avatarBusy}
+          avatarOverlay={<span className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "#fff", border: "3px solid rgba(0,0,0,0.25)" }}><Camera size={15} /></span>}
+          topRight={<><ProfileRoundBtn icon={<Eye size={17} />} label="Как видят другие" onClick={() => setViewAs(true)} /><ProfileRoundBtn icon={<Pencil size={17} />} label="Изменить" onClick={() => setEditProfile(true)} /></>}
+        />
+        </ProfileShell>
         </div>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickAvatarQuick(e.target.files?.[0]); e.target.value = ""; }} />
+        <div style={{ height: 16 }} />
+
+        <div className="px-4 mb-6"><BalanceCard onOpen={() => setPage("wallet")} /></div>
 
         <Section>
-          <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">Имя пользователя</p><p style={{ color: "var(--mx-accent)" }}>@{account.handle}</p></button>
+          {account.numId ? <div className="w-full px-4 py-3 text-left"><span className="block mx-muted text-[12.5px]">Идентификатор</span><span className="block tabular-nums">ID: {account.numId}</span></div> : null}
+          {account.number && <button onClick={() => setMyNumbers(true)} className="w-full px-4 py-3 text-left flex items-center justify-between gap-3"><span><span className="block mx-muted text-[12.5px]">Номер</span><span className="block tabular-nums">{formatNumber(account.number)}</span></span><NumberTierChip digits={account.number} /></button>}
+          <UsernameRow uid={account.uid} handle={account.handle} onCopy={(t) => { navigator.clipboard?.writeText(t).then(() => toast("success", "Скопировано")).catch(() => {}); }} />
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">О себе</p><p>{account.bio || "Добавь пару слов о себе"}</p></button>
           <button onClick={() => setEditProfile(true)} className="w-full px-4 py-3 text-left"><p className="mx-muted text-[12.5px]">День рождения</p><p>{account.birthday ? new Date(account.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "Не указан"}</p></button>
+        </Section>
+        <Achievements acc={account} />
+        <Section>
+          <Row icon={<ShoppingBag size={17} />} color="#ff9f0a" label="Магазин" value="Рамки, подарки, мелодии" onClick={() => setShop(true)} />
+          <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
+          <Row icon={<MessageSquare size={17} />} color="#0a84ff" label="Мои посты" onClick={() => setMyPosts(true)} />
+          <Row icon={<Hash size={17} />} color="#5856d6" label="Мои номера" value={account.number ? formatNumber(account.number) : undefined} onClick={() => setMyNumbers(true)} />
+          <Row icon={<AtSign size={17} />} color="#6c63ff" label="Имя пользователя" onClick={() => setPage("username")} />
+          <Row icon={<Star size={17} />} color="#5856d6" label="Юзернеймы" onClick={() => setPage("usernames")} />
+          <Row icon={<Music2 size={17} />} color="#1db954" label="Мелодия профиля" value={account.profileTrack ? "Выбрана" : "Не выбрана"} onClick={() => setTrackPicker(true)} />
+          <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
+          <Row icon={<Smartphone size={17} />} color="#ff9500" label="Иконка приложения" onClick={() => setPage("appicon")} />
+          <Row icon={<Smartphone size={17} />} color="#3390ec" label="Устройства" value={sessionCount ? String(sessionCount) : undefined} onClick={() => setPage("devices")} />
         </Section>
 
         <Section>
           <Row icon={<Bell size={17} />} color="#ff3b30" label="Уведомления и звуки" onClick={() => setPage("notifications")} />
-          <Row icon={<Database size={17} />} color="#34c759" label="Данные и память" onClick={() => setPage("data")} />
           <Row icon={<LockKeyhole size={17} />} color="#8e8e93" label="Конфиденциальность" onClick={() => setPage("privacy")} />
+          <AppLockSettings />
+          <AccountSecurity />
+          <Row icon={<Database size={17} />} color="#34c759" label="Данные и память" onClick={() => setPage("data")} />
           <Row icon={<Settings size={17} />} color="#8e8e93" label="Общие настройки" onClick={() => setPage("general")} />
-          <Row icon={<Folder size={17} />} color="#3390ec" label="Папки чатов" value={folders.length ? String(folders.length) : undefined} onClick={() => setPage("folders")} />
-          <Row icon={<Gift size={17} />} color="#ff2d55" label="Мои подарки" onClick={() => setMyGifts(true)} />
-          {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
-          <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
           <Row icon={<Sticker size={17} />} color="#ff2d55" label="Стикеры и эмодзи" onClick={() => setPage("stickers")} />
-          <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
-        </Section>
-
-        <Section>
-          <Row icon={<Smartphone size={17} />} color="#3390ec" label="Устройства" value={sessionCount ? String(sessionCount) : undefined} onClick={() => setPage("devices")} />
+          <Row icon={<Music2 size={17} />} color="#1db954" label="Музыка" onClick={() => setPage("music")} />
           <Row icon={<Languages size={17} />} color="#af52de" label="Язык" value="Русский" onClick={() => setPage("language")} />
           <div className="max-[899px]:hidden"><Row icon={<Keyboard size={17} />} color="#ff9500" label="Горячие клавиши" onClick={() => setPage("hotkeys")} /></div>
           <Row icon={<Download size={17} />} color="#00b8d9" label="Добавить на экран «Домой»" onClick={() => setInstallHelp(true)} />
+          <AppDownloads />
+        </Section>
+
+        <Section>
+          <Row icon={<Star size={17} />} color="#34c759" label="Кошелёк 🪙" value={account.plusUntil && account.plusUntil > Date.now() ? "Плюс" : undefined} onClick={() => setPage("wallet")} />
+          <Row icon={<Star size={17} />} color="#ffb400" label="Mili Premium" value={isPremium(account) ? "активен" : undefined} onClick={() => setPage("premium")} />
+          <Row icon={<Bot size={17} />} color="#3390ec" label="Боты" onClick={() => setPage("bots")} />
+          <Row icon={<Gift size={17} />} color="#ff2d55" label="Ввести промокод" onClick={() => setPromo(true)} />
+        </Section>
+
+        <Section>
+          <Row icon={<FileText size={17} />} color="#8e8e93" label="Документы" onClick={() => setPage("docs")} />
+          {isAdminUid(me) && <Row icon={<Shield size={17} />} color="#ff453a" label="Админ-панель" onClick={() => setPage("admin")} />}
         </Section>
 
         <Section>
@@ -629,11 +880,42 @@ export function SettingsPane({ me, account, folders, onLoggedOut, initialPage }:
             <LogOut size={20} /> Выйти
           </button>
         </Section>
-        <p className="text-center text-[12.5px] mx-muted pb-4">Velox Chat · сообщения не шифруются сквозным образом</p>
+
+        <button
+          className="block mx-auto text-center text-[11.5px] mx-muted pb-2 break-all px-6"
+          onClick={() => { try { navigator.clipboard.writeText(me); toast("success", "ID аккаунта скопирован"); } catch { toast("info", me); } }}
+        >
+          ID аккаунта: {me}{isAdminUid(me) ? " · админ" : ""}
+        </button>
+        <div className="pb-4" />
       </div>
-      <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} account={account} />
+      <ProfileEditor open={editProfile} onClose={() => setEditProfile(false)} onUsername={() => setPage("username")} account={account} onLogout={async () => {
+        if (!confirm("Выйти из аккаунта? Вы выйдете и с сайта Velox Trade.")) return;
+        await logout();
+        onLoggedOut();
+      }} />
+      <ChatInfoSheet
+        open={viewAs}
+        onClose={() => setViewAs(false)}
+        preview
+        chat={{ id: "__preview", type: "dm", members: [me, "__viewer"], admins: [], createdBy: me, createdAt: 0, updatedAt: 0, readBy: {} } as unknown as MChat}
+        me="__viewer"
+        accounts={{ [me]: account }}
+        peer={account}
+        isAdmin={false}
+        onLeave={() => {}}
+      />
+      <PromoSheet open={promo} onClose={() => setPromo(false)} />
+      <ShopSheet open={shop} onClose={() => setShop(false)} me={me} account={account} />
+      <NumbersSheet open={myNumbers} onClose={() => setMyNumbers(false)} me={me} />
+      <ProfileTrackPicker open={trackPicker} onClose={() => setTrackPicker(false)} current={account.profileTrack} onPick={async (id) => {
+        try { await mApi("profile", { profileTrack: id }); toast("success", id ? "Мелодия профиля выбрана" : "Мелодия убрана"); setTrackPicker(false); } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не получилось"); }
+      }} />
       <Sheet open={myGifts} onClose={() => setMyGifts(false)} title="Мои подарки" full>
-        {myGifts && <GiftsProfileTab uid={me} mine />}
+        {myGifts && <ProfileShell><GiftsProfileTab uid={me} mine /></ProfileShell>}
+      </Sheet>
+      <Sheet open={myPosts} onClose={() => setMyPosts(false)} title="Мои посты" full>
+        {myPosts && <ProfileShell><div className="pt-3"><PostsTab uid={me} mine /></div></ProfileShell>}
       </Sheet>
       <Sheet open={installHelp} onClose={() => setInstallHelp(false)} title="Добавить на экран «Домой»">
         <InstallSteps />

@@ -6,7 +6,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useToast } from "@/lib/toastContext";
 import type { MessengerStickerPack } from "@/lib/messenger/types";
 
-const empty = { slug: "", title: "", premium: false, published: false, stickers: [] as { url: string; emoji: string; thumb?: string }[] };
+const empty = { slug: "", title: "", premium: false, published: false, stickers: [] as { url: string; emoji: string }[] };
 
 /** Редактор стикерпаков Mili. Ссылка набора для пользователей: /m?stickers=<slug> */
 export function StickerAdmin() {
@@ -28,7 +28,7 @@ export function StickerAdmin() {
     setBusy(true);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const added: { url: string; emoji: string; thumb?: string }[] = [];
+      const added: { url: string; emoji: string }[] = [];
       for (const file of Array.from(files)) {
         const fd = new FormData();
         fd.append("file", file);
@@ -77,7 +77,7 @@ export function StickerAdmin() {
       <div className="flex flex-wrap gap-2">
         {form.stickers.map((s, i) => (
           <div key={s.url} className="relative w-20 space-y-1">
-            {s.thumb ? <img src={s.thumb} alt="" className="w-20 h-20 object-contain bg-black/30 rounded-btn" /> : s.url.endsWith(".webm") ? <video src={s.url} className="w-20 h-20 object-contain bg-black/30 rounded-btn" muted loop autoPlay playsInline /> : <img src={s.url} alt="" className="w-20 h-20 object-contain bg-black/30 rounded-btn" />}
+            {s.url.endsWith(".webm") ? <video src={s.url} className="w-20 h-20 object-contain bg-black/30 rounded-btn" muted loop autoPlay playsInline /> : <img src={s.url} alt="" className="w-20 h-20 object-contain bg-black/30 rounded-btn" />}
             <input autoComplete="off" value={s.emoji} onChange={(e) => setForm((f) => ({ ...f, stickers: f.stickers.map((x, j) => (j === i ? { ...x, emoji: e.target.value } : x)) }))} className="input-field py-1 text-xs w-full text-center" />
             <button onClick={() => setForm((f) => ({ ...f, stickers: f.stickers.filter((_, j) => j !== i) }))} className="text-[10px] text-red-300">убрать</button>
           </div>

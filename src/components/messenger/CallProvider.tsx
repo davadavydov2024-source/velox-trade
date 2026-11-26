@@ -2,7 +2,7 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, MessageCircle, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
+import { ChevronDown, Lock, MessageCircle, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { getDeviceId } from "@/lib/messenger/client";
 import { useToast } from "@/lib/toastContext";
@@ -462,28 +462,38 @@ export function CallProvider({ me, chats, onOpenChat, children }: { me: string; 
 // ---- Интерфейс ----
 
 const CALL_CSS = `
-@keyframes mx-call-in { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
-@keyframes mx-call-ring { 0% { transform: scale(1); opacity: 0.45; } 100% { transform: scale(1.75); opacity: 0; } }
+@keyframes mx-call-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
+@keyframes mx-call-ring { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(1.9); opacity: 0; } }
 @keyframes mx-call-shake { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(-14deg); } 30% { transform: rotate(12deg); } 45% { transform: rotate(-9deg); } 60% { transform: rotate(7deg); } 75% { transform: rotate(0); } }
 @keyframes mx-call-pill { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.mx-call { animation: mx-call-in 0.28s cubic-bezier(0.2, 0.9, 0.25, 1) both; }
+@keyframes mx-call-bar { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+@keyframes mx-call-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,179,106,0.55), 0 10px 30px rgba(47,179,106,0.35); } 50% { box-shadow: 0 0 0 16px rgba(47,179,106,0), 0 10px 30px rgba(47,179,106,0.35); } }
+@keyframes mx-call-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.mx-call { animation: mx-call-in 0.3s cubic-bezier(0.2, 0.9, 0.25, 1) both; }
 .mx-call-avatar { position: relative; }
-.mx-call-avatar .r { position: absolute; inset: 0; border-radius: 50%; background: var(--mx-accent); animation: mx-call-ring 2.4s ease-out infinite; pointer-events: none; }
-.mx-call-avatar .r:nth-child(2) { animation-delay: 0.8s; }
-.mx-call-avatar .r:nth-child(3) { animation-delay: 1.6s; }
-.mx-call-btn { width: 66px; height: 66px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: rgba(255, 255, 255, 0.16); transition: transform 0.12s, background 0.15s; -webkit-tap-highlight-color: transparent; }
-.mx-call-btn:active { transform: scale(0.92); }
-.mx-call-btn.on { background: #fff; color: #1b1b20; }
-.mx-call-btn.red { background: #e5484d; }
-.mx-call-btn.green { background: #2fb36a; }
-.mx-call-btn.big { width: 76px; height: 76px; }
+.mx-call-avatar .r { position: absolute; inset: 0; border-radius: 50%; background: var(--mx-accent); animation: mx-call-ring 2.6s ease-out infinite; pointer-events: none; }
+.mx-call-avatar .r:nth-child(2) { animation-delay: 0.87s; }
+.mx-call-avatar .r:nth-child(3) { animation-delay: 1.73s; }
+.mx-call-halo { padding: 5px; border-radius: 50%; background: conic-gradient(from 160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.06) 40%, rgba(255,255,255,0.4) 75%, rgba(255,255,255,0.55)); }
+.mx-call-glass { background: rgba(255,255,255,0.13); border: 1px solid rgba(255,255,255,0.14); -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); }
+.mx-call-btn { width: 64px; height: 64px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: rgba(255, 255, 255, 0.14); transition: transform 0.12s, background 0.18s, color 0.18s; -webkit-tap-highlight-color: transparent; }
+.mx-call-btn:active { transform: scale(0.9); }
+.mx-call-btn.on { background: #fff; color: #17171c; }
+.mx-call-btn.red { background: linear-gradient(160deg, #ff5d62, #d92d33); box-shadow: 0 10px 26px rgba(229,72,77,0.4); }
+.mx-call-btn.green { background: linear-gradient(160deg, #3ed483, #25a05d); animation: mx-call-glow 1.8s ease-out infinite; }
+.mx-call-btn.big { width: 78px; height: 78px; }
 .mx-call-shake { animation: mx-call-shake 1.4s ease-in-out infinite; transform-origin: 50% 70%; }
+.mx-call-wave { display: inline-flex; align-items: center; gap: 4px; height: 26px; }
+.mx-call-wave i { display: block; width: 4px; height: 100%; border-radius: 3px; background: currentColor; transform-origin: 50% 50%; animation: mx-call-bar 1s ease-in-out infinite; }
+.mx-call-wave i:nth-child(2) { animation-delay: 0.15s; } .mx-call-wave i:nth-child(3) { animation-delay: 0.3s; } .mx-call-wave i:nth-child(4) { animation-delay: 0.45s; } .mx-call-wave i:nth-child(5) { animation-delay: 0.6s; }
+.mx-call-wave.off i { animation: none; transform: scaleY(0.22); opacity: 0.5; }
+.mx-call-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: mx-call-blink 1.2s ease-in-out infinite; }
 .mx-call-pill { position: absolute; left: 50%; top: calc(env(safe-area-inset-top) + 74px); transform: translateX(-50%); z-index: 118; animation: mx-call-pill 0.25s ease-out both; }
-@media (prefers-reduced-motion: reduce) { .mx-call, .mx-call-avatar .r, .mx-call-shake, .mx-call-pill { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .mx-call, .mx-call-avatar .r, .mx-call-shake, .mx-call-pill, .mx-call-wave i, .mx-call-btn.green, .mx-call-dot { animation: none; } }
 `;
 
 function statusText(v: View, now: number): string {
-  if (v.phase === "incoming") return "Входящий голосовой звонок";
+  if (v.phase === "incoming") return "Входящий звонок";
   if (v.phase === "calling") return "Вызываем…";
   if (v.phase === "connecting") return "Соединение…";
   if (v.phase === "ended") return v.note;
@@ -497,47 +507,56 @@ function CallScreen({ view, now, name, photo, onAccept, onHangup, onMute, onMini
 }) {
   const pulsing = view.phase === "incoming" || view.phase === "calling" || view.phase === "connecting";
   const ended = view.phase === "ended";
+  const live = view.phase === "connected";
+  const size = 164;
   return (
     <div className="mx-call absolute inset-0 flex flex-col items-center text-white overflow-hidden" style={{ zIndex: 125, background: "#0b0b10" }} role="dialog" aria-label="Звонок">
       <style>{CALL_CSS}</style>
-      {photo && <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" style={{ filter: "blur(46px) brightness(0.42) saturate(1.3)", transform: "scale(1.35)" }} />}
-      <div className="absolute inset-0" style={{ background: photo ? "linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.6))" : "linear-gradient(165deg, color-mix(in srgb, var(--mx-accent) 38%, #0b0b10) 0%, #0b0b10 70%)" }} />
+      {photo && <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" style={{ filter: "blur(50px) brightness(0.45) saturate(1.4)", transform: "scale(1.4)" }} />}
+      <div className="absolute inset-0" style={{ background: photo ? "linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.55) 100%)" : "radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--mx-accent) 55%, #0b0b10) 0%, #0b0b10 72%)" }} />
 
       <div className="relative w-full flex items-center justify-between px-3" style={{ paddingTop: "calc(env(safe-area-inset-top) + 12px)" }}>
         {view.phase === "incoming" || ended ? <span className="w-11" /> : (
-          <button onClick={onMinimize} className="mx-call-btn" style={{ width: 44, height: 44 }} aria-label="Свернуть"><ChevronDown size={24} /></button>
+          <button onClick={onMinimize} className="mx-call-btn mx-call-glass" style={{ width: 44, height: 44 }} aria-label="Свернуть"><ChevronDown size={24} /></button>
         )}
-        <span className="text-[13px] opacity-75 tracking-wide">MiliGram · голосовой звонок</span>
+        <span className="mx-call-glass inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[12.5px] tracking-wide"><Lock size={13} /> MiliGram · голосовой звонок</span>
         <span className="w-11" />
       </div>
 
-      <div className="relative flex-1 flex flex-col items-center justify-center gap-5 px-6 min-h-0 w-full">
-        <div className="mx-call-avatar" style={{ width: 152, height: 152 }}>
+      <div className="relative flex-1 flex flex-col items-center justify-center gap-6 px-6 min-h-0 w-full">
+        <div className="mx-call-avatar" style={{ width: size, height: size }}>
           {pulsing && <><span className="r" /><span className="r" /><span className="r" /></>}
-          <div className="relative rounded-full overflow-hidden" style={{ width: 152, height: 152, boxShadow: "0 18px 50px rgba(0,0,0,0.5)" }}>
-            <Avatar src={photo} name={name} seed={view.peerUid} size={152} />
+          <div className="mx-call-halo relative" style={{ width: size, height: size, boxShadow: "0 22px 60px rgba(0,0,0,0.55)" }}>
+            <div className="rounded-full overflow-hidden w-full h-full"><Avatar src={photo} name={name} seed={view.peerUid} size={size - 10} /></div>
           </div>
         </div>
-        <div className="text-center max-w-full">
-          <p className="text-[28px] font-bold leading-tight truncate">{name}</p>
-          <p className="text-[16px] mt-1.5 tabular-nums" style={{ opacity: 0.82, color: view.weak ? "#ffb74d" : undefined }}>{statusText(view, now)}</p>
+        <div className="text-center max-w-full flex flex-col items-center gap-2">
+          <p className="text-[30px] font-bold leading-tight truncate max-w-full" style={{ letterSpacing: "-0.01em" }}>{name}</p>
+          {live ? (
+            <p className="text-[19px] font-medium tabular-nums" style={{ color: view.weak ? "#ffb74d" : "rgba(255,255,255,0.92)" }}>{statusText(view, now)}</p>
+          ) : (
+            <p className="mx-call-glass inline-flex items-center gap-2 rounded-full px-3.5 h-8 text-[14.5px]" style={{ color: ended ? "rgba(255,255,255,0.9)" : undefined }}>
+              {pulsing && <span className="mx-call-dot" />}{statusText(view, now)}
+            </p>
+          )}
+          {live && <span className={`mx-call-wave${view.muted ? " off" : ""}`} style={{ color: view.weak ? "#ffb74d" : "#5be29a" }} aria-hidden><i /><i /><i /><i /><i /></span>}
         </div>
       </div>
 
-      <div className="relative w-full flex items-start justify-center gap-9" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 38px)", minHeight: 150 }}>
+      <div className="relative w-full flex justify-center px-5" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 34px)", minHeight: 150 }}>
         {ended ? null : view.phase === "incoming" ? (
-          <>
+          <div className="flex items-start justify-center gap-14">
             <Labeled label="Отклонить"><button onClick={onHangup} className="mx-call-btn red big" aria-label="Отклонить"><PhoneOff size={30} /></button></Labeled>
             <Labeled label="Принять"><button onClick={onAccept} className="mx-call-btn green big" aria-label="Принять"><span className="mx-call-shake inline-flex"><Phone size={30} /></span></button></Labeled>
-          </>
+          </div>
         ) : (
-          <>
-            <Labeled label={view.muted ? "Включить" : "Выкл. микрофон"}>
+          <div className="mx-call-glass flex items-start justify-center gap-5 rounded-[34px] px-6 pt-4 pb-3 h-fit">
+            <Labeled label={view.muted ? "Включить" : "Микрофон"}>
               <button onClick={onMute} className={`mx-call-btn${view.muted ? " on" : ""}`} aria-label={view.muted ? "Включить микрофон" : "Выключить микрофон"} aria-pressed={view.muted}>{view.muted ? <MicOff size={26} /> : <Mic size={26} />}</button>
             </Labeled>
             <Labeled label="Завершить"><button onClick={onHangup} className="mx-call-btn red big" aria-label="Завершить звонок"><PhoneOff size={30} /></button></Labeled>
             <Labeled label="В чат"><button onClick={onChat} className="mx-call-btn" aria-label="Открыть чат"><MessageCircle size={26} /></button></Labeled>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -546,7 +565,7 @@ function CallScreen({ view, now, name, photo, onAccept, onHangup, onMute, onMini
 
 function Labeled({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2" style={{ width: 84 }}>
+    <div className="flex flex-col items-center gap-2" style={{ width: 80 }}>
       {children}
       <span className="text-[12.5px] opacity-80 text-center leading-tight">{label}</span>
     </div>
@@ -556,12 +575,13 @@ function Labeled({ label, children }: { label: string; children: ReactNode }) {
 /** Свёрнутый звонок: плашка над чатом — тап возвращает на экран звонка. */
 function CallPill({ view, now, onOpen, onHangup }: { view: View; now: number; onOpen: () => void; onHangup: () => void }) {
   return (
-    <div className="mx-call-pill flex items-center rounded-full overflow-hidden" style={{ background: "#2fb36a", color: "#fff", boxShadow: "0 10px 28px rgba(0,0,0,0.4)" }}>
+    <div className="mx-call-pill flex items-center rounded-full overflow-hidden" style={{ background: "rgba(20,24,22,0.82)", WebkitBackdropFilter: "blur(18px)", backdropFilter: "blur(18px)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", boxShadow: "0 10px 28px rgba(0,0,0,0.4)" }}>
       <style>{CALL_CSS}</style>
-      <button onClick={onOpen} className="flex items-center gap-2 pl-3.5 pr-3 h-10 text-[14px] font-medium tabular-nums" aria-label="Вернуться к звонку">
-        <Phone size={16} /> {statusText(view, now)}
+      <button onClick={onOpen} className="flex items-center gap-2.5 pl-4 pr-3 h-11 text-[14px] font-medium tabular-nums" aria-label="Вернуться к звонку">
+        <span className={`mx-call-wave${view.muted ? " off" : ""}`} style={{ color: "#5be29a", height: 16, gap: 3 }} aria-hidden><i style={{ width: 3 }} /><i style={{ width: 3 }} /><i style={{ width: 3 }} /></span>
+        {statusText(view, now)}
       </button>
-      <button onClick={onHangup} className="w-10 h-10 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.22)" }} aria-label="Завершить звонок"><PhoneOff size={17} /></button>
+      <button onClick={onHangup} className="w-11 h-11 flex items-center justify-center" style={{ background: "#e5484d" }} aria-label="Завершить звонок"><PhoneOff size={17} /></button>
     </div>
   );
 }

@@ -8,6 +8,7 @@ export interface ForwardMapping {
   userTag: string;
   kind: ForwardKind;
   createdAt: number;
+  messengerUid?: string; // обращение из MiliGram (или из бота с привязанным аккаунтом): ответ дублируется в чат поддержки
 }
 
 /**

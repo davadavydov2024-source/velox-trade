@@ -1,15 +1,18 @@
 "use client";
 
+import { ghostNow } from "./ghost";
+import { useAdv } from "./advPrefs";
 import { useMemo, useState } from "react";
-import { Archive, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
+import { Bookmark, Archive, Trash2, BellOff, Bell, Camera, ChevronDown, ChevronRight, Check, CheckCheck, Folder, Pin, PinOff, Search, SquarePen, X, CheckCheck as ReadIcon } from "lucide-react";
 import { useToast } from "@/lib/toastContext";
 import { mApi, MApiError } from "./api";
-import { Avatar, MenuList, Sheet, VerifiedBadge } from "./ui";
+import { Avatar, MenuList, Sheet, TagChip, VerifiedBadge, VerifyMark, TypingDots, StreakBadge } from "./ui";
 import { StatusBadge } from "./StatusBadge";
+import { FAB } from "m3you";
 import { SwipeRow, SwipeAction } from "./SwipeRow";
 import { StoriesRow, StoryGroup } from "./Stories";
 import { PersonRow, usePeopleSearch } from "./NewChatSheet";
-import { useAccounts, useNow } from "./hooks";
+import { useAccounts, useNow, useTypingMap } from "./hooks";
 import { MAccount, MChat, MFolder, MUserChat } from "./mtypes";
 import { chatPhoto, chatTitle, formatListTime, isChatMuted, isOnline, isSavedMessages, peerUid, previewText } from "./util";
 
@@ -70,8 +73,20 @@ export function ChatListPane({
   const { toast } = useToast();
   const now = useNow(20_000);
   const peerIds = chats.filter((c) => c.type === "dm").map((c) => peerUid(c, me));
+  const hidePreview = useAdv((x) => x.hideChatPreview);
+  const typingMap = useTypingMap(chats.map((c) => c.id), me);
   const senderIds = chats.map((c) => c.lastMessage?.from).filter((x): x is string => !!x);
   const accounts = useAccounts(Array.from(new Set([...peerIds, ...senderIds])));
+
+  const hasDating = chats.some((c) => c.type === "dm" && c.members.includes("velox_dating"));
+  const openDating = async () => {
+    try {
+      const res = await mApi<{ chatId: string }>("dating-open", {});
+      if (res.chatId) onOpenChat(res.chatId);
+    } catch (err) {
+      toast("error", err instanceof MApiError ? err.message : "Не удалось открыть бота знакомств");
+    }
+  };
 
   const [folderId, setFolderId] = useState<string>("all");
   const [showArchive, setShowArchive] = useState(false);
@@ -79,7 +94,8 @@ export function ChatListPane({
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuChat, setMenuChat] = useState<MChat | null>(null);
-  const [folderPick, setFolderPick] = useState<MChat[] | null>(null);
+  const [delChat, setDelChat] = useState<MChat | null>(null);
+  const [folderPick, setFolderPick] = useState<MChat | null>(null);
   const [muteFor, setMuteFor] = useState<MChat[] | null>(null);
   const [q, setQ] = useState("");
   const { results: peopleResults, loading: peopleLoading } = usePeopleSearch(q, q.trim().length >= 2);
@@ -89,7 +105,24 @@ export function ChatListPane({
     const bad = res.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
     if (bad) toast("error", bad.reason instanceof MApiError ? bad.reason.message : "Не удалось применить");
   };
-  const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id }).catch(() => {}));
+  const isGone = (c: MChat) => { const h = userChats[c.id]?.hiddenAt; return !!h && (c.lastMessage?.at ?? 0) <= h; };
+  /** Удаление чата: у меня (скрыть), у обоих (очистить историю у всех и скрыть), для группы — выйти / удалить целиком. */
+  const removeChat = async (c: MChat, mode: "me" | "both" | "leave" | "all") => {
+    try {
+      if (mode === "both") {
+        for (let i = 0; i < 10; i++) { const r = await mApi<{ done: boolean }>("clear-chat", { chatId: c.id, forAll: true }); if (r.done) break; }
+        await mApi("chat-settings", { chatId: c.id, hide: true });
+      } else if (mode === "leave") {
+        await mApi("members", { chatId: c.id, action: "leave" });
+      } else if (mode === "all") {
+        await mApi("members", { chatId: c.id, action: "deleteChat" });
+      } else {
+        await mApi("chat-settings", { chatId: c.id, hide: true });
+      }
+      toast("success", mode === "me" || mode === "both" ? "Чат удалён" : mode === "leave" ? "Вы вышли из чата" : "Чат удалён для всех");
+    } catch (e) { toast("error", e instanceof MApiError ? e.message : "Не удалось удалить"); }
+  };
+  const markRead = (ids: string[]) => ids.forEach((id) => mApi("read", { chatId: id, ...(ghostNow().noRead ? { ghost: true } : {}), ...(ghostNow().hideOnline ? { quiet: true } : {}) }).catch(() => {}));
 
   const activeFolder = folders.find((f) => f.id === folderId);
   const unreadByFolder = (f: MFolder | null) =>
@@ -98,7 +131,7 @@ export function ChatListPane({
   const visible = useMemo(() => {
     const list = chats.filter((c) => {
       const uc = userChats[c.id];
-      if (uc?.archived) return false;
+      if (uc?.archived || isGone(c)) return false;
       if (activeFolder && !chatInFolder(c, uc, activeFolder)) return false;
       return true;
     });
@@ -109,10 +142,11 @@ export function ChatListPane({
       if (ua?.pinned && ub?.pinned) return (ub.pinnedAt ?? 0) - (ua.pinnedAt ?? 0);
       return (b.lastMessage?.at ?? b.updatedAt ?? 0) - (a.lastMessage?.at ?? a.updatedAt ?? 0);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chats, userChats, activeFolder]);
 
-  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived ? 1 : 0), 0);
-  const archived = chats.filter((c) => userChats[c.id]?.archived);
+  const unreadTotal = chats.reduce((n, c) => n + ((userChats[c.id]?.unread ?? 0) > 0 && !userChats[c.id]?.archived && !isGone(c) ? 1 : 0), 0);
+  const archived = chats.filter((c) => userChats[c.id]?.archived && !isGone(c));
   const archivedUnread = archived.reduce((s, c) => s + (userChats[c.id]?.unread ?? 0), 0);
 
   const searching = q.trim().length > 0;
@@ -135,12 +169,12 @@ export function ChatListPane({
     const muted = isChatMuted(uc?.muted, uc?.mutedUntil, now);
     const unread = uc?.unread ?? 0;
     const last = c.lastMessage;
-    const typing = false; // «печатает» берётся из подколлекции чата только в открытом чате (см. ChatView)
+    const typing = (typingMap[c.id] ?? []).length > 0;
     const draft = activeId === c.id ? "" : readDraft(c.id);
     const mineLast = last?.from === me;
     const readByPeer = mineLast && last ? (c.type === "dm" ? (c.readBy?.[peerUid(c, me)] ?? 0) >= last.at : c.members.some((u) => u !== me && (c.readBy?.[u] ?? 0) >= last.at)) : false;
     const senderName = last && c.type !== "dm" && !mineLast ? accounts[last.from]?.displayName?.split(" ")[0] : mineLast && c.type !== "dm" ? "Вы" : "";
-    const preview = last ? previewText(last.kind, last.text) : c.type === "channel" ? "Канал создан" : "Нет сообщений";
+    const preview = last && hidePreview ? "Сообщение" : last ? previewText(last.kind, last.text) : c.type === "channel" ? "Канал создан" : "Нет сообщений";
 
     const left: SwipeAction[] = [
       { label: uc?.pinned ? "Открепить" : "Закрепить", icon: uc?.pinned ? <PinOff size={21} /> : <Pin size={21} />, color: "#ff9500", onPress: () => act([c.id], { pinned: !uc?.pinned }) },
@@ -156,19 +190,20 @@ export function ChatListPane({
         rightAction={editMode ? undefined : right}
         disabled={editMode}
         onClick={() => (editMode ? toggleSel(c.id) : onOpenChat(c.id))}
-        onLongPress={() => { if (editMode) return; try { navigator.vibrate?.(12); } catch { /* не везде есть */ } setEditMode(true); setSelected(new Set([c.id])); }}
+        onLongPress={() => !editMode && setMenuChat(c)}
       >
-        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""} ${!editMode && uc?.pinned && activeId !== c.id ? "pinned" : ""}`} style={activeId === c.id ? { background: "var(--mx-surface)" } : undefined}>
+        <div className={`mx-chat-row flex items-center gap-3 px-4 py-3 ${editMode && selected.has(c.id) ? "sel" : ""}`} data-current={activeId === c.id ? "" : undefined}>
           <div className={`mx-av-sel ${editMode && selected.has(c.id) ? "on" : ""}`}>
-            <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={56} online={!editMode && isOnline(peer, now)}>
-              {saved ? "🔖" : undefined}
-            </Avatar>
+            {saved ? <span className="rounded-full flex items-center justify-center text-white" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Bookmark size={28} fill="#fff" /></span> : <Avatar src={chatPhoto(c, me, accounts)} name={title} seed={c.type === "dm" ? peerUid(c, me) : c.id} size={62} online={!editMode && isOnline(peer, now)}>
+              {undefined}
+            </Avatar>}
             <span className="mx-av-check"><Check size={13} strokeWidth={3.5} /></span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[16.5px] flex items-center gap-1" style={{ fontWeight: unread > 0 ? 700 : 600 }}>
-                {title} {peer?.verified && <VerifiedBadge size={14} />}<StatusBadge acc={peer} size={14} />
+              <p className="mx-chat-name truncate text-[17px] flex items-center gap-1" style={{ fontWeight: 700 }}>
+                {title} <VerifyMark acc={c.type === "dm" ? peer : c} size={15} /><TagChip acc={c.type === "dm" ? peer : c} /><StatusBadge acc={peer} size={14} />
+                {c.type === "dm" && <StreakBadge count={c.streak?.count ?? 0} size={13} />}
               </p>
               {muted && <BellOff size={13} className="mx-muted shrink-0" />}
               <span className="ml-auto flex items-center gap-1 shrink-0 text-[13px]" style={{ color: unread > 0 && !muted ? "var(--mx-accent)" : "var(--mx-muted)" }}>
@@ -177,9 +212,9 @@ export function ChatListPane({
               </span>
             </div>
             <div className="flex items-start gap-2 mt-0.5">
-              <p className="text-[14.5px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
+              <p className="text-[15px] flex-1 min-w-0" style={{ color: unread > 0 ? "var(--mx-text)" : "var(--mx-muted)", opacity: unread > 0 ? 0.85 : 1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3 }}>
                 {typing ? (
-                  <span style={{ color: "var(--mx-accent)" }}>печатает…</span>
+                  <span className="inline-flex items-center gap-1.5" style={{ color: "var(--mx-accent)" }}><TypingDots />печатает</span>
                 ) : draft ? (
                   <>
                     <span style={{ color: "var(--mx-danger)" }}>Черновик: </span>
@@ -205,14 +240,6 @@ export function ChatListPane({
   };
 
   const selectedIds = Array.from(selected);
-  const selChats = chats.filter((c) => selected.has(c.id));
-  const allPinned = selChats.length > 0 && selChats.every((c) => userChats[c.id]?.pinned);
-  const allMuted = selChats.length > 0 && selChats.every((c) => isChatMuted(userChats[c.id]?.muted, userChats[c.id]?.mutedUntil, now));
-  const allArchived = selChats.length > 0 && selChats.every((c) => userChats[c.id]?.archived);
-  const anyUnread = selChats.some((c) => (userChats[c.id]?.unread ?? 0) > 0);
-  const selectable = [...visible, ...(archiveOpen ? archived : [])];
-  const allSelected = selectable.length > 0 && selectable.every((c) => selected.has(c.id));
-  const selectAll = () => setSelected(allSelected ? new Set() : new Set(selectable.map((c) => c.id)));
   const exitEdit = () => {
     setEditMode(false);
     setSelected(new Set());
@@ -223,39 +250,42 @@ export function ChatListPane({
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
-      {/* ---- шапка ---- */}
-      <div className="mx-safe-top shrink-0">
-        {editMode ? (
-          <div className="mx-selbar mx-step">
-            <button onClick={exitEdit} className="mx-icon-btn" aria-label="Отменить выбор"><X size={18} /></button>
-            <span className="mx-selbar-count truncate">{selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите чаты"}</span>
-            <button onClick={selectAll} className="mx-chip">{allSelected ? "Снять" : "Выбрать все"}</button>
+    <div className="mx-inbox relative flex flex-col h-full" style={{ background: "var(--mx-bg)" }}>
+      {/* ---- шапка: стеклянные «таблетки» — «Изм.» слева, «Чаты» по центру, действия справа ---- */}
+      <div className="mx-safe-top shrink-0" style={{ background: "var(--mx-bg)" }}>
+        <div className="px-4 pt-2 pb-2 flex items-center">
+          <button onClick={() => (editMode ? exitEdit() : setEditMode(true))} className="mx-pill-btn h-11 px-4 text-[17px] font-semibold min-w-[68px]">
+            {editMode ? "Готово" : "Изм."}
+          </button>
+          <div className="flex-1 text-center min-w-0 px-2">
+            <h1 className="text-[18px] font-bold leading-tight truncate">Чаты</h1>
+            {unreadTotal > 0 && <p className="text-[11.5px] mx-muted leading-tight">{unreadTotal} непрочитанн{unreadTotal % 10 === 1 && unreadTotal % 100 !== 11 ? "ый" : "ых"}</p>}
           </div>
-        ) : (
-          <div className="px-4 pt-2 pb-2 flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-[30px] font-bold leading-none tracking-tight">Чаты</h1>
-              {unreadTotal > 0 && <p className="text-[13px] mx-muted mt-1">{unreadTotal} непрочитанн{unreadTotal === 1 ? "ый" : "ых"}</p>}
-            </div>
-            <button onClick={() => setEditMode(true)} className="mx-chip">Изменить</button>
-            <button onClick={onCreateStory} className="mx-icon-btn" aria-label="Новая история"><Camera size={18} /></button>
-            <button onClick={onNewChat} className="mx-icon-btn" aria-label="Новое сообщение"><SquarePen size={18} /></button>
+          <div className="flex gap-2 min-w-[68px] justify-end">
+            <button onClick={onCreateStory} className="mx-pill-btn w-11 h-11" aria-label="Новая история"><Camera size={21} /></button>
           </div>
-        )}
+        </div>
       </div>
 
-      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 96 }}>
+      <div className="mx-scroll flex-1 min-h-0" style={{ paddingBottom: editMode ? 70 : 92 }}>
         <StoriesRow groups={storyGroups} me={me} myAccount={myAccount} accounts={storyAccounts} onOpen={onOpenStory} onCreate={onCreateStory} />
 
         {/* поиск */}
         <div className="px-4 pb-2 pt-1">
           <div className="mx-search">
             <Search size={17} className="mx-muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск чатов и людей" className="bg-transparent outline-none flex-1 text-[16px]" autoCapitalize="none" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск" className="bg-transparent outline-none flex-1 text-[17px]" autoCapitalize="none" />
             {q && <button onClick={() => setQ("")} className="mx-muted" aria-label="Очистить"><X size={17} /></button>}
           </div>
         </div>
+
+        {!searching && !hasDating && !editMode && (
+          <button onClick={openDating} className="mx-4 mb-2 flex items-center gap-3 text-left rounded-2xl px-4 py-3 active:scale-[.98] transition-transform" style={{ margin: "0 16px 8px", width: "calc(100% - 32px)", background: "linear-gradient(135deg, rgba(255,45,85,.22), rgba(175,82,222,.22))", border: "1px solid var(--mx-line)" }}>
+            <span className="text-[26px]">💘</span>
+            <span className="flex-1 min-w-0"><span className="block font-semibold text-[15px]">Velox Знакомства</span><span className="block mx-muted text-[13px]">Найди друзей и отношения · 18+</span></span>
+            <ChevronRight size={18} className="mx-muted" />
+          </button>
+        )}
 
         {searching ? (
           <div>
@@ -288,34 +318,33 @@ export function ChatListPane({
           </div>
         ) : (
           <>
-            {/* папки */}
+            {/* папки: вкладки сверху с акцентной линией, как в Telegram */}
             {folders.length > 0 && (
-              <div className="pb-1">
-                <div className="mx-tabs">
-                  {[{ id: "all", name: "Все", emoji: "" } as MFolder, ...folders].map((f) => {
-                    const on = f.id === folderId;
-                    const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
-                    return (
-                      <button key={f.id} onClick={() => setFolderId(f.id)} className={`mx-tab ${on ? "on" : ""}`}>
-                        {f.emoji} {f.name}
-                        {count > 0 && <span className={`mx-badge ${on ? "" : "muted"}`}>{count}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex overflow-x-auto mx-noscrollbar px-2" style={{ borderBottom: "1px solid var(--mx-line)" }}>
+                {[{ id: "all", name: "Все", emoji: "" } as MFolder, ...folders].map((f) => {
+                  const on = f.id === folderId;
+                  const count = f.id === "all" ? unreadByFolder(null) : unreadByFolder(f);
+                  return (
+                    <button key={f.id} onClick={() => setFolderId(f.id)} className="mx-folder-tab relative shrink-0 px-3.5 h-11 text-[15px] font-semibold whitespace-nowrap flex items-center gap-1.5" data-on={on ? "" : undefined} style={{ color: on ? "var(--mx-text)" : "var(--mx-muted)" }}>
+                      {f.emoji} {f.name}
+                      {count > 0 && <span className="mx-badge" style={{ minWidth: 18, height: 18, fontSize: 11, background: on ? "var(--mx-accent)" : "var(--mx-muted)", color: "#fff" }}>{count}</span>}
+                      {on && <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full" style={{ background: "var(--mx-accent)" }} />}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
             {/* архив */}
-            {archived.length > 0 && (
+            {(
               <>
                 <button onClick={() => setArchiveOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
-                  <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: "#8e8e93" }}><Archive size={24} /></span>
-                  <span className="flex-1 font-semibold text-[16.5px]">Архив чатов</span>
+                  <span className="rounded-full flex items-center justify-center text-white shrink-0" style={{ background: "#4aa3f0", width: 62, height: 62 }}><Archive size={28} /></span>
+                  <span className="flex-1 min-w-0"><span className="block font-bold text-[17px]">Архив чатов</span><span className="block text-[15px] mx-muted truncate">{archived.length ? archived.map((c) => chatTitle(c, me, accounts)).join(", ") : "Пусто"}</span></span>
                   {archivedUnread > 0 && <span className="mx-badge muted">{archivedUnread}</span>}
-                  {archiveOpen ? <ChevronDown size={18} className="mx-muted" /> : <ChevronRight size={18} className="mx-muted" />}
                 </button>
                 {archiveOpen && archived.map(row)}
+                {archiveOpen && archived.length === 0 && <p className="mx-muted text-[13.5px] px-6 pb-3">Архив пуст. Смахни чат влево и нажми «Архив» — он спрячется сюда и не будет мешать.</p>}
               </>
             )}
 
@@ -346,15 +375,14 @@ export function ChatListPane({
       </div>
 
       {editMode && (
-        <div className="mx-actbar mx-glass mx-safe-bottom mx-step">
+        <div className="absolute inset-x-0 bottom-0 mx-glass mx-safe-bottom flex" style={{ borderWidth: "1px 0 0", zIndex: 60, background: "var(--mx-bg)" }}>
           {[
-            { label: "Прочитано", icon: <ReadIcon size={21} />, off: !anyUnread, run: () => { markRead(selectedIds); exitEdit(); } },
-            { label: allPinned ? "Открепить" : "Закрепить", icon: allPinned ? <PinOff size={21} /> : <Pin size={21} />, run: () => bulk({ pinned: !allPinned }) },
-            { label: allMuted ? "Со звуком" : "Без звука", icon: allMuted ? <Bell size={21} /> : <BellOff size={21} />, run: () => (allMuted ? bulk({ muted: false, mutedUntil: 0 }) : setMuteFor(selChats)) },
-            { label: allArchived ? "Из архива" : "В архив", icon: <Archive size={21} />, run: () => bulk({ archived: !allArchived }) },
-            ...(folders.length > 0 ? [{ label: "В папку", icon: <Folder size={21} />, run: () => setFolderPick(selChats) }] : []),
+            { label: "Прочитано", icon: <ReadIcon size={20} />, run: () => { markRead(selectedIds); exitEdit(); } },
+            { label: "Закрепить", icon: <Pin size={20} />, run: () => bulk({ pinned: true }) },
+            { label: "Без звука", icon: <BellOff size={20} />, run: () => { setMuteFor(chats.filter((c) => selected.has(c.id))); } },
+            { label: "В архив", icon: <Archive size={20} />, run: () => bulk({ archived: true }) },
           ].map((b) => (
-            <button key={b.label} disabled={selected.size === 0 || ("off" in b && !!b.off)} onClick={b.run}>
+            <button key={b.label} disabled={selected.size === 0} onClick={b.run} className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[11.5px] disabled:opacity-35" style={{ color: "var(--mx-accent)" }}>
               {b.icon}
               {b.label}
             </button>
@@ -376,11 +404,28 @@ export function ChatListPane({
                   ? { label: "Включить звук", icon: <Bell size={20} />, onPress: () => act([menuChat.id], { muted: false, mutedUntil: 0 }) }
                   : { label: "Без звука", icon: <BellOff size={20} />, onPress: () => setMuteFor([menuChat]) },
                 { label: "Прочитано", icon: <ReadIcon size={20} />, hidden: !(uc?.unread), onPress: () => markRead([menuChat.id]) },
-                { label: "В папку", icon: <Folder size={20} />, hidden: folders.length === 0, onPress: () => setFolderPick([menuChat]) },
+                { label: "В папку", icon: <Folder size={20} />, hidden: folders.length === 0, onPress: () => setFolderPick(menuChat) },
                 { label: uc?.archived ? "Вернуть из архива" : "В архив", icon: <Archive size={20} />, onPress: () => act([menuChat.id], { archived: !uc?.archived }) },
+                { label: "Удалить чат", icon: <Trash2 size={20} />, danger: true, onPress: () => setDelChat(menuChat) },
               ]}
             />
           );
+        })()}
+      </Sheet>
+
+      {/* удаление чата */}
+      <Sheet open={!!delChat} onClose={() => setDelChat(null)} title={delChat ? `Удалить: ${chatTitle(delChat, me, accounts)}` : undefined}>
+        {delChat && (() => {
+          const c = delChat;
+          const items = c.type === "dm"
+            ? [
+                { label: "Удалить у меня", icon: <Trash2 size={20} />, danger: true, onPress: () => removeChat(c, "me") },
+                ...(c.service ? [] : [{ label: "Удалить у меня и собеседника", icon: <Trash2 size={20} />, danger: true, onPress: () => { if (window.confirm("Вся переписка будет стёрта у обоих без возможности восстановления. Продолжить?")) removeChat(c, "both"); } }]),
+              ]
+            : c.createdBy === me
+              ? [{ label: "Удалить для всех участников", icon: <Trash2 size={20} />, danger: true, onPress: () => { if (window.confirm("Чат будет удалён у всех участников без возможности восстановления. Продолжить?")) removeChat(c, "all"); } }]
+              : [{ label: "Покинуть и удалить", icon: <Trash2 size={20} />, danger: true, onPress: () => removeChat(c, "leave") }];
+          return <MenuList onDone={() => setDelChat(null)} items={items} />;
         })()}
       </Sheet>
 
@@ -399,23 +444,19 @@ export function ChatListPane({
         )}
       </Sheet>
 
-      {/* выбор папки для одного или нескольких чатов */}
-      <Sheet open={!!folderPick} onClose={() => setFolderPick(null)} title={folderPick && folderPick.length > 1 ? `Папки для чатов (${folderPick.length})` : "Папки чата"}>
+      {/* выбор папки для чата */}
+      <Sheet open={!!folderPick} onClose={() => setFolderPick(null)} title="Папки чата">
         {folderPick && (
           <div className="pb-4">
             {folders.map((f) => {
-              const inList = folderPick.every((c) => !!userChats[c.id]?.folderIds?.includes(f.id));
+              const inList = !!userChats[folderPick.id]?.folderIds?.includes(f.id);
               return (
                 <button
                   key={f.id}
-                  onClick={async () => {
-                    const list = folderPick;
+                  onClick={() => {
+                    const cur = userChats[folderPick.id]?.folderIds ?? [];
+                    act([folderPick.id], { folderIds: inList ? cur.filter((x) => x !== f.id) : [...cur, f.id] });
                     setFolderPick(null);
-                    await Promise.all(list.map((c) => {
-                      const cur = userChats[c.id]?.folderIds ?? [];
-                      return act([c.id], { folderIds: inList ? cur.filter((x) => x !== f.id) : Array.from(new Set([...cur, f.id])) });
-                    }));
-                    exitEdit();
                   }}
                   className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
                 >
@@ -428,6 +469,11 @@ export function ChatListPane({
           </div>
         )}
       </Sheet>
+
+      {/* Material You: плавающая кнопка «Новое сообщение» */}
+      {!editMode && (
+        <FAB className="mx-m3-fab" onClick={onNewChat} aria-label="Новое сообщение"><SquarePen size={24} /></FAB>
+      )}
     </div>
   );
 }

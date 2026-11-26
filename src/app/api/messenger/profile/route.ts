@@ -54,6 +54,39 @@ export async function POST(req: NextRequest) {
       upd.channelHandle = v;
     }
   }
+  if ("profileChannel" in b) {
+    // канал в профиле: любой из МОИХ каналов (создатель или админ), в том числе закрытый
+    const v = b.profileChannel;
+    if (v === null || v === "") { upd.profileChannel = null; upd.channelHandle = null; }
+    else {
+      if (typeof v !== "string" || v.includes("/")) return fail("Некорректный канал");
+      const chat = (await adminDb().collection("messengerChats").doc(v).get()).data();
+      if (!chat || chat.type !== "channel" || !(chat.createdBy === me.uid || (chat.admins ?? []).includes(me.uid))) return fail("Канал не найден или ты не его админ");
+      upd.profileChannel = v;
+      upd.channelHandle = chat.handle ?? null;
+    }
+  }
+  if ("profileTrack" in b) {
+    // мелодия профиля: трек из раздела «Музыка»
+    const v = b.profileTrack;
+    if (v === null || v === "") upd.profileTrack = null;
+    else if (typeof v === "string" && !v.includes("/") && (await adminDb().collection("messengerMusicTracks").doc(v).get()).exists) upd.profileTrack = v;
+    else return fail("Такого трека нет");
+  }
+  if ("socials" in b) {
+    // ссылки на соцсети: до 3, тип из списка, значение — только безопасные символы
+    const KINDS = ["telegram", "tiktok", "soundcloud", "instagram", "youtube", "x", "vk"];
+    const list = Array.isArray(b.socials) ? b.socials.slice(0, 3) : [];
+    const out: { kind: string; value: string }[] = [];
+    for (const it of list) {
+      const kind = typeof it?.kind === "string" ? it.kind : "";
+      const value = typeof it?.value === "string" ? it.value.trim().replace(/^@/, "") : "";
+      if (!value) continue;
+      if (!KINDS.includes(kind) || value.length > 40 || !/^[A-Za-z0-9_.\-]+$/.test(value)) return fail("Проверь ссылки на соцсети: только буквы, цифры, _ . -");
+      out.push({ kind, value });
+    }
+    upd.socials = out;
+  }
   if ("showLastSeen" in b) upd.showLastSeen = b.showLastSeen === true;
   if ("birthday" in b) {
     const v = b.birthday;

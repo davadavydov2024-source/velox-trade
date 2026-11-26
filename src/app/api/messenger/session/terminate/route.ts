@@ -16,6 +16,16 @@ export async function POST(req: NextRequest) {
   const db = adminDb();
   const col = db.collection("messengerSessions").doc(me.uid).collection("list");
 
+  // как в Telegram: новое устройство первые 24 часа не может завершать другие сеансы
+  const dev = req.headers.get("x-miligram-device") ?? "";
+  const own = dev ? (await col.doc(dev).get()).data() : undefined;
+  const young = !!own && Date.now() - (own.createdAt ?? 0) < 24 * 3_600_000;
+  const touchesOthers = b.others === true || b.everything === true || (typeof b.id === "string" && b.id !== dev);
+  if (young && touchesOthers) {
+    const left = Math.ceil((24 * 3_600_000 - (Date.now() - own!.createdAt)) / 3_600_000);
+    return fail(`Это устройство вошло недавно: завершать другие сеансы можно через 24 часа (осталось ~${left} ч). Так защищают аккаунт от угона.`, 403);
+  }
+
   if (typeof b.id === "string" && b.id && !b.id.includes("/")) {
     await col.doc(b.id).set({ revoked: true, revokedAt: Date.now() }, { merge: true });
     return NextResponse.json({ ok: true, terminated: 1 });

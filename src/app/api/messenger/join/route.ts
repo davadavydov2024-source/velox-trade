@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Для тех, кто уже вошёл на сайте (аккаунт Velox): создать аккаунт MiliGram. Нужен привязанный Telegram:
- * если не привязан — ответ { needTelegram:true, botUrl }: открыть бота, нажать «Старт», затем повторить этот же запрос.
+ * Для тех, кто уже вошёл на сайте (аккаунт Velox или вход через Telegram): создать аккаунт MiliGram. Telegram НЕобязателен.
+ * С { telegram:true } и без привязки — ответ { needTelegram:true, botUrl }: открыть бота, нажать «Старт», затем повторить этот же запрос.
  */
 export async function POST(req: NextRequest) {
   const uid = await requireFirebaseUid(req);
@@ -33,11 +33,11 @@ export async function POST(req: NextRequest) {
   if (displayName.length < 2 || displayName.length > 40) return fail("Имя — от 2 до 40 символов");
 
   const link = (await db.collection("telegramLinks").doc(uid).get()).data() as { chatId?: number } | undefined;
-  if (!link?.chatId) {
+  if (!link?.chatId && b.telegram === true) {
     const { code, botUrl } = await createLinkRequest(uid);
     return NextResponse.json({ needTelegram: true, code, botUrl });
   }
-  if (await telegramConflict(uid, link.chatId)) return fail("Этот Telegram уже привязан к другому аккаунту MiliGram", 409);
+  if (link?.chatId && (await telegramConflict(uid, link.chatId))) return fail("Этот Telegram уже привязан к другому аккаунту MiliGram", 409);
 
   const user = await adminAuth().getUser(uid);
   try {

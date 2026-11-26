@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
   const db = adminDb();
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase().replace(/^@/, "").slice(0, 24);
 
-  const [accounts, chats, openReports, reportSnap, premiumN, giftsN, packsN] = await Promise.all([
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const [accounts, chats, openReports, reportSnap, premiumN, giftsN, packsN, newN, nftN, storiesN] = await Promise.all([
     db.collection("messengerAccounts").count().get(),
     db.collection("messengerChats").count().get(),
     db.collection("messengerReports").where("status", "==", "open").count().get(),
@@ -21,6 +22,9 @@ export async function GET(req: NextRequest) {
     db.collection("messengerAccounts").where("premiumUntil", ">", Date.now()).count().get(),
     db.collection("messengerGifts").count().get(),
     db.collection("messengerStickerPacks").count().get(),
+    db.collection("messengerAccounts").where("createdAt", ">=", dayAgo).count().get(),
+    db.collection("messengerGifts").where("nft.number", ">", 0).count().get().catch(() => null),
+    db.collection("messengerStories").where("expiresAt", ">", Date.now()).count().get().catch(() => null),
   ]);
 
   let found: FirebaseFirestore.QueryDocumentSnapshot[] = [];
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
   const reports = reportSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => b.createdAt - a.createdAt);
   return NextResponse.json({
-    stats: { accounts: accounts.data().count, chats: chats.data().count, openReports: openReports.data().count, premium: premiumN.data().count, gifts: giftsN.data().count, stickerPacks: packsN.data().count },
+    stats: { accounts: accounts.data().count, chats: chats.data().count, openReports: openReports.data().count, premium: premiumN.data().count, gifts: giftsN.data().count, stickerPacks: packsN.data().count, newToday: newN.data().count, nft: nftN?.data().count ?? 0, stories: storiesN?.data().count ?? 0 },
     accounts: found.map((d) => d.data()),
     reports,
   });

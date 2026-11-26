@@ -1,16 +1,67 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { generateM3Theme } from "m3you";
+import "m3you/styles.css";
 import { useViewportHeight } from "./hooks";
-import { useMxPrefs } from "./prefs";
+import { FONT_CHOICES, useMxPrefs } from "./prefs";
 import "./messenger.css";
+import "./workspace.css";
+import "./chat-polish.css";
+import "./design-m3.css";
+import { applyIcon, getSavedIcon, listenInstall } from "./appIconPref";
+
+/** Единственный «правильный» адрес мессенджера. APK/PWA, собранные на другой домен, перебрасываются сюда. */
+const CANONICAL_HOST = "mili-gram.vercel.app";
 
 /** Корень мессенджера: на весь экран поверх сайта (Header и нижняя панель сайта скрыты), тема, акцент, размер текста. */
 export function MxRoot({ children }: { children: ReactNode }) {
   useViewportHeight();
+
+  // APK/установленное приложение, собранное на старый домен, — уводим на mili-gram.vercel.app/m
+  useEffect(() => {
+    const h = window.location.hostname;
+    if (h === CANONICAL_HOST || h === "localhost" || h === "127.0.0.1" || h.startsWith("192.168.")) return;
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone;
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (standalone || cap?.isNativePlatform?.() || /; wv\)/.test(navigator.userAgent)) {
+      window.location.replace(`https://${CANONICAL_HOST}/m`);
+    }
+  }, []);
+
+  // выбранная пользователем иконка + перехват события «Установить приложение»
+  useEffect(() => {
+    listenInstall();
+    const saved = getSavedIcon();
+    if (saved) applyIcon(saved, false);
+  }, []);
   const theme = useMxPrefs((s) => s.theme);
   const accent = useMxPrefs((s) => s.accent);
   const textSize = useMxPrefs((s) => s.textSize);
+  const bubbleStyle = useMxPrefs((s) => s.bubbleStyle);
+  const fontId = useMxPrefs((s) => s.font);
+  const fontDef = FONT_CHOICES.find((f) => f.id === fontId);
+
+  // веб-шрифт подгружаем только когда он выбран
+  useEffect(() => {
+    if (!fontDef?.google) return;
+    const id = `mx-font-${fontDef.id}`;
+    if (document.getElementById(id)) return;
+    const l = document.createElement("link");
+    l.id = id;
+    l.rel = "stylesheet";
+    l.href = `https://fonts.googleapis.com/css2?family=${fontDef.google}&subset=cyrillic&display=swap`;
+    document.head.appendChild(l);
+  }, [fontDef]);
+  // шрифт Material You — Roboto (с кириллицей), грузим один раз
+  useEffect(() => {
+    if (document.getElementById("mx-font-roboto")) return;
+    const l = document.createElement("link");
+    l.id = "mx-font-roboto";
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap";
+    document.head.appendChild(l);
+  }, []);
   const [systemDark, setSystemDark] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -25,6 +76,12 @@ export function MxRoot({ children }: { children: ReactNode }) {
 
   const resolved = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
+  // Material You: полная палитра M3 из одного «seed»-цвета (свой акцент или фиолетовый по умолчанию)
+  const m3Tokens = useMemo(() => {
+    const seed = accent && /^#[0-9a-f]{6}$/i.test(accent) ? accent : "#6750A4";
+    try { return generateM3Theme(seed)[resolved === "dark" ? "dark" : "light"]; } catch { return {}; }
+  }, [accent, resolved]);
+
   // цвет строки состояния iOS/Android под тему
   useEffect(() => {
     let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
@@ -34,17 +91,17 @@ export function MxRoot({ children }: { children: ReactNode }) {
       document.head.appendChild(meta);
     }
     const prev = meta.content;
-    meta.content = resolved === "dark" ? "#0b0b0d" : "#f2f2f6";
+    meta.content = m3Tokens["--md-sys-color-surface"] ?? (resolved === "dark" ? "#141218" : "#fef7ff");
     return () => {
       if (meta) meta.content = prev;
     };
-  }, [resolved]);
+  }, [resolved, accent, m3Tokens]);
 
-  const style: Record<string, string> = { "--mx-font": `${textSize}px` };
-  if (accent) style["--mx-accent"] = accent;
+  const style: Record<string, string> = { "--mx-font": `${textSize}px`, ...m3Tokens };
+  if (fontDef?.css) style.fontFamily = fontDef.css;
 
   return (
-    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} style={style as React.CSSProperties}>
+    <div id="mx-root" className="mx mx-root" data-theme={mounted ? resolved : "dark"} data-design="tg" data-md="3" data-bubble={bubbleStyle} data-accent={accent ? "custom" : undefined} style={style as React.CSSProperties}>
       {children}
     </div>
   );

@@ -1,23 +1,49 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Ban, Gift, Megaphone, ShieldAlert, Sparkles, Star, Trash2 } from "lucide-react";
+import { BadgeCheck, Ban, Contact, Gift, Megaphone, ShieldAlert, Sparkles, Star, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { useToast } from "@/lib/toastContext";
 import { Avatar, PageHeader, Spinner } from "./ui";
 import type { MAccount } from "./mtypes";
 import { GIFTS, giftById } from "@/lib/messenger/gifts";
-import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS } from "@/lib/messenger/nft";
-import { NftArt } from "./Gifts";
+import { StickerPacksAdmin } from "./StickerPacksAdmin";
+import { AdminNft } from "./AdminNft";
+import { AdminMusic } from "./AdminMusic";
+import { AdminAds } from "./AdminAds";
+import { AdminPromo } from "./AdminPromo";
+import { AdminGrowth } from "./AdminGrowth";
+import { AdminUsernames } from "./AdminUsernames";
+import { AdminNumbers } from "./AdminNumbers";
+import { AdminAppIcon } from "./AdminAppIcon";
+import { AdminMarks } from "./AdminMarks";
+import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, type NftTrait } from "@/lib/messenger/nft";
 
-type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number };
+type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number; newToday: number; nft: number; stories: number };
+type AuditItem = { id: string; at: number; action: string; adminName: string; targetName: string; info: Record<string, any> };
+
+function auditLabel(a: AuditItem): string {
+  const i = a.info;
+  switch (a.action) {
+    case "messenger_grant_premium": return `Выдан Premium на ${i.days} дн.`;
+    case "messenger_revoke_premium": return "Снят Premium";
+    case "messenger_grant_stars": return `Начислено ${i.amount} 🪙`;
+    case "messenger_grant_gift": return `Подарок «${giftById(String(i.giftId))?.title ?? i.giftId}» × ${i.count ?? 1}`;
+    case "messenger_revoke_gift": return "Подарок отобран";
+    case "messenger_sticker_pack_save": return `Набор стикеров сохранён: ${i.slug} (${i.count} шт)`;
+    case "messenger_sticker_pack_delete": return `Набор стикеров удалён: ${i.slug}`;
+    case "read_chat": return "Открыта переписка (по жалобе)";
+    case "messenger_contacts": return `Просмотрены контакты (${i.count ?? 0}): ${i.reason ?? ""}`;
+    default: return a.action;
+  }
+}
 type Report = { id: string; reporterUid: string; chatId: string; msgId: string; from: string; kind: string; textSnapshot?: string; reason: string; createdAt: number };
 type ReadMsg = { id: string; from: string; kind: string; text: string; mediaUrl: string | null; createdAt: number; deleted: boolean };
 type ReadResult = { chat: { id: string; type: string; title: string | null }; messages: ReadMsg[]; accounts: Record<string, { displayName: string; handle: string }>; highlightAt: number | null };
 type GrantInfo = { account: { uid: string; handle: string; displayName: string; premiumUntil: number; verified: boolean; banned: boolean }; wallet: number; gifts: { id: string; giftId: string; at: number; nft: { number: number; supply: number; model: string; backdrop: string; symbol: string } | null; byAdmin: boolean }[] };
 type Past = { id: string; text: string; target: string; sent: number; createdAt: number; done: boolean };
 const TARGETS: [string, string][] = [["all", "Всем"], ["premium", "Только Mili Premium"], ["verified", "Только с галочкой"]];
-const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["stickers", "Стикеры"]] as const;
+const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["ads", "Реклама"], ["promo", "Промокоды"], ["growth", "Рост"], ["usernames", "Юзернеймы"], ["numbers", "Номера"], ["appicon", "Иконка"], ["marks", "Метки"], ["audit", "Журнал"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 async function call<T = any>(url: string, body?: unknown): Promise<T> {
@@ -32,6 +58,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("stats");
   const [stats, setStats] = useState<Stats | null>(null);
+  const [audit, setAudit] = useState<AuditItem[] | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [people, setPeople] = useState<MAccount[]>([]);
   const [q, setQ] = useState("");
@@ -45,7 +72,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [sent, setSent] = useState(0);
   const [past, setPast] = useState<Past[]>([]);
 
-  // «Выдать»: премиум, ⭐, подарки и NFT
+  // «Выдать»: премиум, 🪙, подарки и NFT
   const [giveTo, setGiveTo] = useState<MAccount | null>(null);
   const [info, setInfo] = useState<GrantInfo | null>(null);
   const [busyKey, setBusyKey] = useState("");
@@ -63,10 +90,10 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [reason, setReason] = useState("");
   const [reading, setReading] = useState(false);
   const [read, setRead] = useState<ReadResult | null>(null);
-  const [audit, setAudit] = useState<{ adminUid: string; chatId?: string; reason?: string; at: number }[]>([]);
+  const [readLog, setReadLog] = useState<{ adminUid: string; chatId?: string; reason?: string; at: number }[]>([]);
   const openChat = async (qs: string) => {
     setReading(true);
-    try { setRead(await call<ReadResult>(`/api/admin/messenger/chats?${qs}`)); setTab("chats"); call<{ audit: any[] }>("/api/admin/messenger/chats?audit=1").then((d) => setAudit(d.audit)).catch(() => {}); } catch (e: any) { toast("error", e.message); } finally { setReading(false); }
+    try { setRead(await call<ReadResult>(`/api/admin/messenger/chats?${qs}`)); setTab("chats"); call<{ audit: any[] }>("/api/admin/messenger/chats?audit=1").then((d) => setReadLog(d.audit)).catch(() => {}); } catch (e: any) { toast("error", e.message); } finally { setReading(false); }
   };
 
   const load = useCallback(async (query = "") => {
@@ -86,7 +113,13 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const loadInfo = useCallback(async (uid: string) => {
     try { setInfo(await call<GrantInfo>(`/api/admin/messenger/grant?uid=${encodeURIComponent(uid)}`)); } catch (e: any) { toast("error", e.message); }
   }, [toast]);
-  const pickTarget = (a: MAccount) => { setGiveTo(a); setInfo(null); loadInfo(a.uid); };
+  const [contacts, setContacts] = useState<{ uid: string; displayName: string; handle: string; lastAt: number }[] | null>(null);
+  const loadContacts = async (uid: string) => {
+    const reason = window.prompt("Причина просмотра контактов (не короче 10 символов). Просмотр записывается в журнал.");
+    if (!reason) return;
+    try { setContacts((await call<{ contacts: { uid: string; displayName: string; handle: string; lastAt: number }[] }>(`/api/admin/messenger/contacts?uid=${encodeURIComponent(uid)}&reason=${encodeURIComponent(reason)}`)).contacts); } catch (e: any) { toast("error", e.message); }
+  };
+  const pickTarget = (a: MAccount) => { setGiveTo(a); setInfo(null); setContacts(null); loadInfo(a.uid); };
   const grant = async (key: string, body: Record<string, unknown>, ok: string) => {
     if (!giveTo) return;
     setBusyKey(key);
@@ -96,11 +129,12 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
       await loadInfo(giveTo.uid);
     } catch (e: any) { toast("error", e.message); } finally { setBusyKey(""); }
   };
+  useEffect(() => {
+    if (tab !== "audit") return;
+    setAudit(null);
+    call<{ items: AuditItem[] }>("/api/admin/messenger/audit").then((d) => setAudit(d.items)).catch((e: any) => { toast("error", e.message); setAudit([]); });
+  }, [tab, toast]);
   const selGift = giftById(giftId);
-  // предпросмотр NFT: выбранные признаки, а где «случайно» — первый вариант из списка
-  const previewNft = selGift?.nft
-    ? { number: 1, supply: selGift.limited ?? 1, model: traits.model || NFT_MODELS[0].name, backdrop: traits.backdrop || NFT_BACKDROPS[0].name, symbol: traits.symbol || NFT_SYMBOLS[0].name }
-    : null;
 
   const start = async () => {
     if (!text.trim()) return toast("warning", "Напиши текст рассылки");
@@ -139,6 +173,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
             {stat("аккаунтов", stats?.accounts)}{stat("с Mili Premium", stats?.premium)}
             {stat("чатов", stats?.chats)}{stat("подарков отправлено", stats?.gifts)}
             {stat("наборов стикеров", stats?.stickerPacks)}{stat("открытых жалоб", stats?.openReports)}
+            {stat("новых за 24 часа", stats?.newToday)}{stat("NFT выдано", stats?.nft)}
+            {stat("активных историй", stats?.stories)}
           </div>
         )}
 
@@ -188,7 +224,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
         {tab === "give" && (
           <>
-            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value.trim().length >= 2 || !e.target.value.trim()) load(e.target.value.trim()); }} autoCapitalize="none" />
+            <input className="mx-input w-full" placeholder="Найти человека по @username (от 2 символов)" value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value.trim().length >= 2 || !e.target.value.trim()) load(e.target.value); }} autoCapitalize="none" />
             {!giveTo && loading && <div className="flex justify-center"><Spinner /></div>}
             {!giveTo && (
               <div className="mx-card">
@@ -211,7 +247,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     <p className="truncate font-semibold">{giveTo.displayName}</p>
                     <p className="mx-muted text-[12.5px]">@{giveTo.handle}</p>
                     <p className="text-[12.5px] mt-0.5" style={{ color: "var(--mx-accent)" }}>
-                      {info ? `${info.wallet} ⭐ · ${info.account.premiumUntil > Date.now() ? `Premium до ${new Date(info.account.premiumUntil).toLocaleDateString("ru-RU")}` : "без Premium"}` : "Загружаю…"}
+                      {info ? `${info.wallet} 🪙 · ${info.account.premiumUntil > Date.now() ? `Premium до ${new Date(info.account.premiumUntil).toLocaleDateString("ru-RU")}` : "без Premium"}` : "Загружаю…"}
                     </p>
                   </div>
                   <button className="mx-chip" onClick={() => { setGiveTo(null); setInfo(null); }}>Другой</button>
@@ -228,31 +264,47 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                 </div>
 
                 <div className="mx-card p-4 space-y-3">
-                  <p className="font-semibold">⭐ Звёзды в кошелёк</p>
-                  <div className="flex gap-2">
-                    <input className="mx-input flex-1" type="number" inputMode="numeric" min={1} placeholder="Сколько ⭐" value={starsAmount} onChange={(e) => setStarsAmount(e.target.value)} />
-                    <button className="mx-btn" disabled={!!busyKey || !starsAmount} onClick={() => grant("st", { action: "stars", amount: Number(starsAmount) }, `Начислено ${starsAmount} ⭐`).then(() => setStarsAmount(""))}>{busyKey === "st" ? "…" : "Начислить"}</button>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">🪙 Пополнить кошелёк MiliGram</p>
+                    <span className="text-[13px] mx-muted">сейчас: <b style={{ color: "var(--mx-text)" }}>{info ? info.wallet : "…"} 🪙</b></span>
                   </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[10, 50, 100, 250, 500, 1000, 5000].map((n) => (
+                      <button key={n} className="mx-chip" style={Number(starsAmount) === n ? { background: "var(--mx-accent)", color: "#fff" } : undefined} onClick={() => setStarsAmount(String(n))}>{n}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 rounded-2xl px-3" style={{ background: "var(--mx-surface)" }}>
+                    <span className="text-[18px]">🪙</span>
+                    <input className="flex-1 bg-transparent outline-none py-3 text-[18px] font-semibold tabular-nums" type="text" inputMode="numeric" placeholder="Сумма" value={starsAmount}
+                      onChange={(e) => setStarsAmount(e.target.value.replace(/\D/g, "").slice(0, 7))}
+                      onKeyDown={(e) => { if (e.key === "Enter" && starsAmount && !busyKey) document.getElementById("mx-stars-go")?.click(); }} />
+                    {starsAmount && <button className="mx-muted text-[13px]" onClick={() => setStarsAmount("")} aria-label="Очистить">✕</button>}
+                  </div>
+                  {starsAmount && info && <p className="mx-muted text-[13px]">После пополнения будет: <b style={{ color: "var(--mx-text)" }}>{info.wallet + Number(starsAmount)} 🪙</b></p>}
+                  <button id="mx-stars-go" className="mx-btn w-full" disabled={!!busyKey || !starsAmount || Number(starsAmount) < 1 || Number(starsAmount) > 1_000_000}
+                    onClick={() => { const n = Number(starsAmount); if (n >= 5000 && !window.confirm(`Начислить ${n} 🪙 пользователю @${giveTo.handle}?`)) return; grant("st", { action: "stars", amount: n }, `Начислено ${n} 🪙`).then(() => setStarsAmount("")); }}>
+                    {busyKey === "st" ? "Начисляю…" : starsAmount ? `Начислить ${starsAmount} 🪙` : "Начислить"}
+                  </button>
+                  <p className="mx-muted text-[12px]">Монеты попадают в кошелёк MiliGram (подарки, Premium, юзернеймы), не в баланс магазина Velox Trade. Начисление записывается в журнал, человеку приходит уведомление.</p>
                 </div>
 
                 <div className="mx-card p-4 space-y-3">
                   <p className="font-semibold flex items-center gap-2"><Gift size={16} style={{ color: "var(--mx-accent)" }} /> Подарок или NFT</p>
                   <select className="mx-input w-full" value={giftId} onChange={(e) => setGiftId(e.target.value)}>
                     <optgroup label="✨ NFT (уникальные)">
-                      {GIFTS.filter((g) => g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · тираж {g.limited}</option>)}
+                      {GIFTS.filter((g) => g.nft && !g.retired).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · тираж {g.limited}</option>)}
                     </optgroup>
                     <optgroup label="Обычные подарки">
-                      {GIFTS.filter((g) => !g.nft).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · {g.price} ⭐</option>)}
+                      {GIFTS.filter((g) => !g.nft && !g.retired).map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.title} · {g.price} 🪙</option>)}
                     </optgroup>
                   </select>
                   {selGift?.nft && (
                     <div className="space-y-2">
-                      {previewNft && <div className="flex justify-center py-1"><NftArt gift={selGift} nft={previewNft} size={150} sample /></div>}
                       <p className="mx-muted text-[12.5px] flex items-center gap-1"><Sparkles size={13} /> Признаки NFT — по умолчанию выпадают случайно, можно выбрать свои</p>
                       {([["model", "Модель", NFT_MODELS], ["backdrop", "Фон", NFT_BACKDROPS], ["symbol", "Узор", NFT_SYMBOLS]] as const).map(([key, label, list]) => (
                         <select key={key} className="mx-input w-full" value={traits[key]} onChange={(e) => setTraits((t) => ({ ...t, [key]: e.target.value }))}>
                           <option value="">{label}: случайно</option>
-                          {list.map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
+                          {(list as readonly NftTrait[]).map((t) => <option key={t.name} value={t.name}>{label}: {t.name}</option>)}
                         </select>
                       ))}
                     </div>
@@ -274,7 +326,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                   >
                     {busyKey === "g" ? "Дарю…" : `Подарить${giftCount > 1 ? ` × ${giftCount}` : ""}`}
                   </button>
-                  <p className="mx-muted text-[12px]">Бесплатно для тебя. Подарки от администрации нельзя обменять на ⭐. NFT занимает номер в тираже.</p>
+                  <p className="mx-muted text-[12px]">Бесплатно для тебя. Подарки от администрации нельзя обменять на 🪙. NFT занимает номер в тираже.</p>
                 </div>
 
                 <div className="mx-card">
@@ -284,7 +336,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                     const def = giftById(g.giftId);
                     return (
                       <div key={g.id} className="px-4 py-2 flex items-center gap-3">
-                        {g.nft && def ? <NftArt gift={def} nft={g.nft} size={40} /> : <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>}
+                        <span className="text-[22px]">{def?.emoji ?? "🎁"}</span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14.5px]">{def?.title ?? g.giftId}{g.nft ? ` · №${g.nft.number}/${g.nft.supply}` : ""}{g.byAdmin ? " · от админа" : ""}</p>
                           {g.nft && <p className="mx-muted text-[12px] truncate">{g.nft.model} · {g.nft.backdrop} · {g.nft.symbol}</p>}
@@ -293,6 +345,21 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       </div>
                     );
                   })}
+                </div>
+
+                <div className="mx-card p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">Контакты</p>
+                    <button className="mx-chip" onClick={() => loadContacts(giveTo.uid)}><Contact size={14} /> {contacts ? "Обновить" : "Показать"}</button>
+                  </div>
+                  <p className="mx-muted text-[12px]">Только имена и @username собеседников (без текста переписок). Нужна причина, просмотр пишется в журнал.</p>
+                  {contacts && contacts.length === 0 && <p className="mx-muted text-[14px]">Личных чатов нет</p>}
+                  {contacts?.map((c) => (
+                    <div key={c.uid} className="flex items-center justify-between text-[14.5px] py-0.5">
+                      <span className="truncate">{c.displayName || "—"}</span>
+                      <span className="mx-muted shrink-0 ml-2">@{c.handle}</span>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mx-card p-4 space-y-2">
@@ -354,20 +421,35 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                 })}
               </div>
             )}
-            {audit.length > 0 && (
+            {readLog.length > 0 && (
               <div className="mx-card">
                 <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Журнал чтений</p>
-                {audit.map((a, i) => <p key={i} className="px-4 py-1.5 text-[12.5px] mx-muted truncate">{new Date(a.at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })} · {a.adminUid.slice(0, 6)}… · {a.reason ?? ""}</p>)}
+                {readLog.map((a, i) => <p key={i} className="px-4 py-1.5 text-[12.5px] mx-muted truncate">{new Date(a.at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })} · {a.adminUid.slice(0, 6)}… · {a.reason ?? ""}</p>)}
               </div>
             )}
           </>
         )}
 
-        {tab === "stickers" && (
-          <div className="mx-card p-4 space-y-2">
-            <p className="font-semibold">Стикерпаки</p>
-            <p className="mx-muted text-[14px]">Всего наборов: {stats?.stickerPacks ?? "…"}. Пользователи сами привозят наборы из Telegram по ссылке (Настройки → Стикеры). Премиум-наборы с загрузкой своих картинок создаются на сайте.</p>
-            <a href="/admin/messenger" className="mx-btn inline-block text-center w-full">Открыть управление наборами</a>
+        {tab === "nft" && <AdminNft />}
+        {tab === "stickers" && <StickerPacksAdmin />}
+        {tab === "music" && <AdminMusic />}
+        {tab === "ads" && <AdminAds />}
+        {tab === "promo" && <AdminPromo />}
+        {tab === "growth" && <AdminGrowth />}
+        {tab === "usernames" && <AdminUsernames />}
+        {tab === "numbers" && <AdminNumbers />}
+        {tab === "appicon" && <AdminAppIcon />}
+        {tab === "marks" && <AdminMarks />}
+
+        {tab === "audit" && (
+          <div className="mx-card">
+            <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Последние действия администраторов</p>
+            {audit === null ? <div className="flex justify-center py-6"><Spinner /></div> : audit.length === 0 ? <p className="mx-muted px-4 py-4 text-[14px]">Записей пока нет</p> : audit.map((a) => (
+              <div key={a.id} className="px-4 py-2.5">
+                <p className="text-[14.5px]">{auditLabel(a)}</p>
+                <p className="mx-muted text-[12.5px]">{a.adminName}{a.targetName ? ` → ${a.targetName}` : ""} · {new Date(a.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>

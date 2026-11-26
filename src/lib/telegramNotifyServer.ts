@@ -32,3 +32,16 @@ export async function notifyAdminTelegramServer(text: string): Promise<void> {
     console.error("notifyAdminTelegramServer error:", err);
   }
 }
+
+
+/** Сообщение в Telegram-бота пользователя с HTML-разметкой и кнопками (например, «Копировать код»). */
+export async function notifyTelegramServerButtons(uid: string, html: string, buttons: Parameters<typeof sendTelegramMessage>[2]): Promise<void> {
+  try {
+    const linkSnap = await adminDb().collection("telegramLinks").doc(uid).get();
+    if (!linkSnap.exists) return;
+    const { chatId } = linkSnap.data() as { chatId: number };
+    await sendTelegramMessage(chatId, html, buttons, "HTML");
+  } catch (err) {
+    console.error("notifyTelegramServerButtons error:", err);
+  }
+}

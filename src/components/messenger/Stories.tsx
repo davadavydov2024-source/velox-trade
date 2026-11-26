@@ -1,5 +1,6 @@
 "use client";
 
+import { ghostNow } from "./ghost";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Eye, Plus, Send, Trash2, X } from "lucide-react";
@@ -37,10 +38,10 @@ export function StoriesRow({ groups, me, myAccount, accounts, onOpen, onCreate }
     <span className="text-[12px] truncate w-full text-center" style={{ color: on ? "var(--mx-text)" : "var(--mx-muted)", fontWeight: on ? 600 : 400 }}>{children}</span>
   );
   return (
-    <div className="flex gap-4 overflow-x-auto mx-noscrollbar px-4 pb-3 pt-1">
+    <div className="mx-inbox-stories flex gap-3 overflow-x-auto mx-noscrollbar">
       <button onClick={() => (mine ? onOpen(me) : onCreate())} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]">
         <div className="relative">
-          <Avatar src={myAccount.photoURL} name={myAccount.displayName} seed={me} size={58} ring={mine ? "unseen" : undefined} />
+          <Avatar src={myAccount.photoURL} name={myAccount.displayName} seed={me} size={44} ring={mine ? "unseen" : undefined} />
           {!mine && (
             <span className="absolute -bottom-0.5 -right-0.5 w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: "var(--mx-accent)", color: "var(--mx-accent-text)", border: "2.5px solid var(--mx-bg)" }}>
               <Plus size={13} strokeWidth={3} />
@@ -51,7 +52,7 @@ export function StoriesRow({ groups, me, myAccount, accounts, onOpen, onCreate }
       </button>
       {mine && (
         <button onClick={onCreate} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px] self-start" aria-label="Добавить историю">
-          <span className="w-[58px] h-[58px] rounded-full flex items-center justify-center" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)", border: "1.5px dashed var(--mx-accent)" }}><Plus size={24} /></span>
+          <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: "var(--mx-surface)", color: "var(--mx-accent)", border: "1.5px dashed var(--mx-accent)" }}><Plus size={24} /></span>
           <Label>Добавить</Label>
         </button>
       )}
@@ -59,7 +60,7 @@ export function StoriesRow({ groups, me, myAccount, accounts, onOpen, onCreate }
         const a = accounts[g.uid];
         return (
           <button key={g.uid} onClick={() => onOpen(g.uid)} className="flex flex-col items-center gap-1.5 shrink-0 w-[66px]">
-            <Avatar src={a?.photoURL} name={a?.displayName ?? "?"} seed={g.uid} size={58} ring={g.allSeen ? "seen" : "unseen"} />
+            <Avatar src={a?.photoURL} name={a?.displayName ?? "?"} seed={g.uid} size={44} ring={g.allSeen ? "seen" : "unseen"} />
             <Label on={!g.allSeen}>{a?.displayName?.split(" ")[0] ?? "…"}</Label>
           </button>
         );
@@ -114,7 +115,7 @@ export function StoryViewer({ groups, startUid, me, onClose, onChanged, onOpenCh
 
   // отметка «просмотрено»
   useEffect(() => {
-    if (story && !mine && !story.viewers?.includes(me)) mApi("stories/view", { storyId: story.id }).then(onChanged).catch(() => {});
+    if (story && !mine && !ghostNow().quietStories && !story.viewers?.includes(me)) mApi("stories/view", { storyId: story.id }).then(onChanged).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 

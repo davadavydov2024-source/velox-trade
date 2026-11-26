@@ -7,9 +7,9 @@
  */
 import type { GiftNft } from "./gifts";
 
-export interface NftTrait { name: string; rarity: number }
+export interface NftTrait { name: string; rarity: number; hw?: boolean } // hw — признак только для хеллоуинской коллекции
 export interface NftBackdrop extends NftTrait { colors: [string, string] }
-export interface NftModel extends NftTrait { hue: number; sat: number; flip?: boolean; bright?: number; anim?: "rainbow" | "holo" }
+export interface NftModel extends NftTrait { hue: number; sat: number; flip?: boolean; bright?: number; anim?: "rainbow" | "holo" | "pulse" | "shimmer" | "flame" | "aurora" | "glitch" | "spin" }
 
 export const NFT_BACKDROPS: NftBackdrop[] = [
   { name: "Полночь", colors: ["#2a3f8f", "#070a1f"], rarity: 140 },
@@ -35,6 +35,14 @@ export const NFT_BACKDROPS: NftBackdrop[] = [
   { name: "Бездна", colors: ["#1c1f5c", "#000000"], rarity: 15 },
   { name: "Закат Velox", colors: ["#ff9800", "#3a0d45"], rarity: 12 },
   { name: "Радужная дымка", colors: ["#ff6ec7", "#3a1c9e"], rarity: 8 },
+  // — 🎃 Хеллоуин
+  { name: "Тыквенный закат", colors: ["#ff8a1f", "#2a0a00"], rarity: 140, hw: true },
+  { name: "Туман кладбища", colors: ["#6b8a7a", "#0b100e"], rarity: 120, hw: true },
+  { name: "Полнолуние", colors: ["#f0e9b8", "#1a1630"], rarity: 90, hw: true },
+  { name: "Ведьмин лес", colors: ["#3a8a4a", "#06140a"], rarity: 80, hw: true },
+  { name: "Багровая ночь", colors: ["#c4182f", "#14040a"], rarity: 50, hw: true },
+  { name: "Призрачный фиолет", colors: ["#9a5cff", "#10061f"], rarity: 25, hw: true },
+  { name: "Адское пламя", colors: ["#ff4b1f", "#000000"], rarity: 10, hw: true },
 ];
 
 export const NFT_MODELS: NftModel[] = [
@@ -53,6 +61,21 @@ export const NFT_MODELS: NftModel[] = [
   { name: "Обсидиан", hue: 260, sat: 0.6, bright: 0.55, rarity: 25 },
   { name: "Радужный", hue: 0, sat: 1.5, anim: "rainbow", rarity: 12 },
   { name: "Голограмма", hue: 200, sat: 1.3, anim: "holo", rarity: 8 },
+  // — анимированные модели
+  { name: "Пульс", hue: 320, sat: 1.6, anim: "pulse", rarity: 40 },
+  { name: "Мерцание", hue: 50, sat: 1.5, anim: "shimmer", rarity: 30 },
+  { name: "Пламя", hue: 15, sat: 2, anim: "flame", rarity: 20 },
+  { name: "Аврора", hue: 150, sat: 1.6, anim: "aurora", rarity: 15 },
+  { name: "Глитч", hue: 180, sat: 2, anim: "glitch", rarity: 15 },
+  { name: "Вихрь", hue: 260, sat: 1.5, anim: "spin", rarity: 10 },
+  // — 🎃 Хеллоуин
+  { name: "Тёмный", hue: 0, sat: 1, rarity: 260, hw: true },
+  { name: "Зловещий", hue: 330, sat: 1.4, bright: 0.8, rarity: 180, hw: true },
+  { name: "Ядовитый", hue: 90, sat: 1.9, rarity: 120, hw: true },
+  { name: "Заколдованный", hue: 260, sat: 1.7, anim: "aurora", rarity: 60, hw: true },
+  { name: "Проклятый", hue: 0, sat: 2, anim: "glitch", rarity: 30, hw: true },
+  { name: "Адский", hue: 10, sat: 2.2, anim: "flame", rarity: 15, hw: true },
+  { name: "Призрачное свечение", hue: 180, sat: 1.4, anim: "shimmer", rarity: 12, hw: true },
 ];
 
 export const NFT_SYMBOLS: NftTrait[] = [
@@ -61,10 +84,14 @@ export const NFT_SYMBOLS: NftTrait[] = [
   // — новые
   { name: "Снежинки", rarity: 150 }, { name: "Цветы", rarity: 130 }, { name: "Лучи", rarity: 110 }, { name: "Ноты", rarity: 100 },
   { name: "Клеверы", rarity: 90 }, { name: "Пики", rarity: 60 }, { name: "Инь-ян", rarity: 40 },
+  // — 🎃 Хеллоуин
+  { name: "Тыквы", rarity: 200, hw: true }, { name: "Летучие мыши", rarity: 160, hw: true }, { name: "Пауки", rarity: 120, hw: true },
+  { name: "Черепа", rarity: 80, hw: true }, { name: "Свечи", rarity: 60, hw: true }, { name: "Паутина", rarity: 30, hw: true },
 ];
 export const NFT_SYMBOL_CHARS: Record<string, string> = {
   "Звёзды": "★", "Сердца": "♥", "Молнии": "ϟ", "Луны": "☾", "Искры": "✦", "Кристаллы": "◆", "Короны": "♛",
   "Снежинки": "❄", "Цветы": "✿", "Лучи": "☀", "Ноты": "♪", "Клеверы": "♣", "Пики": "♠", "Инь-ян": "☯",
+  "Тыквы": "🎃", "Летучие мыши": "🦇", "Пауки": "🕷", "Черепа": "☠", "Свечи": "🕯", "Паутина": "🕸",
 };
 
 function pick<T extends NftTrait>(list: T[], rnd: number): T {
@@ -75,8 +102,9 @@ function pick<T extends NftTrait>(list: T[], rnd: number): T {
 }
 
 /** Случайные признаки нового экземпляра. rnd — функция [0,1) (на сервере передаём crypto). */
-export function rollNft(number: number, supply: number, rnd: () => number = Math.random): GiftNft {
-  return { number, supply, model: pick(NFT_MODELS, rnd()).name, backdrop: pick(NFT_BACKDROPS, rnd()).name, symbol: pick(NFT_SYMBOLS, rnd()).name };
+export function rollNft(number: number, supply: number, rnd: () => number = Math.random, halloween = false): GiftNft {
+  const pool = <T extends NftTrait>(l: T[]) => l.filter((t) => !!t.hw === halloween); // обычные NFT — без хеллоуинских признаков и наоборот
+  return { number, supply, model: pick(pool(NFT_MODELS), rnd()).name, backdrop: pick(pool(NFT_BACKDROPS), rnd()).name, symbol: pick(pool(NFT_SYMBOLS), rnd()).name };
 }
 
 export const backdropOf = (name: string) => NFT_BACKDROPS.find((b) => b.name === name) ?? NFT_BACKDROPS[0];
@@ -97,8 +125,9 @@ export const NFT_TIERS: Record<NftTierId, { label: string; color: string; sparkl
 };
 
 function prob<T extends NftTrait>(list: T[], name: string): number {
-  const total = list.reduce((n, t) => n + t.rarity, 0);
-  return (list.find((t) => t.name === name) ?? list[0]).rarity / total;
+  const t0 = list.find((t) => t.name === name) ?? list[0];
+  const same = list.filter((t) => !!t.hw === !!t0.hw); // вероятность считаем внутри своего пула (обычный / хеллоуин)
+  return t0.rarity / same.reduce((n, t) => n + t.rarity, 0);
 }
 
 /** Шанс именно такого сочетания признаков (0…1). */
@@ -117,5 +146,12 @@ export function nftTier(nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): Nf
 
 /** Особый номер: #1–#10, последний в тираже, круглые сотни, повторяющиеся цифры (77, 111, 777…). */
 export function isSpecialNumber(n: number, supply: number): boolean {
-  return n <= 10 || n === supply || (n >= 100 && n % 100 === 0) || (n >= 11 && /^(\d)\1+$/.test(String(n)));
+  return n <= 10 || (supply > 0 && n === supply) || (n >= 100 && n % 100 === 0) || (n >= 11 && /^(\d)\1+$/.test(String(n)));
+}
+
+/** Ориентировочная «Ценность» экземпляра в 🪙: цена подарка + улучшения, умноженная на редкость сочетания признаков. */
+export function nftValue(nft: GiftNft, giftPrice: number): number {
+  const mult: Record<NftTierId, number> = { common: 0.9, rare: 1.3, epic: 2, legendary: 3.5, mythic: 6 };
+  const base = giftPrice + (nft.upPrice ?? 0);
+  return Math.max(1, Math.round(base * mult[nftTier(nft)] * (isSpecialNumber(nft.number, nft.supply) ? 1.25 : 1)));
 }

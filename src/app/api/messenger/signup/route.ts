@@ -8,9 +8,11 @@ export const dynamic = "force-dynamic";
 const PENDING_TTL = 30 * 60_000;
 
 /**
- * Регистрация MiliGram = почта + пароль + ОБЯЗАТЕЛЬНАЯ привязка Telegram-бота (код на почту не нужен).
- *  POST { email, password, handle, displayName, gateToken? } -> { code, botUrl }: открыть botUrl в Telegram и нажать «Старт».
- *  GET ?code=<code> -> { done } — опрашивать раз в 2–3 с; когда бот привязан, аккаунт создаётся и приходит done:true (дальше обычный вход почтой и паролем).
+ * Регистрация MiliGram по почте и паролю. Telegram — НЕобязательно:
+ *  POST { email, password, handle, displayName, gateToken? } -> { done:true }: аккаунт создан сразу, дальше обычный вход почтой и паролем.
+ *  POST { ..., telegram:true } -> { code, botUrl }: «почта + Telegram» — открыть botUrl в Telegram и нажать «Старт».
+ *  GET ?code=<code> -> { done } — только для варианта с Telegram: опрашивать раз в 2–3 с; когда бот привязан, аккаунт создаётся и приходит done:true.
+ *  (Регистрация только через Telegram идёт другим путём: вход через Telegram → экран «Продолжить» → /api/messenger/join.)
  */
 export async function POST(req: NextRequest) {
   if (!(await rateLimit(`msgr_signup_${clientIp(req)}`, 8, 60 * 60_000))) return fail("Слишком много попыток, попробуй позже", 429);
@@ -29,9 +31,12 @@ export async function POST(req: NextRequest) {
   if (RESERVED_HANDLES.has(handle) || (await db.collection("messengerHandles").doc(handle).get()).exists) return fail("Этот @username уже занят", 409);
 
   const auth = adminAuth();
+  const withTelegram = b.telegram === true;
   let uid: string;
+  let created = false;
   try {
     uid = (await auth.createUser({ email, password, displayName })).uid;
+    created = true;
   } catch (e: any) {
     if (e?.code === "auth/invalid-password") return fail("Слишком простой пароль");
     if (e?.code !== "auth/email-already-exists") return fail("Не удалось создать аккаунт");
@@ -43,6 +48,18 @@ export async function POST(req: NextRequest) {
     if (!pend.exists) return fail("Эта почта уже есть на сайте Velox Trade: войди в аккаунт и открой MiliGram — там останется выбрать имя и привязать Telegram", 409);
     await auth.updateUser(existing.uid, { password, displayName });
     uid = existing.uid;
+  }
+
+  if (!withTelegram) {
+    // Telegram не нужен: создаём аккаунт сразу (недозавершённую заявку с Telegram, если была, убираем)
+    try {
+      await createAccount(uid, handle, displayName);
+    } catch (e: any) {
+      if (created) await auth.deleteUser(uid).catch(() => {});
+      return fail(e?.message === "handle-taken" ? "Этот @username уже занят" : "Не удалось создать аккаунт", e?.message === "handle-taken" ? 409 : 500);
+    }
+    await db.collection("messengerPending").doc(uid).delete().catch(() => {});
+    return NextResponse.json({ done: true });
   }
 
   const { code, botUrl } = await createLinkRequest(uid);

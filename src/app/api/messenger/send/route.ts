@@ -3,7 +3,12 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { Action, canDo, cleanMediaMeta, fail, isDmBlocked, isOwnMediaUrl, isChatAdmin, loadChat, ownsMedia, postMessage, previewOf, requireMessenger } from "@/lib/messenger/server";
 import { MAX_MESSAGE_TEXT, MessageKind, MessengerStickerPack } from "@/lib/messenger/types";
+import { stickerStill } from "@/lib/messenger/stickers";
 import { isPremium } from "@/lib/messenger/premium";
+import { chargePaidMessage, markFreeReply, refundPaidMessage } from "@/lib/messenger/paid";
+import { DATING_UID, datingHandle, datingPhoto } from "@/lib/messenger/dating";
+import { isBotUid, runBot } from "@/lib/messenger/bots";
+import { SUPPORT_UID, onSupportMessage } from "@/lib/messenger/support";
 
 export const runtime = "nodejs";
 
@@ -67,7 +72,9 @@ export async function POST(req: NextRequest) {
     if (!((mineSnap.data()?.slugs as string[] | undefined) ?? []).includes(slug)) return fail("Сначала добавь этот набор стикеров");
     if (pack.premium && !isPremium(me.account)) return NextResponse.json({ error: "Эти стикеры доступны только с Mili Premium", needPremium: true }, { status: 403 });
     mediaUrl = pack.stickers[idx].url;
-    extra = { sticker: { pack: slug, index: idx } };
+    const stk = pack.stickers[idx];
+    const still = stickerStill(stk);
+    extra = { sticker: { pack: slug, index: idx, ...(stk.emoji ? { emoji: stk.emoji } : {}), ...(still ? { preview: still } : {}) } };
   } else {
     if (!isOwnMediaUrl(b.mediaUrl)) return fail("Некорректная ссылка на файл");
     if (kind !== "image" && !ownsMedia(b.mediaUrl, me.uid)) return fail("Файл нужно загрузить через мессенджер");
@@ -83,13 +90,44 @@ export async function POST(req: NextRequest) {
     await ref.set({ at: Date.now() });
   }
 
-  let replyTo: { msgId: string; from: string; preview: string } | undefined;
-  if (typeof b.replyTo === "string" && b.replyTo && !b.replyTo.includes("/")) {
-    const m = await db.collection("messengerChats").doc(chat.id).collection("messages").doc(b.replyTo).get();
-    if (m.exists && !m.data()!.deletedForAll) replyTo = { msgId: m.id, from: m.data()!.from, preview: previewOf(m.data()!.kind, m.data()!.text) };
+  // ответ на сообщение: клиент шлёт id строкой ИЛИ объектом { msgId } — принимаем оба (раньше объект молча игнорировался, и ответы не сохранялись)
+  let replyTo: { msgId: string; from: string; preview: string; thumb?: string } | undefined;
+  const replyId = typeof b.replyTo === "string" ? b.replyTo : typeof b.replyTo?.msgId === "string" ? b.replyTo.msgId : "";
+  if (replyId && replyId.length < 128 && !replyId.includes("/")) {
+    const m = await db.collection("messengerChats").doc(chat.id).collection("messages").doc(replyId).get();
+    const d = m.data();
+    if (m.exists && d && !d.deletedForAll) {
+      const isVid = (u?: string) => !!u && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+      const photo = d.kind === "image" ? (Array.isArray(d.mediaUrls) && d.mediaUrls[0] ? d.mediaUrls[0] : d.mediaUrl) : undefined;
+      const thumb: string | undefined = d.kind === "sticker" ? d.sticker?.preview : photo && !isVid(photo) ? photo : undefined;
+      replyTo = { msgId: m.id, from: d.from, preview: d.kind === "sticker" ? `${d.sticker?.emoji ?? "🖼"} Стикер` : previewOf(d.kind, d.text), ...(thumb ? { thumb } : {}) };
+    }
   }
 
-  const id = await postMessage({ chat, sender: me, kind, text: postText, mediaUrl, replyTo, extra, silent: b.silent === true });
+  // платные сообщения («Премиум Плюс» у получателя): списываем 🪙 до отправки, при сбое возвращаем
+  const paid = await chargePaidMessage(chat, me);
+  if ("error" in paid) return paid.error;
+  let id: string;
+  try {
+    id = await postMessage({ chat, sender: me, kind, text: postText, mediaUrl, replyTo, extra, silent: b.silent === true });
+  } catch (e) {
+    if (paid.charged) await refundPaidMessage(me.uid, paid.charged).catch(() => {});
+    throw e;
+  }
+  await markFreeReply(chat, me);
+  // бот знакомств: отвечает на текст пользователя (сбой бота не ломает отправку)
+  if (chat.type === "dm" && chat.members.includes(DATING_UID) && me.uid !== DATING_UID && (kind === "text" ? !!text : kind === "image" && !!mediaUrl)) {
+    try { if (kind === "image") await datingPhoto(me.uid, mediaUrl!); else await datingHandle(me.uid, text); } catch (e) { console.error("dating bot error:", e); }
+  }
+  // чат поддержки: сообщение уходит админу в Telegram, ответ вернётся сюда (сбой не ломает отправку)
+  if (chat.type === "dm" && chat.members.includes(SUPPORT_UID) && me.uid !== SUPPORT_UID) {
+    try { await onSupportMessage(me, text || `[${kind}]`); } catch (e) { console.error("support forward error:", e); }
+  }
+  // бот из конструктора: отвечает на текст пользователя (сбой бота не ломает отправку)
+  if (chat.type === "dm" && kind === "text" && text) {
+    const botUid = chat.members.find((m) => m !== me.uid && isBotUid(m));
+    if (botUid) { try { await runBot(botUid, me.uid, text); } catch (e) { console.error("custom bot error:", e); } }
+  }
   if (quizSecret) await db.collection("messengerChats").doc(chat.id).collection("messages").doc(id).collection("secret").doc("quiz").set(quizSecret);
   return NextResponse.json({ id });
 }

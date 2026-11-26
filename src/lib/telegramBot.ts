@@ -5,6 +5,7 @@ export interface InlineButton {
   text: string;
   callback_data?: string;
   url?: string;
+  copy_text?: { text: string }; // кнопка «Копировать» (Bot API 7.11+)
 }
 
 async function tgCall<T = unknown>(method: string, body: Record<string, unknown>, attempt = 0, quiet = false): Promise<T | null> {

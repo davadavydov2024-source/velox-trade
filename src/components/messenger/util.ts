@@ -208,3 +208,16 @@ export function birthdayText(v?: string | null): string {
   if (now.getMonth() < mon || (now.getMonth() === mon && now.getDate() < day)) age--;
   return `${day} ${MONTHS_GEN[mon]} ${m[1]} (${age} ${plural(age, "год", "года", "лет")})`;
 }
+
+
+/** Сообщение состоит только из 1–3 эмодзи (без текста) — в чате такие показываются крупно, без пузыря, как в Telegram. */
+export function emojiOnlyCount(text?: string): number {
+  const t = (text ?? "").trim();
+  if (!t || t.length > 30) return 0;
+  try {
+    const re = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*)+$/u;
+    if (!re.test(t)) return 0;
+    const n = [...t.matchAll(/\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu)].length;
+    return n >= 1 && n <= 3 ? n : 0;
+  } catch { return 0; }
+}

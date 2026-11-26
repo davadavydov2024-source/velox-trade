@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   }
   if ("archived" in b) upd.archived = b.archived === true;
   if ("markedUnread" in b) upd.markedUnread = b.markedUnread === true; // «отметить непрочитанным»
+  if (b.hide === true) { const t = Date.now(); upd.hiddenAt = t; upd.clearedAt = t; upd.pinned = false; upd.archived = false; } // «удалить чат у меня»
   if (b.clearHistory === true) upd.clearedAt = Date.now(); // «очистить историю» (только у меня): клиент скрывает сообщения старше clearedAt
   if ("muted" in b) {
     upd.muted = b.muted === true;
