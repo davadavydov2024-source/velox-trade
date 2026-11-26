@@ -1,0 +1,822 @@
+diff --git a/src/app/api/admin/messenger/grant/route.ts b/src/app/api/admin/messenger/grant/route.ts
+index 87da33d..6b6194f 100644
+--- a/src/app/api/admin/messenger/grant/route.ts
++++ b/src/app/api/admin/messenger/grant/route.ts
+@@ -7,6 +7,7 @@ import { dmChatId, ensureServiceAccount, postMessage, sendServiceMessage, SERVIC
+ import { giftById, GIFT_MESSAGE_MAX, type GiftNft, type MessengerGift } from "@/lib/messenger/gifts";
+ import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, rollNft, type NftTrait } from "@/lib/messenger/nft";
+ import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
++import { ledger } from "@/lib/messenger/ops";
+ 
+ export const runtime = "nodejs";
+ export const dynamic = "force-dynamic";
+@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
+       if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма 🪙: от 1 до 1 000 000");
+       await db.runTransaction(async (tx) => {
+         tx.set(db.collection("users").doc(uid), { miliWallet: FieldValue.increment(amount) }, { merge: true });
+-        tx.set(db.collection("miliWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
++        ledger(db, tx, { type: "admin_grant", from: admin.uid, to: uid, amount, ref: admin.uid }, [{ uid, delta: amount, type: "admin_grant", ref: admin.uid }]);
+       });
+       await logAdminAccess(admin.uid, "messenger_grant_stars", { targetUid: uid, amount });
+       sendServiceMessage(uid, `🪙 Администрация начислила вам ${amount} 🪙 — они уже в кошельке MiliGram.`).catch(() => {});
+diff --git a/b/src/app/api/admin/messenger/ops/route.ts b/src/app/api/admin/messenger/ops/route.ts
+new file mode 100644
+index 0000000..8613e58
+--- /dev/null
++++ b/src/app/api/admin/messenger/ops/route.ts
+@@ -0,0 +1,87 @@
++import { NextRequest, NextResponse } from "next/server";
++import { adminDb } from "@/lib/firebaseAdmin";
++import { logAdminAccess, requireAdmin } from "@/lib/adminGuard";
++import { OPS_COLLECTION, OP_TYPE_LABEL, normalizeOpCode, type OpDoc } from "@/lib/messenger/ops";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++const LIMIT = 150;
++
++type Acc = { uid: string; handle: string; displayName: string; photoURL: string | null };
++
++/** Все операции, где человек (или подарок / заказ) участвует как отправитель, получатель или объект (ref). */
++async function byId(id: string): Promise<OpDoc[]> {
++  const col = adminDb().collection(OPS_COLLECTION);
++  const snaps = await Promise.all((["from", "to", "ref"] as const).map((f) => col.where(f, "==", id).limit(LIMIT).get()));
++  const map = new Map<string, OpDoc>();
++  for (const s of snaps) for (const d of s.docs) map.set(d.id, d.data() as OpDoc);
++  return Array.from(map.values()).sort((a, b) => b.at - a.at).slice(0, LIMIT);
++}
++
++/**
++ * Поиск операций MiliGram для админов (разбор обмана).
++ *  ?code=MG-XXXX-XXXX — одна операция
++ *  ?handle=ник        — все операции человека
++ *  ?id=…              — по ID человека, подарка или заказа
++ * В ответе — время, кто кому, сумма и детали. Каждый поиск пишется в журнал админов.
++ */
++export async function GET(req: NextRequest) {
++  const admin = await requireAdmin(req);
++  if ("error" in admin) return admin.error;
++  const sp = req.nextUrl.searchParams;
++  const db = adminDb();
++
++  try {
++    let ops: OpDoc[] = [];
++    let user: Acc | null = null;
++    const codeRaw = (sp.get("code") ?? "").trim();
++    const handleRaw = (sp.get("handle") ?? "").trim().replace(/^@/, "").toLowerCase();
++    const id = (sp.get("id") ?? "").trim();
++
++    if (codeRaw) {
++      const code = normalizeOpCode(codeRaw);
++      if (!code) return NextResponse.json({ error: "Это не похоже на код операции. Код выглядит так: MG-7K3Q-9XPD" }, { status: 400 });
++      const s = await db.collection(OPS_COLLECTION).doc(code).get();
++      ops = s.exists ? [s.data() as OpDoc] : [];
++      await logAdminAccess(admin.uid, "messenger_op_lookup", { code });
++    } else if (handleRaw || id) {
++      let targetId = id;
++      if (handleRaw) {
++        const q = await db.collection("messengerAccounts").where("handle", "==", handleRaw).limit(1).get();
++        if (q.empty) return NextResponse.json({ ops: [], user: null });
++        targetId = q.docs[0].id;
++      }
++      ops = await byId(targetId);
++      await logAdminAccess(admin.uid, "messenger_op_lookup", { target: targetId });
++      if (handleRaw) {
++        const a = (await db.collection("messengerAccounts").doc(targetId).get()).data();
++        user = a ? { uid: targetId, handle: a.handle ?? "", displayName: a.displayName ?? "", photoURL: a.photoURL ?? null } : null;
++      }
++    } else {
++      return NextResponse.json({ error: "Укажите код операции, @ник или ID" }, { status: 400 });
++    }
++
++    const uids = Array.from(new Set(ops.flatMap((o) => [o.from, o.to]).filter((u): u is string => !!u)));
++    const accs = new Map<string, Acc>();
++    if (uids.length) {
++      for (const s of await db.getAll(...uids.map((u) => db.collection("messengerAccounts").doc(u)))) {
++        const a = s.data();
++        if (a) accs.set(s.id, { uid: s.id, handle: a.handle ?? "", displayName: a.displayName ?? "", photoURL: a.photoURL ?? null });
++      }
++    }
++    const unknown = (uid: string): Acc => ({ uid, handle: "", displayName: "(аккаунт не найден)", photoURL: null });
++    return NextResponse.json({
++      user,
++      ops: ops.map((o) => ({
++        ...o,
++        typeLabel: OP_TYPE_LABEL[o.type] ?? o.type,
++        fromAcc: o.from ? accs.get(o.from) ?? unknown(o.from) : null,
++        toAcc: o.to ? accs.get(o.to) ?? unknown(o.to) : null,
++      })),
++    });
++  } catch (e) {
++    console.error("admin ops error:", e);
++    return NextResponse.json({ error: "Не удалось выполнить поиск" }, { status: 500 });
++  }
++}
+diff --git a/src/app/api/messenger/frames/route.ts b/src/app/api/messenger/frames/route.ts
+index b299298..a1ef724 100644
+--- a/src/app/api/messenger/frames/route.ts
++++ b/src/app/api/messenger/frames/route.ts
+@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
+ import { rateLimit } from "@/lib/rateLimit";
+ import { fail, requireMessenger } from "@/lib/messenger/server";
+ import { frameById } from "@/lib/messenger/frames";
++import { ledger } from "@/lib/messenger/ops";
+ 
+ export const runtime = "nodejs";
+ export const dynamic = "force-dynamic";
+@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
+         const have = (u.data()?.miliWallet as number | undefined) ?? 0;
+         if (have < f.price) throw new Error("not-enough");
+         tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(-f.price) }, { merge: true });
+-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, name: f.name, at: Date.now() });
++        ledger(db, tx, { type: "frame_buy", from: me.uid, to: null, amount: f.price, ref: f.id, name: f.name }, [{ uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, name: f.name }]);
+         tx.set(ownedRef, { owned: FieldValue.arrayUnion(f.id) }, { merge: true });
+       });
+     } catch (e: any) {
+diff --git a/src/app/api/messenger/gifts/route.ts b/src/app/api/messenger/gifts/route.ts
+index 9a70bef..07bfb70 100644
+--- a/src/app/api/messenger/gifts/route.ts
++++ b/src/app/api/messenger/gifts/route.ts
+@@ -8,6 +8,7 @@ import { rollNft } from "@/lib/messenger/nft";
+ import type { GiftNft } from "@/lib/messenger/gifts";
+ import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, canUpgradeGift, giftUpgradePrice, GIFT_PIN_MAX, GIFT_SALE_FEE, GIFT_SALE_MAX, GIFT_SALE_MIN, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
+ import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
++import { ledger, recordOp } from "@/lib/messenger/ops";
+ 
+ export const runtime = "nodejs";
+ export const dynamic = "force-dynamic";
+@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
+         const stars = Math.floor(g.price * GIFT_CONVERT_RATE);
+         tx.delete(ref);
+         tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(stars) }, { merge: true });
+-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: stars, type: "gift_convert", ref: id, at: Date.now() });
++        ledger(db, tx, { type: "gift_convert", from: null, to: me.uid, amount: stars, ref: id, name: giftById(g.giftId)?.title, extra: { giftId: g.giftId } }, [{ uid: me.uid, delta: stars, type: "gift_convert", ref: id }]);
+         return stars;
+       });
+       return NextResponse.json({ ok: true, stars: back });
+@@ -184,8 +185,10 @@ export async function POST(req: NextRequest) {
+         const now = Date.now();
+         tx.set(buyerRef, { miliWallet: FieldValue.increment(-g.salePrice) }, { merge: true });
+         tx.set(db.collection("users").doc(g.to), { miliWallet: FieldValue.increment(payout) }, { merge: true });
+-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now });
+-        tx.set(db.collection("miliWalletLog").doc(), { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now });
++        ledger(db, tx, { type: "gift_sale", from: me.uid, to: g.to, amount: g.salePrice, ref: id, name: giftById(g.giftId)?.title, at: now, extra: { giftId: g.giftId, payout, fee: g.salePrice - payout } }, [
++          { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now },
++          { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now },
++        ]);
+         // новый владелец: подарок снова виден, не закреплён и не продаётся; byAdmin снимается (теперь он «купленный»)
+         tx.update(ref, { to: me.uid, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), byAdmin: FieldValue.delete(), soldAt: now });
+         return g.salePrice;
+@@ -228,12 +231,14 @@ export async function POST(req: NextRequest) {
+     }
+     const ref = db.collection("messengerGifts").doc(id);
+     let g0: MessengerGift | undefined;
++    let trCode = "";
+     try {
+       await db.runTransaction(async (tx) => {
+         const snap = await tx.get(ref);
+         const g = snap.data() as MessengerGift | undefined;
+         if (!g || g.to !== me.uid) throw new Error("not-found");
+         g0 = g;
++        trCode = recordOp(db, tx, { type: "gift_transfer", from: me.uid, to: toUid, amount: 0, ref: id, name: giftById(g.giftId)?.title, extra: { giftId: g.giftId, price: g.price } });
+         tx.update(ref, { to: toUid, from: me.uid, anonymous: false, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), message: message || FieldValue.delete(), transferredAt: Date.now() });
+       });
+     } catch (e: any) {
+@@ -254,11 +259,11 @@ export async function POST(req: NextRequest) {
+         await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
+         chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
+       }
+-      if (chat && g0) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: g0.giftId, giftDocId: id, price: g0.price, to: toUid, ...(g0.nft ? { nft: g0.nft } : {}) } } });
++      if (chat && g0) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: g0.giftId, giftDocId: id, price: g0.price, to: toUid, code: trCode, ...(g0.nft ? { nft: g0.nft } : {}) } } });
+     } catch (err) {
+       console.error("gift transfer chat message error:", err);
+     }
+-    return NextResponse.json({ ok: true });
++    return NextResponse.json({ ok: true, code: trCode });
+   }
+ 
+   if (b.action === "upgrade") {
+@@ -286,7 +291,7 @@ export async function POST(req: NextRequest) {
+         const nft: GiftNft = { ...rolled, supply: 0, upgraded: true, upPrice: cost, upAt: now };
+         tx.set(upRef, { count: number }, { merge: true });
+         tx.set(userRef, { miliWallet: FieldValue.increment(-cost) }, { merge: true });
+-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -cost, type: "gift_upgrade", ref: id, at: now });
++        ledger(db, tx, { type: "gift_upgrade", from: me.uid, to: null, amount: cost, ref: id, at: now }, [{ uid: me.uid, delta: -cost, type: "gift_upgrade", ref: id, at: now }]);
+         tx.update(ref, { nft, salePrice: FieldValue.delete() });
+         return { nft, wallet: have - cost, issued: number };
+       });
+@@ -331,6 +336,7 @@ export async function POST(req: NextRequest) {
+   const now = Date.now();
+   let wallet = 0;
+   let minted = undefined as GiftNft | undefined;
++  let opCode = ""; // код операции — виден отправителю и получателю, по нему админ найдёт перевод
+   try {
+     wallet = await db.runTransaction(async (tx) => {
+       const [user, stock] = await Promise.all([tx.get(userRef), gift.limited ? tx.get(stockRef) : Promise.resolve(null)]);
+@@ -344,8 +350,8 @@ export async function POST(req: NextRequest) {
+         if (gift.nft) minted = rollNft(sold + 1, gift.limited, () => randomInt(0, 1_000_000) / 1_000_000, gift.category === "halloween");
+       }
+       tx.set(userRef, { miliWallet: FieldValue.increment(-gift.price) }, { merge: true });
+-      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, at: now });
+-      tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, ...(minted ? { nft: minted } : {}), ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
++      opCode = ledger(db, tx, { type: "gift_send", from: me.uid, to: toUid, amount: gift.price, ref: giftRef.id, name: gift.title, at: now, extra: { giftId: gift.id, anonymous, ...(minted ? { nftNumber: (minted as GiftNft).number } : {}) } }, [{ uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, name: gift.title, at: now }]);
++      tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, code: opCode, ...(minted ? { nft: minted } : {}), ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
+       return have - gift.price;
+     });
+   } catch (e: any) {
+@@ -361,10 +367,10 @@ export async function POST(req: NextRequest) {
+       await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
+       chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
+     }
+-    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
++    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, code: opCode, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
+   } catch (err) {
+     console.error("gift chat message error:", err);
+   }
+-  return NextResponse.json({ ok: true, id: giftRef.id, wallet, ...(minted ? { nft: minted } : {}) });
++  return NextResponse.json({ ok: true, id: giftRef.id, code: opCode, wallet, ...(minted ? { nft: minted } : {}) });
+ }
+ 
+diff --git a/src/app/api/messenger/premium/route.ts b/src/app/api/messenger/premium/route.ts
+index d2b29dc..6b9492f 100644
+--- a/src/app/api/messenger/premium/route.ts
++++ b/src/app/api/messenger/premium/route.ts
+@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
+ import { rateLimit } from "@/lib/rateLimit";
+ import { fail, requireMessenger } from "@/lib/messenger/server";
+ import { PLUS_DAYS, PLUS_PRICE_STARS, PREMIUM_DAYS, PREMIUM_PRICE_STARS, isPlus, isPremium } from "@/lib/messenger/premium";
++import { ledger } from "@/lib/messenger/ops";
+ 
+ export const runtime = "nodejs";
+ export const dynamic = "force-dynamic";
+@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
+         const next = Math.max(Date.now(), (acc.data()?.plusUntil as number | undefined) ?? 0) + PLUS_DAYS * DAY;
+         tx.update(accRef2, { plusUntil: next });
+         tx.set(userRef2, { miliWallet: FieldValue.increment(-PLUS_PRICE_STARS) }, { merge: true });
+-        tx.set(db2.collection("miliWalletLog").doc(), { uid: me.uid, delta: -PLUS_PRICE_STARS, type: "purchase", ref: "mili_premium_plus", at: Date.now() });
++        ledger(db2, tx, { type: "purchase", from: me.uid, to: null, amount: PLUS_PRICE_STARS, ref: "mili_premium_plus", name: "Mili Premium Plus" }, [{ uid: me.uid, delta: -PLUS_PRICE_STARS, type: "purchase", ref: "mili_premium_plus" }]);
+         return next;
+       });
+       return NextResponse.json({ ok: true, plusUntil: until });
+@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
+       const next = Math.max(Date.now(), (acc.data()?.premiumUntil as number | undefined) ?? 0) + PREMIUM_DAYS * DAY;
+       tx.update(accRef, { premiumUntil: next });
+       tx.set(userRef, { miliWallet: FieldValue.increment(-PREMIUM_PRICE_STARS) }, { merge: true });
+-      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -PREMIUM_PRICE_STARS, type: "purchase", ref: "mili_premium", at: Date.now() });
++      ledger(db, tx, { type: "purchase", from: me.uid, to: null, amount: PREMIUM_PRICE_STARS, ref: "mili_premium", name: "Mili Premium" }, [{ uid: me.uid, delta: -PREMIUM_PRICE_STARS, type: "purchase", ref: "mili_premium" }]);
+       return next;
+     });
+     return NextResponse.json({ ok: true, premiumUntil: until });
+diff --git a/src/app/api/messenger/topup/route.ts b/src/app/api/messenger/topup/route.ts
+index 4a34e7e..27cd962 100644
+--- a/src/app/api/messenger/topup/route.ts
++++ b/src/app/api/messenger/topup/route.ts
+@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
+ import { rateLimit } from "@/lib/rateLimit";
+ import { rollyCreatePayment, rollyGetPayment, RollyPayError, ROLLYPAY_PENDING_TIMEOUT_MS } from "@/lib/rollypay";
+ import { fail, requireMessenger } from "@/lib/messenger/server";
++import { ledger } from "@/lib/messenger/ops";
+ 
+ export const runtime = "nodejs";
+ export const dynamic = "force-dynamic";
+@@ -24,7 +25,7 @@ async function credit(orderId: string): Promise<boolean> {
+     if (!o || o.status === "paid") return;
+     tx.update(ref, { status: "paid", paidAt: Date.now() });
+     tx.set(db.collection("users").doc(o.uid), { miliWallet: FieldValue.increment(o.coins) }, { merge: true });
+-    tx.set(db.collection("miliWalletLog").doc(), { uid: o.uid, delta: o.coins, type: "topup", ref: orderId, at: Date.now() });
++    ledger(db, tx, { type: "topup", from: null, to: o.uid, amount: o.coins, ref: orderId, extra: { rub: o.rub, rollyPaymentId: o.rollyPaymentId } }, [{ uid: o.uid, delta: o.coins, type: "topup", ref: orderId }]);
+     ok = true;
+   });
+   return ok;
+diff --git a/src/app/api/messenger/wallet/route.ts b/src/app/api/messenger/wallet/route.ts
+index 25eb047..c9dc702 100644
+--- a/src/app/api/messenger/wallet/route.ts
++++ b/src/app/api/messenger/wallet/route.ts
+@@ -13,13 +13,13 @@ export async function GET(req: NextRequest) {
+   if ("error" in me) return me.error;
+   const db = adminDb();
+   const [user, logSnap] = await Promise.all([db.collection("users").doc(me.uid).get(), db.collection("miliWalletLog").where("uid", "==", me.uid).limit(300).get()]);
+-  const all = logSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as { id: string; delta: number; type: string; ref?: string; name?: string; at: number }).sort((a, b) => b.at - a.at);
++  const all = logSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as { id: string; delta: number; type: string; ref?: string; name?: string; code?: string; at: number }).sort((a, b) => b.at - a.at);
+   const earned = all.filter((r) => r.type === "paid_message_in").reduce((n, r) => n + r.delta, 0);
+   return NextResponse.json({
+     wallet: (user.data()?.miliWallet as number | undefined) ?? 0,
+     plus: isPlus(me.account), plusUntil: me.account.plusUntil ?? null,
+     messagePrice: me.account.messagePrice ?? 0, maxPrice: PAID_MESSAGE_MAX,
+-    earned, log: all.slice(0, 80).map((r) => ({ id: r.id, delta: r.delta, type: r.type, name: r.name ?? "", at: r.at })),
++    earned, log: all.slice(0, 80).map((r) => ({ id: r.id, delta: r.delta, type: r.type, name: r.name ?? "", code: r.code ?? null, at: r.at })),
+   });
+ }
+ 
+diff --git a/b/src/components/messenger/AdminOps.tsx b/src/components/messenger/AdminOps.tsx
+new file mode 100644
+index 0000000..a59af62
+--- /dev/null
++++ b/src/components/messenger/AdminOps.tsx
+@@ -0,0 +1,133 @@
++"use client";
++
++import { useState } from "react";
++import { Copy, Search } from "lucide-react";
++import { authedFetch } from "@/lib/authedFetch";
++import { useToast } from "@/lib/toastContext";
++import { Avatar, Spinner } from "./ui";
++
++type Acc = { uid: string; handle: string; displayName: string; photoURL: string | null };
++type Op = {
++  code: string; type: string; typeLabel: string; at: number; from: string | null; to: string | null; amount: number;
++  ref?: string; name?: string; extra?: Record<string, unknown>; fromAcc: Acc | null; toAcc: Acc | null;
++};
++
++const when = (t: number) => new Date(t).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "medium" });
++
++/** Расшифровка служебных полей операции для админа. */
++function details(op: Op): string[] {
++  const e = op.extra ?? {};
++  const out: string[] = [];
++  if (e.anonymous) out.push("Анонимно: получатель не видит отправителя (вы видите)");
++  if (typeof e.nftNumber === "number") out.push(`NFT №${e.nftNumber}`);
++  if (typeof e.payout === "number") out.push(`Получил продавец: ${e.payout} 🪙`);
++  if (typeof e.fee === "number") out.push(`Комиссия: ${e.fee} 🪙`);
++  if (typeof e.days === "number") out.push(`Дней аренды: ${e.days}`);
++  if (typeof e.price === "number") out.push(`Цена подарка: ${e.price} 🪙`);
++  if (typeof e.rub === "number") out.push(`Оплачено: ${e.rub} ₽`);
++  if (e.rollyPaymentId) out.push(`ID платежа: ${String(e.rollyPaymentId)}`);
++  if (e.payerTgId) out.push(`Telegram плательщика: ${String(e.payerTgId)}`);
++  if (e.telegramChargeId) out.push(`ID платежа Telegram: ${String(e.telegramChargeId)}`);
++  return out;
++}
++
++/** Вкладка «Операции»: найти операцию по коду (MG-XXXX-XXXX) или все операции человека. */
++export function AdminOps() {
++  const { toast } = useToast();
++  const [q, setQ] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [ops, setOps] = useState<Op[] | null>(null);
++  const [who, setWho] = useState<Acc | null>(null);
++
++  const copy = (text: string, msg = "Скопировано") => { navigator.clipboard?.writeText(text).then(() => toast("success", msg)).catch(() => {}); };
++
++  async function run(param: string) {
++    setBusy(true);
++    try {
++      const res = await authedFetch(`/api/admin/messenger/ops?${param}`);
++      const d = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(d.error || "Ошибка");
++      setOps(d.ops as Op[]);
++      setWho((d.user as Acc | null) ?? null);
++    } catch (e) {
++      toast("error", e instanceof Error ? e.message : "Ошибка");
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  function search() {
++    const t = q.trim();
++    if (!t) return;
++    if (/^mg[\s-]?[a-z0-9]{4}[\s-]?[a-z0-9]{4}$/i.test(t)) return run(`code=${encodeURIComponent(t)}`);
++    if (t.startsWith("@")) return run(`handle=${encodeURIComponent(t)}`);
++    // ник без @ или ID (человека, подарка, заказа): сначала как ник, если пусто — как ID
++    return run(/^[a-z0-9_]{3,32}$/i.test(t) && t.length < 20 ? `handle=${encodeURIComponent(t)}` : `id=${encodeURIComponent(t)}`);
++  }
++
++  const person = (a: Acc | null, fallback: string) =>
++    a ? (
++      <button onClick={() => run(`id=${encodeURIComponent(a.uid)}`)} className="flex items-center gap-2.5 min-w-0 text-left active:opacity-60" title="Показать все операции этого человека">
++        <Avatar src={a.photoURL} name={a.displayName || "?"} seed={a.uid} size={36} />
++        <span className="min-w-0">
++          <span className="block text-[14.5px] font-semibold truncate">{a.displayName || "Без имени"}</span>
++          <span className="block text-[12px] mx-muted truncate">{a.handle ? `@${a.handle} · ` : ""}{a.uid.slice(0, 10)}…</span>
++        </span>
++      </button>
++    ) : (
++      <span className="text-[14px] mx-muted">{fallback}</span>
++    );
++
++  return (
++    <div className="space-y-3">
++      <div className="mx-card p-3" style={{ borderRadius: 20 }}>
++        <p className="text-[13px] mx-muted mb-2">Введите код операции, который прислал пользователь (MG-XXXX-XXXX), или @ник, чтобы увидеть все его операции.</p>
++        <div className="flex gap-2">
++          <div className="mx-search flex-1 min-w-0" style={{ height: 46 }}>
++            <Search size={18} className="mx-muted" />
++            <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} placeholder="MG-7K3Q-9XPD или @ник" className="bg-transparent outline-none flex-1 min-w-0 w-full text-[15px]" autoCapitalize="characters" />
++          </div>
++          <button onClick={search} disabled={busy || !q.trim()} className="mx-btn px-5 shrink-0" style={{ height: 46, width: "auto" }}>{busy ? <Spinner size={16} /> : "Найти"}</button>
++        </div>
++      </div>
++
++      {who && <p className="text-[13.5px] px-1">Операции: <b>{who.displayName}</b> @{who.handle}</p>}
++      {ops && ops.length === 0 && <p className="text-center mx-muted text-[14px] py-8">Ничего не найдено. Старые операции (до появления кодов) искать по коду нельзя: ищите по @нику.</p>}
++
++      {ops?.map((op) => {
++        const det = details(op);
++        return (
++          <div key={op.code} className="mx-card p-4" style={{ borderRadius: 22 }}>
++            <div className="flex items-start justify-between gap-3">
++              <div className="min-w-0">
++                <p className="font-semibold text-[15.5px]">{op.typeLabel}</p>
++                <p className="mx-muted text-[12.5px] mt-0.5">{when(op.at)}</p>
++              </div>
++              <button onClick={() => copy(op.code, "Код скопирован")} className="flex items-center gap-1.5 shrink-0 text-[13px] font-semibold px-3 h-8 rounded-full active:opacity-60" style={{ background: "var(--mx-surface2)", color: "var(--mx-accent)" }}>
++                {op.code} <Copy size={13} />
++              </button>
++            </div>
++
++            <div className="mt-3 grid gap-2.5" style={{ gridTemplateColumns: "1fr auto 1fr", alignItems: "center" }}>
++              <div className="min-w-0">
++                <p className="text-[11.5px] uppercase tracking-wide mx-muted mb-1">От кого</p>
++                {person(op.fromAcc, op.type === "topup" ? "Платёжная система" : "MiliGram")}
++              </div>
++              <span className="mx-muted text-[18px]" aria-hidden>→</span>
++              <div className="min-w-0">
++                <p className="text-[11.5px] uppercase tracking-wide mx-muted mb-1">Кому</p>
++                {person(op.toAcc, "Магазин MiliGram")}
++              </div>
++            </div>
++
++            <div className="mt-3 pt-3 space-y-1 text-[14px]" style={{ borderTop: "1px solid var(--mx-line)" }}>
++              <p><span className="mx-muted">Сумма: </span><b>{op.amount} 🪙</b></p>
++              {(op.name || op.ref) && <p><span className="mx-muted">Что: </span>{op.name ?? ""}{op.ref ? <button onClick={() => copy(op.ref!)} className="ml-1 mx-muted text-[12.5px] underline-offset-2 underline">{op.ref}</button> : null}</p>}
++              {det.map((d) => <p key={d} className="text-[13.5px]">{d}</p>)}
++            </div>
++          </div>
++        );
++      })}
++    </div>
++  );
++}
+diff --git a/src/components/messenger/AdminPanel.tsx b/src/components/messenger/AdminPanel.tsx
+index 9d3371b..a0feac7 100644
+--- a/src/components/messenger/AdminPanel.tsx
++++ b/src/components/messenger/AdminPanel.tsx
+@@ -18,6 +18,7 @@ import { AdminNumbers } from "./AdminNumbers";
+ import { AdminAppIcon } from "./AdminAppIcon";
+ import { AdminMarks } from "./AdminMarks";
+ import { AdminBots } from "./AdminBots";
++import { AdminOps } from "./AdminOps";
+ import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, type NftTrait } from "@/lib/messenger/nft";
+ 
+ type Stats = { accounts: number; chats: number; openReports: number; premium: number; gifts: number; stickerPacks: number; newToday: number; nft: number; stories: number };
+@@ -44,7 +45,7 @@ type ReadResult = { chat: { id: string; type: string; title: string | null }; me
+ type GrantInfo = { account: { uid: string; handle: string; displayName: string; premiumUntil: number; verified: boolean; banned: boolean }; wallet: number; gifts: { id: string; giftId: string; at: number; nft: { number: number; supply: number; model: string; backdrop: string; symbol: string } | null; byAdmin: boolean }[] };
+ type Past = { id: string; text: string; target: string; sent: number; createdAt: number; done: boolean };
+ const TARGETS: [string, string][] = [["all", "Всем"], ["premium", "Только Mili Premium"], ["verified", "Только с галочкой"]];
+-const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["ads", "Реклама"], ["promo", "Промокоды"], ["growth", "Рост"], ["usernames", "Юзернеймы"], ["numbers", "Номера"], ["appicon", "Иконка"], ["marks", "Метки"], ["bots", "Боты"], ["audit", "Журнал"]] as const;
++const TABS = [["stats", "Обзор"], ["broadcast", "Рассылка"], ["users", "Люди"], ["give", "Выдать"], ["ops", "Операции"], ["reports", "Жалобы"], ["chats", "Чаты"], ["nft", "NFT"], ["stickers", "Стикеры"], ["music", "Музыка"], ["ads", "Реклама"], ["promo", "Промокоды"], ["growth", "Рост"], ["usernames", "Юзернеймы"], ["numbers", "Номера"], ["appicon", "Иконка"], ["marks", "Метки"], ["bots", "Боты"], ["audit", "Журнал"]] as const;
+ type Tab = (typeof TABS)[number][0];
+ 
+ async function call<T = any>(url: string, body?: unknown): Promise<T> {
+@@ -442,6 +443,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
+         {tab === "appicon" && <AdminAppIcon />}
+         {tab === "marks" && <AdminMarks />}
+         {tab === "bots" && <AdminBots />}
++        {tab === "ops" && <AdminOps />}
+ 
+         {tab === "audit" && (
+           <div className="mx-card">
+diff --git a/src/components/messenger/GiftChatCard.tsx b/src/components/messenger/GiftChatCard.tsx
+index 226803c..3c89fd5 100644
+--- a/src/components/messenger/GiftChatCard.tsx
++++ b/src/components/messenger/GiftChatCard.tsx
+@@ -12,8 +12,8 @@ import { NftHero } from "./NftHero";
+  * • NFT: пока получатель не открыл — закрытая коробка; нажал — распаковка с конфетти и карточка подарка
+  *   (фон, узор, модель, номер). Открытую карточку можно нажать ещё раз — полная страница с редкостью, передачей и т. д.
+  */
+-export function GiftChatCard({ msgId, giftId, giftDocId, text, price, mine, anonymous, nft, senderName, toName, me, toUid }: {
+-  msgId: string; giftId: string; giftDocId?: string; text?: string; price: number; mine: boolean; anonymous?: boolean;
++export function GiftChatCard({ msgId, giftId, giftDocId, code, text, price, mine, anonymous, nft, senderName, toName, me, toUid }: {
++  msgId: string; giftId: string; giftDocId?: string; code?: string; text?: string; price: number; mine: boolean; anonymous?: boolean;
+   nft?: GiftNft; senderName: string; toName: string; me?: string; toUid?: string;
+ }) {
+   const def = giftById(giftId);
+@@ -54,6 +54,7 @@ export function GiftChatCard({ msgId, giftId, giftDocId, text, price, mine, anon
+         msgId={msgId}
+         giftId={giftId}
+         giftDocId={giftDocId}
++        code={code}
+         price={price}
+         text={text}
+         mine={mine}
+diff --git a/src/components/messenger/GiftReceive.tsx b/src/components/messenger/GiftReceive.tsx
+index 4cf0123..41709bc 100644
+--- a/src/components/messenger/GiftReceive.tsx
++++ b/src/components/messenger/GiftReceive.tsx
+@@ -100,9 +100,9 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
+  * «Улучшить до NFT» и «Передать».
+  */
+ export function GiftReceiveSheet({
+-  open, onClose, msgId, giftId, giftDocId, price, text, mine, anonymous, senderName, toName, me, toUid, nft: nftProp, onOpened,
++  open, onClose, msgId, giftId, giftDocId, code, price, text, mine, anonymous, senderName, toName, me, toUid, nft: nftProp, onOpened,
+ }: {
+-  open: boolean; onClose: () => void; msgId: string; giftId: string; giftDocId?: string; price: number; text?: string;
++  open: boolean; onClose: () => void; msgId: string; giftId: string; giftDocId?: string; code?: string; price: number; text?: string;
+   mine: boolean; anonymous?: boolean; senderName: string; toName: string; me?: string; toUid?: string;
+   nft?: GiftNft; // NFT, который пришёл вместе с сообщением (подарок-NFT или переданный)
+   onOpened?: () => void; // получатель впервые открыл подарок
+@@ -192,7 +192,7 @@ export function GiftReceiveSheet({
+               <div style={{ margin: "12px 16px 0" }}>
+                 <NftDetails
+                   nft={curNft}
+-                  rows={[["Владелец", mine ? toName : "Вы"], ["От кого", mine ? "Вы" : anonymous ? "Аноним" : senderName], ...(text ? [["Подпись", text] as [string, React.ReactNode]] : [])]}
++                  rows={[["Владелец", mine ? toName : "Вы"], ["От кого", mine ? "Вы" : anonymous ? "Аноним" : senderName], ...(text ? [["Подпись", text] as [string, React.ReactNode]] : []), ...(code ? [["Код операции", code] as [string, React.ReactNode]] : [])]}
+                   value={curNft.upgraded ? nftValue(curNft, price) : undefined}
+                 />
+               </div>
+@@ -202,6 +202,7 @@ export function GiftReceiveSheet({
+                 <Row k="Кому" v={mine ? toName : "Вы"} />
+                 <Row k="Цена" v={money(price)} />
+                 {text && <Row k="Подпись" v={text} />}
++                {code && <Row k="Код операции" v={code} />}
+               </div>
+             )}
+ 
+diff --git a/src/components/messenger/MessageBubble.tsx b/src/components/messenger/MessageBubble.tsx
+index e570b03..d7b82d6 100644
+--- a/src/components/messenger/MessageBubble.tsx
++++ b/src/components/messenger/MessageBubble.tsx
+@@ -241,7 +241,7 @@ function MessageRowImpl({
+   if (msg.kind === "gift" && msg.gift) {
+     return (
+       <div data-mid={msg.id}>
+-        <GiftChatCard msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} me={me} toUid={msg.gift.to} />
++        <GiftChatCard msgId={msg.id} giftId={msg.gift.giftId} giftDocId={msg.gift.giftDocId} code={msg.gift.code} text={msg.text} price={msg.gift.price} mine={mine} anonymous={msg.gift.anonymous} nft={msg.gift.nft} senderName={author?.displayName ?? "Собеседник"} toName={accounts[msg.gift.to]?.displayName ?? "собеседнику"} me={me} toUid={msg.gift.to} />
+       </div>
+     );
+   }
+diff --git a/src/components/messenger/Wallet.tsx b/src/components/messenger/Wallet.tsx
+index 6fa80ef..80deaef 100644
+--- a/src/components/messenger/Wallet.tsx
++++ b/src/components/messenger/Wallet.tsx
+@@ -5,7 +5,7 @@ import { useToast } from "@/lib/toastContext";
+ import { mApi, MApiError } from "./api";
+ import { PageHeader, Spinner } from "./ui";
+ 
+-type Row = { id: string; delta: number; type: string; name: string; at: number };
++type Row = { id: string; delta: number; type: string; name: string; code?: string | null; at: number };
+ type WalletInfo = { wallet: number; plus: boolean; plusUntil: number | null; messagePrice: number; maxPrice: number; earned: number; log: Row[] };
+ 
+ const LABEL: Record<string, string> = {
+@@ -92,6 +92,7 @@ export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOp
+ 
+             <div className="mx-card">
+               <p className="px-4 pt-3 pb-1 text-[13px] uppercase tracking-wide mx-muted">Операции</p>
++              <p className="px-4 pb-2 text-[12.5px] mx-muted">У каждой операции есть код. Если вас обманули или что-то пошло не так, нажмите на код и отправьте его администратору: он увидит время, отправителя и получателя.</p>
+               {info.log.length === 0 && <p className="mx-muted px-4 py-4 text-[14px]">Пока ничего нет</p>}
+               {info.log.map((r) => (
+                 <div key={r.id} className="px-4 py-2.5 flex items-center gap-3">
+@@ -99,6 +100,16 @@ export function WalletPage({ onBack, onOpenPremium }: { onBack: () => void; onOp
+                   <div className="min-w-0 flex-1">
+                     <p className="text-[14.5px] truncate">{LABEL[r.type] ?? r.type}{r.name ? ` · ${r.name}` : ""}</p>
+                     <p className="mx-muted text-[12px]">{new Date(r.at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}</p>
++                    {r.code && (
++                      <button
++                        onClick={() => { navigator.clipboard?.writeText(r.code!).then(() => toast("success", "Код скопирован")).catch(() => {}); }}
++                        className="mt-0.5 text-[12px] font-semibold tracking-wide active:opacity-60"
++                        style={{ color: "var(--mx-accent)" }}
++                        aria-label={`Скопировать код операции ${r.code}`}
++                      >
++                        {r.code} · копировать
++                      </button>
++                    )}
+                   </div>
+                   <span className="font-semibold shrink-0" style={{ color: r.delta >= 0 ? "#34c759" : "var(--mx-text)" }}>{r.delta > 0 ? "+" : ""}{r.delta} 🪙</span>
+                 </div>
+diff --git a/src/lib/messenger/bots.ts b/src/lib/messenger/bots.ts
+index 8e281c3..8f78cb6 100644
+--- a/src/lib/messenger/bots.ts
++++ b/src/lib/messenger/bots.ts
+@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
+ import { adminDb } from "@/lib/firebaseAdmin";
+ import { HANDLE_RE, RESERVED_HANDLES, dmChatId, postMessage, type MessengerAuth } from "./server";
+ import type { MessengerAccount, MessengerChat } from "./types";
++import { ledger } from "@/lib/messenger/ops";
+ 
+ /**
+  * Конструктор ботов (как @BotFather в Telegram, но без кода): человек задаёт имя, @юзернейм (на «bot»),
+@@ -141,7 +142,7 @@ export async function hostBot(ownerUid: string, id: string): Promise<number> {
+     until = Math.max(Date.now(), b.hostedUntil) + BOT_HOST_DAYS * DAY;
+     tx.set(uRef, { miliWallet: FieldValue.increment(-BOT_HOST_PRICE) }, { merge: true });
+     tx.update(bRef, { hostedUntil: until, updatedAt: Date.now() });
+-    tx.set(db.collection("miliWalletLog").doc(), { uid: ownerUid, delta: -BOT_HOST_PRICE, type: "bot_host", ref: id, name: `@${b.handle}`, at: Date.now() });
++    ledger(db, tx, { type: "bot_host", from: ownerUid, to: null, amount: BOT_HOST_PRICE, ref: id, name: `@${b.handle}` }, [{ uid: ownerUid, delta: -BOT_HOST_PRICE, type: "bot_host", ref: id, name: `@${b.handle}` }]);
+   });
+   return until;
+ }
+diff --git a/src/lib/messenger/gifts.ts b/src/lib/messenger/gifts.ts
+index 034a213..ccc63fd 100644
+--- a/src/lib/messenger/gifts.ts
++++ b/src/lib/messenger/gifts.ts
+@@ -140,6 +140,7 @@ export interface MessengerGift {
+   at: number;
+   nft?: GiftNft; // зарезервировано под NFT-подарки
+   byAdmin?: boolean; // выдан администрацией бесплатно (на 🪙 не обменивается)
++  code?: string; // код операции отправки (MG-XXXX-XXXX) — по нему админ находит перевод
+ }
+ 
+ /** Задел под NFT: уникальный экземпляр подарка (как в Telegram — номер, модель, фон, узор). Пока не выдаётся. */
+diff --git a/b/src/lib/messenger/ops.ts b/src/lib/messenger/ops.ts
+new file mode 100644
+index 0000000..2012e07
+--- /dev/null
++++ b/src/lib/messenger/ops.ts
+@@ -0,0 +1,68 @@
++import { randomInt } from "crypto";
++import type { Firestore, Transaction } from "firebase-admin/firestore";
++
++/**
++ * Журнал операций MiliGram: у каждой операции (пополнение, подарок, передача, покупка, платное сообщение…)
++ * есть свой код вида MG-7K3Q-9XPD. Пользователь видит код в «Кошельке» и может отправить его админу —
++ * админ по коду видит время, кто и кому отправил, сумму и детали (помогает разбирать обман).
++ * Документ лежит в miliOps/{код}; клиентам коллекция недоступна — читают только админ-роуты (Admin SDK).
++ */
++export const OPS_COLLECTION = "miliOps";
++
++/** Без похожих символов (0/O, 1/I/L), чтобы код легко диктовать и переписывать. */
++const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
++
++export function newOpCode(): string {
++  const part = () => Array.from({ length: 4 }, () => ALPHABET[randomInt(0, ALPHABET.length)]).join("");
++  return `MG-${part()}-${part()}`;
++}
++
++/** «mg 7k3q9xpd», «MG-7K3Q-9XPD» → «MG-7K3Q-9XPD». Не похоже на код — null. */
++export function normalizeOpCode(raw: string): string | null {
++  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
++  const m = /^MG([A-Z0-9]{4})([A-Z0-9]{4})$/.exec(s);
++  return m ? `MG-${m[1]}-${m[2]}` : null;
++}
++
++export interface OpDoc {
++  code: string;
++  type: string;
++  at: number;
++  from: string | null; // кто платит / отправляет (uid); null — платёжная система или сам MiliGram
++  to: string | null; // кто получает (uid); null — магазин / система
++  amount: number; // сумма в 🪙 (для передачи подарка без монет — 0)
++  ref?: string; // что именно: id подарка, заказ оплаты, @юзернейм, id чата…
++  name?: string; // человекочитаемо: название подарка, @юзернейм…
++  extra?: Record<string, unknown>; // детали (комиссия, анонимность, сумма в ₽ и т.п.)
++}
++
++export type OpInput = Omit<OpDoc, "code" | "at"> & { at?: number };
++export interface WalletEntry { uid: string; delta: number; type: string; ref?: string; name?: string; at?: number }
++
++const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
++
++/** В транзакции: записывает операцию miliOps/{код}. Возвращает код. */
++export function recordOp(db: Firestore, tx: Transaction, op: OpInput, code = newOpCode()): string {
++  const doc: OpDoc = { code, type: op.type, at: op.at ?? Date.now(), from: op.from ?? null, to: op.to ?? null, amount: op.amount };
++  if (op.ref !== undefined) doc.ref = op.ref;
++  if (op.name) doc.name = op.name;
++  if (op.extra) doc.extra = clean(op.extra);
++  tx.set(db.collection(OPS_COLLECTION).doc(code), doc);
++  return code;
++}
++
++/** В транзакции: операция + строки журнала кошелька (у каждой тот же код). Возвращает код. */
++export function ledger(db: Firestore, tx: Transaction, op: OpInput, entries: WalletEntry[] = [], code = newOpCode()): string {
++  recordOp(db, tx, op, code);
++  const at = op.at ?? Date.now();
++  for (const e of entries) {
++    tx.set(db.collection("miliWalletLog").doc(), clean({ uid: e.uid, delta: e.delta, type: e.type, ref: e.ref, name: e.name || undefined, code, at: e.at ?? at }));
++  }
++  return code;
++}
++
++export const OP_TYPE_LABEL: Record<string, string> = {
++  topup: "Пополнение", gift_send: "Подарок отправлен", gift_transfer: "Подарок передан", gift_sale: "Продажа подарка", gift_convert: "Подарок обменян на монеты",
++  gift_upgrade: "Улучшение подарка до NFT", paid_message: "Платное сообщение", paid_message_refund: "Возврат за сообщение", admin_grant: "Начисление от администрации",
++  frame_buy: "Покупка рамки", purchase: "Покупка", bot_host: "Хостинг бота", username_buy: "Покупка юзернейма", username_sale: "Продажа юзернейма", username_rent: "Аренда юзернейма",
++};
+diff --git a/src/lib/messenger/paid.ts b/src/lib/messenger/paid.ts
+index 544985b..dfabf72 100644
+--- a/src/lib/messenger/paid.ts
++++ b/src/lib/messenger/paid.ts
+@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
+ import { isPlus } from "./premium";
+ import type { MessengerAccount, MessengerChat } from "./types";
+ import type { MessengerAuth } from "./server";
++import { ledger } from "@/lib/messenger/ops";
+ 
+ /**
+  * Платные сообщения («Премиум Плюс»): владелец ставит цену в 🪙 за входящее сообщение.
+@@ -36,8 +37,10 @@ export async function chargePaidMessage(chat: MessengerChat, me: MessengerAuth):
+       if (have < c.price) throw new Error("not-enough");
+       tx.set(from, { miliWallet: FieldValue.increment(-c.price) }, { merge: true });
+       tx.set(to, { miliWallet: FieldValue.increment(c.price) }, { merge: true });
+-      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -c.price, type: "paid_message_out", ref: c.peer, name: peerName, at: now });
+-      tx.set(db.collection("miliWalletLog").doc(), { uid: c.peer, delta: c.price, type: "paid_message_in", ref: me.uid, name: me.account.displayName, at: now });
++      ledger(db, tx, { type: "paid_message", from: me.uid, to: c.peer, amount: c.price, ref: chat.id, at: now }, [
++        { uid: me.uid, delta: -c.price, type: "paid_message_out", ref: c.peer, name: peerName, at: now },
++        { uid: c.peer, delta: c.price, type: "paid_message_in", ref: me.uid, name: me.account.displayName, at: now },
++      ]);
+     });
+   } catch (e) {
+     if ((e as Error)?.message === "not-enough") {
+@@ -55,8 +58,10 @@ export async function refundPaidMessage(meUid: string, c: PaidCharge): Promise<v
+   await db.runTransaction(async (tx) => {
+     tx.set(db.collection("users").doc(meUid), { miliWallet: FieldValue.increment(c.price) }, { merge: true });
+     tx.set(db.collection("users").doc(c.peer), { miliWallet: FieldValue.increment(-c.price) }, { merge: true });
+-    tx.set(db.collection("miliWalletLog").doc(), { uid: meUid, delta: c.price, type: "paid_message_refund", ref: c.peer, at: now });
+-    tx.set(db.collection("miliWalletLog").doc(), { uid: c.peer, delta: -c.price, type: "paid_message_refund", ref: meUid, at: now });
++    ledger(db, tx, { type: "paid_message_refund", from: c.peer, to: meUid, amount: c.price, at: now }, [
++      { uid: meUid, delta: c.price, type: "paid_message_refund", ref: c.peer, at: now },
++      { uid: c.peer, delta: -c.price, type: "paid_message_refund", ref: meUid, at: now },
++    ]);
+   });
+ }
+ 
+diff --git a/src/lib/messenger/types.ts b/src/lib/messenger/types.ts
+index d9b014d..5ff7ccc 100644
+--- a/src/lib/messenger/types.ts
++++ b/src/lib/messenger/types.ts
+@@ -109,7 +109,7 @@ export interface MessengerMessage {
+   deletedForAll?: boolean;
+   views?: number; // просмотры поста в канале
+   sticker?: { pack: string; index: number; emoji?: string; preview?: string };
+-  gift?: { giftId: string; giftDocId: string; price: number; to: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
++  gift?: { giftId: string; giftDocId: string; price: number; to: string; code?: string; anonymous?: boolean; nft?: import("./gifts").GiftNft }; // kind: "gift", подпись — в text
+   poll?: MessengerPoll;
+   giveaway?: MessengerGiveaway; // kind: "giveaway", картинка — mediaUrl
+   mentions?: string[]; // uid упомянутых через @handle
+diff --git a/src/lib/messenger/usernames.ts b/src/lib/messenger/usernames.ts
+index 5aa8b0a..1854eb6 100644
+--- a/src/lib/messenger/usernames.ts
++++ b/src/lib/messenger/usernames.ts
+@@ -1,6 +1,7 @@
+ import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
+ import { adminDb } from "@/lib/firebaseAdmin";
+ import { RESERVED_HANDLES } from "./server";
++import { recordOp } from "@/lib/messenger/ops";
+ 
+ /**
+  * Премиум-юзернеймы («коллекционные @имена»): 2–24 символа, a-z/0-9/_, первая — буква.
+@@ -28,8 +29,8 @@ const uref = (db: Firestore, n: string) => db.collection("messengerUsernames").d
+ const href = (db: Firestore, n: string) => db.collection("messengerHandles").doc(n);
+ const aref = (db: Firestore, u: string) => db.collection("messengerAccounts").doc(u);
+ const wref = (db: Firestore, u: string) => db.collection("users").doc(u);
+-const log = (db: Firestore, tx: Transaction, uid: string, delta: number, type: string, name: string) =>
+-  tx.set(db.collection("miliWalletLog").doc(), { uid, delta, type, ref: name, name: `@${name}`, at: Date.now() });
++const log = (db: Firestore, tx: Transaction, uid: string, delta: number, type: string, name: string, code?: string) =>
++  tx.set(db.collection("miliWalletLog").doc(), { uid, delta, type, ref: name, name: `@${name}`, ...(code ? { code } : {}), at: Date.now() });
+ 
+ export const validName = (n: unknown): n is string => typeof n === "string" && PREMIUM_RE.test(n) && !RESERVED_HANDLES.has(n);
+ const rentedNow = (d: UsernameDoc) => !!d.renterUid && (d.rentUntil ?? 0) > Date.now();
+@@ -75,7 +76,8 @@ export async function buyShop(name: string, uid: string) {
+     if (d.ownerUid || !d.shopPrice) throw new UErr("Этот юзернейм уже продан", 409);
+     if ((await getWallet(tx, db, uid)) < d.shopPrice) throw new UErr(`Не хватает монет: нужно ${d.shopPrice} 🪙`, 402);
+     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-d.shopPrice) }, { merge: true });
+-    log(db, tx, uid, -d.shopPrice, "username_buy", name);
++    const code = recordOp(db, tx, { type: "username_buy", from: uid, to: null, amount: d.shopPrice, ref: name, name: `@${name}` });
++    log(db, tx, uid, -d.shopPrice, "username_buy", name, code);
+     tx.update(uref(db, name), { ownerUid: uid, shopPrice: null, boughtAt: Date.now() });
+     tx.set(href(db, name), { premium: true, uid }); // @имя ведёт на владельца, даже если он не сделал его основным
+   });
+@@ -96,8 +98,9 @@ export async function buyResale(name: string, uid: string) {
+     const get = price - fee(price);
+     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
+     tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
+-    log(db, tx, uid, -price, "username_buy", name);
+-    log(db, tx, owner, get, "username_sale", name);
++    const code = recordOp(db, tx, { type: "username_sale", from: uid, to: owner, amount: price, ref: name, name: `@${name}`, extra: { payout: get, fee: price - get } });
++    log(db, tx, uid, -price, "username_buy", name, code);
++    log(db, tx, owner, get, "username_sale", name, code);
+     tx.update(uref(db, name), { ownerUid: uid, salePrice: null, rentPerDay: null, usedBy: null });
+     tx.set(href(db, name), { premium: true, uid });
+   });
+@@ -117,8 +120,9 @@ export async function rentName(name: string, uid: string, days: number) {
+     const get = price - fee(price);
+     tx.set(wref(db, uid), { miliWallet: FieldValue.increment(-price) }, { merge: true });
+     tx.set(wref(db, owner), { miliWallet: FieldValue.increment(get) }, { merge: true });
+-    log(db, tx, uid, -price, "username_rent_out", name);
+-    log(db, tx, owner, get, "username_rent_in", name);
++    const code = recordOp(db, tx, { type: "username_rent", from: uid, to: owner, amount: price, ref: name, name: `@${name}`, extra: { days, payout: get, fee: price - get } });
++    log(db, tx, uid, -price, "username_rent_out", name, code);
++    log(db, tx, owner, get, "username_rent_in", name, code);
+     tx.update(uref(db, name), { renterUid: uid, rentUntil: (extending ? (d.rentUntil as number) : Date.now()) + days * DAY });
+   });
+ }
+diff --git a/src/lib/starsWallet.ts b/src/lib/starsWallet.ts
+index e004b3c..3783d9b 100644
+--- a/src/lib/starsWallet.ts
++++ b/src/lib/starsWallet.ts
+@@ -4,6 +4,7 @@ import { sendTelegramMessage, sendInvoice } from "./telegramBot";
+ import { sendWebPush } from "./webPushServer";
+ import { fulfillStarsInvoice } from "./starsOrders";
+ import { getPaymentMode } from "@/types";
++import { recordOp } from "@/lib/messenger/ops";
+ 
+ /**
+  * Кошелёк Telegram Stars для ПОКУПОК на сайте (users.starsWallet). Отдельно от starsBalance — это
+@@ -88,7 +89,8 @@ export async function fulfillStarsTopup(
+     tx.update(topupRef, { status: "paid", paidAt: Date.now(), paidStars: paidAmount, telegramChargeId: payment.chargeId ?? null, payerTgId: payment.payerTgId ?? null });
+     const mili = t.target === "mili";
+     tx.set(db.collection("users").doc(t.uid), { [mili ? "miliWallet" : "starsWallet"]: FieldValue.increment(paidAmount) }, { merge: true });
+-    tx.set(db.collection(mili ? "miliWalletLog" : "starsWalletLog").doc(), { uid: t.uid, delta: paidAmount, type: "topup", ref: topupId, at: Date.now() });
++    const code = recordOp(db, tx, { type: "topup", from: null, to: t.uid, amount: paidAmount, ref: topupId, extra: { wallet: mili ? "mili" : "stars", payerTgId: payment.payerTgId ?? null, telegramChargeId: payment.chargeId ?? null } });
++    tx.set(db.collection(mili ? "miliWalletLog" : "starsWalletLog").doc(), { uid: t.uid, delta: paidAmount, type: "topup", ref: topupId, code, at: Date.now() });
+     return { already: false as const, uid: t.uid, amount: paidAmount, mili };
+   });
+ 
