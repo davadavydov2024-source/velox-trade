@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { rollyCreatePayment, rollyGetPayment, RollyPayError, ROLLYPAY_PENDING_TIMEOUT_MS } from "@/lib/rollypay";
 import { fail, requireMessenger } from "@/lib/messenger/server";
+import { ledger } from "@/lib/messenger/ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ async function credit(orderId: string): Promise<boolean> {
     if (!o || o.status === "paid") return;
     tx.update(ref, { status: "paid", paidAt: Date.now() });
     tx.set(db.collection("users").doc(o.uid), { miliWallet: FieldValue.increment(o.coins) }, { merge: true });
-    tx.set(db.collection("miliWalletLog").doc(), { uid: o.uid, delta: o.coins, type: "topup", ref: orderId, at: Date.now() });
+    ledger(db, tx, { type: "topup", from: null, to: o.uid, amount: o.coins, ref: orderId, extra: { rub: o.rub, rollyPaymentId: o.rollyPaymentId } }, [{ uid: o.uid, delta: o.coins, type: "topup", ref: orderId }]);
     ok = true;
   });
   return ok;

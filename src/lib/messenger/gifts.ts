@@ -15,7 +15,6 @@ export interface GiftDef {
   category: GiftCategory;
   colors: [string, string]; // градиент плитки
   limited?: number; // тираж; без поля — безлимит
-  retired?: boolean; // снят с продажи (старые NFT): уже подаренные остаются и показываются, купить нельзя
   nft?: boolean; // уникальный NFT-подарок: при покупке выпадают номер, модель, фон и узор (limited = тираж)
 }
 
@@ -40,7 +39,7 @@ export const GIFT_CATEGORIES: { id: "all" | GiftCategory; label: string }[] = [
   { id: "nft", label: "✨ NFT" },
 ];
 
-const CATALOG: GiftDef[] = [
+export const GIFTS: GiftDef[] = [
   // — обычные, 5 🪙
   { id: "bear", emoji: "🧸", title: "Мишка", price: 5, category: "bears", colors: ["#3a2a1c", "#1d1610"] },
   { id: "heart", emoji: "💝", title: "Сердце с бантом", price: 5, category: "hearts", colors: ["#4a1c3a", "#1f0e1a"] },
@@ -60,16 +59,6 @@ const CATALOG: GiftDef[] = [
   // — драгоценности и редкие, до 50 🪙
   { id: "diamond", emoji: "💎", title: "Алмаз", price: 50, category: "gems", colors: ["#123a4a", "#0a1a21"] },
   { id: "ring", emoji: "💍", title: "Кольцо", price: 50, category: "gems", colors: ["#2d2a4a", "#14122a"] },
-  // — коллекции NFT: у каждой 60 моделей (lib/messenger/collections.ts)
-  { id: "nft-button", emoji: "🔘", title: "Кнопка", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 5000 },
-  { id: "nft-hero", emoji: "🧸", title: "Персонаж", price: 45, category: "nft", nft: true, colors: ["#1b4a7a", "#0b1f33"], limited: 5000 },
-  { id: "nft-torch", emoji: "🔥", title: "Факел", price: 50, category: "nft", nft: true, colors: ["#2a5a2a", "#0e220e"], limited: 3000 },
-  { id: "nft-cigar", emoji: "💨", title: "Сигара", price: 35, category: "nft", nft: true, colors: ["#5a3a1f", "#24150a"], limited: 3000 },
-  // — новая коллекция NFT: рисованные персонажи с анимацией (public/nft/<папка>/*.webp)
-  { id: "nft-blackcat", emoji: "🐈‍⬛", title: "Чёрный кот", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 1000 },
-  { id: "nft-ringbox", emoji: "💍", title: "Кольцо в коробочке", price: 50, category: "nft", nft: true, colors: ["#0f4a4f", "#071f22"], limited: 500 },
-  { id: "nft-jelly", emoji: "🍮", title: "Желейный зайка", price: 35, category: "nft", nft: true, colors: ["#5a2a7a", "#22103a"], limited: 2000 },
-  { id: "nft-plush", emoji: "🐸", title: "Плюшевая лягушка", price: 45, category: "nft", nft: true, colors: ["#5a2a4a", "#231019"], limited: 800 },
   { id: "rocket", emoji: "🚀", title: "Ракета", price: 25, category: "nft", nft: true, colors: ["#1b2c4a", "#0d1424"], limited: 5000 },
   { id: "crown", emoji: "👑", title: "Корона", price: 50, category: "nft", nft: true, colors: ["#4a3a10", "#211a08"], limited: 1000 },
   { id: "dragon", emoji: "🐉", title: "Дракон Velox", price: 50, category: "nft", nft: true, colors: ["#16401f", "#0a1d0e"], limited: 500 },
@@ -127,10 +116,6 @@ const CATALOG: GiftDef[] = [
   { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
-/** Сейчас продаются только 4 коллекции NFT. Все прежние NFT сняты с продажи, но у тех, кому они уже подарены, остаются и показываются. Обычные подарки не затрагиваются. */
-const CURRENT_NFT = new Set(["nft-button", "nft-hero", "nft-torch", "nft-cigar"]);
-export const GIFTS: GiftDef[] = CATALOG.map((g) => (g.nft && !CURRENT_NFT.has(g.id) ? { ...g, retired: true } : g));
-
 export const GIFT_UPGRADE_MIN = 15;
 /** Цена улучшения обычного подарка до коллекционного NFT: втрое дороже подарка, но не меньше GIFT_UPGRADE_MIN. */
 export const giftUpgradePrice = (g: Pick<GiftDef, "price">): number => Math.max(GIFT_UPGRADE_MIN, g.price * 3);
@@ -155,6 +140,7 @@ export interface MessengerGift {
   at: number;
   nft?: GiftNft; // зарезервировано под NFT-подарки
   byAdmin?: boolean; // выдан администрацией бесплатно (на 🪙 не обменивается)
+  code?: string; // код операции отправки (MG-XXXX-XXXX) — по нему админ находит перевод
 }
 
 /** Задел под NFT: уникальный экземпляр подарка (как в Telegram — номер, модель, фон, узор). Пока не выдаётся. */

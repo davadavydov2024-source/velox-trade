@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger } from "@/lib/messenger/server";
 import { PLUS_DAYS, PLUS_PRICE_STARS, PREMIUM_DAYS, PREMIUM_PRICE_STARS, isPlus, isPremium } from "@/lib/messenger/premium";
+import { ledger } from "@/lib/messenger/ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
         const next = Math.max(Date.now(), (acc.data()?.plusUntil as number | undefined) ?? 0) + PLUS_DAYS * DAY;
         tx.update(accRef2, { plusUntil: next });
         tx.set(userRef2, { miliWallet: FieldValue.increment(-PLUS_PRICE_STARS) }, { merge: true });
-        tx.set(db2.collection("miliWalletLog").doc(), { uid: me.uid, delta: -PLUS_PRICE_STARS, type: "purchase", ref: "mili_premium_plus", at: Date.now() });
+        ledger(db2, tx, { type: "purchase", from: me.uid, to: null, amount: PLUS_PRICE_STARS, ref: "mili_premium_plus", name: "Mili Premium Plus" }, [{ uid: me.uid, delta: -PLUS_PRICE_STARS, type: "purchase", ref: "mili_premium_plus" }]);
         return next;
       });
       return NextResponse.json({ ok: true, plusUntil: until });
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       const next = Math.max(Date.now(), (acc.data()?.premiumUntil as number | undefined) ?? 0) + PREMIUM_DAYS * DAY;
       tx.update(accRef, { premiumUntil: next });
       tx.set(userRef, { miliWallet: FieldValue.increment(-PREMIUM_PRICE_STARS) }, { merge: true });
-      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -PREMIUM_PRICE_STARS, type: "purchase", ref: "mili_premium", at: Date.now() });
+      ledger(db, tx, { type: "purchase", from: me.uid, to: null, amount: PREMIUM_PRICE_STARS, ref: "mili_premium", name: "Mili Premium" }, [{ uid: me.uid, delta: -PREMIUM_PRICE_STARS, type: "purchase", ref: "mili_premium" }]);
       return next;
     });
     return NextResponse.json({ ok: true, premiumUntil: until });

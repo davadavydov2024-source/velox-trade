@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
 import { fail, requireMessenger } from "@/lib/messenger/server";
 import { frameById } from "@/lib/messenger/frames";
+import { ledger } from "@/lib/messenger/ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
         const have = (u.data()?.miliWallet as number | undefined) ?? 0;
         if (have < f.price) throw new Error("not-enough");
         tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(-f.price) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, name: f.name, at: Date.now() });
+        ledger(db, tx, { type: "frame_buy", from: me.uid, to: null, amount: f.price, ref: f.id, name: f.name }, [{ uid: me.uid, delta: -f.price, type: "frame_buy", ref: f.id, name: f.name }]);
         tx.set(ownedRef, { owned: FieldValue.arrayUnion(f.id) }, { merge: true });
       });
     } catch (e: any) {

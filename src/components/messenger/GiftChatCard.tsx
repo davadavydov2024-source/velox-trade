@@ -12,8 +12,8 @@ import { NftHero } from "./NftHero";
  * • NFT: пока получатель не открыл — закрытая коробка; нажал — распаковка с конфетти и карточка подарка
  *   (фон, узор, модель, номер). Открытую карточку можно нажать ещё раз — полная страница с редкостью, передачей и т. д.
  */
-export function GiftChatCard({ msgId, giftId, giftDocId, text, price, mine, anonymous, nft, senderName, toName, me, toUid }: {
-  msgId: string; giftId: string; giftDocId?: string; text?: string; price: number; mine: boolean; anonymous?: boolean;
+export function GiftChatCard({ msgId, giftId, giftDocId, code, text, price, mine, anonymous, nft, senderName, toName, me, toUid }: {
+  msgId: string; giftId: string; giftDocId?: string; code?: string; text?: string; price: number; mine: boolean; anonymous?: boolean;
   nft?: GiftNft; senderName: string; toName: string; me?: string; toUid?: string;
 }) {
   const def = giftById(giftId);
@@ -54,6 +54,7 @@ export function GiftChatCard({ msgId, giftId, giftDocId, text, price, mine, anon
         msgId={msgId}
         giftId={giftId}
         giftDocId={giftDocId}
+        code={code}
         price={price}
         text={text}
         mine={mine}

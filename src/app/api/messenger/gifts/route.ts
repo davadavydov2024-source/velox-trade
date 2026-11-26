@@ -8,6 +8,7 @@ import { rollNft } from "@/lib/messenger/nft";
 import type { GiftNft } from "@/lib/messenger/gifts";
 import { GIFT_CONVERT_RATE, GIFT_MESSAGE_MAX, canUpgradeGift, giftUpgradePrice, GIFT_PIN_MAX, GIFT_SALE_FEE, GIFT_SALE_MAX, GIFT_SALE_MIN, giftById, type GiftView, type MessengerGift } from "@/lib/messenger/gifts";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
+import { ledger, recordOp } from "@/lib/messenger/ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
         const stars = Math.floor(g.price * GIFT_CONVERT_RATE);
         tx.delete(ref);
         tx.set(db.collection("users").doc(me.uid), { miliWallet: FieldValue.increment(stars) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: stars, type: "gift_convert", ref: id, at: Date.now() });
+        ledger(db, tx, { type: "gift_convert", from: null, to: me.uid, amount: stars, ref: id, name: giftById(g.giftId)?.title, extra: { giftId: g.giftId } }, [{ uid: me.uid, delta: stars, type: "gift_convert", ref: id }]);
         return stars;
       });
       return NextResponse.json({ ok: true, stars: back });
@@ -184,8 +185,10 @@ export async function POST(req: NextRequest) {
         const now = Date.now();
         tx.set(buyerRef, { miliWallet: FieldValue.increment(-g.salePrice) }, { merge: true });
         tx.set(db.collection("users").doc(g.to), { miliWallet: FieldValue.increment(payout) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now });
-        tx.set(db.collection("miliWalletLog").doc(), { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now });
+        ledger(db, tx, { type: "gift_sale", from: me.uid, to: g.to, amount: g.salePrice, ref: id, name: giftById(g.giftId)?.title, at: now, extra: { giftId: g.giftId, payout, fee: g.salePrice - payout } }, [
+          { uid: me.uid, delta: -g.salePrice, type: "gift_buy", ref: id, at: now },
+          { uid: g.to, delta: payout, type: "gift_sale", ref: id, at: now },
+        ]);
         // новый владелец: подарок снова виден, не закреплён и не продаётся; byAdmin снимается (теперь он «купленный»)
         tx.update(ref, { to: me.uid, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), byAdmin: FieldValue.delete(), soldAt: now });
         return g.salePrice;
@@ -228,12 +231,14 @@ export async function POST(req: NextRequest) {
     }
     const ref = db.collection("messengerGifts").doc(id);
     let g0: MessengerGift | undefined;
+    let trCode = "";
     try {
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         const g = snap.data() as MessengerGift | undefined;
         if (!g || g.to !== me.uid) throw new Error("not-found");
         g0 = g;
+        trCode = recordOp(db, tx, { type: "gift_transfer", from: me.uid, to: toUid, amount: 0, ref: id, name: giftById(g.giftId)?.title, extra: { giftId: g.giftId, price: g.price } });
         tx.update(ref, { to: toUid, from: me.uid, anonymous: false, hidden: false, pinned: false, pinnedAt: FieldValue.delete(), salePrice: FieldValue.delete(), message: message || FieldValue.delete(), transferredAt: Date.now() });
       });
     } catch (e: any) {
@@ -254,11 +259,11 @@ export async function POST(req: NextRequest) {
         await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
         chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
       }
-      if (chat && g0) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: g0.giftId, giftDocId: id, price: g0.price, to: toUid, ...(g0.nft ? { nft: g0.nft } : {}) } } });
+      if (chat && g0) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: g0.giftId, giftDocId: id, price: g0.price, to: toUid, code: trCode, ...(g0.nft ? { nft: g0.nft } : {}) } } });
     } catch (err) {
       console.error("gift transfer chat message error:", err);
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, code: trCode });
   }
 
   if (b.action === "upgrade") {
@@ -286,7 +291,7 @@ export async function POST(req: NextRequest) {
         const nft: GiftNft = { ...rolled, supply: 0, upgraded: true, upPrice: cost, upAt: now };
         tx.set(upRef, { count: number }, { merge: true });
         tx.set(userRef, { miliWallet: FieldValue.increment(-cost) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -cost, type: "gift_upgrade", ref: id, at: now });
+        ledger(db, tx, { type: "gift_upgrade", from: me.uid, to: null, amount: cost, ref: id, at: now }, [{ uid: me.uid, delta: -cost, type: "gift_upgrade", ref: id, at: now }]);
         tx.update(ref, { nft, salePrice: FieldValue.delete() });
         return { nft, wallet: have - cost, issued: number };
       });
@@ -305,7 +310,6 @@ export async function POST(req: NextRequest) {
   if (!(await rateLimit(`msgr_gift_${me.uid}`, 10, 60_000))) return fail("Слишком часто, подожди немного", 429);
   const gift = giftById(String(b.giftId ?? ""));
   if (!gift) return fail("Такого подарка нет", 404);
-  if (gift.retired) return fail("Этот подарок снят с продажи", 410);
   const toUid = typeof b.toUid === "string" && b.toUid && !b.toUid.includes("/") ? b.toUid : "";
   if (!toUid || toUid === SERVICE_UID) return fail("Выбери получателя");
   const message = typeof b.message === "string" ? b.message.trim().slice(0, GIFT_MESSAGE_MAX) : "";
@@ -332,6 +336,7 @@ export async function POST(req: NextRequest) {
   const now = Date.now();
   let wallet = 0;
   let minted = undefined as GiftNft | undefined;
+  let opCode = ""; // код операции — виден отправителю и получателю, по нему админ найдёт перевод
   try {
     wallet = await db.runTransaction(async (tx) => {
       const [user, stock] = await Promise.all([tx.get(userRef), gift.limited ? tx.get(stockRef) : Promise.resolve(null)]);
@@ -345,8 +350,8 @@ export async function POST(req: NextRequest) {
         if (gift.nft) minted = rollNft(sold + 1, gift.limited, () => randomInt(0, 1_000_000) / 1_000_000, gift.category === "halloween");
       }
       tx.set(userRef, { miliWallet: FieldValue.increment(-gift.price) }, { merge: true });
-      tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, at: now });
-      tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, ...(minted ? { nft: minted } : {}), ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
+      opCode = ledger(db, tx, { type: "gift_send", from: me.uid, to: toUid, amount: gift.price, ref: giftRef.id, name: gift.title, at: now, extra: { giftId: gift.id, anonymous, ...(minted ? { nftNumber: (minted as GiftNft).number } : {}) } }, [{ uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, name: gift.title, at: now }]);
+      tx.set(giftRef, { giftId: gift.id, from: me.uid, to: toUid, price: gift.price, at: now, hidden: false, anonymous, code: opCode, ...(minted ? { nft: minted } : {}), ...(message ? { message } : {}) } satisfies Omit<MessengerGift, "id">);
       return have - gift.price;
     });
   } catch (e: any) {
@@ -362,10 +367,10 @@ export async function POST(req: NextRequest) {
       await chatRef.set({ type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] });
       chat = { id: chatId, type: "dm", members: Array.from(new Set([me.uid, toUid])), admins: [], createdBy: me.uid, updatedAt: now, readBy: {}, pinnedMessageIds: [] };
     }
-    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
+    if (chat) await postMessage({ chat, sender: me, kind: "gift", text: message || undefined, extra: { gift: { giftId: gift.id, giftDocId: giftRef.id, price: gift.price, to: toUid, code: opCode, ...(anonymous ? { anonymous: true } : {}), ...(minted ? { nft: minted } : {}) } } });
   } catch (err) {
     console.error("gift chat message error:", err);
   }
-  return NextResponse.json({ ok: true, id: giftRef.id, wallet, ...(minted ? { nft: minted } : {}) });
+  return NextResponse.json({ ok: true, id: giftRef.id, code: opCode, wallet, ...(minted ? { nft: minted } : {}) });
 }
 

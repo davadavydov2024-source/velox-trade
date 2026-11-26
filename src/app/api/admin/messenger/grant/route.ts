@@ -7,6 +7,7 @@ import { dmChatId, ensureServiceAccount, postMessage, sendServiceMessage, SERVIC
 import { giftById, GIFT_MESSAGE_MAX, type GiftNft, type MessengerGift } from "@/lib/messenger/gifts";
 import { NFT_BACKDROPS, NFT_MODELS, NFT_SYMBOLS, rollNft, type NftTrait } from "@/lib/messenger/nft";
 import type { MessengerAccount, MessengerChat } from "@/lib/messenger/types";
+import { ledger } from "@/lib/messenger/ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
       if (!Number.isFinite(amount) || amount < 1 || amount > 1_000_000) return err("Сумма 🪙: от 1 до 1 000 000");
       await db.runTransaction(async (tx) => {
         tx.set(db.collection("users").doc(uid), { miliWallet: FieldValue.increment(amount) }, { merge: true });
-        tx.set(db.collection("miliWalletLog").doc(), { uid, delta: amount, type: "admin_grant", ref: admin.uid, at: Date.now() });
+        ledger(db, tx, { type: "admin_grant", from: admin.uid, to: uid, amount, ref: admin.uid }, [{ uid, delta: amount, type: "admin_grant", ref: admin.uid }]);
       });
       await logAdminAccess(admin.uid, "messenger_grant_stars", { targetUid: uid, amount });
       sendServiceMessage(uid, `🪙 Администрация начислила вам ${amount} 🪙 — они уже в кошельке MiliGram.`).catch(() => {});
