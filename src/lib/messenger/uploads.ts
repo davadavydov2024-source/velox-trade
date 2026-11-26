@@ -1,5 +1,5 @@
 /** Лимиты загрузок мессенджера — общие для сервера (билет/проверка) и клиента (предварительная проверка файла). */
-export type UploadKind = "image" | "voice" | "videoNote" | "file" | "story-image" | "story-video" | "avatar" | "banner";
+export type UploadKind = "image" | "voice" | "videoNote" | "file" | "story-image" | "story-video" | "avatar" | "banner" | "music" | "music-cover";
 
 const IMG = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MB = 1024 * 1024;
@@ -13,4 +13,7 @@ export const UPLOAD_KINDS: Record<UploadKind, { types: string[]; max: number }> 
   "story-image": { types: IMG, max: 10 * MB },
   "story-video": { types: ["video/mp4", "video/webm", "video/quicktime"], max: 25 * MB },
   file: { types: ["application/pdf", "application/zip", "text/plain"], max: 20 * MB },
+  // «Музыка»: грузит только админ (билет проверяется в upload-ticket)
+  music: { types: ["audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/ogg", "audio/wav", "audio/x-wav"], max: 30 * MB },
+  "music-cover": { types: IMG, max: 5 * MB },
 };
