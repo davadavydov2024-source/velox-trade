@@ -2,41 +2,33 @@
 
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Mail, Send } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { mApi } from "@/lib/messenger/client";
+import { getFeatureFlags } from "@/lib/featureFlags";
+import "./auth-slasher.css";
 
 const authError = (code?: string) =>
   code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found" ? "Неверная почта или пароль"
   : code === "auth/too-many-requests" ? "Слишком много попыток, подожди немного" : "Не удалось войти";
 
-function Backdrop() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-3xl opacity-40" style={{ background: "radial-gradient(circle, #ff9800, transparent 65%)" }} />
-      <div className="absolute -bottom-40 -right-28 w-[480px] h-[480px] rounded-full blur-3xl opacity-35" style={{ background: "radial-gradient(circle, #ff4081, transparent 65%)" }} />
-    </div>
-  );
-}
-
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="h-full overflow-y-auto relative">
-      <Backdrop />
-      <div className="relative min-h-full flex items-center justify-center px-5 py-8">
-        <div className="w-full max-w-sm">{children}</div>
+    <div className="sl-auth">
+      <div className="sl-wrap">
+        <div className="sl-col">{children}</div>
       </div>
     </div>
   );
 }
 
-function Logo({ subtitle = "Быстрый и милый мессенджер Velox Trade" }: { subtitle?: string }) {
+function Logo({ subtitle = "Мессенджер Velox Trade" }: { subtitle?: string }) {
   return (
-    <div className="text-center mb-6">
+    <div className="sl-logo">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/miligram/icon-512.png" alt="MiliGram" className="w-28 h-28 mx-auto rounded-[30px] shadow-glow" />
-      <h1 className="text-3xl font-bold mt-4 tracking-tight">MiliGram</h1>
-      <p className="text-white/55 text-sm mt-1">{subtitle}</p>
+      <img src="/miligram/icon-512.png" alt="" />
+      <h1 className="sl-title">MiliGram</h1>
+      <p className="sl-sub">{subtitle}</p>
     </div>
   );
 }
@@ -142,7 +134,7 @@ function PasswordField({ value, onChange, placeholder, autoComplete }: { value: 
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
-      <input type={show ? "text" : "password"} autoComplete={autoComplete} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="input-field pr-12" required />
+      <input type={show ? "text" : "password"} autoComplete={autoComplete} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label="Пароль" className="input-field pr-12" required />
       <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 p-1" aria-label={show ? "Скрыть пароль" : "Показать пароль"}>
         {show ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
@@ -162,6 +154,100 @@ function HandleLine({ handle, edited, onEdit, onChange }: { handle: string; edit
   );
 }
 
+/** Вернуться в мессенджер после входа через Telegram (страница /auth/telegram-finish читает эту метку). */
+const RETURN_KEY = "mx-return";
+function startTelegramLogin() {
+  try { localStorage.setItem(RETURN_KEY, `/m|${Date.now()}`); } catch {}
+  window.location.href = "/api/auth/telegram-oidc/start";
+}
+
+function TelegramButton({ label }: { label: string }) {
+  return (
+    <button type="button" onClick={startTelegramLogin} className="btn-secondary sl-telegram w-full flex items-center justify-center gap-2.5 font-semibold">
+      <Send size={18} /> {label}
+    </button>
+  );
+}
+
+/**
+ * Сброс пароля по коду из письма (как при регистрации на Velox Trade): почта → 6 цифр → новый пароль.
+ * Работает и на экране входа (забыл пароль), и из Настроек (вошёл, но не помнишь текущий) — mode="settings" не перезаходит.
+ */
+export function ResetScreen({ initialEmail, onBack, mode = "login", lockEmail, onDone }: { initialEmail: string; onBack: () => void; mode?: "login" | "settings"; lockEmail?: boolean; onDone?: () => void }) {
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [cool, setCool] = useState(0);
+
+  useEffect(() => {
+    if (cool <= 0) return;
+    const t = setTimeout(() => setCool((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cool]);
+
+  async function sendCode(e?: FormEvent) {
+    e?.preventDefault();
+    if (!EMAIL_OK.test(email.trim())) return setError("Проверь почту — она записана неверно");
+    setBusy(true); setError(""); setInfo("");
+    try {
+      await mApi("password-reset", { email: email.trim() });
+      setStep("code"); setCool(45);
+      setInfo(`Если для ${email.trim()} есть аккаунт, мы отправили на неё 6-значный код. Проверь и папку «Спам».`);
+    } catch (err: any) { setError(errText(err)); }
+    setBusy(false);
+  }
+
+  async function confirm(e: FormEvent) {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(code.trim())) return setError("Код — 6 цифр из письма");
+    if (pw.length < 8) return setError("Пароль — минимум 8 символов");
+    setBusy(true); setError("");
+    try {
+      await mApi("password-reset", { email: email.trim(), code: code.trim(), password: pw });
+      if (mode === "login") await signInWithEmailAndPassword(auth, email.trim(), pw); // сразу входим с новым паролем
+      else onDone?.();
+    } catch (err: any) {
+      setError(err?.code?.startsWith?.("auth/") ? "Пароль изменён, но войти не удалось — попробуй войти вручную" : errText(err));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Shell>
+      <Logo subtitle="Восстановление пароля" />
+      <div className="card p-5 space-y-3">
+        {step === "email" ? (
+          <form noValidate onSubmit={sendCode} className="space-y-3">
+            <p className="text-sm text-white/60">{lockEmail ? "Пришлём 6-значный код на твою почту — по нему можно задать новый пароль, текущий знать не нужно." : "Укажи почту аккаунта — пришлём на неё 6-значный код для нового пароля."}</p>
+            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" aria-label="Почта" className="input-field" required readOnly={lockEmail} />
+            {error && <p className="text-sm text-red-300">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />} Отправить код
+            </button>
+          </form>
+        ) : (
+          <form noValidate onSubmit={confirm} className="space-y-3">
+            {info && <p className="text-sm text-white/60">{info}</p>}
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Код из письма" className="input-field text-center tracking-[0.4em]" required />
+            <PasswordField value={pw} onChange={setPw} autoComplete="new-password" placeholder="Новый пароль (от 8 символов)" />
+            {error && <p className="text-sm text-red-300">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
+              {busy && <Loader2 size={18} className="animate-spin" />} Сохранить пароль
+            </button>
+            <button type="button" disabled={busy || cool > 0} onClick={() => sendCode()} className="block mx-auto text-xs text-accent disabled:opacity-40">{cool > 0 ? `Отправить код ещё раз (${cool} с)` : "Отправить код ещё раз"}</button>
+          </form>
+        )}
+        <p className="text-xs text-white/40">Регистрировался только через Telegram — пароля нет: войди через Telegram, а почту и пароль можно добавить в Настройках.</p>
+      </div>
+      <button onClick={onBack} className="mx-auto mt-4 text-xs text-white/50 flex items-center gap-1"><ArrowLeft size={13} /> {mode === "login" ? "Вернуться ко входу" : "Назад"}</button>
+    </Shell>
+  );
+}
+
 export function AuthScreens() {
   const [mode, setMode] = useState<"login" | "register">("register");
   const open = useGate();
@@ -174,6 +260,10 @@ export function AuthScreens() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [tg, setTg] = useState<{ code: string; botUrl: string } | null>(null);
+  const [withTelegram, setWithTelegram] = useState(false); // «почта + Telegram»: привязать бота прямо сейчас (необязательно)
+  const [resetting, setResetting] = useState(false);
+  const [tgEnabled, setTgEnabled] = useState(false);
+  useEffect(() => { getFeatureFlags().then((f) => setTgEnabled(!!(f.telegramLoginEnabled || f.telegramRegisterEnabled))).catch(() => {}); }, []);
 
   // пока человек не менял @username вручную — показываем предложенный по имени
   const shownHandle = handleEdited ? handle : handleBase(name, email) + "••••";
@@ -195,7 +285,10 @@ export function AuthScreens() {
       let h = handleEdited ? handle : suggestHandle(name, email);
       for (let attempt = 0; ; attempt++) {
         try {
-          setTg(await mApi<{ code: string; botUrl: string }>("signup", { gateToken, email: email.trim(), password, handle: h, displayName: name.trim() }));
+          const r = await mApi<{ done?: boolean; code?: string; botUrl?: string }>("signup", { gateToken, email: email.trim(), password, handle: h, displayName: name.trim(), telegram: withTelegram });
+          if (r.done) await signInWithEmailAndPassword(auth, email.trim(), password); // без Telegram: аккаунт готов, просто входим
+          else if (r.code && r.botUrl) setTg({ code: r.code, botUrl: r.botUrl });
+          else throw new Error("Сервер не вернул ссылку на бота. Попробуй ещё раз");
           break;
         } catch (err: any) {
           // автоподбор: если такой @username занят — тихо пробуем другой (вручную введённый не трогаем)
@@ -223,19 +316,22 @@ export function AuthScreens() {
     );
   }
 
+  if (resetting) return <ResetScreen initialEmail={email} onBack={() => setResetting(false)} />;
+
   const isReg = mode === "register";
   return (
     <Shell>
-      <Logo subtitle={isReg ? "Создай аккаунт за полминуты" : "С возвращением"} />
-      <div className="flex p-1 rounded-btn bg-white/5 border border-white/10 mb-3">
+      <Logo subtitle={isReg ? "Создайте аккаунт MiliGram" : "Войдите в аккаунт MiliGram"} />
+      <div className="sl-tabs">
         {([["register", "Регистрация"], ["login", "Вход"]] as const).map(([m, label]) => (
-          <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} className={`flex-1 py-2.5 rounded-[12px] text-sm font-semibold transition-all ${mode === m ? "bg-accent text-black shadow-glow" : "text-white/55"}`}>{label}</button>
+          <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} aria-pressed={mode === m} className={`sl-tab ${mode === m ? "sl-tab-on" : ""}`}>{label}</button>
         ))}
       </div>
       <form noValidate onSubmit={isReg ? register : login} className="card p-5 space-y-3">
-        {isReg && <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Как тебя зовут?" maxLength={40} className="input-field" required />}
-        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" className="input-field" required />
+        {isReg && <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" aria-label="Имя" maxLength={40} className="input-field" required />}
+        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Почта" aria-label="Почта" className="input-field" required />
         <PasswordField value={password} onChange={setPassword} autoComplete={isReg ? "new-password" : "current-password"} placeholder={isReg ? "Пароль (от 8 символов)" : "Пароль"} />
+        {!isReg && <button type="button" onClick={() => setResetting(true)} className="block ml-auto -mt-1 text-xs text-accent">Забыли пароль?</button>}
         {isReg && (
           <HandleLine handle={shownHandle} edited={handleEdited} onEdit={() => { setHandle(suggestHandle(name, email)); setHandleEdited(true); }} onChange={setHandle} />
         )}
@@ -244,8 +340,19 @@ export function AuthScreens() {
         <button type="submit" disabled={busy} className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2 disabled:opacity-60">
           {busy && <Loader2 size={18} className="animate-spin" />} {isReg ? "Создать аккаунт" : "Войти"}
         </button>
-        {isReg && <p className="text-[11.5px] text-white/40 flex gap-1.5 justify-center"><Send size={12} className="shrink-0 mt-0.5 text-[#229ED9]" /> В конце — один клик «Старт» в Telegram-боте.</p>}
+        {isReg && (
+          <label className="flex items-start gap-2.5 text-[12.5px] text-white/55 cursor-pointer select-none">
+            <input type="checkbox" checked={withTelegram} onChange={(e) => setWithTelegram(e.target.checked)} className="mt-0.5 sl-check" />
+            <span>Сразу привязать Telegram — придут уведомления о входах и работает вход по коду. Можно и позже в Настройках.</span>
+          </label>
+        )}
       </form>
+      {tgEnabled && (
+        <div className="mt-3 space-y-2.5">
+          <p className="text-center text-[11.5px] text-white/35">или без почты и пароля</p>
+          <TelegramButton label={isReg ? "Продолжить с Telegram" : "Войти через Telegram"} />
+        </div>
+      )}
     </Shell>
   );
 }
