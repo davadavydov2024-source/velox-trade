@@ -60,6 +60,11 @@ const CATALOG: GiftDef[] = [
   // — драгоценности и редкие, до 50 🪙
   { id: "diamond", emoji: "💎", title: "Алмаз", price: 50, category: "gems", colors: ["#123a4a", "#0a1a21"] },
   { id: "ring", emoji: "💍", title: "Кольцо", price: 50, category: "gems", colors: ["#2d2a4a", "#14122a"] },
+  // — коллекции NFT: у каждой 60 моделей (lib/messenger/collections.ts)
+  { id: "nft-button", emoji: "🔘", title: "Кнопка", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 5000 },
+  { id: "nft-hero", emoji: "🧸", title: "Персонаж", price: 45, category: "nft", nft: true, colors: ["#1b4a7a", "#0b1f33"], limited: 5000 },
+  { id: "nft-torch", emoji: "🔥", title: "Факел", price: 50, category: "nft", nft: true, colors: ["#2a5a2a", "#0e220e"], limited: 3000 },
+  { id: "nft-cigar", emoji: "💨", title: "Сигара", price: 35, category: "nft", nft: true, colors: ["#5a3a1f", "#24150a"], limited: 3000 },
   // — новая коллекция NFT: рисованные персонажи с анимацией (public/nft/<папка>/*.webp)
   { id: "nft-blackcat", emoji: "🐈‍⬛", title: "Чёрный кот", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 1000 },
   { id: "nft-ringbox", emoji: "💍", title: "Кольцо в коробочке", price: 50, category: "nft", nft: true, colors: ["#0f4a4f", "#071f22"], limited: 500 },
@@ -122,11 +127,8 @@ const CATALOG: GiftDef[] = [
   { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
-/** NFT, которые продаются сейчас: 4 новых анимированных + 11 из прежней коллекции = 15. Остальные старые NFT сняты с продажи, но у тех, кому они уже подарены, остаются. Обычные подарки не затрагиваются. */
-const CURRENT_NFT = new Set([
-  "nft-blackcat", "nft-ringbox", "nft-jelly", "nft-plush",
-  "crown", "dragon", "nft-unicorn", "nft-phoenix", "nft-fox", "nft-wolf", "nft-whale", "nft-ufo", "nft-robot", "nft-butterfly", "rocket",
-]);
+/** Сейчас продаются только 4 коллекции NFT. Все прежние NFT сняты с продажи, но у тех, кому они уже подарены, остаются и показываются. Обычные подарки не затрагиваются. */
+const CURRENT_NFT = new Set(["nft-button", "nft-hero", "nft-torch", "nft-cigar"]);
 export const GIFTS: GiftDef[] = CATALOG.map((g) => (g.nft && !CURRENT_NFT.has(g.id) ? { ...g, retired: true } : g));
 
 export const GIFT_UPGRADE_MIN = 15;
