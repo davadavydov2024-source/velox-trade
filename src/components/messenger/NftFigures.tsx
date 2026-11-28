@@ -691,7 +691,7 @@ NFT_FIGURES["nft-kolobok"] = (
   <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>{nfImg("kolobok", "base")}</g>
 );
 
-export function NftFigure({ id }: { id: string }) {
+export function NftFigure({ id }: { id: string; model?: string }) {
   const fig = NFT_FIGURES[id];
   if (!fig) return null;
   return <g transform="translate(40 34) scale(1.2)">{fig}</g>;
