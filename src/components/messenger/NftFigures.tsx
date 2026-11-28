@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { COLLECTIONS } from "@/lib/messenger/collections";
 
 /**
  * Векторные фигурки NFT-подарков (вместо эмодзи). Все нарисованы в квадрате 100×100 и подставляются в NftArt.
@@ -621,80 +622,12 @@ NFT_FIGURES["nft-ringbox"] = (
   </>
 );
 
-// ——— Коллекция «Какашки»: один слой на персонажа (public/nft/poop/<имя>.webp), живёт за счёт движения всего тела и искр.
-const poopImg = (name: string) => <image href={`/nft/poop/${name}.webp`} x="0" y="0" width="100" height="100" />;
-
-NFT_FIGURES["nft-poop-pink"] = (
-  <>
-    <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "50% 98%" }}>{poopImg("pink")}</g>
-    {nfStar(24, 40, 1.4, 0.2)}{nfStar(78, 30, 1.1, 1.1)}{nfStar(70, 62, 0.9, 1.8)}
-  </>
-);
-
-NFT_FIGURES["nft-poop-cat"] = (
-  <g className="mx-nf mx-nf-breathe" style={{ transformOrigin: "50% 98%" }}>
-    {poopImg("cat")}
-  </g>
-);
-
-NFT_FIGURES["nft-poop-black"] = (
-  <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>
-    {poopImg("black")}
-  </g>
-);
-
-NFT_FIGURES["nft-poop-gold"] = (
-  <>
-    <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "50% 98%" }}>{poopImg("gold")}</g>
-    {nfStar(34, 40, 1.6, 0)}{nfStar(62, 48, 1.3, 0.7)}{nfStar(48, 22, 1.1, 1.4)}{nfStar(72, 66, 1.0, 2.0)}
-  </>
-);
-
-NFT_FIGURES["nft-poop-angel"] = (
-  <g className="mx-nf mx-nf-bob">
-    {poopImg("angel")}
-    {nfStar(22, 28, 1.3, 0.3)}{nfStar(80, 24, 1.2, 1.2)}{nfStar(50, 8, 1.0, 1.9)}
-  </g>
-);
-
-// ——— Коллекция «Для девушки» (public/nft/girl/<имя>.webp) и Колобок (public/nft/kolobok/base.webp).
-NFT_FIGURES["nft-girl-ring"] = (
-  <>
-    <g className="mx-nf mx-nf-ring">{nfImg("girl", "ring")}</g>
-    {nfStar(42, 36, 1.4, 0)}{nfStar(58, 52, 1.0, 0.9)}{nfStar(34, 62, 1.1, 1.6)}
-  </>
-);
-
-NFT_FIGURES["nft-girl-love"] = (
-  <>
-    <g className="mx-nf mx-nf-breathe" style={{ transformOrigin: "50% 98%" }}>{nfImg("girl", "flowers")}</g>
-    {nfStar(30, 30, 1.3, 0.2)}{nfStar(72, 22, 1.0, 1.1)}
-  </>
-);
-
-NFT_FIGURES["nft-girl-berries"] = (
-  <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "50% 98%" }}>{nfImg("girl", "berries")}</g>
-);
-
-NFT_FIGURES["nft-girl-key"] = (
-  <g className="mx-nf mx-nf-heart" style={{ transformOrigin: "50% 60%" }}>{nfImg("girl", "keyheart")}</g>
-);
-
-NFT_FIGURES["nft-girl-web"] = (
-  <>
-    <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>{nfImg("girl", "web")}</g>
-    {nfStar(30, 34, 1.2, 0.4)}{nfStar(70, 40, 1.4, 1.3)}{nfStar(52, 70, 1.0, 2.0)}
-  </>
-);
-
-NFT_FIGURES["nft-kolobok"] = (
-  <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>{nfImg("kolobok", "base")}</g>
-);
-
-export function NftFigure({ id }: { id: string; model?: string }) {
+export function NftFigure({ id, model }: { id: string; model?: string }) {
+  const col = COLLECTIONS[id]; // коллекции (по 60 моделей): рисуются строкой SVG по названию модели
+  if (col) return <g transform="translate(40 34) scale(1.2)" dangerouslySetInnerHTML={{ __html: col.render(model ?? col.models[0].name) }} />;
   const fig = NFT_FIGURES[id];
   if (!fig) return null;
   return <g transform="translate(40 34) scale(1.2)">{fig}</g>;
 }
 
-export const hasNftFigure = (id: string) => id in NFT_FIGURES;
+export const hasNftFigure = (id: string) => id in NFT_FIGURES || id in COLLECTIONS;

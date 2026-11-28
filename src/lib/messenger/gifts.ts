@@ -60,21 +60,13 @@ const CATALOG: GiftDef[] = [
   // — драгоценности и редкие, до 50 🪙
   { id: "diamond", emoji: "💎", title: "Алмаз", price: 50, category: "gems", colors: ["#123a4a", "#0a1a21"] },
   { id: "ring", emoji: "💍", title: "Кольцо", price: 50, category: "gems", colors: ["#2d2a4a", "#14122a"] },
+  // — коллекции NFT: у каждой 60 моделей (lib/messenger/collections.ts)
+  { id: "nft-button", emoji: "🔘", title: "Кнопка", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 5000 },
+  { id: "nft-hero", emoji: "🧸", title: "Персонаж", price: 45, category: "nft", nft: true, colors: ["#1b4a7a", "#0b1f33"], limited: 5000 },
+  { id: "nft-torch", emoji: "🔥", title: "Факел", price: 50, category: "nft", nft: true, colors: ["#2a5a2a", "#0e220e"], limited: 3000 },
+  { id: "nft-cigar", emoji: "💨", title: "Сигара", price: 35, category: "nft", nft: true, colors: ["#5a3a1f", "#24150a"], limited: 3000 },
   // — новая коллекция NFT: рисованные персонажи с анимацией (public/nft/<папка>/*.webp)
   { id: "nft-blackcat", emoji: "🐈‍⬛", title: "Чёрный кот", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 1000 },
-  // — коллекция «Какашки» (public/nft/poop/*.webp)
-  { id: "nft-poop-pink", emoji: "💩", title: "Какашка-принцесса", price: 35, category: "nft", nft: true, colors: ["#6a2a5e", "#26102a"], limited: 2000 },
-  { id: "nft-poop-cat", emoji: "💩", title: "Какашка-кошка", price: 30, category: "nft", nft: true, colors: ["#3f3a52", "#17141f"], limited: 3000 },
-  { id: "nft-poop-black", emoji: "💩", title: "Какашка-байкер", price: 40, category: "nft", nft: true, colors: ["#2d2536", "#100c16"], limited: 1500 },
-  { id: "nft-poop-gold", emoji: "💩", title: "Золотая какашка", price: 50, category: "nft", nft: true, colors: ["#5a4210", "#241a07"], limited: 500 },
-  { id: "nft-poop-angel", emoji: "💩", title: "Какашка-ангел", price: 50, category: "nft", nft: true, colors: ["#4a4a6e", "#181a30"], limited: 300 },
-  // — коллекция «Для девушки» (public/nft/girl/*.webp) и Колобок (public/nft/kolobok/base.webp)
-  { id: "nft-girl-ring", emoji: "💍", title: "Кольцо в сердце-шкатулке", price: 50, category: "nft", nft: true, colors: ["#5a1f6e", "#1f0b2a"], limited: 500 },
-  { id: "nft-girl-love", emoji: "💌", title: "Цветочная коробка Love You", price: 45, category: "nft", nft: true, colors: ["#6a2a5a", "#260f22"], limited: 800 },
-  { id: "nft-girl-berries", emoji: "🍓", title: "Клубника в шоколаде", price: 35, category: "nft", nft: true, colors: ["#5a1f3a", "#220b17"], limited: 2000 },
-  { id: "nft-girl-key", emoji: "❤️", title: "Сердце с ключиком", price: 40, category: "nft", nft: true, colors: ["#5a1a22", "#210a0d"], limited: 1500 },
-  { id: "nft-girl-web", emoji: "💗", title: "Сердце в паутинке", price: 35, category: "nft", nft: true, colors: ["#4f2a6e", "#1c0f2a"], limited: 2000 },
-  { id: "nft-kolobok", emoji: "😏", title: "Колобок", price: 40, category: "nft", nft: true, colors: ["#5a4010", "#241807"], limited: 1500 },
   { id: "nft-ringbox", emoji: "💍", title: "Кольцо в коробочке", price: 50, category: "nft", nft: true, colors: ["#0f4a4f", "#071f22"], limited: 500 },
   { id: "nft-jelly", emoji: "🍮", title: "Желейный зайка", price: 35, category: "nft", nft: true, colors: ["#5a2a7a", "#22103a"], limited: 2000 },
   { id: "nft-plush", emoji: "🐸", title: "Плюшевая лягушка", price: 45, category: "nft", nft: true, colors: ["#5a2a4a", "#231019"], limited: 800 },
@@ -135,14 +127,8 @@ const CATALOG: GiftDef[] = [
   { id: "hw-candy", emoji: "🍬", title: "Конфета или жизнь", price: 25, category: "halloween", nft: true, colors: ["#4a2210", "#1c0c04"], limited: 2000 },
 ];
 
-/** NFT, которые продаются сейчас: 4 новых анимированных + 11 из прежней коллекции = 15. Остальные старые NFT сняты с продажи, но у тех, кому они уже подарены, остаются. Обычные подарки не затрагиваются. */
-const CURRENT_NFT = new Set([
-  "nft-blackcat", "nft-ringbox", "nft-jelly", "nft-plush",
-  "nft-poop-pink", "nft-poop-cat", "nft-poop-black", "nft-poop-gold", "nft-poop-angel",
-  "nft-girl-ring", "nft-girl-love", "nft-girl-berries", "nft-girl-key", "nft-girl-web", "nft-kolobok",
-  "nft-poop-pink", "nft-poop-cat", "nft-poop-black", "nft-poop-gold", "nft-poop-angel",
-  "crown", "dragon", "nft-unicorn", "nft-phoenix", "nft-fox", "nft-wolf", "nft-whale", "nft-ufo", "nft-robot", "nft-butterfly", "rocket",
-]);
+/** Сейчас продаются только 4 коллекции NFT. Все прежние NFT сняты с продажи, но у тех, кому они уже подарены, остаются и показываются. Обычные подарки не затрагиваются. */
+const CURRENT_NFT = new Set(["nft-button", "nft-hero", "nft-torch", "nft-cigar"]);
 export const GIFTS: GiftDef[] = CATALOG.map((g) => (g.nft && !CURRENT_NFT.has(g.id) ? { ...g, retired: true } : g));
 
 export const GIFT_UPGRADE_MIN = 15;
