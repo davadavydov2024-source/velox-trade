@@ -657,6 +657,40 @@ NFT_FIGURES["nft-poop-angel"] = (
   </g>
 );
 
+// ——— Коллекция «Для девушки» (public/nft/girl/<имя>.webp) и Колобок (public/nft/kolobok/base.webp).
+NFT_FIGURES["nft-girl-ring"] = (
+  <>
+    <g className="mx-nf mx-nf-ring">{nfImg("girl", "ring")}</g>
+    {nfStar(42, 36, 1.4, 0)}{nfStar(58, 52, 1.0, 0.9)}{nfStar(34, 62, 1.1, 1.6)}
+  </>
+);
+
+NFT_FIGURES["nft-girl-love"] = (
+  <>
+    <g className="mx-nf mx-nf-breathe" style={{ transformOrigin: "50% 98%" }}>{nfImg("girl", "flowers")}</g>
+    {nfStar(30, 30, 1.3, 0.2)}{nfStar(72, 22, 1.0, 1.1)}
+  </>
+);
+
+NFT_FIGURES["nft-girl-berries"] = (
+  <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "50% 98%" }}>{nfImg("girl", "berries")}</g>
+);
+
+NFT_FIGURES["nft-girl-key"] = (
+  <g className="mx-nf mx-nf-heart" style={{ transformOrigin: "50% 60%" }}>{nfImg("girl", "keyheart")}</g>
+);
+
+NFT_FIGURES["nft-girl-web"] = (
+  <>
+    <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>{nfImg("girl", "web")}</g>
+    {nfStar(30, 34, 1.2, 0.4)}{nfStar(70, 40, 1.4, 1.3)}{nfStar(52, 70, 1.0, 2.0)}
+  </>
+);
+
+NFT_FIGURES["nft-kolobok"] = (
+  <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>{nfImg("kolobok", "base")}</g>
+);
+
 export function NftFigure({ id }: { id: string }) {
   const fig = NFT_FIGURES[id];
   if (!fig) return null;

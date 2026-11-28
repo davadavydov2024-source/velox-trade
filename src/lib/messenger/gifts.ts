@@ -62,6 +62,13 @@ const CATALOG: GiftDef[] = [
   { id: "ring", emoji: "💍", title: "Кольцо", price: 50, category: "gems", colors: ["#2d2a4a", "#14122a"] },
   // — новая коллекция NFT: рисованные персонажи с анимацией (public/nft/<папка>/*.webp)
   { id: "nft-blackcat", emoji: "🐈‍⬛", title: "Чёрный кот", price: 40, category: "nft", nft: true, colors: ["#3a2f6b", "#150f33"], limited: 1000 },
+  // — коллекция «Для девушки» (public/nft/girl/*.webp) и Колобок (public/nft/kolobok/base.webp)
+  { id: "nft-girl-ring", emoji: "💍", title: "Кольцо в сердце-шкатулке", price: 50, category: "nft", nft: true, colors: ["#5a1f6e", "#1f0b2a"], limited: 500 },
+  { id: "nft-girl-love", emoji: "💌", title: "Цветочная коробка Love You", price: 45, category: "nft", nft: true, colors: ["#6a2a5a", "#260f22"], limited: 800 },
+  { id: "nft-girl-berries", emoji: "🍓", title: "Клубника в шоколаде", price: 35, category: "nft", nft: true, colors: ["#5a1f3a", "#220b17"], limited: 2000 },
+  { id: "nft-girl-key", emoji: "❤️", title: "Сердце с ключиком", price: 40, category: "nft", nft: true, colors: ["#5a1a22", "#210a0d"], limited: 1500 },
+  { id: "nft-girl-web", emoji: "💗", title: "Сердце в паутинке", price: 35, category: "nft", nft: true, colors: ["#4f2a6e", "#1c0f2a"], limited: 2000 },
+  { id: "nft-kolobok", emoji: "😏", title: "Колобок", price: 40, category: "nft", nft: true, colors: ["#5a4010", "#241807"], limited: 1500 },
   // — коллекция «Какашки» (public/nft/poop/*.webp)
   { id: "nft-poop-pink", emoji: "💩", title: "Какашка-принцесса", price: 35, category: "nft", nft: true, colors: ["#6a2a5e", "#26102a"], limited: 2000 },
   { id: "nft-poop-cat", emoji: "💩", title: "Какашка-кошка", price: 30, category: "nft", nft: true, colors: ["#3f3a52", "#17141f"], limited: 3000 },
@@ -132,6 +139,7 @@ const CATALOG: GiftDef[] = [
 const CURRENT_NFT = new Set([
   "nft-blackcat", "nft-ringbox", "nft-jelly", "nft-plush",
   "nft-poop-pink", "nft-poop-cat", "nft-poop-black", "nft-poop-gold", "nft-poop-angel",
+  "nft-girl-ring", "nft-girl-love", "nft-girl-berries", "nft-girl-key", "nft-girl-web", "nft-kolobok",
   "crown", "dragon", "nft-unicorn", "nft-phoenix", "nft-fox", "nft-wolf", "nft-whale", "nft-ufo", "nft-robot", "nft-butterfly", "rocket",
 ]);
 export const GIFTS: GiftDef[] = CATALOG.map((g) => (g.nft && !CURRENT_NFT.has(g.id) ? { ...g, retired: true } : g));
