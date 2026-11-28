@@ -75,12 +75,6 @@ const CATALOG: GiftDef[] = [
   { id: "nft-girl-key", emoji: "❤️", title: "Сердце с ключиком", price: 40, category: "nft", nft: true, colors: ["#5a1a22", "#210a0d"], limited: 1500 },
   { id: "nft-girl-web", emoji: "💗", title: "Сердце в паутинке", price: 35, category: "nft", nft: true, colors: ["#4f2a6e", "#1c0f2a"], limited: 2000 },
   { id: "nft-kolobok", emoji: "😏", title: "Колобок", price: 40, category: "nft", nft: true, colors: ["#5a4010", "#241807"], limited: 1500 },
-  // — коллекция «Какашки» (public/nft/poop/*.webp)
-  { id: "nft-poop-pink", emoji: "💩", title: "Какашка-принцесса", price: 35, category: "nft", nft: true, colors: ["#6a2a5e", "#26102a"], limited: 2000 },
-  { id: "nft-poop-cat", emoji: "💩", title: "Какашка-кошка", price: 30, category: "nft", nft: true, colors: ["#3f3a52", "#17141f"], limited: 3000 },
-  { id: "nft-poop-black", emoji: "💩", title: "Какашка-байкер", price: 40, category: "nft", nft: true, colors: ["#2d2536", "#100c16"], limited: 1500 },
-  { id: "nft-poop-gold", emoji: "💩", title: "Золотая какашка", price: 50, category: "nft", nft: true, colors: ["#5a4210", "#241a07"], limited: 500 },
-  { id: "nft-poop-angel", emoji: "💩", title: "Какашка-ангел", price: 50, category: "nft", nft: true, colors: ["#4a4a6e", "#181a30"], limited: 300 },
   { id: "nft-ringbox", emoji: "💍", title: "Кольцо в коробочке", price: 50, category: "nft", nft: true, colors: ["#0f4a4f", "#071f22"], limited: 500 },
   { id: "nft-jelly", emoji: "🍮", title: "Желейный зайка", price: 35, category: "nft", nft: true, colors: ["#5a2a7a", "#22103a"], limited: 2000 },
   { id: "nft-plush", emoji: "🐸", title: "Плюшевая лягушка", price: 45, category: "nft", nft: true, colors: ["#5a2a4a", "#231019"], limited: 800 },

@@ -657,42 +657,6 @@ NFT_FIGURES["nft-poop-angel"] = (
   </g>
 );
 
-// ——— Коллекция «Какашки»: один слой на персонажа (public/nft/poop/<имя>.webp), живёт за счёт движения всего тела и искр.
-const poopImg = (name: string) => <image href={`/nft/poop/${name}.webp`} x="0" y="0" width="100" height="100" />;
-
-NFT_FIGURES["nft-poop-pink"] = (
-  <>
-    <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "50% 98%" }}>{poopImg("pink")}</g>
-    {nfStar(24, 40, 1.4, 0.2)}{nfStar(78, 30, 1.1, 1.1)}{nfStar(70, 62, 0.9, 1.8)}
-  </>
-);
-
-NFT_FIGURES["nft-poop-cat"] = (
-  <g className="mx-nf mx-nf-breathe" style={{ transformOrigin: "50% 98%" }}>
-    {poopImg("cat")}
-  </g>
-);
-
-NFT_FIGURES["nft-poop-black"] = (
-  <g className="mx-nf mx-nf-wobble" style={{ transformOrigin: "50% 98%" }}>
-    {poopImg("black")}
-  </g>
-);
-
-NFT_FIGURES["nft-poop-gold"] = (
-  <>
-    <g className="mx-nf mx-nf-jelly" style={{ transformOrigin: "50% 98%" }}>{poopImg("gold")}</g>
-    {nfStar(34, 40, 1.6, 0)}{nfStar(62, 48, 1.3, 0.7)}{nfStar(48, 22, 1.1, 1.4)}{nfStar(72, 66, 1.0, 2.0)}
-  </>
-);
-
-NFT_FIGURES["nft-poop-angel"] = (
-  <g className="mx-nf mx-nf-bob">
-    {poopImg("angel")}
-    {nfStar(22, 28, 1.3, 0.3)}{nfStar(80, 24, 1.2, 1.2)}{nfStar(50, 8, 1.0, 1.9)}
-  </g>
-);
-
 // ——— Коллекция «Для девушки» (public/nft/girl/<имя>.webp) и Колобок (public/nft/kolobok/base.webp).
 NFT_FIGURES["nft-girl-ring"] = (
   <>
