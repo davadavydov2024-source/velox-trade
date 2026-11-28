@@ -342,7 +342,7 @@ export async function POST(req: NextRequest) {
         if (sold >= gift.limited) throw new Error("sold-out");
         tx.set(stockRef, { sold: sold + 1 }, { merge: true });
         // NFT: номер = порядковый в тираже, признаки выпадают случайно (криптослучайность)
-        if (gift.nft) minted = rollNft(sold + 1, gift.limited, () => randomInt(0, 1_000_000) / 1_000_000, gift.category === "halloween");
+        if (gift.nft) minted = rollNft(sold + 1, gift.limited, () => randomInt(0, 1_000_000) / 1_000_000, gift.category === "halloween", gift.id);
       }
       tx.set(userRef, { miliWallet: FieldValue.increment(-gift.price) }, { merge: true });
       tx.set(db.collection("miliWalletLog").doc(), { uid: me.uid, delta: -gift.price, type: "purchase", ref: `gift_${gift.id}`, at: now });

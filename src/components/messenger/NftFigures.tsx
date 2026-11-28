@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { COLLECTIONS } from "@/lib/messenger/collections";
 
 /**
  * Векторные фигурки NFT-подарков (вместо эмодзи). Все нарисованы в квадрате 100×100 и подставляются в NftArt.
@@ -621,10 +622,12 @@ NFT_FIGURES["nft-ringbox"] = (
   </>
 );
 
-export function NftFigure({ id }: { id: string }) {
+export function NftFigure({ id, model }: { id: string; model?: string }) {
+  const col = COLLECTIONS[id]; // коллекции (по 60 моделей): рисуются строкой SVG по названию модели
+  if (col) return <g transform="translate(40 34) scale(1.2)" dangerouslySetInnerHTML={{ __html: col.render(model ?? col.models[0].name) }} />;
   const fig = NFT_FIGURES[id];
   if (!fig) return null;
   return <g transform="translate(40 34) scale(1.2)">{fig}</g>;
 }
 
-export const hasNftFigure = (id: string) => id in NFT_FIGURES;
+export const hasNftFigure = (id: string) => id in NFT_FIGURES || id in COLLECTIONS;

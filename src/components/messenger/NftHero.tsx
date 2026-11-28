@@ -45,7 +45,7 @@ export function NftHero({ gift, nft, footer }: { gift: GiftDef; nft: GiftNft; fo
           <g className="mx-nft-float">
             <g className={moveAnim ? `mx-nft-${m.anim}` : undefined}>
               {hasNftFigure(gift.id)
-                ? <g className={filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><NftFigure id={gift.id} /></g>
+                ? <g className={filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><NftFigure id={gift.id} model={nft.model} /></g>
                 : <text x="100" y="124" fontSize="88" textAnchor="middle" className={filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}>{gift.emoji}</text>}
             </g>
           </g>

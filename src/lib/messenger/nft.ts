@@ -6,6 +6,7 @@
  * Новые признаки только ДОБАВЛЯЮТСЯ в конец списков — уже выданные NFT ссылаются на признаки по названию.
  */
 import type { GiftNft } from "./gifts";
+import { COLLECTIONS } from "./collections";
 
 export interface NftTrait { name: string; rarity: number; hw?: boolean } // hw — признак только для хеллоуинской коллекции
 export interface NftBackdrop extends NftTrait { colors: [string, string] }
@@ -44,6 +45,11 @@ export const NFT_BACKDROPS: NftBackdrop[] = [
   { name: "Призрачный фиолет", colors: ["#9a5cff", "#10061f"], rarity: 25, hw: true },
   { name: "Адское пламя", colors: ["#ff4b1f", "#000000"], rarity: 10, hw: true },
 ];
+
+/** Модели коллекций (Кнопка, Персонаж, Факел, Сигара): у каждой свои модели (отдельные картинки), вес выпадения в промилле, сумма по коллекции = 1000. Фильтров цвета нет — у каждой модели своя картинка. */
+const COLLECTION_MODEL_INDEX = new Map<string, NftModel>(
+  Object.values(COLLECTIONS).flatMap((c) => c.models.map((m): [string, NftModel] => [m.name, { name: m.name, rarity: m.rarity, hue: 0, sat: 1 }])),
+);
 
 export const NFT_MODELS: NftModel[] = [
   { name: "Классика", hue: 0, sat: 1, rarity: 300 },
@@ -102,13 +108,14 @@ function pick<T extends NftTrait>(list: T[], rnd: number): T {
 }
 
 /** Случайные признаки нового экземпляра. rnd — функция [0,1) (на сервере передаём crypto). */
-export function rollNft(number: number, supply: number, rnd: () => number = Math.random, halloween = false): GiftNft {
+export function rollNft(number: number, supply: number, rnd: () => number = Math.random, halloween = false, collection?: string): GiftNft {
+  const col = collection ? COLLECTIONS[collection] : undefined; // подарок-коллекция: модель из его моделей
   const pool = <T extends NftTrait>(l: T[]) => l.filter((t) => !!t.hw === halloween); // обычные NFT — без хеллоуинских признаков и наоборот
-  return { number, supply, model: pick(pool(NFT_MODELS), rnd()).name, backdrop: pick(pool(NFT_BACKDROPS), rnd()).name, symbol: pick(pool(NFT_SYMBOLS), rnd()).name };
+  return { number, supply, model: col ? pick(col.models, rnd()).name : pick(pool(NFT_MODELS), rnd()).name, backdrop: pick(pool(NFT_BACKDROPS), rnd()).name, symbol: pick(pool(NFT_SYMBOLS), rnd()).name };
 }
 
 export const backdropOf = (name: string) => NFT_BACKDROPS.find((b) => b.name === name) ?? NFT_BACKDROPS[0];
-export const modelOf = (name: string) => NFT_MODELS.find((m) => m.name === name) ?? NFT_MODELS[0];
+export const modelOf = (name: string): NftModel => NFT_MODELS.find((m) => m.name === name) ?? COLLECTION_MODEL_INDEX.get(name) ?? NFT_MODELS[0];
 export const symbolOf = (name: string) => NFT_SYMBOLS.find((s) => s.name === name) ?? NFT_SYMBOLS[0];
 /** «1.4%» из промилле */
 export const rarityPct = (r: number) => `${(r / 10).toFixed(r % 10 === 0 ? 0 : 1)}%`;
@@ -132,7 +139,8 @@ function prob<T extends NftTrait>(list: T[], name: string): number {
 
 /** Шанс именно такого сочетания признаков (0…1). */
 export function nftComboChance(nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): number {
-  return prob(NFT_MODELS, nft.model) * prob(NFT_BACKDROPS, nft.backdrop) * prob(NFT_SYMBOLS, nft.symbol);
+  const cm = COLLECTION_MODEL_INDEX.get(nft.model); // модели коллекций считаются внутри своей коллекции (сумма 1000‰)
+  return (cm ? cm.rarity / 1000 : prob(NFT_MODELS, nft.model)) * prob(NFT_BACKDROPS, nft.backdrop) * prob(NFT_SYMBOLS, nft.symbol);
 }
 
 export function nftTier(nft: Pick<GiftNft, "model" | "backdrop" | "symbol">): NftTierId {

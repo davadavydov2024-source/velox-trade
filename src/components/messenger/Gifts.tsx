@@ -78,7 +78,7 @@ export function NftArt({ gift, nft, size = 96, sample, motion }: { gift: GiftDef
         <g className={live ? "mx-nft-float" : undefined}>
           <g className={live && moveAnim ? `mx-nft-${m.anim}` : undefined}>
             {hasNftFigure(gift.id)
-              ? <g className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><g filter={`url(#lit${uid})`}><NftFigure id={gift.id} /></g></g>
+              ? <g className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}><g filter={`url(#lit${uid})`}><NftFigure id={gift.id} model={nft.model} /></g></g>
               : <text x="100" y="124" fontSize="88" textAnchor="middle" className={live && filterAnim ? `mx-nft-${m.anim}` : undefined} style={figureStyle}>{gift.emoji}</text>}
           </g>
         </g>
@@ -170,7 +170,7 @@ export function GiftShopSheet({ open, onClose, toUid, toName, onSent, me }: { op
   const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
-  const sample = useMemo(() => rollNft(1, 1, Math.random, picked?.category === "halloween"), [picked?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sample = useMemo(() => rollNft(1, 1, Math.random, picked?.category === "halloween", picked?.id), [picked?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [target, setTarget] = useState<{ uid: string; name: string } | null>(toUid ? { uid: toUid, name: toName ?? "" } : null);
   const { results } = usePeopleSearch(q, open && !target);
 

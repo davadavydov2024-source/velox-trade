@@ -41,7 +41,7 @@ export function GiftTile({ g, mine, onClick, extra }: { g: GiftView; mine: boole
         <img src={nft.imageUrl} alt="" className="relative w-[78%] h-[78%] object-contain" draggable={false} />
       ) : nft && m && hasNftFigure(d.id) ? (
         <svg viewBox="0 0 200 200" className="relative w-[80%] h-[80%]" style={{ filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.5))" }}>
-          <g style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) brightness(${m.bright ?? 1})`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}><NftFigure id={d.id} /></g>
+          <g style={{ filter: `hue-rotate(${m.hue}deg) saturate(${m.sat}) brightness(${m.bright ?? 1})`, transform: m.flip ? "scaleX(-1)" : undefined, transformOrigin: "100px 0px", transformBox: "view-box" } as React.CSSProperties}><NftFigure id={d.id} model={nft.model} /></g>
         </svg>
       ) : (
         <span className="relative" style={{ fontSize: 50, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.4))" }}>{d.emoji}</span>
